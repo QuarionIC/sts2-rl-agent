@@ -168,6 +168,20 @@ class TestRegentParityExtra3:
         assert combat.play_card(0)
         assert combat.player.get_power_amount(PowerId.SWORD_SAGE) == 1
 
+    def test_sword_sage_increases_sovereign_blade_cost_and_repeats(self):
+        """Matches SwordSagePower.cs: SovereignBlade costs +Amount and repeats Amount+1 times."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        blade = create_card(CardId.SOVEREIGN_BLADE)
+        combat.hand = [blade]
+        combat.energy = 3
+        combat.apply_power_to(combat.player, PowerId.SWORD_SAGE, 1)
+
+        assert combat.modified_card_cost(combat.player, blade) == 3
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == 80
+
     def test_tyranny_upgrade_adds_innate_and_power_increases_turn_draw(self):
         """Matches Tyranny.cs + TyrannyPower.cs: upgraded Innate and +draw from power."""
         upgraded = create_card(CardId.TYRANNY_CARD, upgraded=True)
