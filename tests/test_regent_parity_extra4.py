@@ -112,6 +112,29 @@ class TestRegentParityExtra4:
         assert combat.pending_choice is not None
         assert combat.resolve_pending_choice(None)
 
+    def test_pale_blue_dot_draws_extra_after_five_cards_played_last_round(self):
+        combat = _make_combat()
+        combat.player.apply_power(PowerId.PALE_BLUE_DOT, 1)
+        combat.hand = [make_defend_regent() for _ in range(4)]
+        combat.draw_pile = [make_defend_regent() for _ in range(8)]
+        combat.energy = 4
+
+        for _ in range(4):
+            assert combat.play_card(0)
+
+        combat.end_player_turn()
+        assert len(combat.hand) == 5
+
+        combat.hand = [make_defend_regent() for _ in range(5)]
+        combat.draw_pile = [make_defend_regent() for _ in range(8)]
+        combat.energy = 5
+
+        for _ in range(5):
+            assert combat.play_card(0)
+
+        combat.end_player_turn()
+        assert len(combat.hand) == 6
+
     def test_spectrum_shift_generates_colorless_card_before_next_hand_draw(self):
         combat = _make_combat()
         combat.hand = [make_spectrum_shift()]

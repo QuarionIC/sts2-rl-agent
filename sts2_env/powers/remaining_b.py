@@ -1310,15 +1310,10 @@ class PaleBlueDotPower(PowerInstance):
         super().__init__(PowerId.PALE_BLUE_DOT, amount)
 
     def modify_hand_draw(self, owner: Creature, draw: int) -> int:
-        # Check cards played last turn via combat state
-        last_turn_plays = getattr(owner, "_cards_played_last_turn", 0)
-        if last_turn_plays == 0:
-            # Try combat state helper
-            combat = getattr(owner, "_combat", None)
-            if combat is not None:
-                fn = getattr(combat, "cards_played_last_round", None)
-                if fn is not None:
-                    last_turn_plays = fn(owner)
+        combat = getattr(owner, "combat_state", None)
+        last_turn_plays = 0
+        if combat is not None:
+            last_turn_plays = combat.count_cards_played_last_round(owner)
         if last_turn_plays >= self.CARD_PLAY_THRESHOLD:
             return draw + self.amount
         return draw

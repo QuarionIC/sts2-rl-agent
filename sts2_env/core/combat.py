@@ -148,6 +148,7 @@ class CombatState:
         self._legacy_extra_card_rewards: int = 0
         self._played_cards_this_turn: list[CardInstance] = []
         self._played_cards_combat: list[CardInstance] = []
+        self._card_play_round_counts: dict[tuple[int, Creature], int] = {}
 
         for ally in ally_players or ():
             self.add_ally_player(ally)
@@ -729,6 +730,7 @@ class CombatState:
         self._generated_cards_combat = []
         self._played_cards_this_turn = []
         self._played_cards_combat = []
+        self._card_play_round_counts = {}
         self.extra_card_rewards = 0
 
         for state in self.combat_player_states:
@@ -1375,6 +1377,7 @@ class CombatState:
                     apply_enchantment_after_card_played(card)
                 self._played_cards_this_turn.append(card)
                 self._played_cards_combat.append(card)
+                self._record_finished_card_play(owner)
                 ctx["awaiting_after_hook"] = False
                 if self.is_over:
                     self._pending_play = None
@@ -1428,9 +1431,14 @@ class CombatState:
                 apply_enchantment_after_card_played(card)
             self._played_cards_this_turn.append(card)
             self._played_cards_combat.append(card)
+            self._record_finished_card_play(owner)
             if self.is_over:
                 self._pending_play = None
                 return
+
+    def _record_finished_card_play(self, owner: Creature) -> None:
+        key = (self.round_number, owner)
+        self._card_play_round_counts[key] = self._card_play_round_counts.get(key, 0) + 1
 
     def end_player_turn(self) -> None:
         """End player turn, execute enemy turn, then start the next player turn."""
@@ -2910,6 +2918,9 @@ class CombatState:
             if getattr(card, "owner", None) is owner
             and (card_type is None or card.card_type == card_type)
         )
+
+    def count_cards_played_last_round(self, owner: Creature) -> int:
+        return self._card_play_round_counts.get((self.round_number - 1, owner), 0)
 
     def _sovereign_blades_for_creature(
         self,
