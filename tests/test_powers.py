@@ -18,11 +18,13 @@ from sts2_env.cards.defect import create_defect_starter_deck, make_beam_cell, ma
 from sts2_env.cards.ironclad import make_inflame, make_juggling, make_sword_boomerang
 from sts2_env.cards.ironclad_basic import make_bash, make_defend_ironclad, make_strike_ironclad
 from sts2_env.cards.silent import _make_shiv, make_afterimage, make_serpent_form
-from sts2_env.cards.status import make_rebound
+from sts2_env.cards.status import make_rebound, make_sovereign_blade
 from sts2_env.core.rng import Rng
-from sts2_env.monsters.act1_weak import create_shrinker_beetle
+from sts2_env.monsters.act1_weak import create_shrinker_beetle, create_twig_slime_s
+from sts2_env.monsters.act3 import create_turret_operator
 from sts2_env.powers.base import PowerInstance
-from sts2_env.powers.monster import BurrowedPower, SkittishPower, SmoggyPower
+from sts2_env.powers.monster import BurrowedPower, CrabRagePower, SkittishPower, SmoggyPower
+from sts2_env.powers.remaining_b import RampartPower
 from sts2_env.powers.remaining_c import SandpitPower, ToricToughnessPower
 from sts2_env.run.reward_objects import GoldReward, RemoveCardReward
 from sts2_env.run.rooms import CombatRoom
@@ -35,12 +37,13 @@ class _FirstChoiceRng:
 
 
 class _BlockHookCounterPower(PowerInstance):
-    def __init__(self):
+    def __init__(self, observed: Creature | None = None):
         super().__init__(PowerId.JUGGERNAUT, 0)
+        self.observed = observed
         self.calls: list[int] = []
 
     def after_block_gained(self, owner, creature, amount, combat):
-        if creature is owner:
+        if creature is (self.observed or owner):
             self.calls.append(amount)
 
 
@@ -625,6 +628,19 @@ class TestSkittishPower:
 
         assert enemy.block == 6
 
+    def test_skittish_block_triggers_after_block_gained_hooks(self, simple_combat):
+        enemy = simple_combat.enemies[0]
+        counter = _BlockHookCounterPower()
+        enemy.powers[PowerId.JUGGERNAUT] = counter
+        enemy.powers[PowerId.SKITTISH] = SkittishPower(6)
+        simple_combat.hand = [make_strike_ironclad()]
+        simple_combat.energy = 1
+
+        assert simple_combat.play_card(0, 0)
+
+        assert enemy.block == 6
+        assert counter.calls == [6]
+
 
 class TestPowerAmountChangedHooks:
     def test_shroud_gains_block_when_owner_applies_doom(self, simple_combat):
@@ -635,6 +651,18 @@ class TestPowerAmountChangedHooks:
         simple_combat.apply_power_to(enemy, PowerId.DOOM, 2)
 
         assert player.block == 3
+
+    def test_shroud_block_triggers_after_block_gained_hooks(self, simple_combat):
+        player = simple_combat.player
+        enemy = simple_combat.enemies[0]
+        counter = _BlockHookCounterPower()
+        player.powers[PowerId.JUGGERNAUT] = counter
+        player.apply_power(PowerId.SHROUD, 3)
+
+        simple_combat.apply_power_to(enemy, PowerId.DOOM, 2)
+
+        assert player.block == 3
+        assert counter.calls == [3]
 
     def test_vicious_draws_when_owner_applies_vulnerable(self, simple_combat):
         player = simple_combat.player
@@ -792,6 +820,71 @@ class TestPowerAmountChangedHooks:
         assert simple_combat.player.block == 3
         assert counter.calls == [3]
 
+    def test_parry_block_triggers_after_block_gained_hooks(self, simple_combat):
+        counter = _BlockHookCounterPower()
+        simple_combat.player.powers[PowerId.JUGGERNAUT] = counter
+        simple_combat.player.apply_power(PowerId.PARRY, 4)
+        simple_combat.hand = [make_sovereign_blade()]
+        simple_combat.energy = 2
+
+        assert simple_combat.play_card(0, 0)
+
+        assert simple_combat.player.block == 4
+        assert counter.calls == [4]
+
+    def test_pillar_of_creation_block_triggers_after_block_gained_hooks(self, simple_combat):
+        counter = _BlockHookCounterPower()
+        simple_combat.player.powers[PowerId.JUGGERNAUT] = counter
+        simple_combat.player.apply_power(PowerId.PILLAR_OF_CREATION, 3)
+
+        simple_combat.add_generated_card_to_creature_hand(simple_combat.player, make_rebound())
+
+        assert simple_combat.player.block == 3
+        assert counter.calls == [3]
+
+    def test_rampart_targets_turret_operator_and_triggers_after_block_gained_hooks(self, simple_combat):
+        shield = simple_combat.enemies[0]
+        turret, turret_ai = create_turret_operator(Rng(43))
+        simple_combat.add_enemy(turret, turret_ai)
+        counter = _BlockHookCounterPower(observed=turret)
+        shield.powers[PowerId.JUGGERNAUT] = counter
+        shield.powers[PowerId.RAMPART] = RampartPower(25)
+
+        fire_after_side_turn_start(CombatSide.PLAYER, simple_combat)
+
+        assert shield.block == 0
+        assert turret.block == 25
+        assert counter.calls == [25]
+
+    def test_sneaky_block_triggers_after_block_gained_hooks(self, simple_combat):
+        counter = _BlockHookCounterPower()
+        simple_combat.player.powers[PowerId.JUGGERNAUT] = counter
+        simple_combat.player.apply_power(PowerId.SNEAKY, 2)
+        ally = simple_combat.add_ally_player(PlayerState(player_id=2, character_id="Ironclad", max_hp=70, current_hp=70))
+        ally_state = simple_combat.combat_player_state_for(ally)
+        assert ally_state is not None
+        ally_state.hand = [make_strike_ironclad()]
+        ally_state.zone_map["hand"] = ally_state.hand
+        ally_state.energy = 1
+
+        assert simple_combat.play_card_from_creature(ally, 0, 0)
+
+        assert simple_combat.player.block == 2
+        assert counter.calls == [2]
+
+    def test_crab_rage_block_triggers_after_block_gained_hooks(self, simple_combat):
+        owner = simple_combat.enemies[0]
+        ally, ally_ai = create_twig_slime_s(Rng(100))
+        simple_combat.add_enemy(ally, ally_ai)
+        counter = _BlockHookCounterPower()
+        owner.powers[PowerId.JUGGERNAUT] = counter
+        owner.powers[PowerId.CRAB_RAGE] = CrabRagePower()
+
+        assert simple_combat.kill_creature(ally)
+
+        assert owner.block == 99
+        assert counter.calls == [99]
+
     def test_juggling_counts_attacks_played_before_it_was_applied(self, simple_combat):
         simple_combat.hand = [
             make_strike_ironclad(),
@@ -905,6 +998,18 @@ class TestPowerAmountChangedHooks:
 
         assert simple_combat.player.block == 7
         assert PowerId.TORIC_TOUGHNESS not in simple_combat.player.powers
+
+    def test_toric_toughness_block_triggers_after_block_gained_hooks(self, simple_combat):
+        counter = _BlockHookCounterPower()
+        simple_combat.player.powers[PowerId.JUGGERNAUT] = counter
+        power = ToricToughnessPower(1)
+        power.set_block(7)
+        simple_combat.player.powers[PowerId.TORIC_TOUGHNESS] = power
+
+        fire_after_block_cleared(simple_combat.player, simple_combat)
+
+        assert simple_combat.player.block == 7
+        assert counter.calls == [7]
 
     def test_self_forming_clay_power_triggers_on_block_cleared_hook(self, simple_combat):
         simple_combat.player.apply_power(PowerId.SELF_FORMING_CLAY, 4)
@@ -1165,6 +1270,20 @@ class TestPowerAmountChangedHooks:
         assert simple_combat.play_card(0)
 
         assert simple_combat.player.block == 9
+
+    def test_spirit_of_ash_block_triggers_after_block_gained_hooks(self, simple_combat):
+        ethereal = make_defend_ironclad()
+        ethereal.keywords = frozenset({"ethereal"})
+        simple_combat.hand = [ethereal]
+        simple_combat.energy = 1
+        counter = _BlockHookCounterPower()
+        simple_combat.player.powers[PowerId.JUGGERNAUT] = counter
+        simple_combat.apply_power_to(simple_combat.player, PowerId.SPIRIT_OF_ASH, 4)
+
+        assert simple_combat.play_card(0)
+
+        assert simple_combat.player.block == 9
+        assert counter.calls == [4, 5]
 
     def test_tag_team_replays_non_applier_attack_against_target(self, simple_combat):
         ally = simple_combat.add_ally_player(PlayerState(player_id=2, character_id="Ironclad", max_hp=70, current_hp=70))

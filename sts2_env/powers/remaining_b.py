@@ -37,6 +37,17 @@ if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
 
 
+def _gain_unpowered_block(owner: Creature, amount: int, combat: CombatState) -> int:
+    before = owner.block
+    owner.gain_block(amount, unpowered=True)
+    gained = owner.block - before
+    if gained > 0:
+        from sts2_env.core.hooks import fire_after_block_gained
+
+        fire_after_block_gained(owner, gained, combat)
+    return gained
+
+
 # ---------------------------------------------------------------------------
 # GravityPower
 # ---------------------------------------------------------------------------
@@ -1374,7 +1385,7 @@ class ParryPower(PowerInstance):
         if card_id is not None and card_id.name == "SOVEREIGN_BLADE":
             card_owner = getattr(card, "owner", None)
             if card_owner is owner or card_owner is None:
-                owner.gain_block(self.amount)
+                _gain_unpowered_block(owner, self.amount, combat)
 
 
 # ---------------------------------------------------------------------------
@@ -1431,7 +1442,7 @@ class PillarOfCreationPower(PowerInstance):
     ) -> None:
         if not added_by_player or getattr(card, "owner", None) is not owner:
             return
-        owner.gain_block(self.amount)
+        _gain_unpowered_block(owner, self.amount, combat)
 
 
 # ---------------------------------------------------------------------------
@@ -1647,17 +1658,9 @@ class RampartPower(PowerInstance):
     def after_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side != CombatSide.PLAYER:
             return
-        # Grant block to allied creatures on the same side
-        allies = getattr(combat, "get_allies_of", None)
-        if allies is not None:
-            for ally in allies(owner):
-                if ally.is_alive:
-                    ally.gain_block(self.amount)
-        else:
-            # Fallback: grant block to all enemies (since this is an enemy power)
-            for enemy in getattr(combat, "enemies", []):
-                if enemy.is_alive and enemy.side == owner.side:
-                    enemy.gain_block(self.amount)
+        for enemy in getattr(combat, "enemies", []):
+            if enemy.is_alive and getattr(enemy, "monster_id", None) == "TURRET_OPERATOR":
+                _gain_unpowered_block(enemy, self.amount, combat)
 
 
 # ---------------------------------------------------------------------------

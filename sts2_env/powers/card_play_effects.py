@@ -757,7 +757,7 @@ class SneakyPower(PowerInstance):
         # Triggers when a card NOT owned by this creature is an Attack
         card_owner = getattr(card, "owner", None)
         if card_owner is not owner and getattr(card, "card_type", None) == CardType.ATTACK:
-            owner.gain_block(self.amount)
+            _gain_unpowered_block(owner, self.amount, combat)
 
 
 # ---------------------------------------------------------------------------

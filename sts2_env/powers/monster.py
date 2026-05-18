@@ -30,6 +30,17 @@ if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
 
 
+def _gain_unpowered_block(owner: Creature, amount: int, combat: CombatState) -> int:
+    before = owner.block
+    owner.gain_block(amount, unpowered=True)
+    gained = owner.block - before
+    if gained > 0:
+        from sts2_env.core.hooks import fire_after_block_gained
+
+        fire_after_block_gained(owner, gained, combat)
+    return gained
+
+
 # ---------------------------------------------------------------------------
 # MinionPower
 # ---------------------------------------------------------------------------
@@ -262,7 +273,7 @@ class SkittishPower(PowerInstance):
         for result in getattr(attack, "results", ()):
             if getattr(result, "target", None) is owner and getattr(result, "unblocked_damage", 0) != 0:
                 self._triggered_this_turn = True
-                owner.gain_block(self.amount)
+                _gain_unpowered_block(owner, self.amount, combat)
                 return
 
     def after_turn_end(
@@ -916,7 +927,7 @@ class CrabRagePower(PowerInstance):
         """Called when an allied creature dies."""
         if dead_creature is not owner and dead_creature.side == owner.side:
             owner.apply_power(PowerId.STRENGTH, self.STRENGTH_GAIN)
-            owner.gain_block(self.BLOCK_GAIN)
+            _gain_unpowered_block(owner, self.BLOCK_GAIN, combat)
             owner.powers.pop(self.power_id, None)
 
 
