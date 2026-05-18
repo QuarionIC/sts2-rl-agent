@@ -164,7 +164,14 @@ def fisticuffs(card: CardInstance, combat: CombatState, target: Creature | None)
     owner = _owner(card, combat)
     damage = calculate_damage(card.base_damage, owner, target, ValueProp.MOVE, combat)
     result = apply_damage(target, damage, ValueProp.MOVE, combat, owner)
-    owner.gain_block(result.total_damage + result.overkill_damage)
+    block = calculate_block(
+        result.total_damage + result.overkill_damage,
+        owner,
+        ValueProp.MOVE,
+        combat,
+        card_source=card,
+    )
+    owner.gain_block(block)
 
 
 @register_effect(CardId.FLASH_OF_STEEL)

@@ -7,6 +7,7 @@ from sts2_env.cards.colorless import (
     make_coordinate_card,
     make_dark_shackles,
     make_equilibrium,
+    make_fisticuffs,
     make_gold_axe,
     make_hidden_gem,
     make_impatience,
@@ -197,6 +198,20 @@ class TestColorlessParityExtra4:
         assert combat.play_card(0, 0)
         assert enemy.current_hp == before_gold_axe - 2
         assert make_gold_axe(upgraded=True).is_retain
+
+    def test_fisticuffs_block_uses_normal_block_modifiers(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.max_hp = 100
+        enemy.current_hp = 100
+        combat.apply_power_to(combat.player, PowerId.DEXTERITY, 3)
+        combat.apply_power_to(combat.player, PowerId.FRAIL, 1)
+        combat.hand = [make_fisticuffs()]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == 93
+        assert combat.player.block == 7
 
     def test_coordinate_applies_temporary_strength_to_target_ally_then_expires(self):
         combat = _make_combat()
