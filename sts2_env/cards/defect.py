@@ -300,8 +300,7 @@ def hologram(card: CardInstance, combat: CombatState, target: Creature | None) -
 
 @register_effect(CardId.HOTFIX)
 def hotfix(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    # Apply temporary Focus (Hotfix power)
-    combat.apply_power_to(_owner(card, combat), PowerId.FOCUS, card.effect_vars.get("focus_power", 2))
+    combat.apply_power_to(_owner(card, combat), PowerId.HOTFIX, card.effect_vars.get("focus_power", 2))
 
 
 @register_effect(CardId.LEAP)
@@ -613,11 +612,11 @@ def sunder(card: CardInstance, combat: CombatState, target: Creature | None) -> 
 @register_effect(CardId.SYNCHRONIZE)
 def synchronize(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     # Gain Focus based on orb count
-    orb_count = _get_orb_count(combat)
+    orb_count = _get_unique_orb_type_count(combat)
     extra = card.effect_vars.get("calc_extra", 2)
     focus = orb_count * extra
     if focus > 0:
-        combat.apply_power_to(_owner(card, combat), PowerId.FOCUS, focus)
+        combat.apply_power_to(_owner(card, combat), PowerId.SYNCHRONIZE, focus)
 
 
 @register_effect(CardId.SYNTHESIS)

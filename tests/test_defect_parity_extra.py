@@ -7,15 +7,19 @@ from sts2_env.cards.defect import (
     make_charge_battery,
     make_coolheaded,
     make_dualcast,
+    make_focused_strike,
+    make_hotfix,
     make_loop,
     make_scrape,
     make_storm,
     make_strike_defect,
+    make_synchronize,
     make_sunder,
 )
 from sts2_env.cards.regent import make_stardust
 from sts2_env.core.combat import CombatState
-from sts2_env.core.enums import OrbType, PowerId
+from sts2_env.core.enums import CombatSide, OrbType, PowerId
+from sts2_env.core.hooks import fire_after_turn_end
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 
@@ -195,3 +199,62 @@ class TestDefectParityExtra:
 
         assert kill_combat.is_over
         assert kill_combat.energy == 0
+
+    def test_hotfix_grants_temporary_focus_until_turn_end(self):
+        combat = _make_combat()
+        combat.hand = [make_hotfix(), make_hotfix()]
+        combat.energy = 0
+
+        assert combat.play_card(0)
+        assert combat.player.get_power_amount(PowerId.HOTFIX) == 2
+        assert combat.player.get_power_amount(PowerId.FOCUS) == 2
+
+        assert combat.play_card(0)
+        assert combat.player.get_power_amount(PowerId.HOTFIX) == 4
+        assert combat.player.get_power_amount(PowerId.FOCUS) == 4
+
+        fire_after_turn_end(CombatSide.PLAYER, combat)
+
+        assert combat.player.get_power_amount(PowerId.HOTFIX) == 0
+        assert combat.player.get_power_amount(PowerId.FOCUS) == 0
+
+    def test_synchronize_grants_temporary_focus_from_distinct_orb_types(self):
+        combat = _make_combat()
+        combat.channel_orb(combat.player, "LIGHTNING")
+        combat.channel_orb(combat.player, "LIGHTNING")
+        combat.channel_orb(combat.player, "FROST")
+        combat.hand = [make_synchronize(), make_synchronize()]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+        assert combat.player.get_power_amount(PowerId.SYNCHRONIZE) == 4
+        assert combat.player.get_power_amount(PowerId.FOCUS) == 4
+
+        assert combat.play_card(0)
+        assert combat.player.get_power_amount(PowerId.SYNCHRONIZE) == 8
+        assert combat.player.get_power_amount(PowerId.FOCUS) == 8
+
+        fire_after_turn_end(CombatSide.PLAYER, combat)
+
+        assert combat.player.get_power_amount(PowerId.SYNCHRONIZE) == 0
+        assert combat.player.get_power_amount(PowerId.FOCUS) == 0
+
+    def test_focused_strike_grants_focus_immediately_until_turn_end(self):
+        combat = _make_combat(extra_enemies=1)
+        enemy = combat.enemies[0]
+        combat.hand = [make_focused_strike(), make_focused_strike()]
+        combat.energy = 2
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == enemy.max_hp - 9
+        assert combat.player.get_power_amount(PowerId.FOCUSED_STRIKE) == 1
+        assert combat.player.get_power_amount(PowerId.FOCUS) == 1
+
+        assert combat.play_card(0, 0)
+        assert combat.player.get_power_amount(PowerId.FOCUSED_STRIKE) == 2
+        assert combat.player.get_power_amount(PowerId.FOCUS) == 2
+
+        fire_after_turn_end(CombatSide.PLAYER, combat)
+
+        assert combat.player.get_power_amount(PowerId.FOCUSED_STRIKE) == 0
+        assert combat.player.get_power_amount(PowerId.FOCUS) == 0

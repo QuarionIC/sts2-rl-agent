@@ -385,7 +385,7 @@ class HelicalDart(RelicInstance):
 
     def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
         if getattr(card, "owner", None) is owner and hasattr(card, "is_shiv") and card.is_shiv:
-            owner.apply_power(PowerId.DEXTERITY, self.DEXTERITY)
+            combat.apply_power_to(owner, PowerId.HELICAL_DART, self.DEXTERITY, applier=owner)
 
 
 @register_relic

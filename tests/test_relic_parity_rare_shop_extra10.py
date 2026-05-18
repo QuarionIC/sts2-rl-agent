@@ -12,6 +12,7 @@ from sts2_env.cards.defect import (
 )
 from sts2_env.cards.ironclad import create_ironclad_starter_deck, make_barricade, make_bash, make_inflame, make_whirlwind
 from sts2_env.cards.ironclad_basic import make_defend_ironclad, make_strike_ironclad
+from sts2_env.cards.status import make_shiv
 from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import CardId, CombatSide, PowerId
 from sts2_env.core.hooks import (
@@ -19,6 +20,7 @@ from sts2_env.core.hooks import (
     fire_after_card_discarded,
     fire_after_card_played,
     fire_after_side_turn_start,
+    fire_after_turn_end,
     fire_before_card_played,
     fire_before_side_turn_start,
     fire_before_turn_end,
@@ -371,6 +373,27 @@ class TestRelicParityRareShopExtra10:
         assert combat.play_card_from_creature(ally, 0, 0)
         assert combat.player.block == 0
         assert combat.energy == 0
+
+    def test_helical_dart_grants_temporary_dexterity_until_turn_end(self):
+        combat = _make_defect_combat(["HelicalDart"], seed=1932)
+        enemy = combat.enemies[0]
+        enemy.max_hp = 200
+        enemy.current_hp = 200
+        combat.hand = [make_shiv(), make_shiv()]
+        combat.energy = 0
+
+        assert combat.play_card(0, 0)
+        assert combat.player.get_power_amount(PowerId.HELICAL_DART) == 1
+        assert combat.player.get_power_amount(PowerId.DEXTERITY) == 1
+
+        assert combat.play_card(0, 0)
+        assert combat.player.get_power_amount(PowerId.HELICAL_DART) == 2
+        assert combat.player.get_power_amount(PowerId.DEXTERITY) == 2
+
+        fire_after_turn_end(CombatSide.PLAYER, combat)
+
+        assert combat.player.get_power_amount(PowerId.HELICAL_DART) == 0
+        assert combat.player.get_power_amount(PowerId.DEXTERITY) == 0
 
     def test_shop_event_card_play_relics_ignore_other_players_cards(self):
         """Matches owner checks on shop/event/ancient card-play relic hooks."""

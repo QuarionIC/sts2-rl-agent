@@ -312,13 +312,19 @@ class FocusedStrikePower(PowerInstance):
 
     def __init__(self, amount: int):
         super().__init__(PowerId.FOCUSED_STRIKE, amount)
-        self._applied: bool = False
 
-    def after_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
-        """Apply focus when first added (simulates BeforeApplied)."""
-        if not self._applied:
-            owner.apply_power(PowerId.FOCUS, self.amount)
-            self._applied = True
+    def after_power_amount_changed(
+        self,
+        owner: Creature,
+        target: Creature,
+        power_id: PowerId,
+        amount: int,
+        applier: Creature | None,
+        source: object | None,
+        combat: CombatState,
+    ) -> None:
+        if owner is target and power_id == self.power_id and amount != 0:
+            owner.apply_power(PowerId.FOCUS, amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         """Remove focus at end of owner's turn and remove self."""
