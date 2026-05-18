@@ -5,8 +5,10 @@ import sts2_env.powers  # noqa: F401
 from sts2_env.cards.defect import (
     create_defect_starter_deck,
     make_all_for_one,
+    make_biased_cognition,
     make_boost_away,
     make_cold_snap,
+    make_creative_ai,
     make_darkness,
     make_defend_defect,
     make_fight_through,
@@ -28,9 +30,10 @@ from sts2_env.cards.defect import (
     make_tempest,
     make_thunder,
 )
+from sts2_env.cards.factory import create_card
 from sts2_env.cards.status import make_burn, make_dazed, make_slimed
 from sts2_env.core.combat import CombatState
-from sts2_env.core.enums import OrbType, PowerId, ValueProp
+from sts2_env.core.enums import CardId, OrbType, PowerId, ValueProp
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle, create_twig_slime_s
 from sts2_env.powers.base import PowerInstance
@@ -488,3 +491,37 @@ class TestDefectParityExtra3:
         assert combat.play_card(0)
         assert combat.player.get_power_amount(PowerId.MACHINE_LEARNING) == 2
         assert combat.player.get_power_amount(PowerId.SIGNAL_BOOST) == 0
+
+    def test_biased_cognition_applies_focus_then_delayed_focus_loss(self):
+        """Matches BiasedCognition.cs: apply Focus(4), then BiasedCognition(1)."""
+        combat = _make_combat()
+        combat.hand = [make_biased_cognition()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+
+        assert combat.player.get_power_amount(PowerId.FOCUS) == 4
+        assert combat.player.get_power_amount(PowerId.BIASED_COGNITION) == 1
+
+    def test_creative_ai_applies_power(self):
+        """Matches CreativeAI.cs: apply CreativeAiPower(1)."""
+        combat = _make_combat()
+        combat.hand = [make_creative_ai()]
+        combat.energy = 3
+
+        assert combat.play_card(0)
+
+        assert combat.player.get_power_amount(PowerId.CREATIVE_AI) == 1
+
+    def test_defect_power_card_upgrades_match_original(self):
+        """Matches BiasedCognition, CreativeAI, and MachineLearning OnUpgrade methods."""
+        biased = create_card(CardId.BIASED_COGNITION_CARD, upgraded=True)
+        creative_ai = create_card(CardId.CREATIVE_AI_CARD, upgraded=True)
+        machine_learning = create_card(CardId.MACHINE_LEARNING_CARD, upgraded=True)
+
+        assert biased.effect_vars["focus_power"] == 5
+        assert biased.cost == 1
+        assert creative_ai.cost == 2
+        assert creative_ai.effect_vars["creative_ai"] == 1
+        assert machine_learning.cost == 1
+        assert machine_learning.is_innate is True
