@@ -628,12 +628,12 @@ def beat_into_shape(card: CardInstance, combat: CombatState, target: Creature | 
 
 @register_effect(CardId.BIG_BANG)
 def big_bang(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
+    owner = _owner(card, combat)
     cards = card.effect_vars.get("cards", 1)
     combat._draw_cards(cards)
-    energy = card.effect_vars.get("energy", 1)
-    combat.energy += energy
-    combat.gain_stars(_owner(card, combat), card.effect_vars.get("stars", 1))
-    combat.forge(_owner(card, combat), card.effect_vars.get("forge", 5), source=card)
+    combat.gain_stars(owner, card.effect_vars.get("stars", 1))
+    combat.gain_energy(owner, card.effect_vars.get("energy", 1))
+    combat.forge(owner, card.effect_vars.get("forge", 5), source=card)
 
 
 @register_effect(CardId.BOMBARDMENT)

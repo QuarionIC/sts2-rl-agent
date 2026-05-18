@@ -39,6 +39,7 @@ from sts2_env.core.creature import Creature
 from sts2_env.core.enums import CardId, CombatSide, PowerId
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
+from sts2_env.powers.base import PowerInstance
 
 
 def _make_combat() -> CombatState:
@@ -273,6 +274,26 @@ class TestRegentParity:
         assert drawn in combat.hand
         blade = next(card for card in combat.hand if card.card_id.name == "SOVEREIGN_BLADE")
         assert blade.base_damage == 15
+
+    def test_big_bang_gains_stars_before_energy(self):
+        class StarGainProbePower(PowerInstance):
+            def __init__(self):
+                super().__init__(PowerId.BLACK_HOLE, 1)
+                self.energy_seen: int | None = None
+
+            def on_stars_gained(self, owner, stars, combat):
+                self.energy_seen = combat.combat_player_state_for(owner).energy
+
+        combat = _make_combat()
+        probe = StarGainProbePower()
+        combat.player.powers[PowerId.BLACK_HOLE] = probe
+        combat.hand = [make_big_bang()]
+        combat.draw_pile = []
+        combat.energy = 0
+
+        assert combat.play_card(0)
+        assert probe.energy_seen == 0
+        assert combat.energy == 1
 
     def test_hidden_cache_gains_star_and_star_next_turn_power(self):
         """Matches HiddenCache.cs: gain stars now and apply StarNextTurnPower."""
