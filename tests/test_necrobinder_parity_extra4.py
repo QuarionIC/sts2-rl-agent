@@ -20,6 +20,7 @@ from sts2_env.cards.necrobinder import (
     make_hang,
     make_high_five,
     make_invoke,
+    make_misery,
     make_negative_pulse,
     make_neurosurge,
     make_pagestorm,
@@ -491,6 +492,40 @@ class TestNecrobinderParityExtra4:
 
         assert combat.play_card(0, 0)
         assert enemy.get_power_amount(PowerId.HANG) == 999
+
+    def test_misery_copies_original_target_debuffs_to_other_hittable_enemies(self):
+        combat = _make_combat(extra_enemies=2)
+        target, other, blocked = combat.enemies
+        target.current_hp = target.max_hp = 100
+        other.current_hp = other.max_hp = 100
+        blocked.current_hp = blocked.max_hp = 100
+        blocked.powers[PowerId.COVERED] = _CannotHitPower()
+        combat.apply_power_to(target, PowerId.WEAK, 2, applier=combat.player)
+        combat.apply_power_to(target, PowerId.DOOM, 5, applier=combat.player)
+        combat.hand = [make_misery()]
+        combat.energy = 0
+
+        assert combat.play_card(0, 0)
+
+        assert target.current_hp == 93
+        assert other.get_power_amount(PowerId.WEAK) == 2
+        assert other.get_power_amount(PowerId.DOOM) == 5
+        assert blocked.get_power_amount(PowerId.WEAK) == 0
+        assert blocked.get_power_amount(PowerId.DOOM) == 0
+
+    def test_misery_does_not_copy_debuffs_added_by_its_own_damage(self):
+        combat = _make_combat(extra_enemies=1)
+        target, other = combat.enemies
+        target.current_hp = target.max_hp = 100
+        other.current_hp = other.max_hp = 100
+        combat.apply_power_to(combat.player, PowerId.ENVENOM, 3)
+        combat.hand = [make_misery()]
+        combat.energy = 0
+
+        assert combat.play_card(0, 0)
+
+        assert target.get_power_amount(PowerId.POISON) == 3
+        assert other.get_power_amount(PowerId.POISON) == 0
 
     def test_sic_em_uses_osty_damage_and_power_values(self):
         combat = _make_combat()

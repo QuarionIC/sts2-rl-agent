@@ -9,11 +9,11 @@ from __future__ import annotations
 from sts2_env.cards.base import CardInstance, _get_next_id
 from sts2_env.cards.registry import register_effect, register_late_effect
 from sts2_env.core.enums import (
-    CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId,
+    CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, PowerType, PowerStackType,
 )
 from sts2_env.core.damage import calculate_damage, apply_damage, calculate_block
 from sts2_env.core.hooks import fire_after_block_gained
-from sts2_env.core.creature import Creature
+from sts2_env.core.creature import Creature, get_power_class
 from sts2_env.core.combat import CombatState
 
 
@@ -88,6 +88,24 @@ def _gain_resolved_block(creature: Creature, block: int, combat: CombatState) ->
     if gained > 0:
         fire_after_block_gained(creature, gained, combat)
     return gained
+
+
+def _is_current_debuff(power_id: PowerId, amount: int) -> bool:
+    cls = get_power_class(power_id)
+    if cls is None:
+        return amount < 0
+    if not getattr(cls, "is_visible", True):
+        return False
+    power_type = getattr(cls, "power_type", PowerType.BUFF)
+    if (
+        getattr(cls, "stack_type", None) == PowerStackType.COUNTER
+        and getattr(cls, "allow_negative", False)
+        and amount < 0
+    ):
+        return True
+    if not getattr(cls, "allow_negative", False) and power_type == PowerType.DEBUFF and amount < 0:
+        return False
+    return power_type == PowerType.DEBUFF
 
 
 # ---------------------------------------------------------------------------
@@ -747,7 +765,18 @@ def hang(card: CardInstance, combat: CombatState, target: Creature | None) -> No
 @register_effect(CardId.MISERY)
 def misery(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
+    original_debuffs = [
+        (power_id, power.amount)
+        for power_id, power in target.powers.items()
+        if _is_current_debuff(power_id, power.amount)
+    ]
     _deal_damage_single(card, combat, target)
+    owner = _owner(card, combat)
+    for enemy in list(combat.hittable_enemies):
+        if enemy is target:
+            continue
+        for power_id, amount in original_debuffs:
+            combat.apply_power_to(enemy, power_id, amount, applier=owner, source=card)
 
 
 @register_effect(CardId.NECRO_MASTERY_CARD)
