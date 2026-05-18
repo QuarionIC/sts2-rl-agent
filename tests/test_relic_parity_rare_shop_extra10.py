@@ -383,6 +383,22 @@ class TestRelicParityRareShopExtra10:
         fire_before_turn_end(CombatSide.PLAYER, combat)
         assert combat.player.get_power_amount(PowerId.DIAMOND_DIADEM) == 1
 
+    def test_daughter_of_the_wind_block_triggers_after_block_gained_hooks(self):
+        combat = _make_ironclad_combat(["DaughterOfTheWind"], seed=1927)
+        enemy = combat.enemies[0]
+        start_hp = enemy.current_hp
+        strike = make_strike_ironclad()
+        strike.owner = combat.player
+        combat.player.apply_power(PowerId.JUGGERNAUT, 5)
+        combat.hand = [strike]
+        combat.energy = 1
+        combat.player.block = 0
+
+        assert combat.play_card(0, 0)
+
+        assert combat.player.block == 1
+        assert enemy.current_hp == start_hp - 11
+
     def test_diamond_diadem_resets_after_side_turn_start(self):
         combat = _make_ironclad_combat(["DiamondDiadem"], seed=1912)
         relic = _combat_relic(combat, "DIAMOND_DIADEM")

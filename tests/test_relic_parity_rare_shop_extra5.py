@@ -10,6 +10,7 @@ from sts2_env.core.enums import CardId, CombatSide, PowerId, ValueProp
 from sts2_env.core.hooks import (
     fire_after_block_cleared,
     fire_after_card_discarded,
+    fire_after_shuffle,
     fire_before_side_turn_start,
 )
 from sts2_env.core.rng import Rng
@@ -150,6 +151,20 @@ def test_the_abacus_gains_block_when_draw_triggers_shuffle():
 
     combat.draw_cards(player, 1)
     assert player.block == 6
+
+
+def test_the_abacus_block_triggers_after_block_gained_hooks():
+    combat = _make_ironclad_combat(["TheAbacus"], seed=1032)
+    player = combat.player
+    enemy = combat.enemies[0]
+    start_hp = enemy.current_hp
+    player.block = 0
+    player.apply_power(PowerId.JUGGERNAUT, 5)
+
+    fire_after_shuffle(combat)
+
+    assert player.block == 6
+    assert enemy.current_hp == start_hp - 5
 
 
 def test_sturdy_clamp_caps_block_when_it_prevents_clear():

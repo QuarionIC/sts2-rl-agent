@@ -6,8 +6,13 @@ from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.ironclad_basic import make_defend_ironclad, make_strike_ironclad
 from sts2_env.core.combat import CombatState
-from sts2_env.core.enums import CardId, CombatSide, RoomType
-from sts2_env.core.hooks import fire_after_energy_reset, fire_after_side_turn_start, fire_before_turn_end
+from sts2_env.core.enums import CardId, CombatSide, PowerId, RoomType
+from sts2_env.core.hooks import (
+    fire_after_card_played,
+    fire_after_energy_reset,
+    fire_after_side_turn_start,
+    fire_before_turn_end,
+)
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 from sts2_env.run.reward_objects import AddCardsReward
@@ -61,6 +66,25 @@ class TestRelicParityEventExtra11:
         combat = _make_combat(["FakeAnchor"], seed=980)
 
         assert combat.player.block == 4
+
+    def test_fake_anchor_block_triggers_after_block_gained_hooks(self):
+        combat = CombatState(
+            player_hp=80,
+            player_max_hp=80,
+            deck=create_ironclad_starter_deck(),
+            rng_seed=990,
+            character_id="Ironclad",
+            relics=["FakeAnchor"],
+        )
+        enemy, ai = create_shrinker_beetle(Rng(990))
+        combat.add_enemy(enemy, ai)
+        start_hp = enemy.current_hp
+        combat.player.apply_power(PowerId.JUGGERNAUT, 5)
+
+        combat.start_combat()
+
+        assert combat.player.block == 4
+        assert enemy.current_hp == start_hp - 5
 
     def test_fake_blood_vial_heals_one_on_round_one_player_turn_start(self):
         combat = CombatState(
@@ -155,6 +179,18 @@ class TestRelicParityEventExtra11:
         combat.player.block = 0
         fire_before_turn_end(CombatSide.ENEMY, combat)
         assert combat.player.block == 0
+
+    def test_fake_orichalcum_block_triggers_after_block_gained_hooks(self):
+        combat = _make_combat(["FakeOrichalcum"], seed=990)
+        enemy = combat.enemies[0]
+        start_hp = enemy.current_hp
+        combat.player.block = 0
+        combat.player.apply_power(PowerId.JUGGERNAUT, 5)
+
+        fire_before_turn_end(CombatSide.PLAYER, combat)
+
+        assert combat.player.block == 3
+        assert enemy.current_hp == start_hp - 5
 
     def test_fake_venerable_tea_set_adds_one_energy_once_after_rest_site(self):
         combat = _make_combat(["FakeVenerableTeaSet"], seed=987)

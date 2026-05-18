@@ -175,6 +175,25 @@ class TestRelicParityEventExtra10:
         combat.end_player_turn()
         assert combat.player.block == 7
 
+    def test_sai_block_triggers_after_block_gained_hooks(self):
+        combat = CombatState(
+            player_hp=80,
+            player_max_hp=80,
+            deck=create_ironclad_starter_deck(),
+            rng_seed=894,
+            character_id="Ironclad",
+            relics=["Sai"],
+        )
+        enemy, ai = create_shrinker_beetle(Rng(894))
+        combat.add_enemy(enemy, ai)
+        start_hp = enemy.current_hp
+        combat.player.apply_power(PowerId.JUGGERNAUT, 5)
+
+        combat.start_combat()
+
+        assert combat.player.block == 7
+        assert enemy.current_hp == start_hp - 5
+
     def test_signet_ring_grants_nine_hundred_ninety_nine_gold_on_obtain(self):
         run_state = RunState(seed=888, character_id="Ironclad")
         starting_gold = run_state.player.gold
