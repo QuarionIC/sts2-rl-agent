@@ -584,7 +584,11 @@ def create_myte(rng: Rng, slot: str = "first") -> tuple[Creature, MonsterAI]:
 
     def toxic(combat: CombatState) -> None:
         for _ in range(2):
-            combat.move_card_to_hand(make_toxic())
+            combat.add_generated_card_to_creature_hand(
+                combat.primary_player,
+                make_toxic(),
+                added_by_player=False,
+            )
 
     def suck(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, suck_dmg)

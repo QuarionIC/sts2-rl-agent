@@ -1047,8 +1047,11 @@ class TestFixedRotation:
         assert 61 <= first.max_hp <= 67
         assert first_ai.current_move.state_id == "TOXIC_MOVE"
 
+        rocket_punch = create_card(CardId.ROCKET_PUNCH)
+        combat.hand = [rocket_punch]
         first_ai.current_move.perform(combat)
-        assert [card.card_id for card in combat.hand] == [CardId.TOXIC, CardId.TOXIC]
+        assert [card.card_id for card in combat.hand] == [CardId.ROCKET_PUNCH, CardId.TOXIC, CardId.TOXIC]
+        assert rocket_punch.cost == 0
 
         second, second_ai = create_myte(Rng(15), slot="second")
         combat.add_enemy(second, second_ai)
@@ -1342,8 +1345,11 @@ class TestFixedRotation:
         ai.roll_move(Rng(26))
         assert ai.current_move.state_id == "FLAMETHROWER_MOVE"
 
+        rocket_punch = create_card(CardId.ROCKET_PUNCH)
+        combat.hand = [rocket_punch]
         ai.current_move.perform(combat)
-        assert [card.card_id for card in combat.hand] == [CardId.BURN] * 4
+        assert [card.card_id for card in combat.hand] == [CardId.ROCKET_PUNCH] + [CardId.BURN] * 4
+        assert rocket_punch.cost == 0
 
         ai.on_move_performed()
         ai.roll_move(Rng(26))
@@ -1446,8 +1452,11 @@ class TestFixedRotation:
         assert creature.max_hp == 266
         assert ai.current_move.state_id == "VOMIT_ICHOR_MOVE"
 
+        rocket_punch = create_card(CardId.ROCKET_PUNCH)
+        combat.hand = [rocket_punch]
         ai.current_move.perform(combat)
         assert [card.card_id for card in combat.discard_pile] == [CardId.SLIMED] * 10
+        assert rocket_punch.cost == 0
 
         ai.on_move_performed()
         ai.roll_move(Rng(28))

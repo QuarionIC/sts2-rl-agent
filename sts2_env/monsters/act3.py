@@ -432,7 +432,11 @@ def create_slimed_berserker(rng: Rng) -> tuple[Creature, MonsterAI]:
 
     def vomit_ichor(combat: CombatState) -> None:
         for _ in range(10):
-            combat.move_card_to_creature_discard(combat.primary_player, make_slimed())
+            combat.add_generated_card_to_creature_discard(
+                combat.primary_player,
+                make_slimed(),
+                added_by_player=False,
+            )
 
     def furious_pummeling(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, pummeling_dmg, hits=4)
@@ -700,7 +704,11 @@ def create_mecha_knight(rng: Rng) -> tuple[Creature, MonsterAI]:
 
     def flamethrower(combat: CombatState) -> None:
         for _ in range(4):
-            combat.move_card_to_creature_hand(combat.primary_player, make_burn())
+            combat.add_generated_card_to_creature_hand(
+                combat.primary_player,
+                make_burn(),
+                added_by_player=False,
+            )
 
     def windup(combat: CombatState) -> None:
         _gain_block(creature, windup_block, combat)
