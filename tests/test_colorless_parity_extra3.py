@@ -130,6 +130,29 @@ class TestColorlessParityExtra3:
         assert combat.play_card(0)
         assert combat.player.get_power_amount(PowerId.STRATAGEM) == 2
 
+    def test_stratagem_after_shuffle_chooses_draw_pile_card_to_move_to_hand(self):
+        combat = _make_combat()
+        strike = make_strike_ironclad()
+        defend = make_defend_ironclad()
+        combat.hand = []
+        combat.draw_pile = []
+        combat.discard_pile = [strike, defend]
+        combat.player.apply_power(PowerId.STRATAGEM, 1)
+
+        combat.draw_cards(combat.player, 1)
+
+        assert combat.pending_choice is not None
+        assert combat.pending_choice.min_choices == 1
+        assert combat.pending_choice.max_choices == 1
+        assert [option.source_pile for option in combat.pending_choice.options] == ["draw", "draw"]
+        assert [option.card for option in combat.pending_choice.options] == [defend, strike]
+        assert combat.hand == []
+
+        assert combat.resolve_pending_choice(0)
+        assert combat.pending_choice is None
+        assert combat.hand == [defend, strike]
+        assert combat.draw_pile == []
+
     def test_the_gambit_kills_owner_on_first_unblocked_powered_attack_hit(self):
         combat = _make_combat()
         enemy = combat.enemies[0]

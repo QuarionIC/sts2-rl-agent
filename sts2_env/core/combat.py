@@ -126,6 +126,7 @@ class CombatState:
         self._pending_retain_count: dict[int, int] = {}
         self.pending_choice: PendingCardChoice | None = None
         self._pending_play: dict[str, object] | None = None
+        self._pending_draw: dict[str, object] | None = None
         self._pending_turn_setup: Callable[[], None] | None = None
         self._end_turn_after_play: bool = False
         self.in_play_phase: bool = False
@@ -834,6 +835,9 @@ class CombatState:
                     draw_count = modify_hand_draw(BASE_DRAW, self, owner)
                     draw_count = self._prepare_opening_draw_for_owner(owner, draw_count)
                     self._draw_cards_for_creature(owner, draw_count, from_hand_draw=True)
+                    if self.pending_choice is not None:
+                        self._pending_turn_setup = lambda idx=player_index: self._continue_player_turn_setup(idx, "after_player_turn_start")
+                        return
                     stage = "after_player_turn_start"
 
                 if stage == "after_player_turn_start":
@@ -1664,7 +1668,7 @@ class CombatState:
         """Draw cards one at a time, reshuffling if needed."""
         from sts2_env.core.hooks import fire_after_card_drawn, should_draw
 
-        if self.is_over:
+        if self.is_over or self.pending_choice is not None:
             return
         state = self.combat_player_state_for(owner)
         if state is None:
@@ -1672,12 +1676,21 @@ class CombatState:
         if not should_draw(self, owner, from_hand_draw):
             return
 
-        for _ in range(max(0, count)):
+        remaining = max(0, count)
+        while remaining > 0:
             if len(state.hand) >= MAX_HAND_SIZE:
                 break
             self._shuffle_if_needed(owner)
+            if self.pending_choice is not None:
+                self._pending_draw = {
+                    "owner": owner,
+                    "remaining": remaining,
+                    "from_hand_draw": from_hand_draw,
+                }
+                return
             if not state.draw:
                 break
+            remaining -= 1
             card = state.draw.pop(0)
             setattr(card, "owner", owner)
             state.hand.append(card)
@@ -1687,6 +1700,17 @@ class CombatState:
             fire_after_card_drawn(card, from_hand_draw, self)
             apply_enchantment_on_card_drawn(card, self, from_hand_draw)
             self._invoke_card_drawn(card, from_hand_draw, owner)
+
+    def _resume_pending_draw(self) -> None:
+        if self._pending_draw is None:
+            return
+        pending = self._pending_draw
+        self._pending_draw = None
+        self._draw_cards_for_creature(
+            pending["owner"],
+            pending["remaining"],
+            from_hand_draw=pending["from_hand_draw"],
+        )
 
     def _shuffle_if_needed(self, owner: Creature | None = None) -> None:
         """If draw pile is empty and discard has cards, shuffle discard into draw."""
@@ -1698,7 +1722,7 @@ class CombatState:
             state.discard.clear()
             self.shuffle_rng.shuffle(state.draw)
             apply_enchantment_shuffle_order(state.draw, is_initial_shuffle=False)
-            fire_after_shuffle(self)
+            fire_after_shuffle(self, state.creature)
 
     def add_card_to_discard(
         self,
@@ -2324,6 +2348,8 @@ class CombatState:
             self.pending_choice = None
             choice.resolver(selected_cards)
 
+        if self.pending_choice is None and self._pending_draw is not None:
+            self._resume_pending_draw()
         if self.pending_choice is None and self._pending_play is not None:
             self._resume_pending_play()
         if self.pending_choice is None and self._pending_turn_setup is not None:
@@ -2349,6 +2375,27 @@ class CombatState:
             zones["discard"].append(card)
         if not was_in_combat:
             self._apply_card_after_card_entered_combat(card, creature)
+
+    def search_draw_pile_to_hand(self, owner: Creature, count: int) -> None:
+        state = self.combat_player_state_for(owner)
+        if state is None or count <= 0 or not state.draw:
+            return
+        candidates = sorted(state.draw, key=lambda card: (card.rarity.value, card.card_id.name))
+        required = min(count, len(candidates))
+
+        def _move_selected(selected_cards: list[CardInstance]) -> None:
+            for selected in selected_cards:
+                self.move_card_to_creature_hand(owner, selected)
+
+        self.request_multi_card_choice(
+            prompt="Choose card(s) to move to hand",
+            cards=candidates,
+            source_pile="draw",
+            resolver=_move_selected,
+            min_count=required,
+            max_count=required,
+            owner=owner,
+        )
 
     def stable_shuffle_cards(self, cards: list[CardInstance], rng: Rng) -> None:
         cards.sort(key=lambda card: (card.card_id.name, card.upgraded))

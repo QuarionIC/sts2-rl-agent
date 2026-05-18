@@ -868,8 +868,16 @@ def fire_after_energy_spent(owner: Creature, card: object, amount: int, combat: 
         power.after_energy_spent(listener_owner, card, amount, combat)
 
 
-def fire_after_shuffle(combat: CombatState) -> None:
+def fire_after_shuffle(combat: CombatState, shuffler: Creature | None = None) -> None:
+    for owner, power in _iter_power_listeners(combat):
+        if shuffler is not None and owner is not shuffler:
+            continue
+        on_shuffle = getattr(power, "on_shuffle", None)
+        if callable(on_shuffle):
+            on_shuffle(owner, combat)
     for owner, relic in _iter_relic_listeners(combat):
+        if shuffler is not None and owner is not shuffler:
+            continue
         relic.after_shuffle(owner, combat)
 
 
