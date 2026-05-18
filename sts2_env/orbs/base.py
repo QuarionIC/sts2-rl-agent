@@ -102,6 +102,18 @@ class OrbQueue:
         if not self.orbs:
             return []
         orb = self.orbs.pop(0)
+        return self._evoke_orb(orb, combat)
+
+    def evoke_last(self, combat: CombatState | None = None) -> list[Creature]:
+        """Evoke the last orb and remove it."""
+        if combat is not None and getattr(combat, "is_over", False):
+            return []
+        if not self.orbs:
+            return []
+        orb = self.orbs.pop()
+        return self._evoke_orb(orb, combat)
+
+    def _evoke_orb(self, orb: OrbInstance, combat: CombatState | None = None) -> list[Creature]:
         if combat is None:
             return []
         targets = orb.on_evoke(combat)

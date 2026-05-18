@@ -544,6 +544,24 @@ class TestDefectParityExtra3:
         ]
         assert combat.player.get_power_amount(PowerId.CONSUMING_SHADOW) == 1
 
+    def test_consuming_shadow_evokes_last_orb_at_turn_end(self):
+        """Matches ConsumingShadowPower.cs: evoke the last orb Amount times on owner turn end."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        combat.hand = [make_consuming_shadow()]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+        front, last = combat.orb_queue.orbs
+        front._accumulated_evoke = 20
+        last._accumulated_evoke = 6
+
+        combat.end_player_turn()
+
+        assert enemy.current_hp == 88
+        assert combat.orb_queue.orbs == [front]
+
     def test_defect_power_card_upgrades_match_original(self):
         """Matches BiasedCognition, CreativeAI, and MachineLearning OnUpgrade methods."""
         biased = create_card(CardId.BIASED_COGNITION_CARD, upgraded=True)

@@ -2673,6 +2673,13 @@ class CombatState:
             with self.acting_player_view(owner):
                 orb_queue.trigger_first_passive(self)
 
+    def evoke_last_orb(self, owner: Creature) -> None:
+        state = self.combat_player_state_for(owner)
+        orb_queue = getattr(state, "orb_queue", None)
+        if orb_queue is not None:
+            with self.acting_player_view(owner):
+                orb_queue.evoke_last(self)
+
     def get_osty(self, owner: Creature | None = None) -> Creature | None:
         target_owner = owner or self.primary_player
         if target_owner is self.primary_player:
