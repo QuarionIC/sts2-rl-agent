@@ -448,7 +448,7 @@ def _cosmic_concoction(combat: CombatState, user: Creature, target: Creature | N
     generated = create_cards_from_ids(colorless_ids, combat.combat_card_generation_rng, 3, distinct=True)
     for generated_card in generated:
         combat.upgrade_card(generated_card)
-        combat.move_card_to_hand(generated_card)
+        combat.add_generated_card_to_creature_hand(user, generated_card)
 
 
 def _distilled_chaos(combat: CombatState, user: Creature, target: Creature | None) -> None:
@@ -576,7 +576,7 @@ def _orobic_acid(combat: CombatState, user: Creature, target: Creature | None) -
     )
     for generated_card in generated:
         generated_card.set_temporary_free_this_turn()
-        combat.move_card_to_hand(generated_card)
+        combat.add_generated_card_to_creature_hand(user, generated_card)
 
 
 def _pot_of_ghouls(combat: CombatState, user: Creature, target: Creature | None) -> None:

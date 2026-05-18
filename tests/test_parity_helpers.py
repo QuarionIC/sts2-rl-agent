@@ -2965,6 +2965,7 @@ class TestStatusParity:
 
         assert len(combat.hand) == 3
         assert all(card.upgraded for card in combat.hand)
+        assert combat.count_generated_cards_this_combat(combat.player) == 3
 
     def test_orobic_acid_adds_attack_skill_power_at_zero_cost(self):
         combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
@@ -2975,6 +2976,7 @@ class TestStatusParity:
         assert len(combat.hand) == 3
         assert {card.card_type for card in combat.hand} == {CardType.ATTACK, CardType.SKILL, CardType.POWER}
         assert all(card.cost == 0 for card in combat.hand)
+        assert combat.count_generated_cards_this_combat(combat.player) == 3
 
     def test_capture_spirit_deals_unblockable_damage_and_adds_souls(self):
         combat = _make_combat(create_necrobinder_starter_deck(), "Necrobinder")
