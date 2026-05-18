@@ -288,7 +288,7 @@ def _cunning_potion(combat: CombatState, user: Creature, target: Creature | None
     from sts2_env.cards.status import make_shiv
 
     for _ in range(3):
-        combat.move_card_to_hand(make_shiv(upgraded=True))
+        combat.add_generated_card_to_creature_hand(user, make_shiv(upgraded=True))
 
 
 def _cure_all(combat: CombatState, user: Creature, target: Creature | None) -> None:

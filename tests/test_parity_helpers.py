@@ -2897,6 +2897,7 @@ class TestStatusParity:
         shivs = [card for card in combat.hand if card.card_id == CardId.SHIV]
         assert len(shivs) == 3
         assert all(card.upgraded for card in shivs)
+        assert combat.count_generated_cards_this_combat(combat.player) == 3
 
     def test_liquid_memories_selects_discard_card_and_zeroes_cost(self):
         combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
