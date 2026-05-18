@@ -19,6 +19,17 @@ if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
 
 
+def _gain_unpowered_block(owner: Creature, amount: int, combat: CombatState) -> int:
+    before = owner.block
+    owner.gain_block(amount, unpowered=True)
+    gained = owner.block - before
+    if gained > 0:
+        from sts2_env.core.hooks import fire_after_block_gained
+
+        fire_after_block_gained(owner, gained, combat)
+    return gained
+
+
 @register_relic
 class AmethystAubergine(RelicInstance):
     """Gain 10 gold after non-boss combat rooms."""
@@ -59,7 +70,7 @@ class Anchor(RelicInstance):
     BLOCK = 10
 
     def before_combat_start(self, owner: Creature, combat: CombatState) -> None:
-        owner.gain_block(self.BLOCK, unpowered=True)
+        _gain_unpowered_block(owner, self.BLOCK, combat)
 
 
 @register_relic

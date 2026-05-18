@@ -128,6 +128,25 @@ class TestRelicTurnHooks:
         combat = _make_combat(["Anchor"])
         assert combat.player.block == 10
 
+    def test_anchor_block_triggers_after_block_gained_hooks(self):
+        combat = CombatState(
+            player_hp=80,
+            player_max_hp=80,
+            deck=create_ironclad_starter_deck(),
+            rng_seed=43,
+            relics=["Anchor"],
+            character_id="Ironclad",
+        )
+        enemy, ai = create_shrinker_beetle(Rng(43))
+        combat.add_enemy(enemy, ai)
+        start_hp = enemy.current_hp
+        combat.player.apply_power(PowerId.JUGGERNAUT, 5)
+
+        combat.start_combat()
+
+        assert combat.player.block == 10
+        assert enemy.current_hp == start_hp - 5
+
     def test_ring_of_the_snake_modifies_round_1_hand_draw(self):
         combat = _make_combat(["RingOfTheSnake"])
         assert len(combat.hand) == 7
