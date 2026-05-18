@@ -124,7 +124,7 @@ def discovery(card: CardInstance, combat: CombatState, target: Creature | None) 
         combat.character_id,
         combat.combat_card_generation_rng,
         3,
-        generation_context="modifier",
+        generation_context="combat",
     )
     if not candidates:
         return
@@ -247,7 +247,7 @@ def jack_of_all_trades(card: CardInstance, combat: CombatState, target: Creature
     colorless_ids = eligible_registered_cards(
         module_name=__name__,
         exclude_ids={CardId.JACK_OF_ALL_TRADES},
-        generation_context="modifier",
+        generation_context="combat",
     )
     generated = create_cards_from_ids(
         colorless_ids,
@@ -407,7 +407,11 @@ def splash(card: CardInstance, combat: CombatState, target: Creature | None) -> 
         if cfg.character_id.lower() == own_character:
             continue
         candidate_ids.extend(
-            eligible_character_cards(cfg.character_id, card_type=CardType.ATTACK, generation_context="modifier")
+            eligible_character_cards(
+                cfg.character_id,
+                card_type=CardType.ATTACK,
+                generation_context="combat",
+            )
         )
 
     if not candidate_ids:
@@ -614,7 +618,7 @@ def jackpot(card: CardInstance, combat: CombatState, target: Creature | None) ->
         for card_id in eligible_registered_cards(
             module_name=None,
             card_type=None,
-            generation_context="modifier",
+            generation_context="combat",
         )
         if card_preview(card_id).cost == 0 and not card_preview(card_id).has_energy_cost_x
     ]

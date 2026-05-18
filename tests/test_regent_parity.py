@@ -121,6 +121,17 @@ class TestRegentParity:
         assert len(combat.hand) == 1
         assert combat.hand[0].upgraded is True
 
+    def test_manifest_authority_uses_combat_generation_pool(self):
+        combat = _make_combat()
+        combat.hand = [make_manifest_authority()]
+        combat.energy = 1
+        combat.rng = Rng(46)
+
+        assert combat.play_card(0)
+
+        assert len(combat.hand) == 1
+        assert combat.hand[0].card_id is not CardId.HAND_OF_GREED
+
     def test_void_form_applies_power_and_ends_turn_immediately(self):
         """Matches VoidForm.cs: apply VoidFormPower, then force end the turn."""
         combat = _make_combat()

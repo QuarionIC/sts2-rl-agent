@@ -24,6 +24,14 @@ from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 
 
+class _FirstRng:
+    def sample(self, lst, k):
+        return list(lst)[:k]
+
+    def choice(self, lst):
+        return list(lst)[0]
+
+
 def _make_combat(deck, character_id: str) -> CombatState:
     combat = CombatState(
         player_hp=80,
@@ -189,6 +197,18 @@ class TestGeneratedChoiceParity:
         assert combat.pending_choice is None
         assert selected in combat.hand
         assert selected.cost == 0
+
+    def test_discovery_uses_combat_generation_pool(self):
+        combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
+        combat.hand = [create_card(CardId.DISCOVERY)]
+        combat.energy = 1
+        combat.rng = _FirstRng()
+
+        assert combat.play_card(0)
+        generated = [option.card for option in combat.pending_choice.options]
+
+        assert all(card.rarity.name != "BASIC" for card in generated)
+        assert CardId.STRIKE_IRONCLAD not in {card.card_id for card in generated}
 
     def test_splash_makes_only_selected_generated_attack_free(self):
         """Matches Splash.cs: SetToFreeThisTurn runs after choosing the generated card."""

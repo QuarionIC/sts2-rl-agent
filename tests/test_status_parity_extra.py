@@ -2,6 +2,7 @@
 
 import sts2_env.powers  # noqa: F401
 
+from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.ironclad_basic import make_strike_ironclad
 from sts2_env.cards.status import (
@@ -166,6 +167,20 @@ class TestStatusParityExtra:
 
         generated = next(hand_card for hand_card in combat.hand if hand_card is not card)
         assert generated.card_id is not CardId.STRIKE_IRONCLAD
+        assert generated.cost == 0
+
+    def test_distraction_uses_combat_generation_pool(self):
+        combat = _make_combat()
+        card = create_card(CardId.DISTRACTION)
+        combat.hand = [card]
+        combat.energy = 1
+        combat.rng = _FirstRng()
+
+        assert combat.play_card(0)
+
+        generated = combat.hand[0]
+        assert generated.card_id is not CardId.DEFEND_IRONCLAD
+        assert generated.card_type is CardType.SKILL
         assert generated.cost == 0
 
     def test_toxic_deals_turn_end_in_hand_damage_but_playing_it_exhausts_safely(self):

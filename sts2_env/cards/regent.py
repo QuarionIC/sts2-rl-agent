@@ -415,7 +415,7 @@ def knockout_blow(card: CardInstance, combat: CombatState, target: Creature | No
 def largesse(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     if target is None:
         return
-    colorless_ids = eligible_registered_cards(module_name="sts2_env.cards.colorless", generation_context="modifier")
+    colorless_ids = eligible_registered_cards(module_name="sts2_env.cards.colorless", generation_context="combat")
     generated = create_cards_from_ids(colorless_ids, combat.combat_card_generation_rng, 1, distinct=True)
     if not generated:
         return
@@ -442,7 +442,7 @@ def lunar_blast(card: CardInstance, combat: CombatState, target: Creature | None
 @register_effect(CardId.MANIFEST_AUTHORITY)
 def manifest_authority(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     _gain_block(card, combat)
-    colorless_ids = eligible_registered_cards(module_name="sts2_env.cards.colorless", generation_context="modifier")
+    colorless_ids = eligible_registered_cards(module_name="sts2_env.cards.colorless", generation_context="combat")
     generated = create_cards_from_ids(colorless_ids, combat.combat_card_generation_rng, 1, distinct=True)
     if generated:
         if card.upgraded:
@@ -492,7 +492,7 @@ def prophesize(card: CardInstance, combat: CombatState, target: Creature | None)
 
 @register_effect(CardId.QUASAR)
 def quasar(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    colorless_ids = eligible_registered_cards(module_name="sts2_env.cards.colorless", generation_context="modifier")
+    colorless_ids = eligible_registered_cards(module_name="sts2_env.cards.colorless", generation_context="combat")
     generated = create_cards_from_ids(colorless_ids, combat.combat_card_generation_rng, 3, distinct=True)
     for generated_card in generated:
         if card.upgraded:
@@ -644,7 +644,7 @@ def bombardment(card: CardInstance, combat: CombatState, target: Creature | None
 
 @register_effect(CardId.BUNDLE_OF_JOY)
 def bundle_of_joy(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    colorless_ids = eligible_registered_cards(module_name="sts2_env.cards.colorless", generation_context="modifier")
+    colorless_ids = eligible_registered_cards(module_name="sts2_env.cards.colorless", generation_context="combat")
     generated = create_cards_from_ids(
         colorless_ids,
         combat.combat_card_generation_rng,

@@ -18,6 +18,14 @@ from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 
 
+class _LastRng:
+    def sample(self, lst, k):
+        return list(lst)[-k:]
+
+    def choice(self, lst):
+        return list(lst)[-1]
+
+
 def _make_combat() -> CombatState:
     combat = CombatState(
         player_hp=75,
@@ -116,4 +124,17 @@ class TestDefectChoiceParity:
         generated = combat.hand[0]
         assert generated.card_id != CardId.WHITE_NOISE
         assert generated.card_type == CardType.POWER
+        assert generated.cost == 0
+
+    def test_white_noise_uses_combat_generation_pool(self):
+        combat = _make_combat()
+        combat.hand = [make_white_noise()]
+        combat.energy = 1
+        combat.rng = _LastRng()
+
+        assert combat.play_card(0)
+
+        generated = combat.hand[0]
+        assert generated.card_id is not CardId.BIASED_COGNITION_CARD
+        assert generated.card_type is CardType.POWER
         assert generated.cost == 0

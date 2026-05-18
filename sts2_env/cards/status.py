@@ -600,7 +600,7 @@ def distraction_effect(card: CardInstance, combat: CombatState, target: Creature
         combat.combat_card_generation_rng,
         1,
         card_type=CardType.SKILL,
-        generation_context="modifier",
+        generation_context="combat",
     )
     if not generated:
         return
@@ -814,7 +814,7 @@ def metamorphosis_effect(card: CardInstance, combat: CombatState, target: Creatu
         card.effect_vars.get("cards", 3),
         card_type=CardType.ATTACK,
         distinct=False,
-        generation_context="modifier",
+        generation_context="combat",
     )
     for generated_card in generated:
         generated_card.set_free_this_combat()
