@@ -162,6 +162,7 @@ class Creature:
         *,
         applier: Creature | None = None,
         source: object | None = None,
+        ignore_next_instance: bool = False,
     ) -> None:
         """Apply or stack a power. Handles Artifact blocking for debuffs."""
         combat = self.combat_state or getattr(applier, "combat_state", None)
@@ -233,6 +234,8 @@ class Creature:
         if existing is not None:
             if getattr(existing, "applier", None) is None:
                 existing.applier = applier
+            if ignore_next_instance:
+                existing.ignore_next_instance = True
             existing.amount += amount
             applied_delta = amount
             if existing.amount == 0 and not existing.allow_negative:
@@ -240,6 +243,7 @@ class Creature:
         else:
             if cls is not None:
                 power = cls(amount)
+                power.ignore_next_instance = ignore_next_instance
                 power.applier = applier
                 self.powers[power_id] = power
                 applied_delta = amount

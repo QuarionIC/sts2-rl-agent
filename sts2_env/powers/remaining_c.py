@@ -22,6 +22,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+from sts2_env.core.creature import _power_type_for_amount, get_power_class
 from sts2_env.core.enums import (
     CardId,
     CardKeyword,
@@ -188,6 +189,7 @@ class ReptileTrinketPower(PowerInstance):
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.COUNTER
+    is_temporary = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.REPTILE_TRINKET, amount)
@@ -202,7 +204,7 @@ class ReptileTrinketPower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == self.power_id and amount != 0:
+        if owner is target and power_id == self.power_id and amount != 0 and not self.consume_ignore_next_instance():
             owner.apply_power(PowerId.STRENGTH, amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
@@ -662,12 +664,11 @@ class SleightOfFleshPower(PowerInstance):
             return
         if target.side == owner.side:
             return
+        cls = get_power_class(power_id)
+        if cls is None:
+            return
         target_power = target.powers.get(power_id)
-        if (
-            target_power is not None
-            and target_power.power_type == PowerType.DEBUFF
-            and not getattr(target_power, "is_temporary", False)
-        ):
+        if target_power is not None and _power_type_for_amount(cls, amount) == PowerType.DEBUFF and not target_power.is_temporary:
             combat.deal_damage(
                 dealer=owner,
                 target=target,
@@ -1188,6 +1189,7 @@ class SynchronizePower(PowerInstance):
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.COUNTER
+    is_temporary = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.SYNCHRONIZE, amount)
@@ -1202,7 +1204,7 @@ class SynchronizePower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == self.power_id and amount != 0:
+        if owner is target and power_id == self.power_id and amount != 0 and not self.consume_ignore_next_instance():
             owner.apply_power(PowerId.FOCUS, amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:

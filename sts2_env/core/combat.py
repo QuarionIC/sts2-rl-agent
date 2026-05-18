@@ -1942,6 +1942,7 @@ class CombatState:
         *,
         applier: Creature | None = None,
         source: object | None = None,
+        ignore_next_instance: bool = False,
     ) -> None:
         """Apply a power to a creature. Player-side debuffs skip first tick."""
         if self.is_over:
@@ -1959,7 +1960,13 @@ class CombatState:
             applier = getattr(source, "owner", None)
             if applier is None and self.current_side == CombatSide.PLAYER:
                 applier = self.primary_player
-        target.apply_power(power_id, amount, applier=applier, source=source)
+        target.apply_power(
+            power_id,
+            amount,
+            applier=applier,
+            source=source,
+            ignore_next_instance=ignore_next_instance,
+        )
 
         if target.side == CombatSide.PLAYER:
             power = target.powers.get(power_id)

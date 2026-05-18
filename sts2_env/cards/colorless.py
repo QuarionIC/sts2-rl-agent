@@ -20,7 +20,7 @@ from sts2_env.core.enums import (
     CardId, CardType, TargetType, CardRarity, PowerStackType, PowerType, ValueProp, PowerId,
 )
 from sts2_env.core.damage import calculate_damage, apply_damage, calculate_block
-from sts2_env.core.creature import Creature
+from sts2_env.core.creature import Creature, _power_type_for_amount, get_power_class
 from sts2_env.core.combat import CombatState
 
 
@@ -681,8 +681,10 @@ def rend(card: CardInstance, combat: CombatState, target: Creature | None) -> No
     assert target is not None
     debuffs = sum(
         1
-        for power in target.powers.values()
-        if power.power_type == PowerType.DEBUFF and not getattr(power, "is_temporary", False)
+        for power_id, power in target.powers.items()
+        if (cls := get_power_class(power_id)) is not None
+        and _power_type_for_amount(cls, power.amount) == PowerType.DEBUFF
+        and not getattr(power, "is_temporary", False)
     )
     base = card.effect_vars.get("calc_base", card.base_damage or 15)
     extra = card.effect_vars.get("extra_damage", 5)

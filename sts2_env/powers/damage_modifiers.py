@@ -309,6 +309,7 @@ class FocusedStrikePower(PowerInstance):
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.COUNTER
+    is_temporary = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.FOCUSED_STRIKE, amount)
@@ -323,7 +324,7 @@ class FocusedStrikePower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == self.power_id and amount != 0:
+        if owner is target and power_id == self.power_id and amount != 0 and not self.consume_ignore_next_instance():
             owner.apply_power(PowerId.FOCUS, amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:

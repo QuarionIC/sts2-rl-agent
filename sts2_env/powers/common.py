@@ -54,7 +54,6 @@ class VulnerablePower(PowerInstance):
 
     power_type = PowerType.DEBUFF
     stack_type = PowerStackType.COUNTER
-    is_temporary = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.VULNERABLE, amount)
@@ -85,7 +84,6 @@ class WeakPower(PowerInstance):
 
     power_type = PowerType.DEBUFF
     stack_type = PowerStackType.COUNTER
-    is_temporary = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.WEAK, amount)
@@ -112,7 +110,6 @@ class FrailPower(PowerInstance):
 
     power_type = PowerType.DEBUFF
     stack_type = PowerStackType.COUNTER
-    is_temporary = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.FRAIL, amount)

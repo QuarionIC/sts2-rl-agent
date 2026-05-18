@@ -35,6 +35,13 @@ class PowerInstance:
         self.amount = amount
         self.skip_next_tick: bool = False
         self.applier: Creature | None = None
+        self.ignore_next_instance: bool = False
+
+    def consume_ignore_next_instance(self) -> bool:
+        if not self.ignore_next_instance:
+            return False
+        self.ignore_next_instance = False
+        return True
 
     # ─── Damage Modification Hooks ──────────────────────────────────────
 

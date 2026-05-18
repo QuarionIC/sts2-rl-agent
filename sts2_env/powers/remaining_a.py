@@ -153,7 +153,7 @@ class AnticipatePower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == PowerId.ANTICIPATE and owner.powers.get(PowerId.ANTICIPATE) is self:
+        if owner is target and power_id == PowerId.ANTICIPATE and owner.powers.get(PowerId.ANTICIPATE) is self and not self.consume_ignore_next_instance():
             owner.apply_power(PowerId.DEXTERITY, amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
@@ -770,6 +770,7 @@ class CrushUnderPower(PowerInstance):
 
     power_type = PowerType.DEBUFF
     stack_type = PowerStackType.COUNTER
+    is_temporary = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.CRUSH_UNDER, amount)
@@ -784,7 +785,7 @@ class CrushUnderPower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == self.power_id and amount != 0:
+        if owner is target and power_id == self.power_id and amount != 0 and not self.consume_ignore_next_instance():
             owner.apply_power(PowerId.STRENGTH, -amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
@@ -988,7 +989,7 @@ class DarkShacklesPower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == self.power_id and amount != 0:
+        if owner is target and power_id == self.power_id and amount != 0 and not self.consume_ignore_next_instance():
             owner.apply_power(PowerId.STRENGTH, -amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
@@ -1219,6 +1220,7 @@ class DyingStarPower(PowerInstance):
 
     power_type = PowerType.DEBUFF
     stack_type = PowerStackType.COUNTER
+    is_temporary = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.DYING_STAR, amount)
@@ -1233,7 +1235,7 @@ class DyingStarPower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == self.power_id and amount != 0:
+        if owner is target and power_id == self.power_id and amount != 0 and not self.consume_ignore_next_instance():
             owner.apply_power(PowerId.STRENGTH, -amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
@@ -1254,6 +1256,7 @@ class EnfeeblingTouchPower(PowerInstance):
 
     power_type = PowerType.DEBUFF
     stack_type = PowerStackType.COUNTER
+    is_temporary = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.ENFEEBLING_TOUCH, amount)
@@ -1268,7 +1271,7 @@ class EnfeeblingTouchPower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == self.power_id and amount != 0:
+        if owner is target and power_id == self.power_id and amount != 0 and not self.consume_ignore_next_instance():
             owner.apply_power(PowerId.STRENGTH, -amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:

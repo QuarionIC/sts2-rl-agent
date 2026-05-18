@@ -776,7 +776,15 @@ def misery(card: CardInstance, combat: CombatState, target: Creature | None) -> 
         if enemy is target:
             continue
         for power_id, amount in original_debuffs:
-            combat.apply_power_to(enemy, power_id, amount, applier=owner, source=card)
+            cls = get_power_class(power_id)
+            combat.apply_power_to(
+                enemy,
+                power_id,
+                amount,
+                applier=owner,
+                source=card,
+                ignore_next_instance=bool(cls is not None and getattr(cls, "is_temporary", False)),
+            )
 
 
 @register_effect(CardId.NECRO_MASTERY_CARD)

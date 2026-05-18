@@ -318,6 +318,7 @@ class HelicalDartPower(PowerInstance):
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.COUNTER
+    is_temporary = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.HELICAL_DART, amount)
@@ -332,7 +333,7 @@ class HelicalDartPower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == self.power_id and amount != 0:
+        if owner is target and power_id == self.power_id and amount != 0 and not self.consume_ignore_next_instance():
             owner.apply_power(PowerId.DEXTERITY, amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
@@ -464,6 +465,7 @@ class HotfixPower(PowerInstance):
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.COUNTER
+    is_temporary = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.HOTFIX, amount)
@@ -478,7 +480,7 @@ class HotfixPower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == self.power_id and amount != 0:
+        if owner is target and power_id == self.power_id and amount != 0 and not self.consume_ignore_next_instance():
             owner.apply_power(PowerId.FOCUS, amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
@@ -858,6 +860,7 @@ class ManglePower(PowerInstance):
 
     power_type = PowerType.DEBUFF
     stack_type = PowerStackType.COUNTER
+    is_temporary = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.MANGLE, amount)
@@ -872,7 +875,7 @@ class ManglePower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == self.power_id and amount != 0:
+        if owner is target and power_id == self.power_id and amount != 0 and not self.consume_ignore_next_instance():
             owner.apply_power(PowerId.STRENGTH, -amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
@@ -992,7 +995,7 @@ class MonarchsGazeStrengthDownPower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == PowerId.MONARCHS_GAZE_STRENGTH_DOWN and amount != 0:
+        if owner is target and power_id == PowerId.MONARCHS_GAZE_STRENGTH_DOWN and amount != 0 and not self.consume_ignore_next_instance():
             owner.apply_power(PowerId.STRENGTH, -amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
@@ -1438,6 +1441,7 @@ class PiercingWailPower(PowerInstance):
 
     power_type = PowerType.DEBUFF
     stack_type = PowerStackType.COUNTER
+    is_temporary = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.PIERCING_WAIL, amount)
@@ -1452,7 +1456,7 @@ class PiercingWailPower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == self.power_id and amount != 0:
+        if owner is target and power_id == self.power_id and amount != 0 and not self.consume_ignore_next_instance():
             owner.apply_power(PowerId.STRENGTH, -amount, applier=applier, source=source)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:

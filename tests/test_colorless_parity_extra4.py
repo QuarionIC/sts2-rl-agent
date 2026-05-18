@@ -158,7 +158,20 @@ class TestColorlessParityExtra4:
         combat.energy = 2
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == 185
+        assert enemy.current_hp == 175
+
+    def test_rend_counts_negative_strength_but_ignores_temporary_debuffs(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.max_hp = 200
+        enemy.current_hp = 200
+        combat.apply_power_to(enemy, PowerId.STRENGTH, -2, applier=combat.player)
+        combat.apply_power_to(enemy, PowerId.DARK_SHACKLES, 9, applier=combat.player)
+        combat.hand = [make_rend()]
+        combat.energy = 2
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == 180
 
     def test_rend_uses_normal_attack_damage_modifiers(self):
         combat = _make_combat()

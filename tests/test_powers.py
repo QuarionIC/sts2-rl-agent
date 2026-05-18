@@ -739,13 +739,37 @@ class TestPowerAmountChangedHooks:
             props=ValueProp.MOVE,
         )
 
-        assert enemy.current_hp == starting_hp - 4
+        assert enemy.current_hp == starting_hp - 9
         assert enemy.get_power_amount(PowerId.MONARCHS_GAZE_STRENGTH_DOWN) == 2
         assert enemy.get_power_amount(PowerId.STRENGTH) == -2
 
         power = enemy.powers[PowerId.MONARCHS_GAZE_STRENGTH_DOWN]
         power.after_turn_end(enemy, CombatSide.ENEMY, simple_combat)
         assert enemy.get_power_amount(PowerId.STRENGTH) == 0
+
+    def test_sleight_of_flesh_triggers_for_duration_and_negative_strength_debuffs(self, simple_combat):
+        player = simple_combat.player
+        enemy = simple_combat.enemies[0]
+        player.apply_power(PowerId.SLEIGHT_OF_FLESH, 5)
+        starting_hp = enemy.current_hp
+
+        simple_combat.apply_power_to(enemy, PowerId.WEAK, 1, applier=player)
+        assert enemy.current_hp == starting_hp - 5
+
+        simple_combat.apply_power_to(enemy, PowerId.STRENGTH, -1, applier=player)
+        assert enemy.current_hp == starting_hp - 10
+
+    def test_sleight_of_flesh_ignores_temporary_power_but_sees_internal_strength_down(self, simple_combat):
+        player = simple_combat.player
+        enemy = simple_combat.enemies[0]
+        player.apply_power(PowerId.SLEIGHT_OF_FLESH, 5)
+        starting_hp = enemy.current_hp
+
+        simple_combat.apply_power_to(enemy, PowerId.MANGLE, 3, applier=player)
+
+        assert enemy.get_power_amount(PowerId.MANGLE) == 3
+        assert enemy.get_power_amount(PowerId.STRENGTH) == -3
+        assert enemy.current_hp == starting_hp - 5
 
     def test_enemy_ritual_skips_first_turn_end_after_application(self, simple_combat):
         enemy = simple_combat.enemies[0]

@@ -562,6 +562,23 @@ class TestNecrobinderParityExtra4:
         assert target.get_power_amount(PowerId.POISON) == 3
         assert other.get_power_amount(PowerId.POISON) == 0
 
+    def test_misery_copies_temporary_debuff_without_double_copying_internal_strength(self):
+        combat = _make_combat(extra_enemies=1)
+        target, other = combat.enemies
+        target.current_hp = target.max_hp = 100
+        other.current_hp = other.max_hp = 100
+        combat.apply_power_to(target, PowerId.MANGLE, 3, applier=combat.player)
+        combat.hand = [make_misery()]
+        combat.energy = 0
+
+        assert target.get_power_amount(PowerId.MANGLE) == 3
+        assert target.get_power_amount(PowerId.STRENGTH) == -3
+
+        assert combat.play_card(0, 0)
+
+        assert other.get_power_amount(PowerId.MANGLE) == 3
+        assert other.get_power_amount(PowerId.STRENGTH) == -3
+
     def test_sic_em_uses_osty_damage_and_power_values(self):
         combat = _make_combat()
         enemy = combat.enemies[0]
