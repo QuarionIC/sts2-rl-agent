@@ -196,6 +196,21 @@ class TestIroncladParityExtra4:
         assert exhausted_combat.play_card(0)
         assert exhausted_combat.player.block == 22
 
+    def test_evil_eye_second_block_is_skipped_if_first_block_ends_combat(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = 5
+        exhausted = make_defend_ironclad()
+        exhausted.owner = combat.player
+        combat.record_card_exhausted(exhausted)
+        combat.player.apply_power(PowerId.JUGGERNAUT, 5)
+        combat.hand = [make_evil_eye()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert combat.is_over
+        assert combat.player.block == 8
+
     def test_drum_of_battle_draws_then_applies_power(self):
         combat = _make_combat()
         drawn = [make_strike_ironclad(), make_defend_ironclad(), make_strike_ironclad()]

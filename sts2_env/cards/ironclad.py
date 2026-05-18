@@ -925,6 +925,8 @@ def make_drum_of_battle(upgraded: bool = False) -> CardInstance:
 def evil_eye(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     gains = 2 if combat.was_card_exhausted_this_turn(_owner(card, combat)) else 1
     for _ in range(gains):
+        if combat.is_over:
+            return
         _gain_block(card, combat)
 
 
