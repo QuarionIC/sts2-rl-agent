@@ -189,8 +189,9 @@ class TestRegentParityExtra3:
 
         combat = _make_combat()
         card = create_card(CardId.TYRANNY_CARD)
+        first_drawn = create_card(CardId.STRIKE_REGENT)
         combat.hand = [card]
-        combat.draw_pile = [create_card(CardId.STRIKE_REGENT) for _ in range(10)]
+        combat.draw_pile = [first_drawn] + [create_card(CardId.STRIKE_REGENT) for _ in range(9)]
         combat.discard_pile = []
         combat.energy = 1
 
@@ -200,3 +201,12 @@ class TestRegentParityExtra3:
         combat.end_player_turn()
         assert combat.round_number == 2
         assert len(combat.hand) == 6
+        assert combat.pending_choice is not None
+        assert combat.pending_choice.min_choices == 1
+        assert combat.pending_choice.max_choices == 1
+
+        assert combat.resolve_pending_choice(0)
+        assert combat.pending_choice is None
+
+        assert first_drawn in combat.exhaust_pile
+        assert first_drawn not in combat.hand

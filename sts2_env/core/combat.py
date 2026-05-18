@@ -2027,6 +2027,29 @@ class CombatState:
             owner=owner,
         )
 
+    def request_exhaust(self, owner: Creature, count: int) -> None:
+        state = self.combat_player_state_for(owner)
+        if state is None or count <= 0:
+            return
+        exhaust_count = min(count, len(state.hand))
+        if exhaust_count <= 0:
+            return
+
+        def _exhaust_selected(selected_cards: list[CardInstance]) -> None:
+            for card in selected_cards:
+                if card in state.hand:
+                    self.exhaust_card(card)
+
+        self.request_multi_card_choice(
+            prompt="Choose hand cards to exhaust",
+            cards=list(state.hand),
+            source_pile="hand",
+            resolver=_exhaust_selected,
+            min_count=exhaust_count,
+            max_count=exhaust_count,
+            owner=owner,
+        )
+
     def reduce_retained_card_cost(self, owner: Creature) -> None:
         state = self.combat_player_state_for(owner)
         if state is None:
