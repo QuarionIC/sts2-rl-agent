@@ -830,6 +830,8 @@ def create_skulking_colony(rng: Rng) -> tuple[Creature, MonsterAI]:
 
     def smash(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, smash_dmg)
+        if combat.is_over:
+            return
         combat.add_status_cards_to_discard(combat.primary_player, "DAZED", 4)
 
     states: dict[str, MonsterState] = {
@@ -1017,6 +1019,8 @@ def create_soul_fysh(rng: Rng) -> tuple[Creature, MonsterAI]:
         from sts2_env.cards.status import make_beckon
 
         _deal_damage_to_player(combat, creature, gaze_dmg)
+        if combat.is_over:
+            return
         combat.add_generated_card_to_creature_discard(combat.primary_player, make_beckon(), added_by_player=False)
 
     def fade(combat: CombatState) -> None:

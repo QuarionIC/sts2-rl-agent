@@ -2235,6 +2235,16 @@ class TestFixedRotation:
         colony_ai.states["SMASH_MOVE"].perform(colony_combat)
         assert colony_combat.player.current_hp == 71
         assert [card.card_id for card in colony_combat.discard_pile] == [CardId.DAZED] * 4
+
+        lethal_colony, lethal_colony_ai = create_skulking_colony(Rng(80))
+        lethal_colony_combat = _make_combat(80)
+        lethal_colony_combat.add_enemy(lethal_colony, lethal_colony_ai)
+        lethal_colony_combat.player.current_hp = 9
+        lethal_colony_ai.states["SMASH_MOVE"].perform(lethal_colony_combat)
+        assert lethal_colony_combat.is_over
+        assert lethal_colony_combat.player_won is False
+        assert lethal_colony_combat.discard_pile == []
+
         colony_ai.states["INERTIA_MOVE"].perform(colony_combat)
         assert colony.block == 10
         assert colony.get_power_amount(PowerId.STRENGTH) == 3
@@ -2348,6 +2358,17 @@ class TestFixedRotation:
         soul_effect_ai.states["GAZE_MOVE"].perform(soul_effect_combat)
         assert soul_effect_combat.player.current_hp == 57
         assert [card.card_id for card in soul_effect_combat.discard_pile] == [CardId.BECKON, CardId.BECKON]
+
+        lethal_soul, lethal_soul_ai = create_soul_fysh(Rng(87))
+        lethal_soul_combat = _make_combat(87)
+        lethal_soul_combat.add_enemy(lethal_soul, lethal_soul_ai)
+        lethal_soul_combat.discard_pile.clear()
+        lethal_soul_combat.player.current_hp = 7
+        lethal_soul_ai.states["GAZE_MOVE"].perform(lethal_soul_combat)
+        assert lethal_soul_combat.is_over
+        assert lethal_soul_combat.player_won is False
+        assert lethal_soul_combat.discard_pile == []
+
         soul_effect_ai.states["FADE_MOVE"].perform(soul_effect_combat)
         assert soul_effect.get_power_amount(PowerId.INTANGIBLE) == 2
         soul_effect_ai.states["SCREAM_MOVE"].perform(soul_effect_combat)
