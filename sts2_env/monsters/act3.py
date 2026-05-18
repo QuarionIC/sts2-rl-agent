@@ -35,8 +35,14 @@ def _deal_damage_to_player(combat: CombatState, creature: Creature, base_dmg: in
         apply_damage(combat.primary_player, dmg, ValueProp.MOVE, combat, creature)
 
 
-def _gain_block(creature: Creature, amount: int) -> None:
+def _gain_block(creature: Creature, amount: int, combat: CombatState) -> None:
+    before = creature.block
     creature.gain_block(amount)
+    gained = creature.block - before
+    if gained > 0:
+        from sts2_env.core.hooks import fire_after_block_gained
+
+        fire_after_block_gained(creature, gained, combat)
 
 
 # ========================================================================
@@ -134,7 +140,7 @@ def create_axebot(
     boot_up_block = 10
 
     def boot_up(combat: CombatState) -> None:
-        _gain_block(creature, boot_up_block)
+        _gain_block(creature, boot_up_block, combat)
         creature.apply_power(PowerId.STRENGTH, 1)
 
     def one_two(combat: CombatState) -> None:
@@ -212,7 +218,7 @@ def create_guardbot(rng: Rng) -> tuple[Creature, MonsterAI]:
         # Give block to all Fabricators
         for enemy in combat.alive_enemies:
             if enemy.monster_id == "FABRICATOR":
-                _gain_block(enemy, 15)
+                _gain_block(enemy, 15, combat)
 
     states: dict[str, MonsterState] = {
         "GUARD_MOVE": MoveState("GUARD_MOVE", guard, [defend_intent()], follow_up_id="GUARD_MOVE"),
@@ -465,7 +471,7 @@ def create_the_forgotten(rng: Rng) -> tuple[Creature, MonsterAI]:
 
     def miasma(combat: CombatState) -> None:
         combat.apply_power_to(combat.primary_player, PowerId.DEXTERITY, -2, applier=creature)
-        _gain_block(creature, 8)
+        _gain_block(creature, 8, combat)
         creature.apply_power(PowerId.DEXTERITY, 2, applier=creature)
 
     def dread(combat: CombatState) -> None:
@@ -606,7 +612,7 @@ def create_magi_knight(rng: Rng) -> tuple[Creature, MonsterAI]:
 
     def power_shield(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, power_shield_dmg)
-        _gain_block(creature, power_shield_block)
+        _gain_block(creature, power_shield_block, combat)
 
     def dampen(combat: CombatState) -> None:
         power = combat.primary_player.powers.get(PowerId.DAMPEN)
@@ -626,7 +632,7 @@ def create_magi_knight(rng: Rng) -> tuple[Creature, MonsterAI]:
         _deal_damage_to_player(combat, creature, spear_dmg)
 
     def prep(combat: CombatState) -> None:
-        _gain_block(creature, power_shield_block)
+        _gain_block(creature, power_shield_block, combat)
 
     def magic_bomb(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, bomb_dmg)
@@ -686,7 +692,7 @@ def create_mecha_knight(rng: Rng) -> tuple[Creature, MonsterAI]:
             combat.move_card_to_creature_hand(combat.primary_player, make_burn())
 
     def windup(combat: CombatState) -> None:
-        _gain_block(creature, windup_block)
+        _gain_block(creature, windup_block, combat)
         creature.apply_power(PowerId.STRENGTH, 5)
 
     def heavy_cleave(combat: CombatState) -> None:
@@ -852,7 +858,7 @@ def create_queen(rng: Rng) -> tuple[Creature, MonsterAI]:
         for enemy in combat.alive_enemies:
             if enemy is not creature and enemy.side == creature.side:
                 enemy.apply_power(PowerId.STRENGTH, 1, applier=creature)
-        _gain_block(creature, 20)
+        _gain_block(creature, 20, combat)
 
     def off_with_your_head(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, off_with_your_head_dmg, hits=5)

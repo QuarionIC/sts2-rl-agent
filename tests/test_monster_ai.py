@@ -1211,6 +1211,41 @@ class TestFixedRotation:
         ai.roll_move(Rng(26))
         assert ai.current_move.state_id == "FLAMETHROWER_MOVE"
 
+    def test_act3_monster_block_moves_trigger_after_block_gained_hooks(self):
+        cases = [
+            (create_axebot(Rng(1), start_with_boot_up=True), "BOOT_UP_MOVE", 10),
+            (create_the_forgotten(Rng(2)), "MIASMA", 8),
+            (create_magi_knight(Rng(3)), "FIRST_POWER_SHIELD_MOVE", 5),
+            (create_magi_knight(Rng(4)), "PREP_MOVE", 5),
+            (create_mecha_knight(Rng(5)), "WINDUP_MOVE", 15),
+        ]
+
+        for (creature, ai), state_id, expected_block in cases:
+            combat = _make_combat(122)
+            combat.add_enemy(creature, ai)
+            creature.block = 0
+            counter = _BlockHookCounterPower()
+            creature.powers[PowerId.JUGGERNAUT] = counter
+
+            ai.states[state_id].perform(combat)
+
+            assert creature.block == expected_block
+            assert counter.calls == [expected_block]
+
+        combat = _make_combat(123)
+        fabricator, fabricator_ai = create_fabricator(Rng(6))
+        guardbot, guardbot_ai = create_guardbot(Rng(7))
+        combat.add_enemy(fabricator, fabricator_ai)
+        combat.add_enemy(guardbot, guardbot_ai)
+        fabricator.block = 0
+        counter = _BlockHookCounterPower()
+        fabricator.powers[PowerId.JUGGERNAUT] = counter
+
+        guardbot_ai.states["GUARD_MOVE"].perform(combat)
+
+        assert fabricator.block == 15
+        assert counter.calls == [15]
+
     def test_owl_magistrate_uses_original_flight_and_verdict_cycle(self):
         combat = _make_combat(27)
         creature, ai = create_owl_magistrate(Rng(27))
@@ -1560,6 +1595,13 @@ class TestFixedRotation:
         assert queen.block == 20
         assert amalgam.get_power_amount(PowerId.STRENGTH) == 1
         assert queen.get_power_amount(PowerId.STRENGTH) == 0
+
+        counter = _BlockHookCounterPower()
+        queen.powers[PowerId.JUGGERNAUT] = counter
+        queen.block = 0
+        queen_ai.states["BURN_BRIGHT_FOR_ME_MOVE"].perform(combat)
+        assert queen.block == 20
+        assert counter.calls == [20]
 
         combat.kill_creature(amalgam)
         queen_ai.on_move_performed()
