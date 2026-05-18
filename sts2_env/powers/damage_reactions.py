@@ -25,6 +25,17 @@ if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
 
 
+def _gain_unpowered_block(owner: Creature, amount: int, combat: CombatState) -> int:
+    before = owner.block
+    owner.gain_block(amount, unpowered=True)
+    gained = owner.block - before
+    if gained > 0:
+        from sts2_env.core.hooks import fire_after_block_gained
+
+        fire_after_block_gained(owner, gained, combat)
+    return gained
+
+
 # ---------------------------------------------------------------------------
 # ThornsPower
 # ---------------------------------------------------------------------------
@@ -153,7 +164,7 @@ class CurlUpPower(PowerInstance):
     def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
         if card is self._triggered_card:
             self._triggered_card = None
-            owner.gain_block(self.amount)
+            _gain_unpowered_block(owner, self.amount, combat)
             owner.powers.pop(self.power_id, None)
 
 
@@ -179,7 +190,7 @@ class SelfFormingClayPower(PowerInstance):
 
     def after_block_cleared(self, owner: Creature, creature: Creature, combat: CombatState) -> None:
         if creature is owner:
-            owner.gain_block(self.amount)
+            _gain_unpowered_block(owner, self.amount, combat)
             combat._remove_power(owner, self.power_id)
 
 # ---------------------------------------------------------------------------

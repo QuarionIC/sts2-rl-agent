@@ -23,6 +23,17 @@ if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
 
 
+def _gain_unpowered_block(owner: Creature, amount: int, combat: CombatState) -> int:
+    before = owner.block
+    owner.gain_block(amount, unpowered=True)
+    gained = owner.block - before
+    if gained > 0:
+        from sts2_env.core.hooks import fire_after_block_gained
+
+        fire_after_block_gained(owner, gained, combat)
+    return gained
+
+
 # =====================================================================
 #  Turn-start powers
 # =====================================================================
@@ -789,12 +800,12 @@ class BlockNextTurnPower(PowerInstance):
 
     def after_block_cleared(self, owner: Creature, creature: Creature, combat: CombatState) -> None:
         if creature is owner and self.amount > 0:
-            owner.gain_block(self.amount)
+            _gain_unpowered_block(owner, self.amount, combat)
             self.amount = 0
 
     def after_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side == owner.side and owner.block == 0 and self.amount > 0:
-            owner.gain_block(self.amount)
+            _gain_unpowered_block(owner, self.amount, combat)
             self.amount = 0
 
 

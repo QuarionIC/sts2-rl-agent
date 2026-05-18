@@ -5,7 +5,12 @@ import pytest
 from sts2_env.core.creature import Creature
 from sts2_env.core.enums import CardId, CombatSide, PowerId, RoomType, ValueProp
 from sts2_env.core.damage import apply_damage, calculate_block, calculate_damage
-from sts2_env.core.hooks import fire_after_block_cleared, fire_after_turn_end, fire_before_combat_start
+from sts2_env.core.hooks import (
+    fire_after_block_cleared,
+    fire_after_turn_end,
+    fire_before_combat_start,
+    fire_before_turn_end,
+)
 from sts2_env.cards.defect import make_beam_cell, make_feral, make_subroutine
 from sts2_env.cards.ironclad import make_inflame, make_juggling, make_sword_boomerang
 from sts2_env.cards.ironclad_basic import make_bash, make_defend_ironclad, make_strike_ironclad
@@ -80,6 +85,29 @@ class TestPowerApplication:
         assert simple_combat.play_card(0)
         assert enemy.current_hp == 30
         assert enemy.block == 12
+
+    def test_curl_up_block_triggers_after_block_gained_hooks(self, simple_combat):
+        enemy = simple_combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 39
+        simple_combat.apply_power_to(enemy, PowerId.CURL_UP, 12)
+        calls: list[int] = []
+
+        class BlockProbePower(PowerInstance):
+            def __init__(self):
+                super().__init__(PowerId.JUGGERNAUT, 0)
+
+            def after_block_gained(self, owner, creature, amount, combat):
+                if creature is owner:
+                    calls.append(amount)
+
+        enemy.powers[PowerId.JUGGERNAUT] = BlockProbePower()
+        simple_combat.hand = [make_sword_boomerang()]
+        simple_combat.energy = 1
+
+        assert simple_combat.play_card(0)
+
+        assert enemy.block == 12
+        assert calls == [12]
 
     def test_curl_up_does_not_trigger_when_hit_kills_owner(self, simple_combat):
         enemy = simple_combat.enemies[0]
@@ -666,6 +694,19 @@ class TestPowerAmountChangedHooks:
 
         assert enemy.get_power_amount(PowerId.PLATING) == 4
 
+    def test_plating_block_triggers_after_block_gained_hooks(self, simple_combat):
+        player = simple_combat.player
+        enemy = simple_combat.enemies[0]
+        start_hp = enemy.current_hp
+        player.apply_power(PowerId.PLATING, 4)
+        player.apply_power(PowerId.JUGGERNAUT, 5)
+        player.block = 0
+
+        fire_before_turn_end(CombatSide.PLAYER, simple_combat)
+
+        assert player.block == 4
+        assert enemy.current_hp == start_hp - 5
+
     def test_juggling_counts_attacks_played_before_it_was_applied(self, simple_combat):
         simple_combat.hand = [
             make_strike_ironclad(),
@@ -758,6 +799,18 @@ class TestPowerAmountChangedHooks:
         assert simple_combat.player.block == 6
         assert simple_combat.player.get_power_amount(PowerId.BLOCK_NEXT_TURN) == 0
 
+    def test_block_next_turn_block_triggers_after_block_gained_hooks(self, simple_combat):
+        player = simple_combat.player
+        enemy = simple_combat.enemies[0]
+        start_hp = enemy.current_hp
+        player.apply_power(PowerId.BLOCK_NEXT_TURN, 6)
+        player.apply_power(PowerId.JUGGERNAUT, 5)
+
+        fire_after_block_cleared(player, simple_combat)
+
+        assert player.block == 6
+        assert enemy.current_hp == start_hp - 5
+
     def test_toric_toughness_triggers_on_block_cleared_hook(self, simple_combat):
         power = ToricToughnessPower(1)
         power.set_block(7)
@@ -775,6 +828,18 @@ class TestPowerAmountChangedHooks:
 
         assert simple_combat.player.block == 4
         assert PowerId.SELF_FORMING_CLAY not in simple_combat.player.powers
+
+    def test_self_forming_clay_block_triggers_after_block_gained_hooks(self, simple_combat):
+        player = simple_combat.player
+        enemy = simple_combat.enemies[0]
+        start_hp = enemy.current_hp
+        player.apply_power(PowerId.SELF_FORMING_CLAY, 4)
+        player.apply_power(PowerId.JUGGERNAUT, 5)
+
+        fire_after_block_cleared(player, simple_combat)
+
+        assert player.block == 4
+        assert enemy.current_hp == start_hp - 5
 
     def test_after_energy_reset_runs_before_hand_draw_modifiers(self, simple_combat):
         class DrawProbePower(PowerInstance):

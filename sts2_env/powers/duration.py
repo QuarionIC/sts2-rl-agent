@@ -21,6 +21,18 @@ if TYPE_CHECKING:
     from sts2_env.core.creature import Creature
     from sts2_env.core.combat import CombatState
 
+
+def _gain_unpowered_block(owner: Creature, amount: int, combat: CombatState) -> int:
+    before = owner.block
+    owner.gain_block(amount, unpowered=True)
+    gained = owner.block - before
+    if gained > 0:
+        from sts2_env.core.hooks import fire_after_block_gained
+
+        fire_after_block_gained(owner, gained, combat)
+    return gained
+
+
 # =====================================================================
 #  Re-exported duration powers from common.py for reference / verification
 # =====================================================================
@@ -82,12 +94,12 @@ class PlatingPower(PowerInstance):
         if side == CombatSide.PLAYER and not owner.is_player and not self._first_round_block_given:
             round_num = getattr(combat, "round_number", 1)
             if round_num == 1:
-                owner.gain_block(self.amount)
+                _gain_unpowered_block(owner, self.amount, combat)
                 self._first_round_block_given = True
 
     def before_turn_end_early(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side == owner.side:
-            owner.gain_block(self.amount)
+            _gain_unpowered_block(owner, self.amount, combat)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side == CombatSide.ENEMY:
