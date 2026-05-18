@@ -99,6 +99,19 @@ class TestRelicParityStarterCommonExtra3:
         assert combat.play_card(0)
         assert combat.player.block == 6
 
+    def test_permafrost_block_triggers_after_block_gained_hooks(self):
+        combat = _make_ironclad_combat(["Permafrost"], seed=306)
+        enemy = combat.enemies[0]
+        start_hp = enemy.current_hp
+        combat.player.apply_power(PowerId.JUGGERNAUT, 5)
+        combat.hand = [make_inflame()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+
+        assert combat.player.block == 6
+        assert enemy.current_hp == start_hp - 5
+
     def test_red_skull_applies_and_removes_strength_when_crossing_hp_threshold(self):
         """Matches RedSkull.cs: <=50% HP grants +3 Strength; above removes it."""
         combat = CombatState(

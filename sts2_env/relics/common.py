@@ -111,7 +111,7 @@ class BoneFlute(RelicInstance):
     def after_attack(self, owner: Creature, attack: object, combat: CombatState) -> None:
         dealer = getattr(attack, "attacker", None)
         if getattr(dealer, "is_osty", False) and getattr(dealer, "owner", None) is owner:
-            owner.gain_block(self.BLOCK, unpowered=True)
+            _gain_unpowered_block(owner, self.BLOCK, combat)
 
 
 @register_relic
@@ -314,7 +314,7 @@ class Permafrost(RelicInstance):
                 and getattr(card, "owner", None) is owner
                 and hasattr(card, "card_type") and card.card_type == CardType.POWER):
             self._activated_this_combat = True
-            owner.gain_block(self.BLOCK, unpowered=True)
+            _gain_unpowered_block(owner, self.BLOCK, combat)
 
     def after_combat_end(self, owner: Creature, combat: CombatState) -> None:
         self._activated_this_combat = False

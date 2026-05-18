@@ -136,6 +136,19 @@ class TestRelicParityStarterCommonExtra5:
         combat.deal_damage(combat.osty, enemy, 4, ValueProp.MOVE)
         assert combat.player.block == start_block + 2
 
+    def test_bone_flute_block_triggers_after_block_gained_hooks(self):
+        combat = _make_necrobinder_combat(["BoneFlute"], seed=1208)
+        enemy = combat.enemies[0]
+        start_hp = enemy.current_hp
+        combat.player.apply_power(PowerId.JUGGERNAUT, 5)
+        combat.summon_osty(combat.player, 5)
+        assert combat.osty is not None
+
+        combat.deal_damage(combat.osty, enemy, 4, ValueProp.MOVE)
+
+        assert combat.player.block == 2
+        assert enemy.current_hp == start_hp - 9
+
     def test_oddly_smooth_stone_applies_one_dexterity_at_combat_start(self):
         """Matches OddlySmoothStone.cs: gain 1 Dexterity at combat start."""
         combat = _make_ironclad_combat(["OddlySmoothStone"], seed=1206)
