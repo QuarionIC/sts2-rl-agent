@@ -371,6 +371,34 @@ class TestIroncladParityExtra4:
         assert combat.play_card(0, 0)
         assert enemy.current_hp == 58
 
+    def test_break_deals_damage_then_applies_vulnerable(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.max_hp = 100
+        enemy.current_hp = 100
+        combat.hand = [make_break(upgraded=True)]
+        combat.energy = 2
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == 75
+        assert enemy.get_power_amount(PowerId.VULNERABLE) == 7
+
+    def test_break_does_not_apply_vulnerable_after_killing_target(self):
+        combat = _make_combat(extra_enemies=1)
+        first, second = combat.enemies
+        first.max_hp = 20
+        first.current_hp = 20
+        second.max_hp = 100
+        second.current_hp = 100
+        combat.hand = [make_break()]
+        combat.energy = 2
+
+        assert combat.play_card(0, 0)
+        assert not combat.is_over
+        assert first.escaped
+        assert first.get_power_amount(PowerId.VULNERABLE) == 0
+        assert second.get_power_amount(PowerId.VULNERABLE) == 0
+
     def test_flame_barrier_gains_block_and_retaliation_power(self):
         combat = _make_combat()
         combat.hand = [make_flame_barrier(upgraded=True)]
