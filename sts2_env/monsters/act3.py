@@ -777,7 +777,7 @@ def create_door(rng: Rng) -> tuple[Creature, MonsterAI]:
 
     def enforce(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, enforce_dmg)
-        creature.apply_power(PowerId.STRENGTH, 3)
+        combat.apply_power_to(creature, PowerId.STRENGTH, 3, applier=creature)
 
     def door_slam(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, door_slam_dmg, hits=2)
@@ -810,7 +810,9 @@ def create_doormaker(rng: Rng) -> tuple[Creature, MonsterAI]:
 
     def get_back_in(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, get_back_in_dmg)
-        creature.apply_power(PowerId.STRENGTH, 5)
+        if combat.is_over or creature.is_dead:
+            return
+        combat.apply_power_to(creature, PowerId.STRENGTH, 5, applier=creature)
         combat.revive_door()
         combat.escape_creature(creature)
 

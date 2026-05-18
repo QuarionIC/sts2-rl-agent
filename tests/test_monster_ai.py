@@ -131,6 +131,8 @@ from sts2_env.monsters.act3 import (
     create_spectral_knight,
     create_the_forgotten,
     create_the_lost,
+    create_door,
+    create_doormaker,
     create_turret_operator,
     create_zapbot,
 )
@@ -1609,6 +1611,29 @@ class TestFixedRotation:
 
         assert [enemy.monster_id for enemy in combat.enemies] == ["DOOR", "DOORMAKER"]
         assert combat.enemy_ais[door.combat_id].current_move.state_id == "DEAD_MOVE"
+
+        lethal_door_combat = _make_combat(145)
+        lethal_door, lethal_door_ai = create_door(Rng(145))
+        lethal_door_combat.add_enemy(lethal_door, lethal_door_ai)
+        lethal_door_combat.player.current_hp = 20
+        lethal_door_ai.states["ENFORCE_MOVE"].perform(lethal_door_combat)
+        assert lethal_door_combat.is_over
+        assert lethal_door_combat.player_won is False
+        assert lethal_door.get_power_amount(PowerId.STRENGTH) == 0
+
+        lethal_doormaker_combat = _make_combat(146)
+        lethal_door_2, lethal_door_ai_2 = create_door(Rng(146))
+        lethal_doormaker, lethal_doormaker_ai = create_doormaker(Rng(146))
+        lethal_doormaker_combat.add_enemy(lethal_door_2, lethal_door_ai_2)
+        lethal_doormaker_combat.add_enemy(lethal_doormaker, lethal_doormaker_ai)
+        lethal_door_2.current_hp = 0
+        lethal_doormaker_combat.player.current_hp = 40
+        lethal_doormaker_ai.states["GET_BACK_IN_MOVE"].perform(lethal_doormaker_combat)
+        assert lethal_doormaker_combat.is_over
+        assert lethal_doormaker_combat.player_won is False
+        assert lethal_doormaker.get_power_amount(PowerId.STRENGTH) == 0
+        assert lethal_door_2.current_hp == 0
+        assert lethal_doormaker.is_alive
 
     def test_axebot_stock_spawns_replacements_with_decremented_stock(self):
         combat = _make_combat(35)
