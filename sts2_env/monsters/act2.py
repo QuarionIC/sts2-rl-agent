@@ -693,7 +693,7 @@ def create_slumbering_beetle(rng: Rng) -> tuple[Creature, MonsterAI]:
 
     def rollout(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, rollout_dmg)
-        creature.apply_power(PowerId.STRENGTH, 2)
+        combat.apply_power_to(creature, PowerId.STRENGTH, 2, applier=creature)
 
     cond = ConditionalBranchState("SNORE_NEXT")
     cond.add_branch(lambda: creature.has_power(PowerId.SLUMBER), "SNORE_MOVE")

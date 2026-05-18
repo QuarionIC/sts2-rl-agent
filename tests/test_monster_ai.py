@@ -826,6 +826,16 @@ class TestFixedRotation:
         assert combat.player.current_hp == 64
         assert beetle.get_power_amount(PowerId.STRENGTH) == 2
 
+        lethal_beetle, lethal_beetle_ai = create_slumbering_beetle(Rng(137))
+        lethal_combat = _make_combat(137)
+        lethal_combat.add_enemy(lethal_beetle, lethal_beetle_ai)
+        lethal_beetle.powers.pop(PowerId.SLUMBER)
+        lethal_combat.player.current_hp = 16
+        lethal_beetle_ai.states["ROLL_OUT_MOVE"].perform(lethal_combat)
+        assert lethal_combat.is_over
+        assert lethal_combat.player_won is False
+        assert lethal_beetle.get_power_amount(PowerId.STRENGTH) == 0
+
         toad, toad_ai = create_spiny_toad(Rng(38))
         combat.add_enemy(toad, toad_ai)
 
