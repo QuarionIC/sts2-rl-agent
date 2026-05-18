@@ -63,6 +63,21 @@ class TestIroncladParity:
         assert combat.is_over
         assert strike.upgraded is False
 
+    def test_armaments_plus_does_not_upgrade_hand_after_block_ends_combat(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = 5
+        strike = make_strike_ironclad()
+        defend = make_defend_ironclad()
+        combat.player.apply_power(PowerId.JUGGERNAUT, 5)
+        combat.hand = [make_armaments(upgraded=True), strike, defend]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert combat.is_over
+        assert strike.upgraded is False
+        assert defend.upgraded is False
+
     def test_burning_pact_exhausts_selected_card_then_draws(self):
         """Matches BurningPact.cs: select one hand card to exhaust, then draw the configured amount."""
         combat = _make_combat()

@@ -2450,6 +2450,8 @@ class CombatState:
     def upgrade_card(self, card: CardInstance | None) -> CardInstance | None:
         if card is None or card.upgraded:
             return card
+        if self._combat_started and self.is_over and self._is_card_in_combat(card):
+            return card
         try:
             upgraded = create_card(card.card_id, upgraded=True)
         except KeyError:
