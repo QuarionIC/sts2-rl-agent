@@ -1378,6 +1378,18 @@ class TestPowerAmountChangedHooks:
         assert simple_combat.play_card(0, 0)
         assert enemy.current_hp == starting_hp - 12
 
+    def test_echo_form_only_replays_first_started_card_each_turn(self, simple_combat):
+        enemy = simple_combat.enemies[0]
+        starting_hp = enemy.current_hp
+        simple_combat.hand = [make_strike_ironclad(), make_strike_ironclad()]
+        simple_combat.energy = 10
+        simple_combat.apply_power_to(simple_combat.player, PowerId.ECHO_FORM, 1)
+
+        assert simple_combat.play_card(0, 0)
+        assert simple_combat.play_card(0, 0)
+
+        assert enemy.current_hp == starting_hp - 18
+
     def test_replay_powers_do_not_affect_teammate_attacks(self, simple_combat):
         ally = simple_combat.add_ally_player(PlayerState(player_id=2, character_id="Ironclad", max_hp=70, current_hp=70))
         ally_state = simple_combat.combat_player_state_for(ally)

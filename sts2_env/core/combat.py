@@ -149,6 +149,7 @@ class CombatState:
         self._legacy_extra_card_rewards: int = 0
         self._played_cards_this_turn: list[CardInstance] = []
         self._played_cards_combat: list[CardInstance] = []
+        self._card_play_starts_this_turn: list[CardInstance] = []
         self._card_play_round_counts: dict[tuple[int, Creature], int] = {}
 
         for ally in ally_players or ():
@@ -731,6 +732,7 @@ class CombatState:
         self._generated_cards_combat = []
         self._played_cards_this_turn = []
         self._played_cards_combat = []
+        self._card_play_starts_this_turn = []
         self._card_play_round_counts = {}
         self.extra_card_rewards = 0
 
@@ -764,6 +766,7 @@ class CombatState:
         self._stars_gained_this_turn = []
         self._power_events_this_turn = []
         self._played_cards_this_turn = []
+        self._card_play_starts_this_turn = []
         self._after_energy_reset_owners_this_turn = set()
 
         fire_before_side_turn_start(CombatSide.PLAYER, self)
@@ -1354,6 +1357,7 @@ class CombatState:
             "target": target,
             "owner": owner,
             "remaining_plays": play_count,
+            "play_count": play_count,
             "force_exhaust": force_exhaust,
             "is_auto_play": not spend_energy if is_auto_play is None else is_auto_play,
             "awaiting_after_hook": False,
@@ -1415,6 +1419,8 @@ class CombatState:
             with self.acting_player_view(owner):
                 self._apply_card_before_card_played(card, owner)
                 fire_before_card_played(card, self)
+            if ctx["remaining_plays"] == ctx["play_count"]:
+                self._card_play_starts_this_turn.append(card)
             ctx["remaining_plays"] -= 1
             previous_card_source = self._active_card_source
             self._active_card_source = card
@@ -2963,6 +2969,19 @@ class CombatState:
         return sum(
             1
             for card in self._played_cards_this_turn
+            if getattr(card, "owner", None) is owner
+            and (card_type is None or card.card_type == card_type)
+        )
+
+    def count_card_play_starts_this_turn(
+        self,
+        owner: Creature,
+        *,
+        card_type: CardType | None = None,
+    ) -> int:
+        return sum(
+            1
+            for card in self._card_play_starts_this_turn
             if getattr(card, "owner", None) is owner
             and (card_type is None or card.card_type == card_type)
         )

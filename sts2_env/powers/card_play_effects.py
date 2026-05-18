@@ -93,9 +93,9 @@ class EchoFormPower(PowerInstance):
         if getattr(card, "owner", None) is not owner:
             return count
         combat = getattr(owner, "combat_state", None)
-        cards_played = getattr(combat, "count_cards_played_this_turn", None)
-        played_this_turn = cards_played(owner) if callable(cards_played) else self._cards_echoed_this_turn
-        if played_this_turn < self.amount:
+        play_starts = getattr(combat, "count_card_play_starts_this_turn", None)
+        started_this_turn = play_starts(owner) if callable(play_starts) else self._cards_echoed_this_turn
+        if started_this_turn < self.amount:
             self._cards_echoed_this_turn += 1
             return count + 1
         return count
