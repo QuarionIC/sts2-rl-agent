@@ -25,7 +25,7 @@ from sts2_env.core.hooks import (
 )
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
-from sts2_env.run.run_state import PlayerState
+from sts2_env.run.run_state import PlayerState, RunState
 
 
 def _make_ironclad_combat(
@@ -233,6 +233,26 @@ class TestRelicParityRareShopExtra10:
         combat.player.apply_power(PowerId.STRENGTH, 2)
         assert combat.player.get_power_amount(PowerId.STRENGTH) == 6
 
+    def test_vexing_puzzlebox_uses_combat_card_pool(self):
+        """Matches VexingPuzzlebox.cs: generated card comes from CardFactory.GetDistinctForCombat."""
+        run = RunState(seed=10, character_id="Ironclad")
+        run.player.deck = create_ironclad_starter_deck()
+        combat = CombatState(
+            player_hp=80,
+            player_max_hp=80,
+            deck=run.player.deck,
+            rng_seed=10,
+            character_id="Ironclad",
+            relics=["VexingPuzzlebox"],
+            player_state=run.player,
+        )
+        creature, ai = create_shrinker_beetle(Rng(10))
+        combat.add_enemy(creature, ai)
+
+        combat.start_combat()
+
+        assert combat.hand[-1].card_id != CardId.BASH
+
     def test_power_cell_moves_two_zero_cost_cards_from_draw_pile_to_hand_on_round_one(self):
         """Matches PowerCell.cs: round 1 moves up to 2 random zero-cost cards from draw to hand."""
         combat = _make_defect_combat(["PowerCell"], seed=1905)
@@ -249,6 +269,26 @@ class TestRelicParityRareShopExtra10:
 
         assert {card.card_id for card in combat.hand} == {CardId.BOOST_AWAY, CardId.BEAM_CELL}
         assert [card.card_id for card in combat.draw_pile] == [CardId.CHARGE_BATTERY]
+
+    def test_orange_dough_uses_combat_colorless_card_pool(self):
+        """Matches OrangeDough.cs: colorless cards come from CardFactory.GetDistinctForCombat."""
+        run = RunState(seed=17, character_id="Ironclad")
+        run.player.deck = create_ironclad_starter_deck()
+        combat = CombatState(
+            player_hp=80,
+            player_max_hp=80,
+            deck=run.player.deck,
+            rng_seed=17,
+            character_id="Ironclad",
+            relics=["OrangeDough"],
+            player_state=run.player,
+        )
+        creature, ai = create_shrinker_beetle(Rng(17))
+        combat.add_enemy(creature, ai)
+
+        combat.start_combat()
+
+        assert CardId.HAND_OF_GREED not in {card.card_id for card in combat.hand[-2:]}
 
     def test_rainbow_ring_only_activates_once_per_turn(self):
         """Matches RainbowRing.cs: first Attack+Skill+Power trio per turn grants exactly 1 Str and 1 Dex."""

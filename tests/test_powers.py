@@ -15,7 +15,7 @@ from sts2_env.core.hooks import (
     fire_before_turn_end,
 )
 from sts2_env.cards.defect import create_defect_starter_deck, make_beam_cell, make_feral, make_subroutine
-from sts2_env.cards.ironclad import make_inflame, make_juggling, make_sword_boomerang
+from sts2_env.cards.ironclad import create_ironclad_starter_deck, make_inflame, make_juggling, make_sword_boomerang
 from sts2_env.cards.ironclad_basic import make_bash, make_defend_ironclad, make_strike_ironclad
 from sts2_env.cards.silent import _make_shiv, make_afterimage, make_serpent_form
 from sts2_env.cards.status import make_rebound, make_sovereign_blade
@@ -28,7 +28,7 @@ from sts2_env.powers.remaining_b import RampartPower
 from sts2_env.powers.remaining_c import SandpitPower, ToricToughnessPower
 from sts2_env.run.reward_objects import GoldReward, RemoveCardReward
 from sts2_env.run.rooms import CombatRoom
-from sts2_env.run.run_state import PlayerState
+from sts2_env.run.run_state import PlayerState, RunState
 
 
 class _FirstChoiceRng:
@@ -92,6 +92,25 @@ class TestPowerApplication:
 
         assert player.get_power_amount(PowerId.STRENGTH) == 2
         assert player.get_power_amount(PowerId.ARTIFACT) == 1
+
+    def test_call_of_the_void_uses_combat_card_pool(self):
+        run_state = RunState(seed=304, character_id="Ironclad")
+        run_state.player.deck = create_ironclad_starter_deck()
+        combat = CombatState(
+            player_hp=80,
+            player_max_hp=80,
+            deck=run_state.player.deck,
+            rng_seed=304,
+            character_id="Ironclad",
+            player_state=run_state.player,
+        )
+        creature, ai = create_shrinker_beetle(Rng(304))
+        combat.add_enemy(creature, ai)
+        combat.player.apply_power(PowerId.CALL_OF_THE_VOID, 1)
+
+        combat.start_combat()
+
+        assert combat.hand[0].card_id != CardId.FEED
 
     def test_curl_up_triggers_after_multi_hit_card_finishes(self, simple_combat):
         enemy = simple_combat.enemies[0]

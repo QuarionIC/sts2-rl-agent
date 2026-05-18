@@ -3176,7 +3176,7 @@ class CombatState:
             return
         colorless_ids = eligible_registered_cards(
             module_name="sts2_env.cards.colorless",
-            generation_context="modifier",
+            generation_context="combat",
         )
         generated = create_cards_from_ids(
             colorless_ids,
@@ -3194,7 +3194,7 @@ class CombatState:
             state.character_id,
             self.combat_card_generation_rng,
             1,
-            generation_context="modifier",
+            generation_context="combat",
         )
         for card in generated:
             card.set_combat_cost(0)
@@ -3210,7 +3210,7 @@ class CombatState:
             1,
             card_type=CardType.ATTACK,
             distinct=True,
-            generation_context="modifier",
+            generation_context="combat",
         )
         for card in generated:
             card.set_temporary_cost_for_turn(0)

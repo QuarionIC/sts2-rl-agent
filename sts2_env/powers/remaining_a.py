@@ -411,7 +411,7 @@ class CallOfTheVoidPower(PowerInstance):
             card_id
             for card_id in eligible_character_cards(
                 state.character_id,
-                generation_context=None,
+                generation_context="combat",
             )
             if create_card(card_id).rarity not in {CardRarity.BASIC, CardRarity.ANCIENT}
         ]

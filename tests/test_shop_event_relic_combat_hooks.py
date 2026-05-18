@@ -120,3 +120,23 @@ def test_choices_paradox_prompts_after_opening_draw_and_selected_card_retains() 
     retained_cards = [card for card in combat.hand if card.card_id == selected_id]
     assert retained_cards
     assert retained_cards[-1].is_retain
+
+
+def test_crossbow_uses_combat_attack_card_pool() -> None:
+    run_state = RunState(seed=10, character_id="Ironclad")
+    run_state.player.deck = [make_strike_ironclad() for _ in range(6)]
+    combat = CombatState(
+        player_hp=80,
+        player_max_hp=80,
+        deck=run_state.player.deck,
+        relics=["CROSSBOW"],
+        rng_seed=10,
+        character_id="Ironclad",
+        player_state=run_state.player,
+    )
+    creature, ai = create_shrinker_beetle(Rng(10))
+    combat.add_enemy(creature, ai)
+
+    combat.start_combat()
+
+    assert combat.hand[-1].card_id != CardId.BASH
