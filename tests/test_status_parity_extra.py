@@ -16,6 +16,7 @@ from sts2_env.cards.status import (
     make_doubt,
     make_enthralled,
     make_exterminate,
+    make_feeding_frenzy,
     make_fuel,
     make_frantic_escape,
     make_infection,
@@ -34,7 +35,8 @@ from sts2_env.cards.status import (
     make_void,
 )
 from sts2_env.core.combat import CombatState
-from sts2_env.core.enums import CardId, CardType, PowerId, TargetType
+from sts2_env.core.enums import CardId, CardType, CombatSide, PowerId, TargetType
+from sts2_env.core.hooks import fire_after_turn_end
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 from sts2_env.powers.base import PowerInstance
@@ -76,6 +78,20 @@ class _FirstRng:
 
 
 class TestStatusParityExtra:
+    def test_feeding_frenzy_applies_temporary_strength_then_restores(self):
+        combat = _make_combat()
+        combat.hand = [make_feeding_frenzy(upgraded=True)]
+        combat.energy = 0
+
+        assert combat.play_card(0)
+        assert combat.player.get_power_amount(PowerId.FEEDING_FRENZY) == 7
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == 7
+
+        fire_after_turn_end(CombatSide.PLAYER, combat)
+
+        assert combat.player.get_power_amount(PowerId.FEEDING_FRENZY) == 0
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == 0
+
     def test_toric_toughness_stores_actual_block_gained(self):
         combat = _make_combat()
         combat.player.apply_power(PowerId.DEXTERITY, 2)

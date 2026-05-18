@@ -182,9 +182,11 @@ def crescent_spear(card: CardInstance, combat: CombatState, target: Creature | N
 
 @register_effect(CardId.CRUSH_UNDER)
 def crush_under(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
+    enemies = list(combat.hittable_enemies)
     _deal_damage_all(card, combat)
     strength_loss = card.effect_vars.get("strength_loss", 1)
-    combat.apply_power_to(_owner(card, combat), PowerId.CRUSH_UNDER, strength_loss)
+    for enemy in enemies:
+        combat.apply_power_to(enemy, PowerId.CRUSH_UNDER, strength_loss)
 
 
 @register_effect(CardId.GATHER_LIGHT)

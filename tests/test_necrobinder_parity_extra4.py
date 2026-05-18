@@ -12,6 +12,7 @@ from sts2_env.cards.necrobinder import (
     make_deathbringer,
     make_deaths_door,
     make_defend_necrobinder,
+    make_enfeebling_touch,
     make_end_of_days,
     make_fear,
     make_fetch,
@@ -35,7 +36,7 @@ from sts2_env.cards.necrobinder import (
 from sts2_env.cards.status import make_soul, make_void
 from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import CardId, CombatSide, PowerId, ValueProp
-from sts2_env.core.hooks import fire_after_side_turn_start
+from sts2_env.core.hooks import fire_after_side_turn_start, fire_after_turn_end
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 from sts2_env.powers.base import PowerInstance
@@ -151,6 +152,22 @@ class TestNecrobinderParityExtra4:
         assert combat.play_card(0)
         assert combat.is_over
         assert combat.player.block == 6
+
+    def test_enfeebling_touch_applies_temporary_strength_loss_then_restores(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.apply_power(PowerId.STRENGTH, 3)
+        combat.hand = [make_enfeebling_touch(upgraded=True)]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+        assert enemy.get_power_amount(PowerId.ENFEEBLING_TOUCH) == 11
+        assert enemy.get_power_amount(PowerId.STRENGTH) == -8
+
+        fire_after_turn_end(CombatSide.ENEMY, combat)
+
+        assert enemy.get_power_amount(PowerId.ENFEEBLING_TOUCH) == 0
+        assert enemy.get_power_amount(PowerId.STRENGTH) == 3
 
     def test_negative_pulse_debuffs_only_hittable_enemies(self):
         combat = _make_combat(extra_enemies=1)

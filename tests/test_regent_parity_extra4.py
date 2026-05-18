@@ -11,6 +11,7 @@ from sts2_env.cards.regent import (
     make_bundle_of_joy,
     make_child_of_the_stars,
     make_comet,
+    make_crush_under,
     make_defend_regent,
     make_dying_star,
     make_hammer_time,
@@ -218,6 +219,33 @@ class TestRegentParityExtra4:
         assert blocked.get_power_amount(PowerId.DYING_STAR) == 0
         assert hittable.current_hp == 91
         assert hittable.get_power_amount(PowerId.DYING_STAR) == 9
+        assert hittable.get_power_amount(PowerId.STRENGTH) == -9
+
+        fire_after_turn_end(CombatSide.ENEMY, combat)
+
+        assert hittable.get_power_amount(PowerId.DYING_STAR) == 0
+        assert hittable.get_power_amount(PowerId.STRENGTH) == 0
+
+    def test_crush_under_applies_temporary_strength_loss_to_hittable_enemies(self):
+        combat = _make_combat(extra_enemies=1)
+        blocked, hittable = combat.enemies
+        blocked.current_hp = blocked.max_hp = 100
+        hittable.current_hp = hittable.max_hp = 100
+        blocked.powers[PowerId.COVERED] = _CannotHitPower()
+        combat.hand = [make_crush_under(upgraded=True)]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert blocked.current_hp == 100
+        assert blocked.get_power_amount(PowerId.CRUSH_UNDER) == 0
+        assert hittable.current_hp == 92
+        assert hittable.get_power_amount(PowerId.CRUSH_UNDER) == 2
+        assert hittable.get_power_amount(PowerId.STRENGTH) == -2
+
+        fire_after_turn_end(CombatSide.ENEMY, combat)
+
+        assert hittable.get_power_amount(PowerId.CRUSH_UNDER) == 0
+        assert hittable.get_power_amount(PowerId.STRENGTH) == 0
 
     def test_meteor_shower_hits_and_debuffs_only_hittable_enemies(self):
         combat = _make_combat(extra_enemies=1)
