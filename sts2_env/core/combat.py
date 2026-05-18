@@ -2666,6 +2666,17 @@ class CombatState:
             return 0
         return len({orb.orb_type for orb in getattr(orb_queue, "orbs", [])})
 
+    def count_orbs(self, owner: Creature, orb_type: str | object) -> int:
+        from sts2_env.core.enums import OrbType
+
+        state = self.combat_player_state_for(owner)
+        orb_queue = getattr(state, "orb_queue", None)
+        if orb_queue is None:
+            return 0
+        if isinstance(orb_type, str):
+            orb_type = OrbType[orb_type.upper()]
+        return sum(1 for orb in getattr(orb_queue, "orbs", []) if orb.orb_type == orb_type)
+
     def trigger_first_orb_passive(self, owner: Creature) -> None:
         state = self.combat_player_state_for(owner)
         orb_queue = getattr(state, "orb_queue", None)

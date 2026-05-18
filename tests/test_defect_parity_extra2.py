@@ -12,6 +12,7 @@ from sts2_env.cards.defect import (
     make_compile_driver,
     make_defragment,
     make_glacier,
+    make_hailstorm,
     make_multi_cast,
     make_strike_defect,
 )
@@ -164,6 +165,35 @@ class TestDefectParityExtra2:
         assert combat.play_card(0)
         assert combat.is_over
         assert len(combat.orb_queue.orbs) == 0
+
+    def test_hailstorm_damages_enemies_at_turn_end_with_frost_orb(self):
+        """Matches HailstormPower.cs: at owner turn end, deal damage if any Frost orb is present."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        combat.channel_orb(combat.player, "FROST")
+        combat.hand = [make_hailstorm()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+
+        combat.end_player_turn()
+
+        assert enemy.current_hp == 94
+
+    def test_hailstorm_does_not_trigger_without_frost_orb(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        combat.channel_orb(combat.player, "DARK")
+        combat.hand = [make_hailstorm()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+
+        combat.end_player_turn()
+
+        assert enemy.current_hp == 100
 
     def test_frost_orb_passive_block_triggers_after_block_gained_hooks(self):
         combat = _make_combat()
