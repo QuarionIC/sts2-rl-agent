@@ -87,6 +87,16 @@ class TestRelicParityRareShopExtra8:
         assert combat.max_energy == 4
         assert combat.energy == 4
 
+    def test_bread_does_not_lose_energy_after_combat_ending(self):
+        combat = _make_ironclad_combat(["Bread"])
+        combat.energy = 3
+        combat.is_over = True
+
+        relic = combat.relics[0]
+        relic.after_side_turn_start(combat.player, CombatSide.PLAYER, combat)
+
+        assert combat.energy == 3
+
     def test_chandelier_grants_three_energy_on_round_three(self):
         combat = _make_ironclad_combat(["Chandelier"])
 

@@ -100,6 +100,18 @@ class TestStatusParityExtra:
         assert combat.energy == 2
         assert void in combat.hand
 
+    def test_void_does_not_lose_energy_after_combat_ending(self):
+        combat = _make_combat()
+        combat.hand.clear()
+        void = make_void()
+        combat.draw_pile = [void]
+        combat.energy = 3
+        combat.is_over = True
+
+        combat.draw_cards(combat.player, 1)
+
+        assert combat.energy == 3
+
     def test_fuel_gains_energy_before_drawing_void(self):
         """Matches Fuel.cs: gain energy before Draw, so drawn Void removes one."""
         combat = _make_combat()

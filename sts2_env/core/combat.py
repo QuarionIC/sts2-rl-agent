@@ -1980,7 +1980,7 @@ class CombatState:
 
     def lose_energy(self, owner: Creature, amount: int) -> None:
         state = self.combat_player_state_for(owner)
-        if state is not None and amount > 0:
+        if not self.is_over and state is not None and amount > 0:
             state.energy = max(0, state.energy - amount)
 
     def gain_gold(self, owner: Creature, amount: int) -> int:
@@ -3347,9 +3347,7 @@ class CombatState:
         from sts2_env.core.damage import apply_damage
 
         if card.card_id == CardId.VOID:
-            state = self.combat_player_state_for(owner)
-            if state is not None:
-                state.energy = max(0, state.energy - card.effect_vars.get("energy", 1))
+            self.lose_energy(owner, card.effect_vars.get("energy", 1))
             return
         if card.card_id == CardId.KINGLY_KICK:
             card.set_combat_cost(max(0, card.cost - 1))
