@@ -975,6 +975,15 @@ class TestFixedRotation:
         assert combat.player.current_hp == before_hp - 4
         assert second.get_power_amount(PowerId.STRENGTH) == 2
 
+        lethal_combat = _make_combat(16)
+        lethal_myte, lethal_ai = create_myte(Rng(16), slot="second")
+        lethal_combat.add_enemy(lethal_myte, lethal_ai)
+        lethal_combat.player.current_hp = 4
+        lethal_ai.current_move.perform(lethal_combat)
+        assert lethal_combat.is_over
+        assert lethal_combat.player_won is False
+        assert lethal_myte.get_power_amount(PowerId.STRENGTH) == 0
+
         second_ai.on_move_performed()
         second_ai.roll_move(Rng(15))
         assert second_ai.current_move.state_id == "TOXIC_MOVE"

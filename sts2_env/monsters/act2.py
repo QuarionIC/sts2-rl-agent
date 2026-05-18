@@ -588,7 +588,7 @@ def create_myte(rng: Rng, slot: str = "first") -> tuple[Creature, MonsterAI]:
 
     def suck(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, suck_dmg)
-        creature.apply_power(PowerId.STRENGTH, 2)
+        combat.apply_power_to(creature, PowerId.STRENGTH, 2, applier=creature)
 
     states: dict[str, MonsterState] = {
         "TOXIC_MOVE": MoveState("TOXIC_MOVE", toxic, [status_intent()], follow_up_id="BITE_MOVE"),
