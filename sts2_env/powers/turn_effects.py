@@ -888,7 +888,7 @@ class BiasedCognitionPower(PowerInstance):
 
     def after_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side == owner.side:
-            owner.apply_power(PowerId.FOCUS, -self.amount)
+            combat.apply_power_to(owner, PowerId.FOCUS, -self.amount, applier=owner)
 
 
 class CalcifyPower(PowerInstance):

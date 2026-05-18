@@ -503,6 +503,10 @@ class TestDefectParityExtra3:
         assert combat.player.get_power_amount(PowerId.FOCUS) == 4
         assert combat.player.get_power_amount(PowerId.BIASED_COGNITION) == 1
 
+        combat.end_player_turn()
+
+        assert combat.player.get_power_amount(PowerId.FOCUS) == 3
+
     def test_creative_ai_applies_power(self):
         """Matches CreativeAI.cs: apply CreativeAiPower(1)."""
         combat = _make_combat()
