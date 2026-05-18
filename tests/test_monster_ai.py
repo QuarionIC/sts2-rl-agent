@@ -510,6 +510,20 @@ class TestFixedRotation:
             assert creature.block == expected_block
             assert counter.calls == [expected_block]
 
+    def test_act1_attack_block_move_does_not_gain_block_after_killing_player(self):
+        creature, ai = create_axe_ruby_raider(Rng(3))
+        combat = _make_combat(120)
+        combat.add_enemy(creature, ai)
+        combat.player.current_hp = 5
+        creature.block = 0
+
+        ai.states["SWING_1"].perform(combat)
+        combat._check_combat_end()  # noqa: SLF001
+
+        assert combat.is_over
+        assert combat.player_won is False
+        assert creature.block == 0
+
     def test_cubex_initial_room_setup_triggers_after_block_gained_hook(self):
         combat = _make_combat(121)
         creature, ai = create_cubex_construct(Rng(121))

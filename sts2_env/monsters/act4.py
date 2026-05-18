@@ -32,9 +32,14 @@ def _deal_damage_to_player(combat: CombatState, creature: Creature, base_dmg: in
             break
         dmg = calculate_damage(base_dmg, creature, combat.primary_player, ValueProp.MOVE, combat)
         apply_damage(combat.primary_player, dmg, ValueProp.MOVE, combat, creature)
+        combat._check_combat_end()  # noqa: SLF001
+        if combat.is_over:
+            break
 
 
 def _gain_block(creature: Creature, amount: int, combat: CombatState) -> None:
+    if combat.is_over:
+        return
     before = creature.block
     creature.gain_block(amount)
     gained = creature.block - before
