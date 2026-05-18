@@ -411,6 +411,8 @@ def deaths_door(card: CardInstance, combat: CombatState, target: Creature | None
     if combat.was_power_applied_this_turn(PowerId.DOOM, applier=owner):
         repeats += card.effect_vars.get("repeat", 2)
     for _ in range(repeats):
+        if combat.is_over:
+            return
         _gain_block(card, combat)
 
 

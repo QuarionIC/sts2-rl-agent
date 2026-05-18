@@ -135,6 +135,19 @@ class TestNecrobinderParityExtra4:
         assert combat.play_card(0)
         assert combat.player.block == 6
 
+    def test_deaths_door_stops_repeated_block_after_combat_ends(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = 5
+        combat.apply_power_to(enemy, PowerId.DOOM, 1, applier=combat.player)
+        combat.player.apply_power(PowerId.JUGGERNAUT, 5)
+        combat.hand = [make_deaths_door()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert combat.is_over
+        assert combat.player.block == 6
+
     def test_negative_pulse_debuffs_only_hittable_enemies(self):
         combat = _make_combat(extra_enemies=1)
         blocked, hittable = combat.enemies
