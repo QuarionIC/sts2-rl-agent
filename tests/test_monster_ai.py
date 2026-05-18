@@ -2,6 +2,7 @@
 
 import pytest
 
+from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck, make_battle_trance, make_thunderclap
 from sts2_env.cards.ironclad_basic import make_strike_ironclad
 from sts2_env.core.combat import CombatState
@@ -1709,9 +1710,12 @@ class TestFixedRotation:
         combat.add_enemy(noisebot, noisebot_ai)
         assert noisebot.get_power_amount(PowerId.MINION) == 0
         assert noisebot_ai.current_move.state_id == "NOISE_MOVE"
+        rocket_punch = create_card(CardId.ROCKET_PUNCH)
+        combat.hand = [rocket_punch]
         noisebot_ai.current_move.perform(combat)
         assert [card.card_id for card in combat.discard_pile] == [CardId.DAZED]
         assert [card.card_id for card in combat.draw_pile] == [CardId.DAZED]
+        assert rocket_punch.cost == 0
 
         fabricator_ai.states["FABRICATE_MOVE"].perform(combat)
         assert len(combat.enemies) == 7

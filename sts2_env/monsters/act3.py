@@ -233,8 +233,17 @@ def create_noisebot(rng: Rng) -> tuple[Creature, MonsterAI]:
     creature = Creature(max_hp=hp, monster_id="NOISEBOT")
 
     def noise(combat: CombatState) -> None:
-        combat.move_card_to_creature_discard(combat.primary_player, make_dazed())
-        combat.insert_card_into_creature_draw_pile(combat.primary_player, make_dazed(), random_position=True)
+        combat.add_generated_card_to_creature_discard(
+            combat.primary_player,
+            make_dazed(),
+            added_by_player=False,
+        )
+        combat.add_generated_card_to_creature_draw_pile(
+            combat.primary_player,
+            make_dazed(),
+            added_by_player=False,
+            random_position=True,
+        )
 
     states: dict[str, MonsterState] = {
         "NOISE_MOVE": MoveState("NOISE_MOVE", noise, [status_intent()], follow_up_id="NOISE_MOVE"),
