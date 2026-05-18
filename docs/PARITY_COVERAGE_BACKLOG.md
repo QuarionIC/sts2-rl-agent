@@ -15,16 +15,17 @@ The detailed backlog sections below were captured as the pre-pass baseline. Afte
 
 | Surface | Total | Directly Covered | Gap | Coverage |
 | --- | ---: | ---: | ---: | ---: |
-| Cards | 578 | 220 | 358 | 38.1% |
+| Cards | 578 | 221 | 357 | 38.2% |
 | Relics | 289 | 206 | 83 | 71.3% |
 | Events | 68 | 68 | 0 | 100.0% |
 
 Latest local pass also added direct coverage for:
 
-- Cards: `BARRICADE_CARD`, `BEACON_OF_HOPE`, `BLUDGEON`, `CORRUPTION_CARD`, `DEMON_FORM_CARD`, `FISTICUFFS`, `FLAME_BARRIER_CARD`, `GOLD_AXE`
+- Cards: `BARRICADE_CARD`, `BEACON_OF_HOPE`, `BLUDGEON`, `CORRUPTION_CARD`, `DEMON_FORM_CARD`, `DEMONIC_SHIELD`, `FISTICUFFS`, `FLAME_BARRIER_CARD`, `GOLD_AXE`
 
 This pass also exposed and fixed the following logic mismatch:
 
+- `DemonicShield`: block granted to an ally now fires after-block-gained hooks for that ally, so follow-up effects like `BeaconOfHope` run like the original.
 - `Fisticuffs`: block gained from attack damage now goes through the normal block modifier pipeline, so Dexterity, Frail, and similar block modifiers apply like the original.
 - Colorless block cards now fire the after-block-gained hook, so `BeaconOfHope` shares block from `Finesse` and `Fisticuffs` like the original.
 
@@ -101,14 +102,14 @@ These are the current exact remaining surfaces that still lack direct proof.
 
 ### Remaining Cards By Module
 
-#### `sts2_env.cards.ironclad` (77)
+#### `sts2_env.cards.ironclad` (76)
 
 ```text
 AGGRESSION_CARD, ANGER, ASHEN_STRIKE, BASH, BATTLE_TRANCE,
 BLOODLETTING, BLOOD_WALL, BODY_SLAM, BRAND, BREAK, BREAKTHROUGH,
 BULLY, CASCADE, CINDER, COLOSSUS_CARD, CONFLAGRATION,
 CRIMSON_MANTLE, CRUELTY_CARD, DARK_EMBRACE_CARD, DEFEND_IRONCLAD,
-DEMONIC_SHIELD, DISMANTLE, DOMINATE, DRUM_OF_BATTLE_CARD,
+DISMANTLE, DOMINATE, DRUM_OF_BATTLE_CARD,
 EVIL_EYE, EXPECT_A_FIGHT, FEED, FEEL_NO_PAIN_CARD, FIEND_FIRE, FIGHT_ME,
 FORGOTTEN_RITUAL, GRAPPLE, HAVOC, HELLRAISER_CARD,
 HEMOKINESIS, HOWL_FROM_BEYOND, IMPERVIOUS, INFERNAL_BLADE, INFERNO_CARD,

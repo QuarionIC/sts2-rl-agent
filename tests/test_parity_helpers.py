@@ -2726,6 +2726,20 @@ class TestStatusParity:
         assert combat.play_card(0, 0)
         assert ally.block == 12
 
+    def test_demonic_shield_triggers_after_block_gained_hooks_for_target(self):
+        combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
+        ally = Creature(max_hp=50, current_hp=50, side=CombatSide.PLAYER, is_player=True)
+        combat.add_ally_player(ally)
+        ally.apply_power(PowerId.BEACON_OF_HOPE, 1)
+        combat.player.gain_block(12)
+        card = make_demonic_shield()
+        combat.hand = [card]
+        combat.energy = 0
+
+        assert combat.play_card(0, 0)
+        assert ally.block == 12
+        assert combat.player.block == 18
+
     def test_fisticuffs_gains_block_equal_to_total_damage(self):
         combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
         enemy = combat.enemies[0]

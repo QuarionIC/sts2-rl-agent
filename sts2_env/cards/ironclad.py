@@ -817,7 +817,13 @@ def demonic_shield(card: CardInstance, combat: CombatState, target: Creature | N
     hp_loss = card.effect_vars.get("hp_loss", 1)
     _self_hp_loss(card, combat, hp_loss)
     block = calculate_block(_owner(card, combat).block, target, ValueProp.MOVE, combat, card_source=card)
+    before = target.block
     target.gain_block(block)
+    gained = target.block - before
+    if gained > 0:
+        from sts2_env.core.hooks import fire_after_block_gained
+
+        fire_after_block_gained(target, gained, combat)
 
 
 def make_demonic_shield(upgraded: bool = False) -> CardInstance:
