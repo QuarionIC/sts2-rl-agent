@@ -1040,7 +1040,7 @@ class StoneOfAllTime(EventModel):
     def is_allowed(self, run_state: RunState) -> bool:
         return (
             run_state.current_act_index == 1
-            and len(run_state.player.held_potions()) >= 1
+            and all(len(player.held_potions()) >= 1 for player in run_state.players)
         )
 
     def before_event_started(self, run_state: RunState) -> None:

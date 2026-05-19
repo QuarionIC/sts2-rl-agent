@@ -213,6 +213,19 @@ def test_stone_of_all_time_lift_discards_potion_and_push_enchants_attack():
     assert [option.enabled for option in no_push_options] == [True, False]
 
 
+def test_stone_of_all_time_requires_all_players_to_have_potions():
+    run_state = _make_run_state(4042)
+    run_state.current_act_index = 1
+    run_state.player.add_potion(create_potion("FirePotion"))
+    ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent"))
+    event = StoneOfAllTime()
+
+    assert event.is_allowed(run_state) is False
+
+    ally.add_potion(create_potion("FirePotion"))
+    assert event.is_allowed(run_state) is True
+
+
 def test_stone_of_all_time_lift_uses_preselected_event_rng_potion_and_consumes_rng():
     run_state = _make_run_state(4042)
     run_state.current_act_index = 1
