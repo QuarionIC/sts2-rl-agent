@@ -15,6 +15,7 @@ from sts2_env.cards.defect import (
     make_fight_through,
     make_flak_cannon,
     make_ftl,
+    make_genetic_algorithm,
     make_go_for_the_eyes,
     make_gunk_up,
     make_hyperbeam,
@@ -110,6 +111,36 @@ class TestDefectParityExtra3:
 
         assert blocked.current_hp == 100
         assert hittable.current_hp == 84
+
+    def test_genetic_algorithm_starts_at_one_block_and_grows_after_play(self):
+        """Matches GeneticAlgorithm.cs: CurrentBlock starts at 1 and grows by Increase after play."""
+        combat = _make_combat()
+        card = make_genetic_algorithm()
+        combat.hand = [card]
+        combat.energy = 1
+
+        assert card.base_block == 1
+        assert card.effect_vars["block"] == 1
+
+        assert combat.play_card(0)
+
+        assert combat.player.block == 1
+        assert card.base_block == 4
+        assert card.effect_vars["block"] == 4
+
+    def test_upgraded_genetic_algorithm_grows_by_four(self):
+        combat = _make_combat()
+        card = create_card(CardId.GENETIC_ALGORITHM, upgraded=True)
+        combat.hand = [card]
+        combat.energy = 1
+
+        assert card.effect_vars["increase"] == 4
+
+        assert combat.play_card(0)
+
+        assert combat.player.block == 1
+        assert card.base_block == 5
+        assert card.effect_vars["block"] == 5
 
     def test_hyperbeam_hits_only_hittable_enemies_and_loses_focus(self):
         combat = _make_combat(extra_enemies=1)

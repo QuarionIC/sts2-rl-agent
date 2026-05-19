@@ -1483,8 +1483,8 @@ def make_genetic_algorithm() -> CardInstance:
     return CardInstance(
         card_id=CardId.GENETIC_ALGORITHM, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
-        base_block=0, keywords=frozenset({"exhaust"}),
-        effect_vars={"block": 0, "increase": 3}, instance_id=_get_next_id(),
+        base_block=1, keywords=frozenset({"exhaust"}),
+        effect_vars={"block": 1, "increase": 3}, instance_id=_get_next_id(),
     )
 
 
