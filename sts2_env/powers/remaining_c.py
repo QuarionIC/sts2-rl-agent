@@ -927,8 +927,7 @@ class SpeedsterPower(PowerInstance):
         card_owner = getattr(card, "owner", None)
         if card_owner is not owner:
             return
-        current_side = getattr(combat, "current_side", None)
-        if current_side != owner.side:
+        if not combat.is_owner_side_turn(owner):
             return
         for enemy in combat.hittable_enemies:
             combat.deal_damage(

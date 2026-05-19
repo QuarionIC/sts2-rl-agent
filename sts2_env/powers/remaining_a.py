@@ -311,8 +311,7 @@ class BeaconOfHopePower(PowerInstance):
                            amount: int, combat: CombatState) -> None:
         if creature is not owner or amount < 1:
             return
-        current_side = getattr(combat, "current_side", None)
-        if current_side != owner.side:
+        if not combat.is_owner_side_turn(owner):
             return
         share = int(amount * 0.5 * self.amount)
         if share < 1:
@@ -484,8 +483,7 @@ class ChainsOfBindingPower(PowerInstance):
         """Called by draw pipeline. Afflicts the card if limit not reached."""
         if getattr(card, "owner", None) is not owner:
             return
-        current_side = getattr(combat, "current_side", None)
-        if current_side != owner.side:
+        if not combat.is_owner_side_turn(owner):
             return
         if self._bound_cards_this_turn < self.amount:
             afflict = getattr(card, "afflict", None)

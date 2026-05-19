@@ -261,7 +261,7 @@ class RupturePower(PowerInstance):
         self._pending_by_card: dict[int, int] = {}
 
     def before_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
-        if getattr(card, "owner", None) is owner and getattr(combat, "current_side", None) == owner.side:
+        if getattr(card, "owner", None) is owner and combat.is_owner_side_turn(owner):
             self._pending_by_card[id(card)] = 0
 
     def after_damage_received(
@@ -273,7 +273,7 @@ class RupturePower(PowerInstance):
         props: ValueProp,
         combat: CombatState,
     ) -> None:
-        if target is not owner or damage <= 0 or getattr(combat, "current_side", None) != owner.side:
+        if target is not owner or damage <= 0 or not combat.is_owner_side_turn(owner):
             return
         card = getattr(combat, "active_card_source", None)
         if card is not None and id(card) in self._pending_by_card:
