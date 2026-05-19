@@ -58,6 +58,7 @@ from sts2_env.monsters.act1 import (
     create_parafright,
     create_phrog_parasite,
     create_slithering_strangler,
+    create_snapping_jaxfruit,
     create_tracker_ruby_raider,
     create_vantom,
     create_vine_shambler,
@@ -682,6 +683,12 @@ class TestFixedRotation:
         assert vine_shambler_ai.current_move.state_id == "SWIPE_MOVE"
         assert {"SWIPE_MOVE", "GRASPING_VINES_MOVE", "CHOMP_MOVE"} == set(vine_shambler_ai.states)
 
+        snapping_jaxfruit, snapping_jaxfruit_ai = create_snapping_jaxfruit(Rng(116))
+        assert 31 <= snapping_jaxfruit.max_hp <= 33
+        assert snapping_jaxfruit.get_power_amount(PowerId.THORNS) == 0
+        assert snapping_jaxfruit_ai.current_move.state_id == "ENERGY_ORB_MOVE"
+        assert {"ENERGY_ORB_MOVE"} == set(snapping_jaxfruit_ai.states)
+
         _, assassin_ai = create_assassin_ruby_raider(Rng(16))
         assert assassin_ai.current_move.state_id == "KILLSHOT_MOVE"
 
@@ -1010,6 +1017,31 @@ class TestFixedRotation:
         assert osty.get_power_amount(PowerId.TANGLED) == 0
         assert combat.primary_player.get_power_amount(PowerId.WEAK) == no_weak
         assert ally.get_power_amount(PowerId.WEAK) == no_weak
+
+    def test_snapping_jaxfruit_matches_original_energy_orb_loop(self):
+        rng_seed = 1253
+        player_hp = 80
+        energy_damage = 3
+        energy_strength = 2
+        no_frail = 0
+        combat = _make_combat(rng_seed)
+        creature, ai = create_snapping_jaxfruit(Rng(rng_seed))
+        combat.add_enemy(creature, ai)
+
+        assert 31 <= creature.max_hp <= 33
+        assert creature.get_power_amount(PowerId.THORNS) == 0
+        assert _run_ai(ai, Rng(rng_seed), 3) == [
+            "ENERGY_ORB_MOVE",
+            "ENERGY_ORB_MOVE",
+            "ENERGY_ORB_MOVE",
+        ]
+
+        combat.primary_player.current_hp = player_hp
+        ai.states["ENERGY_ORB_MOVE"].perform(combat)
+
+        assert combat.primary_player.current_hp == player_hp - energy_damage
+        assert creature.get_power_amount(PowerId.STRENGTH) == energy_strength
+        assert combat.primary_player.get_power_amount(PowerId.FRAIL) == no_frail
 
     def test_cubex_initial_room_setup_triggers_after_block_gained_hook(self):
         combat = _make_combat(121)

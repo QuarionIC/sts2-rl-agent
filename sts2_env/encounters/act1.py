@@ -154,6 +154,8 @@ def setup_slithering_strangler_normal(combat: CombatState, rng: Rng) -> None:
 def setup_snapping_jaxfruit_normal(combat: CombatState, rng: Rng) -> None:
     creature, ai = create_snapping_jaxfruit(rng)
     combat.add_enemy(creature, ai)
+    flyconid, flyconid_ai = create_flyconid(rng)
+    combat.add_enemy(flyconid, flyconid_ai)
 
 
 def setup_vine_shambler_normal(combat: CombatState, rng: Rng) -> None:

@@ -402,42 +402,31 @@ def create_slithering_strangler(rng: Rng) -> tuple[Creature, MonsterAI]:
     return creature, MonsterAI(states, "CONSTRICT")
 
 
-# ---- SnappingJaxfruit (HP 53-56 / 56-59 asc) ----
+# ---- SnappingJaxfruit (HP 31-33 / 34-36 asc) ----
 
 def create_snapping_jaxfruit(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(53, 56)
+    min_initial_hp = 31
+    max_initial_hp = 33
+    hp = rng.next_int(min_initial_hp, max_initial_hp)
     creature = Creature(max_hp=hp, monster_id="SNAPPING_JAXFRUIT")
+    energy_orb_move = "ENERGY_ORB_MOVE"
+    energy_dmg = 3
+    energy_strength = 2
 
-    snap_dmg = 7
-    seed_spit_dmg = 1
-    seed_spit_hits = 4
-
-    def snap(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, snap_dmg)
-
-    def seed_spit(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, seed_spit_dmg, hits=seed_spit_hits)
-        combat.apply_power_to(combat.primary_player, PowerId.FRAIL, 1)
-
-    def burrow(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, 2)
-
-    rand = RandomBranchState("RAND")
-    rand.add_branch("SNAP", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("SEED_SPIT", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("BURROW", MoveRepeatType.CANNOT_REPEAT)
+    def energy_orb(combat: CombatState) -> None:
+        _deal_damage_to_player(combat, creature, energy_dmg)
+        combat.apply_power_to(creature, PowerId.STRENGTH, energy_strength, applier=creature)
 
     states: dict[str, MonsterState] = {
-        "RAND": rand,
-        "SNAP": MoveState("SNAP", snap, [attack_intent(snap_dmg)], follow_up_id="RAND"),
-        "SEED_SPIT": MoveState("SEED_SPIT", seed_spit, [multi_attack_intent(seed_spit_dmg, seed_spit_hits), debuff_intent()], follow_up_id="RAND"),
-        "BURROW": MoveState("BURROW", burrow, [buff_intent()], follow_up_id="RAND"),
+        energy_orb_move: MoveState(
+            energy_orb_move,
+            energy_orb,
+            [attack_intent(energy_dmg), buff_intent()],
+            follow_up_id=energy_orb_move,
+        ),
     }
 
-    # AfterAddedToRoom: Thorns(3)
-    creature.apply_power(PowerId.THORNS, 3)
-
-    return creature, MonsterAI(states, "RAND", rng)
+    return creature, MonsterAI(states, energy_orb_move)
 
 
 # ---- RubyRaiders ----
