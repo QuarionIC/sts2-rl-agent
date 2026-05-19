@@ -729,25 +729,12 @@ class RippleBasin(RelicInstance):
     pool = RelicPool.SHARED
     BLOCK = 4
 
-    def __init__(self, relic_id: RelicId):
-        super().__init__(relic_id)
-        self._attacks_played_this_turn: int = 0
-
-    def before_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
-        if side == CombatSide.PLAYER:
-            self._attacks_played_this_turn = 0
-
-    def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
-        if (getattr(card, "owner", None) is owner
-                and hasattr(card, "card_type") and card.card_type == CardType.ATTACK):
-            self._attacks_played_this_turn += 1
-
     def before_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
-        if side == CombatSide.PLAYER and self._attacks_played_this_turn == 0:
+        if (
+            side == owner.side
+            and combat.count_card_plays_finished_this_turn(owner, card_type=CardType.ATTACK) == 0
+        ):
             _gain_unpowered_block(owner, self.BLOCK, combat)
-
-    def after_combat_end(self, owner: Creature, combat: CombatState) -> None:
-        self._attacks_played_this_turn = 0
 
 
 @register_relic

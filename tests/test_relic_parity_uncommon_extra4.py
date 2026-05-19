@@ -199,7 +199,8 @@ class TestRelicParityUncommonExtra4:
         fire_before_turn_end(CombatSide.PLAYER, combat)
         assert combat.player.block == 0
 
-        fire_before_side_turn_start(CombatSide.PLAYER, combat)
+        combat.end_player_turn()
+        combat.player.block = 0
         fire_before_turn_end(CombatSide.PLAYER, combat)
         assert combat.player.block == 4
 
