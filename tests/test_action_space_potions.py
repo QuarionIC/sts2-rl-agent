@@ -61,7 +61,8 @@ def test_combat_env_step_uses_potion_actions() -> None:
     action = POTION_ACTION_START + 1
     _, _, terminated, truncated, info = env.step(action)
 
-    assert enemy.current_hp == starting_hp - 20
+    fire_potion_damage = 20
+    assert enemy.current_hp == max(0, starting_hp - fire_potion_damage)
     assert env.combat.potions[0] is None
     assert not terminated
     assert not truncated

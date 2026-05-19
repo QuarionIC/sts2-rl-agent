@@ -147,8 +147,27 @@ def setup_slimes_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_slithering_strangler_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_slithering_strangler(rng)
-    combat.add_enemy(creature, ai)
+    snapping_jaxfruit_branch = "snapping_jaxfruit"
+    medium_slime_branch = "medium_slime"
+    small_slimes_branch = "small_slimes"
+    secondary_enemy_type = rng.choice([snapping_jaxfruit_branch, medium_slime_branch, small_slimes_branch])
+    if secondary_enemy_type == snapping_jaxfruit_branch:
+        secondary_creators = [create_snapping_jaxfruit]
+    elif secondary_enemy_type == medium_slime_branch:
+        secondary_creators = [rng.choice([create_leaf_slime_m, create_twig_slime_m])]
+    else:
+        assert secondary_enemy_type == small_slimes_branch
+        secondary_creators = [
+            rng.choice([create_leaf_slime_s, create_twig_slime_s]),
+            rng.choice([create_leaf_slime_s, create_twig_slime_s]),
+        ]
+
+    for creator in secondary_creators:
+        creature, ai = creator(rng)
+        combat.add_enemy(creature, ai)
+
+    strangler, strangler_ai = create_slithering_strangler(rng)
+    combat.add_enemy(strangler, strangler_ai)
 
 
 def setup_snapping_jaxfruit_normal(combat: CombatState, rng: Rng) -> None:

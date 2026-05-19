@@ -282,10 +282,34 @@ class TestAct1NormalEncounters:
         setup_slimes_normal(combat, Rng(42))
         assert len(combat.enemies) == 2
 
-    def test_slithering_strangler_count(self):
-        combat = _make_combat()
-        setup_slithering_strangler_normal(combat, Rng(42))
-        assert len(combat.enemies) == 1
+    def test_slithering_strangler_normal_uses_original_secondary_enemy_branches(self):
+        expected_secondary_ids = {
+            ("SNAPPING_JAXFRUIT",),
+            ("LEAF_SLIME_M",),
+            ("TWIG_SLIME_M",),
+            ("LEAF_SLIME_S", "LEAF_SLIME_S"),
+            ("LEAF_SLIME_S", "TWIG_SLIME_S"),
+            ("TWIG_SLIME_S", "LEAF_SLIME_S"),
+            ("TWIG_SLIME_S", "TWIG_SLIME_S"),
+        }
+        expected_branch_markers = {"SNAPPING_JAXFRUIT", "LEAF_SLIME_M", "TWIG_SLIME_M", "SMALL_SLIME"}
+        seen_secondary_shapes: set[tuple[str, ...]] = set()
+        for seed in range(30):
+            combat = _make_combat(seed)
+
+            setup_slithering_strangler_normal(combat, Rng(seed))
+
+            assert combat.enemies[-1].monster_id == "SLITHERING_STRANGLER"
+            secondary_ids = tuple(enemy.monster_id for enemy in combat.enemies[:-1])
+            assert secondary_ids in expected_secondary_ids
+            seen_secondary_shapes.add(tuple("SMALL_SLIME" if monster_id.endswith("_SLIME_S") else monster_id
+                                            for monster_id in secondary_ids))
+
+        assert expected_branch_markers <= {
+            monster_id
+            for secondary_shape in seen_secondary_shapes
+            for monster_id in secondary_shape
+        }
 
     def test_snapping_jaxfruit_count(self):
         combat = _make_combat()
