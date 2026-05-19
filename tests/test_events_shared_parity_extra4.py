@@ -18,7 +18,7 @@ from sts2_env.events.shared import (
     WoodCarvings,
     ZenWeaver,
 )
-from sts2_env.run.run_state import RunState
+from sts2_env.run.run_state import PlayerState, RunState
 
 
 class _SeaGlassRng:
@@ -291,6 +291,18 @@ def test_zen_weaver_applies_gold_card_gain_and_card_removal_costs():
     assert acupuncture_final.finished
     assert acupuncture_state.player.gold == acupuncture_gold - 250
     assert len(acupuncture_state.player.deck) == acupuncture_size - 2
+
+
+def test_zen_weaver_requires_all_players_to_have_emotional_awareness_gold():
+    run_state = _make_run_state(5151)
+    run_state.player.gold = 125
+    ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent", gold=124))
+    event = ZenWeaver()
+
+    assert event.is_allowed(run_state) is False
+
+    ally.gold = 125
+    assert event.is_allowed(run_state) is True
 
 
 def test_orobas_assigns_off_character_for_sea_glass_when_selected():

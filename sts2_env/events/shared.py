@@ -2676,7 +2676,7 @@ class ZenWeaver(EventModel):
     event_id = "ZenWeaver"
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return run_state.player.gold >= 125
+        return all(player.gold >= 125 for player in run_state.players)
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         gold = run_state.player.gold
