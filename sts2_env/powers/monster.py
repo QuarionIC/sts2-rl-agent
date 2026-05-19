@@ -1394,7 +1394,7 @@ class PersonalHivePower(PowerInstance):
             from sts2_env.cards.status import make_dazed
 
             dazed_owner = dealer
-            if getattr(dealer, "is_pet", False) and getattr(dealer, "pet_owner", None) is not None:
+            if getattr(dealer, "is_osty", False) and getattr(dealer, "pet_owner", None) is not None:
                 dazed_owner = dealer.pet_owner
             for _ in range(self.amount):
                 combat.add_generated_card_to_creature_draw_pile(

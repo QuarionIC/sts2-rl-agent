@@ -728,6 +728,28 @@ class TestDamageModifierInteractions:
         dazed_count = sum(card.card_id == CardId.DAZED for card in simple_combat.draw_pile)
         assert dazed_count == 2
 
+    def test_personal_hive_does_not_assign_event_pet_dazed_to_owner(self, simple_combat):
+        player = simple_combat.player
+        enemy = simple_combat.enemies[0]
+        personal_hive_amount = 2
+        enemy.apply_power(PowerId.PERSONAL_HIVE, personal_hive_amount)
+        pet = simple_combat.summon_event_pet(player, "PAELS_LEGION")
+        assert pet is not None
+
+        simple_combat.deal_damage(pet, enemy, 1, ValueProp.MOVE)
+
+        owner_dazed_count = sum(
+            card.card_id == CardId.DAZED and card.owner is player
+            for card in simple_combat.draw_pile
+        )
+        pet_generated_count = sum(
+            1
+            for owner, _ in simple_combat._generated_cards_combat  # noqa: SLF001
+            if owner is pet
+        )
+        assert owner_dazed_count == 0
+        assert pet_generated_count == personal_hive_amount
+
 
 class TestSandpitPower:
     def test_sandpit_kills_target_player_when_count_reaches_zero(self, simple_combat):
