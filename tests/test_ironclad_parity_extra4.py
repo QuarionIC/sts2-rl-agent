@@ -789,6 +789,24 @@ class TestIroncladParityExtra4:
         assert combat.play_card(0, 0)
         assert stomp.cost == 1
 
+    def test_stomp_entering_on_enemy_turn_ignores_player_turn_attacks(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        stomp = make_stomp()
+        combat.hand = [make_strike_ironclad()]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+
+        combat.current_side = CombatSide.ENEMY
+        combat._reset_side_turn_history()  # noqa: SLF001
+        assert combat.current_side == CombatSide.ENEMY
+
+        combat.move_card_to_creature_hand(combat.player, stomp)
+
+        assert stomp.cost == stomp.original_cost
+        assert enemy.is_alive
+
     def test_pillage_draws_until_non_attack(self):
         combat = _make_combat()
         enemy = combat.enemies[0]

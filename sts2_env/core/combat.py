@@ -745,6 +745,19 @@ class CombatState:
             card.owner = state.creature
             state.hand.append(card)
 
+    def _reset_side_turn_history(self) -> None:
+        self._damage_events_this_turn = []
+        self._block_events_this_turn = []
+        self._draw_events_this_turn = []
+        self._exhaust_events_this_turn = []
+        self._discard_events_this_turn = []
+        self._stars_gained_this_turn = []
+        self._power_events_this_turn = []
+        self._energy_spent_this_turn = {}
+        self._played_cards_this_turn = []
+        self._card_play_starts_this_turn = []
+        self._after_energy_reset_owners_this_turn = set()
+
     def start_combat(self) -> None:
         """Initialize combat and enter the first player turn."""
         from sts2_env.core.hooks import fire_before_combat_start
@@ -756,24 +769,15 @@ class CombatState:
         self.stars = 0
         self.primary_player.stars = 0
         self._pending_retain_count = {}
-        self._damage_events_this_turn = []
         self._damage_events_combat = []
-        self._block_events_this_turn = []
-        self._draw_events_this_turn = []
         self._draw_events_combat = []
-        self._exhaust_events_this_turn = []
-        self._discard_events_this_turn = []
-        self._stars_gained_this_turn = []
-        self._power_events_this_turn = []
         self._generated_cards_combat = []
-        self._energy_spent_this_turn = {}
         self._orb_channel_events_combat = []
-        self._played_cards_this_turn = []
         self._played_cards_combat = []
         self._card_play_finished_entries_combat = []
-        self._card_play_starts_this_turn = []
         self._card_play_round_counts = {}
         self.extra_card_rewards = 0
+        self._reset_side_turn_history()
 
         for state in self.combat_player_states:
             state.creature.combat_state = self
@@ -798,17 +802,7 @@ class CombatState:
         self.current_side = CombatSide.PLAYER
         self.turn_count += 1
         self._pending_retain_count = {}
-        self._damage_events_this_turn = []
-        self._block_events_this_turn = []
-        self._draw_events_this_turn = []
-        self._exhaust_events_this_turn = []
-        self._discard_events_this_turn = []
-        self._stars_gained_this_turn = []
-        self._power_events_this_turn = []
-        self._played_cards_this_turn = []
-        self._card_play_starts_this_turn = []
-        self._energy_spent_this_turn = {}
-        self._after_energy_reset_owners_this_turn = set()
+        self._reset_side_turn_history()
 
         fire_before_side_turn_start(CombatSide.PLAYER, self)
         if self.pending_choice is not None:
@@ -1642,7 +1636,7 @@ class CombatState:
         )
 
         self.current_side = CombatSide.ENEMY
-        self._energy_spent_this_turn = {}
+        self._reset_side_turn_history()
 
         fire_before_side_turn_start(CombatSide.ENEMY, self)
 
