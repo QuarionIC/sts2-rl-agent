@@ -37,7 +37,7 @@ from sts2_env.run.reward_objects import CardReward, GoldReward, PotionReward, Re
 from sts2_env.run.rewards import CardRewardGenerationOptions
 from sts2_env.run.rooms import RoomVisitContext, create_room
 from sts2_env.run.run_manager import RunManager
-from sts2_env.run.run_state import RunState
+from sts2_env.run.run_state import PlayerState, RunState
 from sts2_env.run.shop import _create_character_shop_card
 
 
@@ -209,6 +209,22 @@ def test_tea_master_options_and_gold_costs_match_thresholds():
     assert discourtesy.finished
     assert run_state.player.gold == before
     assert len(run_state.player.relics) == relics_before + 1
+
+
+def test_tea_master_requires_all_players_to_have_ember_tea_gold():
+    run_state = RunState(seed=8031, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.player.gold = 150
+    ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent", gold=149))
+    event = TeaMaster()
+
+    assert event.is_allowed(run_state) is False
+
+    ally.gold = 150
+    assert event.is_allowed(run_state) is True
+
+    run_state.current_act_index = 2
+    assert event.is_allowed(run_state) is False
 
 
 def test_neow_is_not_pool_allowed_but_exposes_three_choices():
