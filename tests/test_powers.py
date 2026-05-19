@@ -8,6 +8,7 @@ from sts2_env.core.damage import apply_damage, calculate_block, calculate_damage
 from sts2_env.core.combat import CombatState
 from sts2_env.core.hooks import (
     fire_after_block_cleared,
+    fire_after_block_gained,
     fire_after_player_turn_start,
     fire_after_side_turn_start,
     fire_after_turn_end,
@@ -799,6 +800,21 @@ class TestPowerAmountChangedHooks:
 
         assert ally.get_power_amount(PowerId.GUARDED) == 1
         assert simple_combat.player.get_power_amount(PowerId.GUARDED) == 0
+
+    def test_grapple_keeps_separate_appliers_like_reference(self, simple_combat):
+        ally = simple_combat.add_ally_player(PlayerState(player_id=2, character_id="Ironclad", max_hp=70, current_hp=70))
+        enemy = simple_combat.enemies[0]
+        starting_hp = enemy.current_hp
+        simple_combat.apply_power_to(enemy, PowerId.GRAPPLE, 5, applier=simple_combat.player)
+        simple_combat.apply_power_to(enemy, PowerId.GRAPPLE, 7, applier=ally)
+
+        simple_combat.player.gain_block(4)
+        fire_after_block_gained(simple_combat.player, 4, simple_combat)
+        assert enemy.current_hp == starting_hp - 5
+
+        ally.gain_block(4)
+        fire_after_block_gained(ally, 4, simple_combat)
+        assert enemy.current_hp == starting_hp - 12
 
     def test_enemy_plating_decrements_by_player_count(self, simple_combat):
         enemy = simple_combat.enemies[0]

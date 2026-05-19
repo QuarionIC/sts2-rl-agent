@@ -1076,7 +1076,7 @@ def grapple(card: CardInstance, combat: CombatState, target: Creature | None) ->
     assert target is not None
     _deal_damage_to_target(card, combat, target)
     grapple_amount = card.effect_vars.get("grapple_power", 5)
-    combat.apply_power_to(target, PowerId.GRAPPLE_POWER, grapple_amount)
+    combat.apply_power_to(target, PowerId.GRAPPLE, grapple_amount)
 
 
 def make_grapple(upgraded: bool = False) -> CardInstance:

@@ -53,7 +53,7 @@ from sts2_env.cards.ironclad import (
 from sts2_env.cards.ironclad_basic import make_defend_ironclad, make_strike_ironclad
 from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import CardId, CombatSide, PowerId, ValueProp
-from sts2_env.core.hooks import fire_after_turn_end
+from sts2_env.core.hooks import fire_after_block_gained, fire_after_turn_end
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 from sts2_env.powers.base import PowerInstance
@@ -155,6 +155,22 @@ class TestIroncladParityExtra4:
         assert combat.play_card(0)
         assert combat.is_over
         assert combat.player.block == 0
+
+    def test_grapple_applies_power_that_triggers_when_applier_gains_block(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        starting_hp = enemy.current_hp
+        combat.hand = [make_grapple()]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+        assert enemy.get_power_amount(PowerId.GRAPPLE) == 5
+        assert enemy.current_hp == starting_hp - 7
+
+        combat.player.gain_block(4)
+        fire_after_block_gained(combat.player, 4, combat)
+
+        assert enemy.current_hp == starting_hp - 12
 
     def test_setup_strike_grants_temporary_strength_until_turn_end(self):
         combat = _make_combat()

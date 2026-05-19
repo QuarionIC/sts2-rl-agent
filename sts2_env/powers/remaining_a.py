@@ -1803,18 +1803,36 @@ class GrapplePower(PowerInstance):
 
     def __init__(self, amount: int):
         super().__init__(PowerId.GRAPPLE, amount)
-        self.applier: Creature | None = None
+        self._instances: list[tuple[int, Creature | None]] = [(amount, None)]
+
+    def after_power_amount_changed(
+        self,
+        owner: Creature,
+        target: Creature,
+        power_id: PowerId,
+        amount: int,
+        applier: Creature | None,
+        source: object | None,
+        combat: CombatState,
+    ) -> None:
+        if owner is not target or power_id != self.power_id or amount <= 0:
+            return
+        if len(self._instances) == 1 and self._instances[0][1] is None:
+            self._instances[0] = (self._instances[0][0], applier)
+            return
+        self._instances.append((amount, applier))
 
     def after_block_gained(self, owner: Creature, creature: Creature,
                            amount: int, combat: CombatState) -> None:
         if amount <= 0:
             return
-        if creature is not self.applier:
+        damage = sum(instance_amount for instance_amount, applier in self._instances if creature is (applier or self.applier))
+        if damage <= 0:
             return
         combat.deal_damage(
             dealer=owner,
             target=owner,
-            amount=self.amount,
+            amount=damage,
             props=ValueProp.UNPOWERED,
         )
 
