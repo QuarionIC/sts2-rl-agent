@@ -339,18 +339,38 @@ class RollingBoulderPower(PowerInstance):
 
     def __init__(self, amount: int):
         super().__init__(PowerId.ROLLING_BOULDER, amount)
+        self._instances: list[int] = [amount]
+
+    def after_power_amount_changed(
+        self,
+        owner: Creature,
+        target: Creature,
+        power_id: PowerId,
+        amount: int,
+        applier: Creature | None,
+        source: object | None,
+        combat: CombatState,
+    ) -> None:
+        if owner is target and power_id == self.power_id and amount > 0 and self.amount != amount:
+            self._instances.append(amount)
+            self.amount = amount
 
     def after_player_turn_start(self, owner: Creature, combat: CombatState) -> None:
         if not owner.is_player:
             return
-        for enemy in combat.hittable_enemies:
-            combat.deal_damage(
-                dealer=owner,
-                target=enemy,
-                amount=self.amount,
-                props=ValueProp.UNPOWERED,
-            )
-        self.amount += self.DAMAGE_INCREMENT
+        next_instances: list[int] = []
+        for amount in self._instances:
+            for enemy in combat.hittable_enemies:
+                combat.deal_damage(
+                    dealer=owner,
+                    target=enemy,
+                    amount=amount,
+                    props=ValueProp.UNPOWERED,
+                )
+            next_instances.append(amount + self.DAMAGE_INCREMENT)
+        self._instances = next_instances
+        if self._instances:
+            self.amount = self._instances[-1]
 
 
 # ---------------------------------------------------------------------------

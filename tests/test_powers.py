@@ -840,6 +840,18 @@ class TestPowerAmountChangedHooks:
         fire_after_block_gained(ally, 4, simple_combat)
         assert enemy.current_hp == starting_hp - 12
 
+    def test_rolling_boulder_keeps_separate_instances_like_reference(self, simple_combat):
+        enemy = simple_combat.enemies[0]
+        starting_hp = enemy.current_hp
+        simple_combat.apply_power_to(simple_combat.player, PowerId.ROLLING_BOULDER, 5)
+        simple_combat.apply_power_to(simple_combat.player, PowerId.ROLLING_BOULDER, 10)
+
+        fire_after_player_turn_start(simple_combat.player, simple_combat)
+        assert enemy.current_hp == starting_hp - 15
+
+        fire_after_player_turn_start(simple_combat.player, simple_combat)
+        assert enemy.current_hp == starting_hp - 40
+
     def test_enemy_plating_decrements_by_player_count(self, simple_combat):
         enemy = simple_combat.enemies[0]
         simple_combat.add_ally_player(PlayerState(player_id=2, character_id="Ironclad", max_hp=70, current_hp=70))
