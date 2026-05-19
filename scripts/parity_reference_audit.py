@@ -14,6 +14,7 @@ from typing import Iterable
 CAMEL_WORD_BOUNDARY_RE = re.compile(r"(.)([A-Z][a-z]+)")
 LOWER_TO_UPPER_BOUNDARY_RE = re.compile(r"([a-z0-9])([A-Z])")
 IDENTIFIER_TOKEN_TEMPLATE = r"(?<![A-Za-z0-9_]){}(?![A-Za-z0-9_])"
+SNAKE_SEGMENT_TOKEN_TEMPLATE = r"(?<![A-Za-z0-9]){}(?![A-Za-z0-9])"
 PYTHON_FILE_PATTERN = "*.py"
 CS_FILE_PATTERN = "*.cs"
 DEPRECATED_NAME_MARKER = "Deprecated"
@@ -152,11 +153,16 @@ def collect_test_text(root: Path) -> str:
 
 
 def alias_hits(text: str, aliases: Iterable[str]) -> tuple[str, ...]:
-    return tuple(
-        alias
-        for alias in aliases
-        if re.search(IDENTIFIER_TOKEN_TEMPLATE.format(re.escape(alias)), text)
-    )
+    hits: list[str] = []
+    for alias in aliases:
+        template = (
+            SNAKE_SEGMENT_TOKEN_TEMPLATE
+            if alias == alias.lower() or alias == alias.upper()
+            else IDENTIFIER_TOKEN_TEMPLATE
+        )
+        if re.search(template.format(re.escape(alias)), text):
+            hits.append(alias)
+    return tuple(hits)
 
 
 def reference_files(root: Path, config: SurfaceConfig, include_deprecated: bool) -> list[Path]:

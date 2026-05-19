@@ -38,7 +38,9 @@ from sts2_env.cards.necrobinder import (
     make_sentry_mode,
     make_shared_fate,
     make_sic_em,
+    make_sow,
     make_squeeze,
+    make_strike_necrobinder,
     make_times_up,
     make_unleash,
     make_veilpiercer,
@@ -50,6 +52,17 @@ from sts2_env.core.hooks import fire_after_side_turn_start, fire_after_turn_end
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 from sts2_env.powers.base import PowerInstance
+
+
+REFERENCE_ENEMY_HP = 100
+DELAY_BLOCK = 11
+DELAY_ENERGY_NEXT_TURN = 1
+DELAY_UPGRADED_BLOCK = 13
+DELAY_UPGRADED_ENERGY_NEXT_TURN = 2
+SOW_DAMAGE = 8
+SOW_UPGRADED_DAMAGE = 11
+STRIKE_NECROBINDER_DAMAGE = 6
+STRIKE_NECROBINDER_UPGRADED_DAMAGE = 9
 
 
 class _CannotHitPower(PowerInstance):
@@ -78,10 +91,76 @@ def _make_combat(*, extra_enemies: int = 0) -> CombatState:
 
 
 class TestNecrobinderParityExtra4:
+    def test_strike_necrobinder_deals_single_target_damage(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = REFERENCE_ENEMY_HP
+        combat.hand = [make_strike_necrobinder()]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == REFERENCE_ENEMY_HP - STRIKE_NECROBINDER_DAMAGE
+
+    def test_upgraded_strike_necrobinder_damage_matches_reference(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = REFERENCE_ENEMY_HP
+        combat.hand = [make_strike_necrobinder(upgraded=True)]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == REFERENCE_ENEMY_HP - STRIKE_NECROBINDER_UPGRADED_DAMAGE
+
+    def test_sow_hits_all_enemies_and_retains(self):
+        combat = _make_combat(extra_enemies=1)
+        for enemy in combat.enemies:
+            enemy.current_hp = enemy.max_hp = REFERENCE_ENEMY_HP
+        card = make_sow()
+        combat.hand = [card]
+        combat.energy = 1
+
+        assert card.is_retain
+        assert combat.play_card(0)
+        assert [enemy.current_hp for enemy in combat.enemies] == [
+            REFERENCE_ENEMY_HP - SOW_DAMAGE,
+            REFERENCE_ENEMY_HP - SOW_DAMAGE,
+        ]
+
+    def test_upgraded_sow_damage_matches_reference(self):
+        combat = _make_combat(extra_enemies=1)
+        for enemy in combat.enemies:
+            enemy.current_hp = enemy.max_hp = REFERENCE_ENEMY_HP
+        combat.hand = [make_sow(upgraded=True)]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert [enemy.current_hp for enemy in combat.enemies] == [
+            REFERENCE_ENEMY_HP - SOW_UPGRADED_DAMAGE,
+            REFERENCE_ENEMY_HP - SOW_UPGRADED_DAMAGE,
+        ]
+
+    def test_delay_gains_block_and_applies_energy_next_turn(self):
+        combat = _make_combat()
+        combat.hand = [create_card(CardId.DELAY)]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+        assert combat.player.block == DELAY_BLOCK
+        assert combat.player.get_power_amount(PowerId.ENERGY_NEXT_TURN) == DELAY_ENERGY_NEXT_TURN
+
+    def test_upgraded_delay_values_match_reference(self):
+        combat = _make_combat()
+        combat.hand = [create_card(CardId.DELAY, upgraded=True)]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+        assert combat.player.block == DELAY_UPGRADED_BLOCK
+        assert combat.player.get_power_amount(PowerId.ENERGY_NEXT_TURN) == DELAY_UPGRADED_ENERGY_NEXT_TURN
+
     def test_bury_deals_large_single_target_damage(self):
         combat = _make_combat()
         enemy = combat.enemies[0]
-        enemy.current_hp = enemy.max_hp = 100
+        enemy.current_hp = enemy.max_hp = REFERENCE_ENEMY_HP
         combat.hand = [make_bury()]
         combat.energy = 4
 
@@ -91,7 +170,7 @@ class TestNecrobinderParityExtra4:
     def test_upgraded_bury_damage_matches_reference(self):
         combat = _make_combat()
         enemy = combat.enemies[0]
-        enemy.current_hp = enemy.max_hp = 100
+        enemy.current_hp = enemy.max_hp = REFERENCE_ENEMY_HP
         combat.hand = [make_bury(upgraded=True)]
         combat.energy = 4
 

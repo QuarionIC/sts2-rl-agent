@@ -29,6 +29,7 @@ from sts2_env.cards.regent import (
     make_lunar_blast,
     make_monologue_card,
     make_neutron_aegis,
+    make_patter,
     make_prophesize,
     make_quasar,
     make_resonance,
@@ -47,6 +48,12 @@ from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 from sts2_env.powers.base import PowerInstance
 from sts2_env.run.run_state import PlayerState
+
+
+PATTER_BLOCK = 8
+PATTER_VIGOR = 2
+PATTER_UPGRADED_BLOCK = 10
+PATTER_UPGRADED_VIGOR = 3
 
 
 def _make_combat(*, extra_enemies: int = 0) -> CombatState:
@@ -75,6 +82,26 @@ class _CannotHitPower(PowerInstance):
 
 
 class TestRegentParityExtra4:
+    def test_patter_gains_block_then_applies_vigor(self):
+        combat = _make_combat()
+        combat.hand = [make_patter()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+
+        assert combat.player.block == PATTER_BLOCK
+        assert combat.player.get_power_amount(PowerId.VIGOR) == PATTER_VIGOR
+
+    def test_upgraded_patter_values_match_reference(self):
+        combat = _make_combat()
+        combat.hand = [make_patter(upgraded=True)]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+
+        assert combat.player.block == PATTER_UPGRADED_BLOCK
+        assert combat.player.get_power_amount(PowerId.VIGOR) == PATTER_UPGRADED_VIGOR
+
     def test_celestial_might_hits_three_times(self):
         combat = _make_combat()
         enemy = combat.enemies[0]
