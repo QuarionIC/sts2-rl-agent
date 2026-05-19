@@ -34,6 +34,7 @@ class SurfaceConfig:
     reference_dir: str
     implementation_paths: tuple[str, ...]
     suffixes: tuple[str, ...] = ()
+    explicit_aliases: dict[str, tuple[str, ...]] | None = None
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,9 @@ SURFACES: dict[str, SurfaceConfig] = {
         "decompiled/MegaCrit.Sts2.Core.Models.Cards",
         ("sts2_env/cards",),
         suffixes=("Card",),
+        explicit_aliases={
+            "Sloth": ("SLOTH_STATUS", "sloth_status", "make_sloth_status"),
+        },
     ),
     "relics": SurfaceConfig(
         "decompiled/MegaCrit.Sts2.Core.Models.Relics",
@@ -107,8 +111,13 @@ def snake_case(name: str) -> str:
     return LOWER_TO_UPPER_BOUNDARY_RE.sub(r"\1_\2", first).lower()
 
 
-def aliases_for(name: str, suffixes: Iterable[str]) -> tuple[str, ...]:
+def aliases_for(
+    name: str,
+    suffixes: Iterable[str],
+    explicit_aliases: dict[str, tuple[str, ...]] | None = None,
+) -> tuple[str, ...]:
     aliases = {name, snake_case(name), snake_case(name).upper()}
+    aliases.update((explicit_aliases or {}).get(name, ()))
     for suffix in suffixes:
         suffix_snake = snake_case(suffix)
         aliases.update(
@@ -167,7 +176,7 @@ def build_report(root: Path, surface: str, include_deprecated: bool = False) -> 
     items: list[ReferenceItem] = []
 
     for path in reference_files(root, config, include_deprecated):
-        aliases = aliases_for(path.stem, config.suffixes)
+        aliases = aliases_for(path.stem, config.suffixes, config.explicit_aliases)
         items.append(
             ReferenceItem(
                 name=path.stem,
