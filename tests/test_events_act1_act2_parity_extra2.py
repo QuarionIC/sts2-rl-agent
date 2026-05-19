@@ -167,10 +167,12 @@ def test_future_of_potions_trade_discards_potion_and_builds_upgraded_rewards():
     run_state.player.add_potion(create_potion("Clarity"))
     run_state.player.add_potion(create_potion("FairyInABottle"))
     event = TheFutureOfPotions()
+    up_front_counter = run_state.rng.up_front.counter
 
     assert event.is_allowed(run_state)
     options = event.generate_initial_options(run_state)
     assert [opt.option_id for opt in options] == ["trade_0", "trade_1", "trade_2"]
+    assert run_state.rng.up_front.counter == up_front_counter
 
     potions_before = len(run_state.player.held_potions())
     result = event.choose(run_state, "trade_0")

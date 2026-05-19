@@ -634,8 +634,10 @@ class ColorfulPhilosophers(EventModel):
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         available = [cid for cid in self._POOL_ORDER if cid != run_state.player.character_id]
-        run_state.rng.up_front.shuffle(available)
-        chosen = available[:3]
+        rng = self.get_rng(run_state)
+        while len(available) > 3:
+            available.pop(rng.next_int_exclusive(0, len(available)))
+        chosen = available
         self._choices = {f"pool_{i + 1}": cid for i, cid in enumerate(chosen)}
         return [
             EventOption(option_id, f"{cid} Philosopher", f"Card rewards from {cid} pool")

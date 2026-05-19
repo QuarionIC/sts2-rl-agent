@@ -36,6 +36,14 @@ class _NoopShuffleRng:
         pass
 
 
+class _FixedRemovalRng:
+    def __init__(self, rolls: list[int]):
+        self._rolls = iter(rolls)
+
+    def next_int_exclusive(self, low: int, high: int) -> int:
+        return next(self._rolls)
+
+
 def _count_card(deck, card_id: CardId) -> int:
     return sum(1 for card in deck if card.card_id == card_id)
 
@@ -43,9 +51,11 @@ def _count_card(deck, card_id: CardId) -> int:
 def test_colorful_philosophers_choice_surfaces_three_rarity_tiered_card_rewards():
     run_state = _make_run_state(401, character_id="Defect")
     event = ColorfulPhilosophers()
+    event.rng = _FixedRemovalRng([1])
 
     options = event.generate_initial_options(run_state)
     assert len(options) == 3
+    assert list(event._choices.values()) == ["Necrobinder", "Regent", "Silent"]
     chosen_option_id = options[0].option_id
     chosen_pool = event._choices[chosen_option_id]
 
@@ -61,6 +71,17 @@ def test_colorful_philosophers_choice_surfaces_three_rarity_tiered_card_rewards(
         (CardRarity.UNCOMMON, CardRarity.UNCOMMON, CardRarity.UNCOMMON),
         (CardRarity.RARE, CardRarity.RARE, CardRarity.RARE),
     ]
+
+
+def test_colorful_philosophers_uses_event_rng_without_advancing_up_front_rng():
+    run_state = _make_run_state(411, character_id="Defect")
+    event = ColorfulPhilosophers()
+    up_front_counter = run_state.rng.up_front.counter
+
+    options = event.generate_initial_options(run_state)
+
+    assert len(options) == 3
+    assert run_state.rng.up_front.counter == up_front_counter
 
 
 def test_sunken_treasury_first_and_second_chests_apply_gold_and_greed_curse():

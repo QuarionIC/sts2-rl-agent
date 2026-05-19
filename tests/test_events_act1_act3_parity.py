@@ -40,6 +40,19 @@ from sts2_env.run.run_state import RunState
 from sts2_env.run.shop import _create_character_shop_card
 
 
+class _NeowChoiceRng:
+    def __init__(self, preferred_relic: str):
+        self._preferred_relic = preferred_relic
+
+    def choice(self, seq):
+        if self._preferred_relic in seq:
+            return self._preferred_relic
+        return seq[0]
+
+    def shuffle(self, seq) -> None:
+        pass
+
+
 def test_brain_leech_rip_loses_hp_while_share_knowledge_is_safe():
     run_state = RunState(seed=801, character_id="Ironclad")
     run_state.initialize_run()
@@ -159,8 +172,10 @@ def test_neow_is_not_pool_allowed_but_exposes_three_choices():
     event = Neow()
 
     assert event.is_allowed(run_state) is False
+    up_front_counter = run_state.rng.up_front.counter
     options = event.generate_initial_options(run_state)
     assert [option.option_id for option in options] == ["positive_1", "positive_2", "cursed"]
+    assert run_state.rng.up_front.counter == up_front_counter
 
     relics_before = len(run_state.player.relics)
     cursed = event.choose(run_state, "cursed")
@@ -179,9 +194,8 @@ def test_neow_positive_pool_respects_cursed_choice_conflicts():
     run_state = RunState(seed=807, character_id="Ironclad")
     run_state.initialize_run()
     event = Neow()
+    event.rng = _NeowChoiceRng(RelicId.LEAFY_POULTICE.name)
 
-    run_state.rng.up_front.choice = lambda seq: RelicId.LEAFY_POULTICE.name if RelicId.LEAFY_POULTICE.name in seq else seq[0]
-    run_state.rng.up_front.shuffle = lambda seq: None
     options = event.generate_initial_options(run_state)
 
     labels = {option.label for option in options}
@@ -193,9 +207,8 @@ def test_neow_cursed_pool_adds_scroll_boxes_when_bundles_are_possible_and_skips_
     run_state = RunState(seed=809, character_id="Ironclad")
     run_state.initialize_run()
     event = Neow()
+    event.rng = _NeowChoiceRng(RelicId.SCROLL_BOXES.name)
 
-    run_state.rng.up_front.choice = lambda seq: RelicId.SCROLL_BOXES.name if RelicId.SCROLL_BOXES.name in seq else seq[0]
-    run_state.rng.up_front.shuffle = lambda seq: None
     options = event.generate_initial_options(run_state)
     assert any("SCROLL BOXES" in option.label.upper() for option in options)
 
@@ -203,8 +216,7 @@ def test_neow_cursed_pool_adds_scroll_boxes_when_bundles_are_possible_and_skips_
     multiplayer.initialize_run()
     multiplayer.players.append(multiplayer.player)
     multiplayer_event = Neow()
-    multiplayer.rng.up_front.choice = lambda seq: RelicId.SILVER_CRUCIBLE.name if RelicId.SILVER_CRUCIBLE.name in seq else seq[0]
-    multiplayer.rng.up_front.shuffle = lambda seq: None
+    multiplayer_event.rng = _NeowChoiceRng(RelicId.SILVER_CRUCIBLE.name)
     multiplayer_options = multiplayer_event.generate_initial_options(multiplayer)
     assert not any("SILVER CRUCIBLE" in option.label.upper() for option in multiplayer_options)
 

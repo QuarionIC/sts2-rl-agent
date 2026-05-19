@@ -155,8 +155,10 @@ def test_fake_merchant_gating_options_and_choices_reflect_foul_potion_and_gold()
     option_state = _make_run_state(908)
     option_state.current_act_index = 1
     option_state.player.gold = 120
+    up_front_counter = option_state.rng.up_front.counter
     options = event.generate_initial_options(option_state)
     assert [option.option_id for option in options] == ["buy", "leave"]
+    assert option_state.rng.up_front.counter == up_front_counter
 
     foul_state = _make_run_state(909)
     foul_state.current_act_index = 1
@@ -326,9 +328,11 @@ def test_welcome_to_wongos_thresholds_purchase_effects_and_leave_downgrade():
         create_card(CardId.STRIKE_IRONCLAD),
     ]
     leave_event = WelcomeToWongos()
+    up_front_counter = leave_state.rng.up_front.counter
     leave = leave_event.choose(leave_state, "leave")
     assert leave.finished
     assert leave_state.player.deck[0].upgraded is False
+    assert leave_state.rng.up_front.counter == up_front_counter
 
 
 def test_field_of_man_sized_holes_gate_resist_and_enter_behaviors():

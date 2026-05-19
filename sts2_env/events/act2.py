@@ -334,7 +334,7 @@ class FakeMerchant(EventModel):
         inventory = self._inventories.get(key)
         if inventory is None:
             pool = list(self._INVENTORY_RELICS)
-            run_state.rng.up_front.shuffle(pool)
+            self.get_rng(run_state).shuffle(pool)
             inventory = pool[:6]
             self._inventories[key] = inventory
         return inventory
@@ -1171,7 +1171,7 @@ class TheFutureOfPotions(EventModel):
             card_types = [CardType.ATTACK, CardType.SKILL, CardType.POWER]
             if p.rarity in {PotionRarity.COMMON, PotionRarity.TOKEN}:
                 card_types = [CardType.ATTACK, CardType.SKILL]
-            chosen_type = run_state.rng.up_front.choice(card_types)
+            chosen_type = self.get_rng(run_state).choice(card_types)
             self._trade_choices.append((p.slot_index, self._target_card_rarity(p.rarity), chosen_type))
             options.append(
                 EventOption(f"trade_{i}", f"Trade {p.potion_id}",
@@ -1452,7 +1452,7 @@ class WelcomeToWongos(EventModel):
             )
         upgraded_cards = [card for card in run_state.player.deck if card.upgraded]
         if upgraded_cards:
-            run_state.rng.up_front.shuffle(upgraded_cards)
+            self.get_rng(run_state).shuffle(upgraded_cards)
             _downgrade_selected_cards([upgraded_cards[0]], run_state)
         return EventResult(finished=True,
                            description="Left Wongo's, downgraded a card.")

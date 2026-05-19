@@ -177,7 +177,8 @@ class Neow(EventModel):
             cursed_pool.append(RelicId.SCROLL_BOXES.name)
         if len(run_state.players) == 1:
             cursed_pool.append(RelicId.SILVER_CRUCIBLE.name)
-        cursed_choice = run_state.rng.up_front.choice(cursed_pool)
+        rng = self.get_rng(run_state)
+        cursed_choice = rng.choice(cursed_pool)
 
         positive_pool = list(self._POSITIVE_POOL)
         if cursed_choice == RelicId.CURSED_PEARL.name and RelicId.GOLDEN_PEARL.name in positive_pool:
@@ -188,10 +189,10 @@ class Neow(EventModel):
             positive_pool.remove(RelicId.NEW_LEAF.name)
         if len(run_state.players) > 1:
             positive_pool.append(RelicId.MASSIVE_SCROLL.name)
-        positive_pool.append(run_state.rng.up_front.choice([RelicId.NUTRITIOUS_OYSTER.name, RelicId.STONE_HUMIDIFIER.name]))
+        positive_pool.append(rng.choice([RelicId.NUTRITIOUS_OYSTER.name, RelicId.STONE_HUMIDIFIER.name]))
         if cursed_choice != RelicId.LARGE_CAPSULE.name:
-            positive_pool.append(run_state.rng.up_front.choice([RelicId.LAVA_ROCK.name, RelicId.SMALL_CAPSULE.name]))
-        run_state.rng.up_front.shuffle(positive_pool)
+            positive_pool.append(rng.choice([RelicId.LAVA_ROCK.name, RelicId.SMALL_CAPSULE.name]))
+        rng.shuffle(positive_pool)
         positives = positive_pool[:2]
         self._choices = {
             "positive_1": positives[0],
