@@ -32,6 +32,11 @@ from sts2_env.monsters.intents import (
 from sts2_env.monsters.state_machine import (
     ConditionalBranchState, MonsterAI, MonsterState, MoveState, RandomBranchState,
 )
+from sts2_env.monsters.targets import (
+    add_generated_cards_to_living_player_discards,
+    apply_power_to_living_player_targets,
+    living_player_targets,
+)
 from sts2_env.cards.status import make_infection
 
 if TYPE_CHECKING:
@@ -42,10 +47,12 @@ if TYPE_CHECKING:
 
 def _deal_damage_to_player(combat: CombatState, creature: Creature, base_dmg: int, hits: int = 1) -> None:
     for _ in range(hits):
-        if combat.primary_player.is_dead:
+        targets = living_player_targets(combat)
+        if not targets:
             break
-        dmg = calculate_damage(base_dmg, creature, combat.primary_player, ValueProp.MOVE, combat)
-        apply_damage(combat.primary_player, dmg, ValueProp.MOVE, combat, creature)
+        for target in targets:
+            dmg = calculate_damage(base_dmg, creature, target, ValueProp.MOVE, combat)
+            apply_damage(target, dmg, ValueProp.MOVE, combat, creature)
         combat._check_combat_end()  # noqa: SLF001
         if combat.is_over:
             break
@@ -121,6 +128,7 @@ def create_fake_merchant_monster(rng: Rng) -> tuple[Creature, MonsterAI]:
     spew_coins_dmg = 2
     spew_coins_hits = 8
     throw_relic_dmg = 13  # C# uses SwipeDamage for the actual DamageCmd
+    throw_relic_frail = 1
     enrage_str = 2
 
     def swipe(combat: CombatState) -> None:
@@ -131,7 +139,7 @@ def create_fake_merchant_monster(rng: Rng) -> tuple[Creature, MonsterAI]:
 
     def throw_relic(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, throw_relic_dmg)
-        combat.apply_power_to(combat.primary_player, PowerId.FRAIL, 1)
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, throw_relic_frail, applier=creature)
 
     def enrage(combat: CombatState) -> None:
         creature.apply_power(PowerId.STRENGTH, enrage_str)
@@ -211,12 +219,13 @@ def create_dense_vegetation_wriggler(
     creature = Creature(max_hp=hp, monster_id="WRIGGLER")
     bite_dmg = 6
     wriggle_str = 2
+    wriggle_infections = 1
 
     def nasty_bite(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, bite_dmg)
 
     def wriggle(combat: CombatState) -> None:
-        combat.add_card_to_discard(make_infection())
+        add_generated_cards_to_living_player_discards(combat, make_infection, wriggle_infections)
         creature.apply_power(PowerId.STRENGTH, wriggle_str)
 
     init = ConditionalBranchState("INIT_MOVE")

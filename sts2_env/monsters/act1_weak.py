@@ -18,6 +18,11 @@ from sts2_env.monsters.intents import (
 from sts2_env.monsters.state_machine import (
     ConditionalBranchState, MonsterAI, MonsterState, MoveState, RandomBranchState,
 )
+from sts2_env.monsters.targets import (
+    add_generated_cards_to_living_player_discards,
+    apply_power_to_living_player_targets,
+    living_player_targets,
+)
 from sts2_env.cards.status import make_slimed
 
 if TYPE_CHECKING:
@@ -27,12 +32,13 @@ if TYPE_CHECKING:
 # ---- Helpers ----
 
 def _deal_damage_to_player(combat: CombatState, creature: Creature, base_dmg: int, hits: int = 1) -> None:
-    """Monster deals powered damage to player."""
     for _ in range(hits):
-        if combat.primary_player.is_dead:
+        targets = living_player_targets(combat)
+        if not targets:
             break
-        dmg = calculate_damage(base_dmg, creature, combat.primary_player, ValueProp.MOVE, combat)
-        apply_damage(combat.primary_player, dmg, ValueProp.MOVE, combat, creature)
+        for target in targets:
+            dmg = calculate_damage(base_dmg, creature, target, ValueProp.MOVE, combat)
+            apply_damage(target, dmg, ValueProp.MOVE, combat, creature)
         combat._check_combat_end()  # noqa: SLF001
         if combat.is_over:
             break
@@ -56,15 +62,18 @@ def _gain_block(creature: Creature, amount: int, combat: CombatState) -> None:
 def create_shrinker_beetle(rng: Rng) -> tuple[Creature, MonsterAI]:
     hp = rng.next_int(38, 40)
     creature = Creature(max_hp=hp, monster_id="SHRINKER_BEETLE")
+    shrink_amount = -1
+    chomp_dmg = 7
+    stomp_dmg = 13
 
     def shrink(combat: CombatState) -> None:
-        combat.apply_power_to(combat.primary_player, PowerId.SHRINK, 1)
+        apply_power_to_living_player_targets(combat, PowerId.SHRINK, shrink_amount, applier=creature)
 
     def chomp(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, 7)
+        _deal_damage_to_player(combat, creature, chomp_dmg)
 
     def stomp(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, 13)
+        _deal_damage_to_player(combat, creature, stomp_dmg)
 
     states: dict[str, MonsterState] = {
         "SHRINKER_MOVE": MoveState(
@@ -73,8 +82,8 @@ def create_shrinker_beetle(rng: Rng) -> tuple[Creature, MonsterAI]:
             [strong_debuff_intent()],
             follow_up_id="CHOMP_MOVE",
         ),
-        "CHOMP_MOVE": MoveState("CHOMP_MOVE", chomp, [attack_intent(7)], follow_up_id="STOMP_MOVE"),
-        "STOMP_MOVE": MoveState("STOMP_MOVE", stomp, [attack_intent(13)], follow_up_id="CHOMP_MOVE"),
+        "CHOMP_MOVE": MoveState("CHOMP_MOVE", chomp, [attack_intent(chomp_dmg)], follow_up_id="STOMP_MOVE"),
+        "STOMP_MOVE": MoveState("STOMP_MOVE", stomp, [attack_intent(stomp_dmg)], follow_up_id="CHOMP_MOVE"),
     }
     return creature, MonsterAI(states, "SHRINKER_MOVE")
 
@@ -147,12 +156,13 @@ def create_nibbit(rng: Rng, is_alone: bool = True, is_front: bool = False) -> tu
 def create_leaf_slime_s(rng: Rng) -> tuple[Creature, MonsterAI]:
     hp = rng.next_int(11, 15)
     creature = Creature(max_hp=hp, monster_id="LEAF_SLIME_S")
+    goop_amount = 1
 
     def butt(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, 3)
 
     def goop(combat: CombatState) -> None:
-        combat.add_card_to_discard(make_slimed())
+        add_generated_cards_to_living_player_discards(combat, make_slimed, goop_amount)
 
     rand = RandomBranchState("RANDOM")
     rand.add_branch("BUTT_MOVE", MoveRepeatType.CANNOT_REPEAT)
@@ -188,10 +198,10 @@ def create_twig_slime_s(rng: Rng) -> tuple[Creature, MonsterAI]:
 def create_leaf_slime_m(rng: Rng) -> tuple[Creature, MonsterAI]:
     hp = rng.next_int(32, 35)
     creature = Creature(max_hp=hp, monster_id="LEAF_SLIME_M")
+    sticky_amount = 2
 
     def sticky_shot(combat: CombatState) -> None:
-        for _ in range(2):
-            combat.add_card_to_discard(make_slimed())
+        add_generated_cards_to_living_player_discards(combat, make_slimed, sticky_amount)
 
     def clump_shot(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, 8)
@@ -209,9 +219,10 @@ def create_leaf_slime_m(rng: Rng) -> tuple[Creature, MonsterAI]:
 def create_twig_slime_m(rng: Rng) -> tuple[Creature, MonsterAI]:
     hp = rng.next_int(26, 28)
     creature = Creature(max_hp=hp, monster_id="TWIG_SLIME_M")
+    sticky_amount = 1
 
     def sticky_shot(combat: CombatState) -> None:
-        combat.add_card_to_discard(make_slimed())
+        add_generated_cards_to_living_player_discards(combat, make_slimed, sticky_amount)
 
     def clump_shot(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, 11)

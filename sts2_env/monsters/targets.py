@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from sts2_env.core.creature import Creature
 from sts2_env.core.enums import PowerId
 
 if TYPE_CHECKING:
+    from sts2_env.cards.base import CardInstance
     from sts2_env.core.combat import CombatState
 
 
@@ -41,3 +42,20 @@ def apply_power_to_living_player_targets(
             source=source,
             ignore_next_instance=ignore_next_instance,
         )
+
+
+def add_generated_cards_to_living_player_discards(
+    combat: CombatState,
+    card_factory: Callable[[], CardInstance | None],
+    count: int,
+    *,
+    added_by_player: bool = False,
+) -> None:
+    for target in living_player_targets(combat):
+        for _ in range(count):
+            card: CardInstance | None = card_factory()
+            combat.add_generated_card_to_creature_discard(
+                target,
+                card,
+                added_by_player=added_by_player,
+            )

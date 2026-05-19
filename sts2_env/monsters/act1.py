@@ -20,7 +20,12 @@ from sts2_env.monsters.intents import (
 from sts2_env.monsters.state_machine import (
     ConditionalBranchState, MonsterAI, MonsterState, MoveState, RandomBranchState,
 )
-from sts2_env.cards.status import make_dazed, make_infection, make_slimed
+from sts2_env.monsters.targets import (
+    add_generated_cards_to_living_player_discards,
+    apply_power_to_living_player_targets,
+    living_player_targets,
+)
+from sts2_env.cards.status import make_dazed, make_infection
 
 if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
@@ -41,10 +46,12 @@ from sts2_env.monsters.act1_weak import (  # noqa: F401
 
 def _deal_damage_to_player(combat: CombatState, creature: Creature, base_dmg: int, hits: int = 1) -> None:
     for _ in range(hits):
-        if combat.primary_player.is_dead:
+        targets = living_player_targets(combat)
+        if not targets:
             break
-        dmg = calculate_damage(base_dmg, creature, combat.primary_player, ValueProp.MOVE, combat)
-        apply_damage(combat.primary_player, dmg, ValueProp.MOVE, combat, creature)
+        for target in targets:
+            dmg = calculate_damage(base_dmg, creature, target, ValueProp.MOVE, combat)
+            apply_damage(target, dmg, ValueProp.MOVE, combat, creature)
         combat._check_combat_end()  # noqa: SLF001
         if combat.is_over:
             break
@@ -128,13 +135,20 @@ def create_flyconid(rng: Rng) -> tuple[Creature, MonsterAI]:
 
     smash_dmg = 11
     spore_dmg = 8
+    vulnerable_spores_vulnerable = 2
+    frail_spores_frail = 2
 
     def vulnerable_spores(combat: CombatState) -> None:
-        combat.apply_power_to(combat.primary_player, PowerId.VULNERABLE, 2)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.VULNERABLE,
+            vulnerable_spores_vulnerable,
+            applier=creature,
+        )
 
     def frail_spores(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, spore_dmg)
-        combat.apply_power_to(combat.primary_player, PowerId.FRAIL, 2)
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, frail_spores_frail, applier=creature)
 
     def smash(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, smash_dmg)
@@ -174,10 +188,10 @@ def create_flyconid(rng: Rng) -> tuple[Creature, MonsterAI]:
 
 def create_eye_with_teeth(rng: Rng) -> tuple[Creature, MonsterAI]:
     creature = Creature(max_hp=6, monster_id="EYE_WITH_TEETH")
+    distract_dazed = 3
 
     def distract(combat: CombatState) -> None:
-        for _ in range(3):
-            combat.add_card_to_discard(make_dazed())
+        add_generated_cards_to_living_player_discards(combat, make_dazed, distract_dazed)
 
     states: dict[str, MonsterState] = {
         "DISTRACT_MOVE": MoveState("DISTRACT_MOVE", distract, [status_intent()], follow_up_id="DISTRACT_MOVE"),
@@ -279,12 +293,13 @@ def create_mawler(rng: Rng) -> tuple[Creature, MonsterAI]:
 
     rip_dmg = 14
     claw_dmg = 4
+    roar_vulnerable = 3
 
     def rip_and_tear(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, rip_dmg)
 
     def roar(combat: CombatState) -> None:
-        combat.apply_power_to(combat.primary_player, PowerId.VULNERABLE, 3)
+        apply_power_to_living_player_targets(combat, PowerId.VULNERABLE, roar_vulnerable, applier=creature)
 
     def claw(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, claw_dmg, hits=2)
@@ -349,9 +364,10 @@ def create_slithering_strangler(rng: Rng) -> tuple[Creature, MonsterAI]:
     twack_dmg = 7
     lash_dmg = 12
     twack_block = 5
+    constrict_amount = 3
 
     def constrict(combat: CombatState) -> None:
-        combat.apply_power_to(combat.primary_player, PowerId.CONSTRICT, 3)
+        apply_power_to_living_player_targets(combat, PowerId.CONSTRICT, constrict_amount, applier=creature)
 
     def twack(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, twack_dmg)
@@ -497,9 +513,10 @@ def create_tracker_ruby_raider(rng: Rng) -> tuple[Creature, MonsterAI]:
     creature = Creature(max_hp=hp, monster_id="TRACKER_RUBY_RAIDER")
     hounds_dmg = 1
     hounds_hits = 8
+    track_frail = 2
 
     def track(combat: CombatState) -> None:
-        combat.apply_power_to(combat.primary_player, PowerId.FRAIL, 2)
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, track_frail, applier=creature)
 
     def hounds(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, hounds_dmg, hits=hounds_hits)
@@ -599,10 +616,10 @@ def create_phrog_parasite(rng: Rng) -> tuple[Creature, MonsterAI]:
     hp = rng.next_int(61, 64)
     creature = Creature(max_hp=hp, monster_id="PHROG_PARASITE")
     bite_dmg = 4
+    infect_infections = 3
 
     def infest(combat: CombatState) -> None:
-        for _ in range(3):
-            combat.add_card_to_discard(make_infection())
+        add_generated_cards_to_living_player_discards(combat, make_infection, infect_infections)
 
     def bite(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, bite_dmg, hits=4)
@@ -645,9 +662,10 @@ def create_vantom(rng: Rng) -> tuple[Creature, MonsterAI]:
     chomp_dmg = 9
     ghastly_dmg = 22
     wail_dmg = 5
+    consume_parafrights = 2
 
     def consume(combat: CombatState) -> None:
-        for _ in range(2):
+        for _ in range(consume_parafrights):
             pf, pf_ai = create_parafright(rng)
             combat.add_enemy(pf, pf_ai)
 
@@ -686,6 +704,7 @@ def create_ceremonial_beast(rng: Rng) -> tuple[Creature, MonsterAI]:
     stomp_dmg = 15
     crush_dmg = 17
     plow_amount = 150
+    beast_cry_ringing = 1
 
     # Track phase
     _phase = {"stunned": False}
@@ -701,8 +720,7 @@ def create_ceremonial_beast(rng: Rng) -> tuple[Creature, MonsterAI]:
         _phase["stunned"] = True
 
     def beast_cry(combat: CombatState) -> None:
-        # Apply 1 debuff (Ringing/Weak equivalent)
-        combat.apply_power_to(combat.primary_player, PowerId.WEAK, 1)
+        apply_power_to_living_player_targets(combat, PowerId.RINGING, beast_cry_ringing, applier=creature)
 
     def stomp(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, stomp_dmg)

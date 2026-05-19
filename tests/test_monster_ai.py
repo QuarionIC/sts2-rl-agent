@@ -53,6 +53,7 @@ from sts2_env.monsters.act1 import (
     create_inklet,
     create_kin_follower,
     create_kin_priest,
+    create_leaf_slime_s,
     create_mawler,
     create_parafright,
     create_phrog_parasite,
@@ -206,6 +207,17 @@ def _make_combat(seed: int = 7) -> CombatState:
     )
 
 
+def _add_test_ally(combat: CombatState, player_id: int = 2, character_id: str = "Silent", hp: int = 70):
+    return combat.add_ally_player(
+        PlayerState(
+            player_id=player_id,
+            character_id=character_id,
+            max_hp=hp,
+            current_hp=hp,
+        )
+    )
+
+
 CS_MONSTER_FACTORY_PARITY_CASES = [
     ("BattleFriendV2", create_battle_friend_v2, "BATTLE_FRIEND_V2", "NOTHING_MOVE", 150, 150),
     ("BattleFriendV3", create_battle_friend_v3, "BATTLE_FRIEND_V3", "NOTHING_MOVE", 300, 300),
@@ -289,6 +301,51 @@ class TestFixedRotation:
 
         moves = _run_ai(ai, rng, 5)
         assert moves == ["SHRINKER_MOVE", "CHOMP_MOVE", "STOMP_MOVE", "CHOMP_MOVE", "STOMP_MOVE"]
+
+    def test_act1_weak_moves_use_original_player_targets_not_pets(self):
+        from sts2_env.monsters.act1_weak import create_shrinker_beetle
+
+        rng_seed = 1241
+        ally_hp = 70
+        osty_hp = 20
+        shrink_amount = -1
+        chomp_damage = 7
+        slimed_count = 1
+        combat = _make_combat(rng_seed)
+        ally = _add_test_ally(combat, hp=ally_hp)
+        primary_state = combat.combat_player_state_for(combat.primary_player)
+        ally_state = combat.combat_player_state_for(ally)
+        assert primary_state is not None
+        assert ally_state is not None
+        primary_state.discard.clear()
+        ally_state.discard.clear()
+        osty = combat.summon_osty(combat.primary_player, osty_hp)
+        assert osty is not None
+        shrinker, shrinker_ai = create_shrinker_beetle(Rng(rng_seed))
+        slime, slime_ai = create_leaf_slime_s(Rng(rng_seed))
+        combat.add_enemy(shrinker, shrinker_ai)
+        combat.add_enemy(slime, slime_ai)
+
+        shrinker_ai.states["SHRINKER_MOVE"].perform(combat)
+
+        assert combat.primary_player.get_power_amount(PowerId.SHRINK) == shrink_amount
+        assert ally.get_power_amount(PowerId.SHRINK) == shrink_amount
+        assert osty.get_power_amount(PowerId.SHRINK) == 0
+
+        primary_hp_before_chomp = combat.primary_player.current_hp
+        ally_hp_before_chomp = ally.current_hp
+        osty_hp_before_chomp = osty.current_hp
+        shrinker_ai.states["CHOMP_MOVE"].perform(combat)
+
+        assert combat.primary_player.current_hp == primary_hp_before_chomp
+        assert ally.current_hp == ally_hp_before_chomp - chomp_damage
+        assert osty.current_hp == osty_hp_before_chomp - chomp_damage
+
+        slime_ai.states["GOOP_MOVE"].perform(combat)
+
+        assert [card.card_id for card in primary_state.discard] == [CardId.SLIMED] * slimed_count
+        assert [card.card_id for card in ally_state.discard] == [CardId.SLIMED] * slimed_count
+        assert combat.combat_player_state_for(osty) is None
 
     def test_act1_weak_slimes_use_original_move_ids(self, rng):
         from sts2_env.monsters.act1_weak import create_leaf_slime_s, create_twig_slime_m, create_twig_slime_s
@@ -635,6 +692,100 @@ class TestFixedRotation:
         _, byrdonis_ai = create_byrdonis(Rng(20))
         assert byrdonis_ai.current_move.state_id == "SWOOP_MOVE"
         assert byrdonis_ai.states["SWOOP_MOVE"].follow_up_id == "PECK_MOVE"
+
+    def test_act1_debuff_and_status_moves_use_original_player_targets_not_pets(self):
+        rng_seed = 1242
+        ally_hp = 70
+        osty_hp = 20
+        frail_amount = 2
+        vulnerable_amount = 2
+        hounds_damage = 1
+        hounds_hits = 8
+        dazed_count = 3
+        combat = _make_combat(rng_seed)
+        ally = _add_test_ally(combat, hp=ally_hp)
+        primary_state = combat.combat_player_state_for(combat.primary_player)
+        ally_state = combat.combat_player_state_for(ally)
+        assert primary_state is not None
+        assert ally_state is not None
+        primary_state.discard.clear()
+        ally_state.discard.clear()
+        osty = combat.summon_osty(combat.primary_player, osty_hp)
+        assert osty is not None
+        flyconid, flyconid_ai = create_flyconid(Rng(rng_seed))
+        eye, eye_ai = create_eye_with_teeth(Rng(rng_seed))
+        tracker, tracker_ai = create_tracker_ruby_raider(Rng(rng_seed))
+        combat.add_enemy(flyconid, flyconid_ai)
+        combat.add_enemy(eye, eye_ai)
+        combat.add_enemy(tracker, tracker_ai)
+
+        flyconid_ai.states["VULNERABLE_SPORES_MOVE"].perform(combat)
+        flyconid_ai.states["FRAIL_SPORES_MOVE"].perform(combat)
+
+        assert combat.primary_player.get_power_amount(PowerId.VULNERABLE) == vulnerable_amount
+        assert ally.get_power_amount(PowerId.VULNERABLE) == vulnerable_amount
+        assert osty.get_power_amount(PowerId.VULNERABLE) == 0
+        assert combat.primary_player.get_power_amount(PowerId.FRAIL) == frail_amount
+        assert ally.get_power_amount(PowerId.FRAIL) == frail_amount
+        assert osty.get_power_amount(PowerId.FRAIL) == 0
+
+        eye_ai.states["DISTRACT_MOVE"].perform(combat)
+
+        assert [card.card_id for card in primary_state.discard] == [CardId.DAZED] * dazed_count
+        assert [card.card_id for card in ally_state.discard] == [CardId.DAZED] * dazed_count
+        assert combat.combat_player_state_for(osty) is None
+
+        primary_hp_before_hounds = combat.primary_player.current_hp
+        ally_hp_before_hounds = ally.current_hp
+        osty_hp_before_hounds = osty.current_hp
+        tracker_ai.states["HOUNDS_MOVE"].perform(combat)
+
+        assert combat.primary_player.current_hp == primary_hp_before_hounds
+        assert ally.current_hp == ally_hp_before_hounds - hounds_damage * hounds_hits
+        assert osty.current_hp == osty_hp_before_hounds - hounds_damage * hounds_hits
+
+    def test_shared_event_monster_moves_use_original_player_targets_not_pets(self):
+        rng_seed = 1243
+        ally_hp = 70
+        osty_hp = 20
+        swipe_damage = 13
+        throw_relic_frail = 1
+        infection_count = 1
+        combat = _make_combat(rng_seed)
+        ally = _add_test_ally(combat, hp=ally_hp)
+        primary_state = combat.combat_player_state_for(combat.primary_player)
+        ally_state = combat.combat_player_state_for(ally)
+        assert primary_state is not None
+        assert ally_state is not None
+        primary_state.discard.clear()
+        ally_state.discard.clear()
+        osty = combat.summon_osty(combat.primary_player, osty_hp)
+        assert osty is not None
+        merchant, merchant_ai = create_fake_merchant_monster(Rng(rng_seed))
+        wriggler, wriggler_ai = create_dense_vegetation_wriggler(Rng(rng_seed), slot="wriggler2")
+        combat.add_enemy(merchant, merchant_ai)
+        combat.add_enemy(wriggler, wriggler_ai)
+
+        primary_hp_before_swipe = combat.primary_player.current_hp
+        ally_hp_before_swipe = ally.current_hp
+        osty_hp_before_swipe = osty.current_hp
+        merchant_ai.states["SWIPE"].perform(combat)
+
+        assert combat.primary_player.current_hp == primary_hp_before_swipe
+        assert ally.current_hp == ally_hp_before_swipe - swipe_damage
+        assert osty.current_hp == osty_hp_before_swipe - swipe_damage
+
+        merchant_ai.states["THROW_RELIC"].perform(combat)
+
+        assert combat.primary_player.get_power_amount(PowerId.FRAIL) == throw_relic_frail
+        assert ally.get_power_amount(PowerId.FRAIL) == throw_relic_frail
+        assert osty.get_power_amount(PowerId.FRAIL) == 0
+
+        wriggler_ai.states["WRIGGLE_MOVE"].perform(combat)
+
+        assert [card.card_id for card in primary_state.discard] == [CardId.INFECTION] * infection_count
+        assert [card.card_id for card in ally_state.discard] == [CardId.INFECTION] * infection_count
+        assert combat.combat_player_state_for(osty) is None
 
     def test_slithering_strangler_uses_original_constrict_rotation(self):
         combat = _make_combat(21)
