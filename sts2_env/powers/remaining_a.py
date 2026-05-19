@@ -1388,22 +1388,9 @@ class FastenPower(PowerInstance):
     ) -> int:
         if target is not owner:
             return 0
-        if not props.is_powered():
+        if not props.is_powered_card_or_monster_move_block():
             return 0
-        # The card context is not directly available in this hook.
-        # The combat system should call modify_block_for_card instead.
-        return 0
-
-    def modify_block_for_defend(
-        self, owner: Creature, target: Creature, props: ValueProp, card: object
-    ) -> int:
-        """Called by the block pipeline when the card source is known."""
-        if target is not owner:
-            return 0
-        if not props.is_powered():
-            return 0
-        tags = getattr(card, "tags", set())
-        if CardTag.DEFEND not in tags:
+        if card_source is not None and CardTag.DEFEND not in getattr(card_source, "tags", set()):
             return 0
         return self.amount
 

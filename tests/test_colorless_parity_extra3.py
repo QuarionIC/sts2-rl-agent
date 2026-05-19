@@ -69,6 +69,18 @@ class TestColorlessParityExtra3:
         assert combat.play_card(0)
         assert combat.player.get_power_amount(PowerId.FASTEN) == 12
 
+    def test_fasten_adds_block_to_defend_cards_only(self):
+        combat = _make_combat()
+        combat.hand = [make_fasten(), make_defend_ironclad(), make_finesse()]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+        assert combat.play_card(0)
+        assert combat.player.block == 10
+
+        assert combat.play_card(0)
+        assert combat.player.block == 14
+
     def test_finesse_upgraded_grants_seven_block_and_draws_one(self):
         combat = _make_combat()
         drawn = make_strike_ironclad()
