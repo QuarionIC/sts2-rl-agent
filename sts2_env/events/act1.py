@@ -7,13 +7,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sts2_env.cards.factory import create_card, eligible_character_cards
-from sts2_env.core.enums import CardId
+from sts2_env.cards.factory import create_card
+from sts2_env.core.enums import CardId, CardRarity
 from sts2_env.potions.base import normal_pool_models
 from sts2_env.run.events import EventModel, EventOption, EventResult, register_event
 from sts2_env.events.shared import _event_result_with_rewards, _should_defer_event_rewards
 from sts2_env.run.reward_objects import AddCardsReward, CardReward, PotionReward, RelicReward
-from sts2_env.run.rewards import generate_noncombat_reward_cards
 
 if TYPE_CHECKING:
     from sts2_env.run.run_state import RunState
@@ -41,21 +40,36 @@ class BrainLeech(EventModel):
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "rip":
             run_state.player.lose_hp(5)
-            cards = generate_noncombat_reward_cards(
-                run_state,
-                num_cards=3,
-                character_ids=(),
-                include_colorless=True,
-            )
             return EventResult(
                 finished=True,
                 description="Took 5 damage, gained a colorless card.",
-                rewards={"reward_objects": [CardReward(run_state.player.player_id, cards=cards)]},
+                rewards={
+                    "reward_objects": [
+                        CardReward(
+                            run_state.player.player_id,
+                            character_ids=(),
+                            include_colorless=True,
+                            generation_context=None,
+                            roll_upgrade=False,
+                            use_default_character_pool=False,
+                        )
+                    ]
+                },
             )
         return EventResult(
             finished=True,
             description="Gained a character card.",
-            rewards={"reward_objects": [CardReward(run_state.player.player_id, cards=generate_noncombat_reward_cards(run_state, num_cards=5), skippable=False)]},
+            rewards={
+                "reward_objects": [
+                    CardReward(
+                        run_state.player.player_id,
+                        option_count=5,
+                        skippable=False,
+                        generation_context=None,
+                        roll_upgrade=False,
+                    )
+                ]
+            },
         )
 
 
@@ -84,17 +98,22 @@ class RoomFullOfCheese(EventModel):
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "gorge":
-            common_ids = eligible_character_cards(
-                run_state.player.character_id,
-                rarity="common",
-                generation_context=None,
-            )
-            run_state.rng.rewards.shuffle(common_ids)
-            cards = [create_card(card_id) for card_id in common_ids[:8]]
             return EventResult(
                 finished=True,
                 description="Picked 2 common character cards.",
-                rewards={"reward_objects": [CardReward(run_state.player.player_id, cards=cards, cards_to_pick=min(2, len(cards)), skippable=False)]},
+                rewards={
+                    "reward_objects": [
+                        CardReward(
+                            run_state.player.player_id,
+                            option_count=8,
+                            cards_to_pick=2,
+                            skippable=False,
+                            forced_rarities=(CardRarity.COMMON,) * 8,
+                            generation_context=None,
+                            roll_upgrade=False,
+                        )
+                    ]
+                },
             )
         run_state.player.lose_hp(14)
         if _should_defer_event_rewards(run_state):

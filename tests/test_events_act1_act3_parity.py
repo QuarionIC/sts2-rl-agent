@@ -25,6 +25,7 @@ from sts2_env.run.modifiers import (
     DeadlyEventsModifier,
     DraftModifier,
     MidasModifier,
+    ModifierModel,
     MurderousModifier,
     NightTerrorsModifier,
     SealedDeckModifier,
@@ -53,6 +54,27 @@ class _NeowChoiceRng:
         pass
 
 
+class _RareRewardModifier(ModifierModel):
+    def __init__(self) -> None:
+        super().__init__("rare_reward")
+
+    def modify_card_reward_creation_options(self, player, options, reward, room, run_state):
+        return CardRewardGenerationOptions(
+            context=options.context,
+            num_cards=options.num_cards,
+            character_ids=options.character_ids,
+            forced_rarities=(CardRarity.RARE,) * options.num_cards,
+            include_colorless=options.include_colorless,
+            use_default_character_pool=options.use_default_character_pool,
+            generation_context=options.generation_context,
+            roll_upgrade=options.roll_upgrade,
+            card_creation_source=options.card_creation_source,
+            allow_card_pool_modifications=options.allow_card_pool_modifications,
+            has_custom_card_pool=options.has_custom_card_pool,
+            custom_card_ids=options.custom_card_ids,
+        )
+
+
 def test_brain_leech_rip_loses_hp_while_share_knowledge_is_safe():
     run_state = RunState(seed=801, character_id="Ironclad")
     run_state.initialize_run()
@@ -63,7 +85,8 @@ def test_brain_leech_rip_loses_hp_while_share_knowledge_is_safe():
     assert share.finished
     assert run_state.player.current_hp == start_hp
     assert isinstance(share.rewards["reward_objects"][0], CardReward)
-    assert len(share.rewards["reward_objects"][0].cards) in {0, 5}
+    assert share.rewards["reward_objects"][0].option_count == 5
+    assert share.rewards["reward_objects"][0].cards == []
 
     rip = event.choose(run_state, "rip")
     assert rip.finished
@@ -82,7 +105,10 @@ def test_room_full_of_cheese_search_loses_hp_but_gorge_does_not():
     assert run_state.player.current_hp == start_hp
     reward = gorge.rewards["reward_objects"][0]
     assert isinstance(reward, CardReward)
+    assert reward.option_count == 8
     assert reward.cards_to_pick == 2
+    assert reward.forced_rarities == (CardRarity.COMMON,) * 8
+    assert reward.cards == []
 
     search = event.choose(run_state, "search")
     assert search.finished
@@ -101,6 +127,8 @@ def test_room_full_of_cheese_multi_pick_card_reward_stays_on_same_reward_until_t
     assert result["phase"] == RunManager.PHASE_CARD_REWARD
     assert isinstance(mgr._current_reward, CardReward)
     assert mgr._current_reward.cards_to_pick == 2
+    assert len(mgr._current_reward.cards) == 8
+    assert all(card.rarity == CardRarity.COMMON for card in mgr._current_reward.cards)
     assert not any(action["action"] == "skip" for action in mgr.get_available_actions())
 
     first = mgr.take_action({"action": "pick_card", "index": 0})
@@ -121,7 +149,23 @@ def test_brain_leech_share_knowledge_card_reward_is_not_skippable():
     result = mgr._do_event_choice({"option_id": "share_knowledge"})
     assert result["phase"] == RunManager.PHASE_CARD_REWARD
     assert isinstance(mgr._current_reward, CardReward)
+    assert len(mgr._current_reward.cards) == 5
     assert not any(action["action"] == "skip" for action in mgr.get_available_actions())
+
+
+def test_act1_event_card_rewards_use_reward_generation_modifiers():
+    mgr = RunManager(seed=8012, character_id="Ironclad")
+    mgr.run_state.modifiers = [_RareRewardModifier()]
+    mgr._phase = RunManager.PHASE_EVENT
+    event = BrainLeech()
+    mgr._event_model = event
+    mgr._event_options = event.generate_initial_options(mgr.run_state)
+
+    result = mgr._do_event_choice({"option_id": "share_knowledge"})
+
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert len(mgr._current_reward.cards) == 5
+    assert all(card.rarity == CardRarity.RARE for card in mgr._current_reward.cards)
 
 
 def test_tea_master_options_and_gold_costs_match_thresholds():
