@@ -316,6 +316,20 @@ class TestRegentParityExtra4:
         assert combat.player.get_power_amount(PowerId.STRENGTH) == 0
         assert combat.player.get_power_amount(PowerId.MONOLOGUE) == 0
 
+    def test_monologue_keeps_separate_instances_like_reference(self):
+        combat = _make_combat()
+        combat.hand = [make_monologue_card(), make_monologue_card(), make_venerate()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert combat.play_card(0)
+        assert combat.play_card(0)
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == 3
+
+        fire_after_turn_end(CombatSide.PLAYER, combat)
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == 0
+        assert combat.player.get_power_amount(PowerId.MONOLOGUE) == 0
+
     def test_comet_deals_damage_and_applies_weak_and_vulnerable(self):
         combat = _make_combat()
         enemy = combat.enemies[0]

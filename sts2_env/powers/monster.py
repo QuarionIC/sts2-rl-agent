@@ -1499,31 +1499,55 @@ class MonologuePower(PowerInstance):
 
     def __init__(self, amount: int = 1):
         super().__init__(PowerId.MONOLOGUE, amount)
-        self._strength_applied: int = 0
+        self._instances: list[tuple[int, int]] = [(self.STRENGTH_PER_CARD, 0)]
         self.strength_per_card: int = self.STRENGTH_PER_CARD
-        self._amounts_for_played_cards: dict[int, int] = {}
+        self._instances_for_played_cards: dict[int, list[tuple[int, int]]] = {}
+
+    def after_power_amount_changed(
+        self,
+        owner: Creature,
+        target: Creature,
+        power_id: PowerId,
+        amount: int,
+        applier: Creature | None,
+        source: object | None,
+        combat: CombatState,
+    ) -> None:
+        if owner is target and power_id == self.power_id and amount > 0 and self.amount != amount:
+            self._instances.append((self.strength_per_card, 0))
 
     def before_card_played(
         self, owner: Creature, card: object, combat: CombatState
     ) -> None:
         if getattr(card, "owner", None) is owner:
-            self._amounts_for_played_cards[id(card)] = self.strength_per_card
+            self._instances_for_played_cards[id(card)] = [
+                (index, strength_per_card)
+                for index, (strength_per_card, _) in enumerate(self._instances)
+            ]
 
     def after_card_played(
         self, owner: Creature, card: object, combat: CombatState
     ) -> None:
-        amount = self._amounts_for_played_cards.pop(id(card), 0)
+        instances = self._instances_for_played_cards.pop(id(card), [])
+        amount = sum(strength_per_card for _, strength_per_card in instances)
         if amount <= 0:
             return
         owner.apply_power(PowerId.STRENGTH, amount)
-        self._strength_applied += amount
+        updated_instances = list(self._instances)
+        for index, strength_per_card in instances:
+            if index >= len(updated_instances):
+                continue
+            current_strength_per_card, strength_applied = updated_instances[index]
+            updated_instances[index] = (current_strength_per_card, strength_applied + strength_per_card)
+        self._instances = updated_instances
+        self.amount = sum(strength_applied for _, strength_applied in self._instances)
 
     def after_turn_end(
         self, owner: Creature, side: CombatSide, combat: CombatState
     ) -> None:
         if side == owner.side:
             # Undo all Strength gained
-            owner.apply_power(PowerId.STRENGTH, -self._strength_applied)
+            owner.apply_power(PowerId.STRENGTH, -sum(strength_applied for _, strength_applied in self._instances))
             owner.powers.pop(self.power_id, None)
 
 
