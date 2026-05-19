@@ -3602,6 +3602,21 @@ class WhisperingEarring(RelicInstance):
             return owner
         return None
 
+    def _resolve_vakuu_card_selector_choice(self, combat: CombatState) -> bool:
+        while combat.pending_choice is not None and not combat.is_over:
+            choice = combat.pending_choice
+            if choice.is_multi:
+                for index in range(min(choice.max_choices, choice.num_options)):
+                    if combat.pending_choice is not choice or not combat.resolve_pending_choice(index):
+                        return False
+                if combat.pending_choice is choice and not combat.resolve_pending_choice(None):
+                    return False
+                continue
+            choice_index = 0 if choice.num_options else None
+            if not combat.resolve_pending_choice(choice_index):
+                return False
+        return True
+
     def before_play_phase_start(self, owner: Creature, player: Creature, combat: CombatState) -> None:
         if player is not owner or combat.round_number > 1:
             return
@@ -3625,6 +3640,8 @@ class WhisperingEarring(RelicInstance):
                     return
                 combat._remove_card_from_piles(playable)
                 combat._execute_card_play(playable, target, spend_energy=True, is_auto_play=True)
+                if not self._resolve_vakuu_card_selector_choice(combat):
+                    return
                 combat._check_combat_end()
         finally:
             combat.in_play_phase = previous_in_play_phase

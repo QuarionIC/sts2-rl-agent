@@ -3,10 +3,11 @@
 import sts2_env.potions  # noqa: F401
 import sts2_env.powers  # noqa: F401
 
-from sts2_env.cards.colorless import make_lift
+from sts2_env.cards.colorless import make_lift, make_purity
 from sts2_env.cards.defect import create_defect_starter_deck
 from sts2_env.cards.ironclad import create_ironclad_starter_deck, make_inflame
 from sts2_env.cards.ironclad_basic import make_defend_ironclad, make_strike_ironclad
+from sts2_env.cards.status import make_slimed
 from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import MapPointType, PowerId, RoomType, ValueProp
 from sts2_env.core.rng import Rng, deterministic_hash_code
@@ -410,3 +411,33 @@ def test_whispering_earring_uses_combat_targets_rng_for_ally_targets():
     assert combat.rng.seen == [first_ally, second_ally]
     assert first_ally.block == 0
     assert second_ally.block == 8
+
+
+def test_whispering_earring_vakuu_card_selector_auto_resolves_card_choices():
+    combat = CombatState(
+        player_hp=80,
+        player_max_hp=80,
+        deck=[],
+        rng_seed=1127,
+        character_id="Ironclad",
+        relics=["WhisperingEarring"],
+    )
+    selected_first = make_defend_ironclad()
+    selected_second = make_strike_ironclad()
+    selected_third = make_slimed()
+    ignored_fourth = make_lift()
+    player = combat.player
+    combat.hand = _with_owner(
+        [make_purity(), selected_first, selected_second, selected_third, ignored_fourth],
+        player,
+    )
+    combat.energy = 1
+
+    combat.relics[0].before_play_phase_start(player, player, combat)
+
+    assert combat.pending_choice is None
+    assert selected_first in combat.exhaust_pile
+    assert selected_second in combat.exhaust_pile
+    assert selected_third in combat.exhaust_pile
+    assert ignored_fourth not in combat.exhaust_pile
+    assert ignored_fourth in combat.hand
