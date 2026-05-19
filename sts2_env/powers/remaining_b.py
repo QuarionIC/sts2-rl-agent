@@ -1201,16 +1201,12 @@ class NostalgiaPower(PowerInstance):
     def __init__(self, amount: int):
         super().__init__(PowerId.NOSTALGIA, amount)
 
-    def should_redirect_to_draw_pile(
-        self, owner: Creature, card: object, combat: CombatState | None = None
-    ) -> bool:
+    def should_redirect_to_draw_pile(self, owner: Creature, card: object, combat: CombatState) -> bool:
         if getattr(card, "owner", None) is not owner:
             return False
         card_type = getattr(card, "card_type", None)
         if card_type not in (CardType.ATTACK, CardType.SKILL):
             return False
-        if combat is None:
-            return True
         qualifying_starts = combat.count_card_play_starts_this_turn(
             owner,
             card_type=CardType.ATTACK,
