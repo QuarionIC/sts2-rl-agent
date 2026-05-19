@@ -3,6 +3,7 @@
 import sts2_env.powers  # noqa: F401
 
 from sts2_env.cards.defect import (
+    make_adaptive_strike,
     create_defect_starter_deck,
     make_all_for_one,
     make_biased_cognition,
@@ -24,6 +25,7 @@ from sts2_env.cards.defect import (
     make_ice_lance,
     make_lightning_rod,
     make_machine_learning,
+    make_momentum_strike,
     make_overclock,
     make_refract,
     make_reboot,
@@ -32,6 +34,7 @@ from sts2_env.cards.defect import (
     make_strike_defect,
     make_sweeping_beam,
     make_tempest,
+    make_tesla_coil,
     make_thunder,
     make_voltaic,
 )
@@ -527,6 +530,60 @@ class TestDefectParityExtra3:
         assert combat.play_card(0, 0)
         assert drawn in combat.draw_pile
         assert drawn not in combat.hand
+
+    def test_momentum_strike_sets_its_own_cost_to_zero_this_combat(self):
+        """Matches MomentumStrike.cs: after damage, this card costs 0 for the combat."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        starting_hp = enemy.current_hp
+        card = make_momentum_strike()
+        combat.hand = [card]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == starting_hp - 10
+        assert card.cost == 0
+
+    def test_tesla_coil_triggers_only_lightning_passives_against_target(self):
+        """Matches TeslaCoil.cs: only Lightning orbs passive, and they hit the card target."""
+        combat = _make_combat(extra_enemies=1)
+        target, other = combat.enemies
+        target.current_hp = target.max_hp = 100
+        other.current_hp = other.max_hp = 100
+        combat.channel_orb(combat.player, "LIGHTNING")
+        combat.channel_orb(combat.player, "FROST")
+        combat.channel_orb(combat.player, "DARK")
+        combat.hand = [make_tesla_coil()]
+        combat.energy = 0
+
+        assert combat.play_card(0, 0)
+
+        assert target.current_hp == 100 - 3 - 3
+        assert other.current_hp == 100
+        assert combat.player.block == 0
+        assert combat.orb_queue.orbs[2].get_evoke_value(combat) == 6
+
+    def test_adaptive_strike_adds_zero_cost_copy_to_discard(self):
+        """Matches AdaptiveStrike.cs: after damage, add a 0-cost copy to discard."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        starting_hp = enemy.current_hp
+        card = make_adaptive_strike()
+        combat.hand = [card]
+        combat.energy = 2
+
+        assert combat.play_card(0, 0)
+
+        copies = [
+            discarded
+            for discarded in combat.discard_pile
+            if discarded.card_id == CardId.ADAPTIVE_STRIKE and discarded is not card
+        ]
+        assert enemy.current_hp == starting_hp - 18
+        assert len(copies) == 1
+        assert copies[0].cost == 0
+        assert copies[0].owner is combat.player
 
     def test_tempest_uses_x_energy_and_upgrade_adds_one_channel(self):
         """Matches Tempest.cs: channel X Lightning, and X+1 when upgraded."""

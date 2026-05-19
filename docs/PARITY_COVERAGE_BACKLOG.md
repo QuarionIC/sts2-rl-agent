@@ -21,6 +21,18 @@ The detailed backlog sections below were captured as the pre-pass baseline. Afte
 
 Latest local pass also added direct coverage for:
 
+- Cards: `ADAPTIVE_STRIKE`, `HELIX_DRILL`, `MOMENTUM_STRIKE`, `TESLA_COIL`, `VOLTAIC`
+
+This pass also exposed and fixed the following logic mismatches:
+
+- `AdaptiveStrike`: after dealing damage, it now adds a 0-cost copy of itself to the discard pile.
+- `HelixDrill`: hit count now follows energy spent by the owner this turn, excluding the card's own cost while it is in play.
+- `MomentumStrike`: after dealing damage, it now sets its own cost to 0 for the rest of combat.
+- `TeslaCoil`: after its attack, it now triggers only Lightning orb passives against the card target instead of triggering every orb passive.
+- `Voltaic`: channel count now follows the owner's Lightning channel history for the combat rather than current orb count.
+
+Latest local pass also added direct coverage for:
+
 - Cards: `ABRASIVE`, `ASSASSINATE`, `BOUNCING_FLASK`, `DASH`, `FLECHETTES`, `FLICK_FLACK`, `LEADING_STRIKE`, `MIRAGE`, `PREDATOR`, `RICOCHET`, `SHADOWMELD`, `SUPPRESS`, `UNTOUCHABLE`
 
 This pass also exposed and fixed the following logic mismatch:

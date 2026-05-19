@@ -59,6 +59,17 @@ def _trigger_all_passives(combat: CombatState) -> None:
             orb.on_passive(combat)
 
 
+def _trigger_lightning_passives(combat: CombatState, target: Creature) -> None:
+    queue = getattr(combat, 'orb_queue', None)
+    if queue is not None:
+        for orb in list(queue.orbs):
+            if orb.orb_type != OrbType.LIGHTNING:
+                continue
+            value = orb.get_passive_value(combat)
+            if value > 0:
+                apply_damage(target, value, ValueProp.UNPOWERED, combat, combat.player)
+
+
 def _get_orb_count(combat: CombatState) -> int:
     queue = getattr(combat, 'orb_queue', None)
     return len(queue.orbs) if queue is not None else 0
@@ -320,6 +331,7 @@ def momentum_strike(card: CardInstance, combat: CombatState, target: Creature | 
     assert target is not None
     dmg = calculate_damage(card.base_damage, _owner(card, combat), target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, _owner(card, combat))
+    card.set_combat_cost(0)
 
 
 @register_effect(CardId.SWEEPING_BEAM)
@@ -641,7 +653,7 @@ def tesla_coil(card: CardInstance, combat: CombatState, target: Creature | None)
     assert target is not None
     dmg = calculate_damage(card.base_damage, _owner(card, combat), target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, _owner(card, combat))
-    _trigger_all_passives(combat)
+    _trigger_lightning_passives(combat, target)
 
 
 @register_effect(CardId.THUNDER_CARD)
@@ -673,7 +685,11 @@ def white_noise(card: CardInstance, combat: CombatState, target: Creature | None
 def adaptive_strike(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     dmg = calculate_damage(card.base_damage, _owner(card, combat), target, ValueProp.MOVE, combat)
-    apply_damage(target, dmg, ValueProp.MOVE, combat, _owner(card, combat))
+    owner = _owner(card, combat)
+    apply_damage(target, dmg, ValueProp.MOVE, combat, owner)
+    clone = card.clone(combat.rng.next_int(1, 2**31 - 1))
+    clone.set_combat_cost(0)
+    combat.add_generated_card_to_creature_discard(owner, clone)
 
 
 @register_effect(CardId.ALL_FOR_ONE)
