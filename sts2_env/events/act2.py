@@ -590,7 +590,7 @@ class LuminousChoir(EventModel):
         self._cost = 149 - self.get_rng(run_state).next_int_exclusive(0, 50)
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return run_state.player.gold >= 149 and run_state.player.has_available_relics()
+        return all(player.gold >= 149 and player.has_available_relics() for player in run_state.players)
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         self.ensure_vars_calculated(run_state)

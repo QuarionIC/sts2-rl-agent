@@ -335,6 +335,20 @@ def test_luminous_choir_blocks_event_entry_and_tribute_when_gold_is_too_low():
     assert exhausted_choir.is_allowed(exhausted) is False
 
 
+def test_luminous_choir_requires_all_players_to_have_entry_gold():
+    run_state = RunState(seed=2903, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.player.deck = create_ironclad_starter_deck()
+    run_state.player.gold = 149
+    ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent", gold=148))
+    choir = LuminousChoir()
+
+    assert choir.is_allowed(run_state) is False
+
+    ally.gold = 149
+    assert choir.is_allowed(run_state) is True
+
+
 def test_event_gold_gain_triggers_run_level_relic_hook():
     run_state = RunState(seed=34, character_id="Ironclad")
     run_state.initialize_run()
