@@ -323,36 +323,48 @@ def create_mawler(rng: Rng) -> tuple[Creature, MonsterAI]:
     return creature, MonsterAI(states, "CLAW_MOVE")
 
 
-# ---- VineShambler (HP 40-43 / 42-45 asc) ----
+# ---- VineShambler (HP 61 / 64 asc) ----
 
 def create_vine_shambler(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(40, 43)
+    initial_hp = 61
+    hp = initial_hp
     creature = Creature(max_hp=hp, monster_id="VINE_SHAMBLER")
+    grasping_vines_move = "GRASPING_VINES_MOVE"
+    swipe_move = "SWIPE_MOVE"
+    chomp_move = "CHOMP_MOVE"
+    grasping_vines_dmg = 8
+    tangled_amount = 1
+    swipe_dmg = 6
+    swipe_hits = 2
+    chomp_dmg = 16
 
-    vine_whip_dmg = 7
-    tangle_dmg = 10
+    def grasping_vines(combat: CombatState) -> None:
+        _deal_damage_to_player(combat, creature, grasping_vines_dmg)
+        apply_power_to_living_player_targets(combat, PowerId.TANGLED, tangled_amount, applier=creature)
 
-    def vine_whip(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, vine_whip_dmg)
-        combat.apply_power_to(combat.primary_player, PowerId.WEAK, 1)
+    def swipe(combat: CombatState) -> None:
+        _deal_damage_to_player(combat, creature, swipe_dmg, hits=swipe_hits)
 
-    def tangle(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, tangle_dmg)
-
-    rand = RandomBranchState("RAND")
-    rand.add_branch("VINE_WHIP", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("TANGLE", MoveRepeatType.CANNOT_REPEAT)
+    def chomp(combat: CombatState) -> None:
+        _deal_damage_to_player(combat, creature, chomp_dmg)
 
     states: dict[str, MonsterState] = {
-        "RAND": rand,
-        "VINE_WHIP": MoveState("VINE_WHIP", vine_whip, [attack_intent(vine_whip_dmg), debuff_intent()], follow_up_id="RAND"),
-        "TANGLE": MoveState("TANGLE", tangle, [attack_intent(tangle_dmg)], follow_up_id="RAND"),
+        swipe_move: MoveState(
+            swipe_move,
+            swipe,
+            [multi_attack_intent(swipe_dmg, swipe_hits)],
+            follow_up_id=grasping_vines_move,
+        ),
+        grasping_vines_move: MoveState(
+            grasping_vines_move,
+            grasping_vines,
+            [attack_intent(grasping_vines_dmg), Intent(IntentType.CARD_DEBUFF)],
+            follow_up_id=chomp_move,
+        ),
+        chomp_move: MoveState(chomp_move, chomp, [attack_intent(chomp_dmg)], follow_up_id=swipe_move),
     }
 
-    # AfterAddedToRoom: Thorns(3)
-    creature.apply_power(PowerId.THORNS, 3)
-
-    return creature, MonsterAI(states, "RAND", rng)
+    return creature, MonsterAI(states, swipe_move)
 
 
 # ---- SlitheringStrangler (HP 53-55 / 54-56 asc) ----

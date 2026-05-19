@@ -296,6 +296,9 @@ class TestAct1NormalEncounters:
         combat = _make_combat()
         setup_vine_shambler_normal(combat, Rng(42))
         assert len(combat.enemies) == 1
+        assert combat.enemies[0].monster_id == "VINE_SHAMBLER"
+        assert combat.enemies[0].max_hp == 61
+        assert combat.enemy_ais[combat.enemies[0].combat_id].current_move.state_id == "SWIPE_MOVE"
 
 
 # ========================================================================

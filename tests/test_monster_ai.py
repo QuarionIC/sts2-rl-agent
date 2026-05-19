@@ -60,6 +60,7 @@ from sts2_env.monsters.act1 import (
     create_slithering_strangler,
     create_tracker_ruby_raider,
     create_vantom,
+    create_vine_shambler,
 )
 from sts2_env.monsters.act1_weak import create_leaf_slime_m
 from sts2_env.monsters.act4 import (
@@ -675,6 +676,12 @@ class TestFixedRotation:
         assert mawler_ai.current_move.state_id == "CLAW_MOVE"
         assert {"RIP_AND_TEAR_MOVE", "ROAR_MOVE", "CLAW_MOVE"}.issubset(mawler_ai.states)
 
+        vine_shambler, vine_shambler_ai = create_vine_shambler(Rng(115))
+        assert vine_shambler.max_hp == 61
+        assert vine_shambler.get_power_amount(PowerId.THORNS) == 0
+        assert vine_shambler_ai.current_move.state_id == "SWIPE_MOVE"
+        assert {"SWIPE_MOVE", "GRASPING_VINES_MOVE", "CHOMP_MOVE"} == set(vine_shambler_ai.states)
+
         _, assassin_ai = create_assassin_ruby_raider(Rng(16))
         assert assassin_ai.current_move.state_id == "KILLSHOT_MOVE"
 
@@ -959,6 +966,50 @@ class TestFixedRotation:
         assert combat.primary_player.current_hp == player_hp - quick_slash_damage - boomerang_damage * boomerang_hits
         assert combat.primary_player.get_power_amount(PowerId.WEAK) == no_weak
         assert creature.get_power_amount(PowerId.STRENGTH) == dance_strength
+
+    def test_vine_shambler_matches_original_cycle_and_tangled_targets(self):
+        rng_seed = 1252
+        ally_hp = 80
+        osty_hp = 100
+        swipe_damage = 6
+        swipe_hits = 2
+        grasping_vines_damage = 8
+        chomp_damage = 16
+        tangled_amount = 1
+        no_weak = 0
+        combat = _make_combat(rng_seed)
+        ally = _add_test_ally(combat, hp=ally_hp)
+        osty = combat.summon_osty(combat.primary_player, osty_hp)
+        assert osty is not None
+        creature, ai = create_vine_shambler(Rng(rng_seed))
+        combat.add_enemy(creature, ai)
+
+        assert creature.max_hp == 61
+        assert creature.get_power_amount(PowerId.THORNS) == 0
+        assert _run_ai(ai, Rng(rng_seed), 4) == [
+            "SWIPE_MOVE",
+            "GRASPING_VINES_MOVE",
+            "CHOMP_MOVE",
+            "SWIPE_MOVE",
+        ]
+        assert ai.states["GRASPING_VINES_MOVE"].intents[1].intent_type.name == "CARD_DEBUFF"
+
+        primary_hp_before = combat.primary_player.current_hp
+        ally_hp_before = ally.current_hp
+        osty_hp_before = osty.current_hp
+        ai.states["SWIPE_MOVE"].perform(combat)
+        ai.states["GRASPING_VINES_MOVE"].perform(combat)
+        ai.states["CHOMP_MOVE"].perform(combat)
+
+        expected_hp_loss = swipe_damage * swipe_hits + grasping_vines_damage + chomp_damage
+        assert combat.primary_player.current_hp == primary_hp_before
+        assert ally.current_hp == ally_hp_before - expected_hp_loss
+        assert osty.current_hp == osty_hp_before - expected_hp_loss
+        assert combat.primary_player.get_power_amount(PowerId.TANGLED) == tangled_amount
+        assert ally.get_power_amount(PowerId.TANGLED) == tangled_amount
+        assert osty.get_power_amount(PowerId.TANGLED) == 0
+        assert combat.primary_player.get_power_amount(PowerId.WEAK) == no_weak
+        assert ally.get_power_amount(PowerId.WEAK) == no_weak
 
     def test_cubex_initial_room_setup_triggers_after_block_gained_hook(self):
         combat = _make_combat(121)
