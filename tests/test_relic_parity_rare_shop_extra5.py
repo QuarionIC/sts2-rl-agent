@@ -107,7 +107,7 @@ def test_captains_wheel_block_triggers_after_block_gained_hooks():
     assert enemy.current_hp == start_hp - 5
 
 
-def test_tough_bandages_only_grants_block_when_discard_happens_on_player_side():
+def test_tough_bandages_only_grants_block_when_discard_happens_on_owner_side():
     combat = _make_ironclad_combat(["ToughBandages"], seed=1003)
     player = combat.player
     player.block = 0

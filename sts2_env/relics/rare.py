@@ -198,13 +198,13 @@ class DemonTongue(RelicInstance):
         damage: int, props: ValueProp, combat: CombatState
     ) -> None:
         if (target is owner and damage > 0
-                and combat.current_side == CombatSide.PLAYER
+                and combat.is_owner_side_turn(owner)
                 and not self._triggered_this_turn):
             self._triggered_this_turn = True
             owner.heal(damage)
 
     def before_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
-        if side == CombatSide.PLAYER:
+        if side == owner.side:
             self._triggered_this_turn = False
 
 
@@ -975,7 +975,7 @@ class ToughBandages(RelicInstance):
     BLOCK = 3
 
     def after_card_discarded(self, owner: Creature, card: object, combat: CombatState) -> None:
-        if getattr(card, "owner", None) is owner and combat.current_side == CombatSide.PLAYER:
+        if getattr(card, "owner", None) is owner and combat.is_owner_side_turn(owner):
             _gain_unpowered_block(owner, self.BLOCK, combat)
 
 

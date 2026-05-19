@@ -832,7 +832,7 @@ class Tingsha(RelicInstance):
     DAMAGE = 3
 
     def after_card_discarded(self, owner: Creature, card: object, combat: CombatState) -> None:
-        if getattr(card, "owner", None) is owner and combat.current_side == CombatSide.PLAYER:
+        if getattr(card, "owner", None) is owner and combat.is_owner_side_turn(owner):
             target = combat.random_enemy_of(owner)
             if target:
                 combat.deal_damage(owner, target, self.DAMAGE, ValueProp.UNPOWERED)

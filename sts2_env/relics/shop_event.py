@@ -1758,7 +1758,7 @@ class Fiddle(RelicInstance):
         return draw + self.EXTRA_DRAW
 
     def should_draw(self, owner: Creature, from_hand_draw: bool, combat: CombatState) -> bool | None:
-        if from_hand_draw or owner.side != combat.current_side:
+        if from_hand_draw or not combat.is_owner_side_turn(owner):
             return None
         return False
 

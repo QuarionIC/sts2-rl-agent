@@ -151,6 +151,19 @@ def test_gain_energy_card_effect_uses_card_owner_state():
     assert ally_state.energy == 1
 
 
+def test_is_owner_side_turn_uses_owner_side():
+    combat = _make_combat()
+    enemy = combat.enemies[0]
+
+    combat.current_side = CombatSide.PLAYER
+    assert combat.is_owner_side_turn(combat.player)
+    assert not combat.is_owner_side_turn(enemy)
+
+    combat.current_side = CombatSide.ENEMY
+    assert not combat.is_owner_side_turn(combat.player)
+    assert combat.is_owner_side_turn(enemy)
+
+
 def test_gain_stars_does_not_gain_after_combat_ending():
     combat = _make_combat(character_id="Regent")
     combat.stars = 0

@@ -184,8 +184,8 @@ class TestRelicParityUncommonExtra6:
         assert combat.player.block == 7
         assert enemy.current_hp == start_hp - 5
 
-    def test_tingsha_only_deals_damage_for_discards_during_player_side(self):
-        """Matches Tingsha.cs: discard trigger damages random enemy only on player side."""
+    def test_tingsha_only_deals_damage_for_discards_during_owner_side(self):
+        """Matches Tingsha.cs: discard trigger damages random enemy only on owner side."""
         combat = _make_ironclad_combat(["Tingsha"], seed=1106, enemies=2)
         for enemy in combat.enemies:
             enemy.max_hp = 120

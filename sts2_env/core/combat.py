@@ -3098,6 +3098,9 @@ class CombatState:
     def _is_player_side_player(self, creature: Creature) -> bool:
         return creature.side == CombatSide.PLAYER and getattr(creature, "is_player", False)
 
+    def is_owner_side_turn(self, owner: Creature) -> bool:
+        return self.current_side == owner.side
+
     def _all_cards_for_creature(
         self,
         creature: Creature,
