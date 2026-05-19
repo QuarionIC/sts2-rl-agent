@@ -2,7 +2,9 @@
 
 import sts2_env.events.shared  # noqa: F401
 
+from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
+from sts2_env.core.enums import CardId
 from sts2_env.cards.silent import make_backstab
 from sts2_env.cards.status import make_clumsy, make_decay, make_doubt, make_exterminate, make_greed, make_guilty, make_injury, make_lantern_key, make_metamorphosis, make_poor_sleep, make_regret, make_squash
 from sts2_env.run.run_manager import RunManager
@@ -32,6 +34,18 @@ class _DarvRng:
 
     def shuffle(self, seq) -> None:
         seq.reverse()
+
+    def next_int(self, low: int, high: int) -> int:
+        return 0
+
+
+class _SwapFirstTwoRng:
+    def __init__(self) -> None:
+        self.shuffle_calls = 0
+
+    def shuffle(self, seq) -> None:
+        self.shuffle_calls += 1
+        seq[0], seq[1] = seq[1], seq[0]
 
     def next_int(self, low: int, high: int) -> int:
         return 0
@@ -189,6 +203,27 @@ def test_battleworn_dummy_setting_two_upgrades_two_random_cards():
 
     assert result.finished
     assert sum(1 for card in run_state.player.deck if card.upgraded) >= 2
+
+
+def test_battleworn_dummy_setting_two_uses_niche_rng_for_upgrade_selection():
+    run_state = RunState(seed=1911, character_id="Ironclad")
+    run_state.initialize_run()
+    first = create_card(CardId.DEFEND_IRONCLAD)
+    second = create_card(CardId.STRIKE_IRONCLAD)
+    third = create_card(CardId.BASH)
+    run_state.player.deck = [first, second, third]
+    run_state.rng.niche = _SwapFirstTwoRng()
+    rewards_counter = run_state.rng.rewards.counter
+    dummy = BattlewornDummy()
+
+    result = dummy.choose(run_state, "setting_2")
+
+    assert result.finished
+    assert run_state.rng.niche.shuffle_calls == 1
+    assert run_state.rng.rewards.counter == rewards_counter
+    assert first.upgraded is True
+    assert second.upgraded is False
+    assert third.upgraded is True
 
 
 def test_doors_of_light_and_dark_light_and_dark_apply_real_effects():

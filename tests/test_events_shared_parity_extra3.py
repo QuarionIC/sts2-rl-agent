@@ -2,6 +2,7 @@
 
 import sts2_env.events.shared  # noqa: F401
 
+from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.core.enums import CardId, CardRarity
 from sts2_env.events.shared import (
@@ -34,6 +35,15 @@ class _ExclusiveRollsRng:
 class _NoopShuffleRng:
     def shuffle(self, seq) -> None:
         pass
+
+
+class _SwapFirstTwoRng:
+    def __init__(self) -> None:
+        self.shuffle_calls = 0
+
+    def shuffle(self, seq) -> None:
+        self.shuffle_calls += 1
+        seq[0], seq[1] = seq[1], seq[0]
 
 
 class _FixedRemovalRng:
@@ -125,6 +135,46 @@ def test_tablet_of_truth_decipher_chain_costs_max_hp_and_ends_with_no_upgradable
     assert run_state.player.current_hp == 0
     assert run_state.is_over
     assert run_state.player.upgradable_deck_cards() == []
+
+
+def test_tablet_of_truth_non_final_decipher_uses_event_rng_for_upgrade_selection():
+    run_state = _make_run_state(4041)
+    first = create_card(CardId.DEFEND_IRONCLAD)
+    second = create_card(CardId.STRIKE_IRONCLAD)
+    run_state.player.deck = [first, second]
+    event = TabletOfTruth()
+    event.rng = _SwapFirstTwoRng()
+    rewards_counter = run_state.rng.rewards.counter
+
+    result = event.choose(run_state, "decipher")
+
+    assert result.finished is False
+    assert event.rng.shuffle_calls == 1
+    assert run_state.rng.rewards.counter == rewards_counter
+    assert first.upgraded is False
+    assert second.upgraded is True
+
+
+def test_tablet_of_truth_final_decipher_upgrades_all_without_random_selection():
+    run_state = _make_run_state(4042)
+    run_state.player.deck = [
+        create_card(CardId.DEFEND_IRONCLAD),
+        create_card(CardId.STRIKE_IRONCLAD),
+        create_card(CardId.BASH),
+    ]
+    event = TabletOfTruth()
+    event.rng = _SwapFirstTwoRng()
+    event._decipher_count = 4  # noqa: SLF001
+    rewards_counter = run_state.rng.rewards.counter
+    niche_counter = run_state.rng.niche.counter
+
+    result = event.choose(run_state, "decipher")
+
+    assert result.finished
+    assert event.rng.shuffle_calls == 0
+    assert run_state.rng.rewards.counter == rewards_counter
+    assert run_state.rng.niche.counter == niche_counter
+    assert all(card.upgraded for card in run_state.player.deck)
 
 
 def test_tablet_of_truth_give_up_does_not_heal():

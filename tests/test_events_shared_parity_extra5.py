@@ -2,6 +2,7 @@
 
 import sts2_env.events.shared  # noqa: F401
 
+from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.status import make_decay, make_doubt, make_greed
 from sts2_env.core.enums import CardId, CardType, TargetType
@@ -33,6 +34,15 @@ class _ChoiceLastRng:
 class _ReverseShuffleRng:
     def shuffle(self, seq) -> None:
         seq.reverse()
+
+
+class _SwapFirstTwoRng:
+    def __init__(self) -> None:
+        self.shuffle_calls = 0
+
+    def shuffle(self, seq) -> None:
+        self.shuffle_calls += 1
+        seq[0], seq[1] = seq[1], seq[0]
 
 
 class _DustyTomeRng(_ChoiceLastRng):
@@ -155,6 +165,26 @@ def test_doors_of_light_and_dark_upgrades_two_and_removes_one_card():
     dark_final = event.resolve_pending_choice(0)
     assert dark_final.finished
     assert len(run_state.player.deck) == deck_before - 1
+
+
+def test_doors_of_light_and_dark_light_uses_niche_rng_for_upgrade_selection():
+    run_state = _make_run_state(6071)
+    first = create_card(CardId.DEFEND_IRONCLAD)
+    second = create_card(CardId.STRIKE_IRONCLAD)
+    third = create_card(CardId.BASH)
+    run_state.player.deck = [first, second, third]
+    run_state.rng.niche = _SwapFirstTwoRng()
+    rewards_counter = run_state.rng.rewards.counter
+    event = DoorsOfLightAndDark()
+
+    result = event.choose(run_state, "light")
+
+    assert result.finished
+    assert run_state.rng.niche.shuffle_calls == 1
+    assert run_state.rng.rewards.counter == rewards_counter
+    assert first.upgraded is True
+    assert second.upgraded is False
+    assert third.upgraded is True
 
 
 def test_nonupeipe_and_tanx_conditional_relics_are_gated_by_enchantable_deck():

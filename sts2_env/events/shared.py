@@ -542,7 +542,7 @@ class BattlewornDummy(EventModel):
                 rewards={"reward_objects": [PotionReward(run_state.player.player_id)]},
             )
         if option_id == "setting_2":
-            _upgrade_n_cards(run_state, 2)
+            _upgrade_n_cards(run_state, 2, rng=run_state.rng.niche)
             return EventResult(finished=True, description="Fought dummy (medium), upgraded 2 cards.")
         return EventResult(
             finished=True,
@@ -885,7 +885,7 @@ class DoorsOfLightAndDark(EventModel):
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "light":
-            _upgrade_n_cards(run_state, 2)
+            _upgrade_n_cards(run_state, 2, rng=run_state.rng.niche)
             return EventResult(finished=True, description="Upgraded 2 cards.")
         candidates = run_state.player.removable_deck_cards()
         if _should_defer_event_rewards(run_state):
@@ -1773,11 +1773,12 @@ class TabletOfTruth(EventModel):
             return EventResult(finished=True, description=f"Lost {cost} Max HP and died deciphering.")
         run_state.player.lose_max_hp(cost)
         if final_decipher:
-            _upgrade_n_cards(run_state, len(run_state.player.deck))
+            for card in run_state.player.upgradable_deck_cards():
+                run_state.player.upgrade_card_instance(card)
             run_state.player.current_hp = 0
             run_state.lose_run()
         else:
-            _upgrade_n_cards(run_state, 1)
+            _upgrade_n_cards(run_state, 1, rng=self.get_rng(run_state))
         self._decipher_count += 1
 
         if self._decipher_count >= 5:
