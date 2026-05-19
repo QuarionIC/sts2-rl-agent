@@ -16,7 +16,13 @@ from sts2_env.core.hooks import (
     fire_before_turn_end,
 )
 from sts2_env.cards.defect import create_defect_starter_deck, make_beam_cell, make_feral, make_genetic_algorithm, make_subroutine
-from sts2_env.cards.ironclad import create_ironclad_starter_deck, make_inflame, make_juggling, make_sword_boomerang
+from sts2_env.cards.ironclad import (
+    create_ironclad_starter_deck,
+    make_demon_form,
+    make_inflame,
+    make_juggling,
+    make_sword_boomerang,
+)
 from sts2_env.cards.ironclad_basic import make_bash, make_defend_ironclad, make_strike_ironclad
 from sts2_env.cards.silent import _make_shiv, make_afterimage, make_serpent_form
 from sts2_env.cards.status import make_rebound, make_sovereign_blade
@@ -271,6 +277,25 @@ class TestPowerApplication:
         assert defend in simple_combat.exhaust_pile
         assert defend not in simple_combat.discard_pile
 
+    def test_curious_power_reduces_owner_power_card_cost_only(self, simple_combat):
+        curious_amount = 2
+        ally_max_hp = 70
+        ally = simple_combat.add_ally_player(
+            PlayerState(player_id=2, character_id="Ironclad", max_hp=ally_max_hp, current_hp=ally_max_hp)
+        )
+        owner_power = make_inflame()
+        ally_power = make_demon_form()
+        attack = make_strike_ironclad()
+        owner_power.owner = simple_combat.player
+        ally_power.owner = ally
+        attack.owner = simple_combat.player
+
+        simple_combat.apply_power_to(simple_combat.player, PowerId.CURIOUS, curious_amount)
+
+        assert simple_combat.modified_card_cost(simple_combat.player, owner_power) == 0
+        assert simple_combat.modified_card_cost(ally, ally_power) == 3
+        assert simple_combat.modified_card_cost(simple_combat.player, attack) == 1
+
 
 class TestDebuffTicking:
     """Vulnerable/Weak/Frail tick down at enemy turn end only; Strength does not tick."""
@@ -513,6 +538,39 @@ class TestDamageModifierInteractions:
 
         assert PowerId.DIAMOND_DIADEM not in player.powers
         assert calculate_damage(10, enemy, player, ValueProp.MOVE, simple_combat) == 10
+
+    def test_leadership_power_adds_damage_to_allied_powered_attacks_only(self, simple_combat):
+        base_damage = 10
+        leadership_amount = 3
+        ally_max_hp = 70
+        player = simple_combat.player
+        ally = simple_combat.add_ally_player(
+            PlayerState(player_id=2, character_id="Ironclad", max_hp=ally_max_hp, current_hp=ally_max_hp)
+        )
+        enemy = simple_combat.enemies[0]
+        simple_combat.apply_power_to(player, PowerId.LEADERSHIP, leadership_amount)
+
+        assert calculate_damage(base_damage, ally, enemy, ValueProp.MOVE, simple_combat) == base_damage + leadership_amount
+        assert calculate_damage(base_damage, player, enemy, ValueProp.MOVE, simple_combat) == base_damage
+        assert calculate_damage(base_damage, ally, enemy, ValueProp.UNPOWERED, simple_combat) == base_damage
+
+    def test_back_attack_right_power_marks_surrounded_back_damage_side(self, simple_combat):
+        base_damage = 10
+        back_attack_multiplier = 1.5
+        player = simple_combat.player
+        enemy = simple_combat.enemies[0]
+        simple_combat.apply_power_to(player, PowerId.SURROUNDED, 1)
+        simple_combat.apply_power_to(enemy, PowerId.BACK_ATTACK_RIGHT, 1)
+        surrounded = player.powers[PowerId.SURROUNDED]
+        surrounded.facing = surrounded.FACING_LEFT
+
+        assert calculate_damage(base_damage, enemy, player, ValueProp.MOVE, simple_combat) == int(
+            base_damage * back_attack_multiplier
+        )
+
+        surrounded.facing = surrounded.FACING_RIGHT
+
+        assert calculate_damage(base_damage, enemy, player, ValueProp.MOVE, simple_combat) == base_damage
 
     def test_imbalanced_triggers_only_when_damage_was_fully_blocked(self, simple_combat):
         player = simple_combat.player
@@ -1112,6 +1170,36 @@ class TestPowerAmountChangedHooks:
 
         assert player.block == 6
         assert enemy.current_hp == start_hp - 5
+
+    def test_regen_power_heals_on_owner_side_turn_end_and_decrements(self, simple_combat):
+        damaged_hp = 70
+        regen_amount = 4
+        player = simple_combat.player
+        player.current_hp = damaged_hp
+        simple_combat.apply_power_to(player, PowerId.REGEN, regen_amount)
+
+        fire_after_turn_end(CombatSide.ENEMY, simple_combat)
+
+        assert player.current_hp == damaged_hp
+        assert player.get_power_amount(PowerId.REGEN) == regen_amount
+
+        fire_after_turn_end(CombatSide.PLAYER, simple_combat)
+
+        assert player.current_hp == damaged_hp + regen_amount
+        assert player.get_power_amount(PowerId.REGEN) == regen_amount - 1
+
+    def test_territorial_power_gains_strength_on_owner_side_turn_end(self, simple_combat):
+        territorial_amount = 2
+        enemy = simple_combat.enemies[0]
+        simple_combat.apply_power_to(enemy, PowerId.TERRITORIAL, territorial_amount)
+
+        fire_after_turn_end(CombatSide.PLAYER, simple_combat)
+
+        assert enemy.get_power_amount(PowerId.STRENGTH) == 0
+
+        fire_after_turn_end(CombatSide.ENEMY, simple_combat)
+
+        assert enemy.get_power_amount(PowerId.STRENGTH) == territorial_amount
 
     def test_toric_toughness_triggers_on_block_cleared_hook(self, simple_combat):
         power = ToricToughnessPower(1)
