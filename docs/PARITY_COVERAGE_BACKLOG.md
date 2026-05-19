@@ -21,6 +21,14 @@ The detailed backlog sections below were captured as the pre-pass baseline. Afte
 
 Latest local pass also added direct coverage for:
 
+- Cards: `ABRASIVE`, `ASSASSINATE`, `BOUNCING_FLASK`, `DASH`, `FLECHETTES`, `FLICK_FLACK`, `LEADING_STRIKE`, `MIRAGE`, `PREDATOR`, `RICOCHET`, `SHADOWMELD`, `SUPPRESS`, `UNTOUCHABLE`
+
+This pass also exposed and fixed the following logic mismatch:
+
+- `Ricochet`: base and upgraded hit counts now match the original 4 / 5 hits instead of being one hit short.
+
+Latest local pass also added direct coverage for:
+
 - Cards: `PILLAGE`, `PYRE`, `STAMPEDE_CARD`, `STONE_ARMOR`, `TAUNT`, `TREMBLE`, `UNMOVABLE`, `UNRELENTING`
 
 This pass also exposed and fixed the following logic mismatches:

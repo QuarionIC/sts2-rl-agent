@@ -1097,7 +1097,7 @@ def make_ricochet(upgraded: bool = False) -> CardInstance:
         card_id=CardId.RICOCHET, cost=2, card_type=CardType.ATTACK,
         target_type=TargetType.RANDOM_ENEMY, rarity=CardRarity.COMMON,
         base_damage=3, keywords=frozenset({"sly"}),
-        effect_vars={"hits": 4 if upgraded else 3},
+        effect_vars={"hits": 5 if upgraded else 4},
         upgraded=upgraded, instance_id=_get_next_id(),
     )
 

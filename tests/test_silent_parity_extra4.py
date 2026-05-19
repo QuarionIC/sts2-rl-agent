@@ -4,27 +4,40 @@ import sts2_env.cards.silent as silent_cards
 import sts2_env.powers  # noqa: F401
 
 from sts2_env.cards.silent import (
+    make_abrasive,
+    make_assassinate,
     make_blade_of_ink,
+    make_bouncing_flask,
     make_bullet_time,
     make_cloak_and_dagger,
+    make_dash,
     make_dagger_spray,
     make_deflect,
     make_expose,
+    make_flechettes,
+    make_flick_flack,
     make_finisher,
     make_flanking,
     make_follow_through,
     make_haze,
     make_hidden_daggers,
     make_infinite_blades,
+    make_leading_strike,
     make_memento_mori,
+    make_mirage,
     make_murder,
     make_pinpoint,
     make_poisoned_stab,
     make_precise_cut,
+    make_predator,
+    make_ricochet,
+    make_shadowmeld,
     make_skewer,
     make_slice,
+    make_suppress,
     make_sucker_punch,
     make_defend_silent,
+    make_untouchable,
 )
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.ironclad_basic import make_strike_ironclad
@@ -540,6 +553,152 @@ class TestSilentParityExtra4:
         assert silent_cards.make_tools_of_the_trade(upgraded=True).cost == 0
         assert silent_cards.make_tracking(upgraded=True).cost == 1
         assert silent_cards.make_wraith_form(upgraded=True).effect_vars["intangible_power"] == 3
+
+    def test_ricochet_hit_count_matches_reference(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.max_hp = 100
+        enemy.current_hp = 100
+        combat.hand = [make_ricochet()]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+        assert enemy.current_hp == 88
+
+        upgraded_combat = _make_combat()
+        upgraded_enemy = upgraded_combat.enemies[0]
+        upgraded_enemy.max_hp = 100
+        upgraded_enemy.current_hp = 100
+        upgraded_combat.hand = [make_ricochet(upgraded=True)]
+        upgraded_combat.energy = 2
+
+        assert upgraded_combat.play_card(0)
+        assert upgraded_enemy.current_hp == 85
+
+    def test_silent_direct_damage_and_block_cards_match_reference(self):
+        dash_combat = _make_combat()
+        dash_enemy = dash_combat.enemies[0]
+        dash_enemy.max_hp = 100
+        dash_enemy.current_hp = 100
+        dash_combat.hand = [make_dash(upgraded=True)]
+        dash_combat.energy = 2
+
+        assert dash_combat.play_card(0, 0)
+        assert dash_combat.player.block == 13
+        assert dash_enemy.current_hp == 87
+
+        flick_combat = _make_combat(extra_enemies=1)
+        for enemy in flick_combat.enemies:
+            enemy.max_hp = 100
+            enemy.current_hp = 100
+        flick_combat.hand = [make_flick_flack(upgraded=True)]
+        flick_combat.energy = 1
+
+        assert flick_combat.play_card(0)
+        assert [enemy.current_hp for enemy in flick_combat.enemies] == [91, 91]
+
+        block_combat = _make_combat()
+        block_combat.hand = [make_untouchable(upgraded=True)]
+        block_combat.energy = 2
+
+        assert block_combat.play_card(0)
+        assert block_combat.player.block == 12
+
+    def test_silent_direct_power_and_status_cards_match_reference(self):
+        abrasive_combat = _make_combat()
+        abrasive_combat.hand = [make_abrasive(upgraded=True)]
+        abrasive_combat.energy = 3
+
+        assert abrasive_combat.play_card(0)
+        assert abrasive_combat.player.get_power_amount(PowerId.DEXTERITY) == 1
+        assert abrasive_combat.player.get_power_amount(PowerId.THORNS) == 6
+
+        assassinate_combat = _make_combat()
+        debuff_enemy = assassinate_combat.enemies[0]
+        debuff_enemy.max_hp = 100
+        debuff_enemy.current_hp = 100
+        assassinate_combat.hand = [make_assassinate(upgraded=True)]
+        assassinate_combat.energy = 0
+
+        assert assassinate_combat.play_card(0, 0)
+        assert debuff_enemy.current_hp == 87
+        assert debuff_enemy.get_power_amount(PowerId.VULNERABLE) == 2
+
+        suppress_combat = _make_combat()
+        suppress_enemy = suppress_combat.enemies[0]
+        suppress_enemy.max_hp = 100
+        suppress_enemy.current_hp = 100
+        suppress_combat.hand = [make_suppress(upgraded=True)]
+        suppress_combat.energy = 0
+
+        assert suppress_combat.play_card(0, 0)
+        assert suppress_enemy.current_hp == 83
+        assert suppress_enemy.get_power_amount(PowerId.WEAK) == 5
+
+    def test_bouncing_flask_applies_reference_poison_count(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        combat.hand = [make_bouncing_flask(upgraded=True)]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+        assert enemy.get_power_amount(PowerId.POISON) == 12
+
+    def test_flechettes_counts_skills_remaining_in_hand(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.max_hp = 100
+        enemy.current_hp = 100
+        combat.hand = [make_flechettes(), make_defend_silent(), make_untouchable()]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == 90
+
+    def test_leading_strike_generates_one_shiv_after_attack(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.max_hp = 100
+        enemy.current_hp = 100
+        combat.hand = [make_leading_strike(upgraded=True)]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == 90
+        assert sum(1 for card in combat.hand if card.card_id == CardId.SHIV) == 1
+
+    def test_mirage_blocks_for_living_enemies_poison_only(self):
+        combat = _make_combat(extra_enemies=1)
+        living, dead = combat.enemies
+        combat.apply_power_to(living, PowerId.POISON, 4)
+        combat.apply_power_to(dead, PowerId.POISON, 9)
+        dead.current_hp = 0
+        combat.hand = [make_mirage()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert combat.player.block == 4
+
+    def test_predator_and_shadowmeld_apply_reference_powers(self):
+        predator_combat = _make_combat()
+        predator_enemy = predator_combat.enemies[0]
+        predator_enemy.max_hp = 100
+        predator_enemy.current_hp = 100
+        predator_combat.hand = [make_predator(upgraded=True)]
+        predator_combat.energy = 2
+
+        assert predator_combat.play_card(0, 0)
+        assert predator_enemy.current_hp == 80
+        assert predator_combat.player.get_power_amount(PowerId.DRAW_CARDS_NEXT_TURN) == 2
+
+        shadow_combat = _make_combat()
+        shadow_combat.hand = [make_shadowmeld(), make_defend_silent()]
+        shadow_combat.energy = 2
+
+        assert shadow_combat.play_card(0)
+        assert shadow_combat.player.get_power_amount(PowerId.SHADOWMELD) == 1
+        assert shadow_combat.play_card(0)
+        assert shadow_combat.player.block == 10
 
     def test_bullet_time_sets_non_x_hand_cards_to_zero_and_applies_no_draw(self):
         combat = _make_combat()
