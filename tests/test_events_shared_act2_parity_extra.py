@@ -33,6 +33,15 @@ class _FirstChoiceRng:
         return seq[0]
 
 
+class _LastChoiceRng:
+    def __init__(self) -> None:
+        self.choice_calls = 0
+
+    def choice(self, seq):
+        self.choice_calls += 1
+        return seq[-1]
+
+
 def test_relic_trader_excludes_starter_relics_and_swaps_selected_relic():
     run_state = _make_run_state(91)
     run_state.current_act_index = 1
@@ -94,6 +103,52 @@ def test_slippery_bridge_hold_on_escalates_damage_and_overcome_removes_card():
     overcome = event.choose(run_state, "overcome")
     assert overcome.finished
     assert len(run_state.player.deck) == deck_before - 1
+
+
+def test_slippery_bridge_preselects_non_basic_card_and_overcome_removes_it():
+    run_state = _make_run_state(921)
+    run_state.total_floor = 7
+    strike = create_card(CardId.STRIKE_IRONCLAD)
+    skill = create_card(CardId.SHRUG_IT_OFF)
+    anger = create_card(CardId.ANGER)
+    run_state.player.deck = [strike, skill, anger]
+    event = SlipperyBridge()
+    event.rng = _FirstChoiceRng()
+    niche_counter = run_state.rng.niche.counter
+
+    options = event.generate_initial_options(run_state)
+    assert [option.option_id for option in options] == ["overcome", "hold_on"]
+    assert event.rng.choice_calls == 1
+    assert event._random_card_to_lose is skill  # noqa: SLF001
+
+    result = event.choose(run_state, "overcome")
+
+    assert result.finished
+    assert event.rng.choice_calls == 1
+    assert run_state.rng.niche.counter == niche_counter
+    assert skill not in run_state.player.deck
+    assert strike in run_state.player.deck
+    assert anger in run_state.player.deck
+
+
+def test_slippery_bridge_hold_on_rerolls_away_from_previous_card_type():
+    run_state = _make_run_state(922)
+    run_state.total_floor = 7
+    strike = create_card(CardId.STRIKE_IRONCLAD)
+    bash = create_card(CardId.BASH)
+    anger = create_card(CardId.ANGER)
+    run_state.player.deck = [strike, bash, anger]
+    event = SlipperyBridge()
+    event.rng = _LastChoiceRng()
+
+    event.generate_initial_options(run_state)
+    assert event._random_card_to_lose is anger  # noqa: SLF001
+
+    result = event.choose(run_state, "hold_on")
+
+    assert result.finished is False
+    assert event.rng.choice_calls == 2
+    assert event._random_card_to_lose is bash  # noqa: SLF001
 
 
 def test_symbiote_kill_fire_transforms_selected_card_via_pending_choice():

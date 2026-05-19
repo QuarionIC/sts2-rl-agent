@@ -901,16 +901,31 @@ class SlipperyBridge(EventModel):
 
     def __init__(self) -> None:
         self._hold_ons = 0
+        self._random_card_to_lose = None
 
     def is_allowed(self, run_state: RunState) -> bool:
-        has_removable = any(
-            c.rarity.name not in ("STATUS", "CURSE")
-            for c in run_state.player.deck
-        )
+        has_removable = any(card.is_removable for card in run_state.player.deck)
         return run_state.total_floor > 6 and has_removable
+
+    def _roll_random_card_to_lose(self, run_state: RunState) -> None:
+        if self._random_card_to_lose is None:
+            candidates = [
+                card for card in run_state.player.deck
+                if card.rarity != CardRarity.BASIC and card.is_removable
+            ]
+        else:
+            candidates = [
+                card for card in run_state.player.deck
+                if card.card_id != self._random_card_to_lose.card_id and card.is_removable
+            ]
+        if not candidates:
+            candidates = [card for card in run_state.player.deck if card.is_removable]
+        self._random_card_to_lose = self.get_rng(run_state).choice(candidates) if candidates else None
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         self._hold_ons = 0
+        self._random_card_to_lose = None
+        self._roll_random_card_to_lose(run_state)
         dmg = 3
         return [
             EventOption("overcome", "Overcome", "Lose a random card"),
@@ -919,13 +934,10 @@ class SlipperyBridge(EventModel):
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "overcome":
-            candidates = [
-                card for card in run_state.player.deck
-                if card.rarity.name not in ("STATUS", "CURSE") and card.is_removable
-            ]
-            run_state.rng.niche.shuffle(candidates)
-            if candidates:
-                _remove_selected_cards(candidates[:1], run_state)
+            if self._random_card_to_lose is None:
+                self._roll_random_card_to_lose(run_state)
+            if self._random_card_to_lose is not None:
+                _remove_selected_cards([self._random_card_to_lose], run_state)
             return EventResult(finished=True,
                                description="Lost a random card to cross the bridge.")
 
@@ -933,6 +945,7 @@ class SlipperyBridge(EventModel):
         dmg = 3 + self._hold_ons
         run_state.player.lose_hp(dmg)
         self._hold_ons += 1
+        self._roll_random_card_to_lose(run_state)
         next_dmg = 3 + self._hold_ons
 
         return EventResult(
