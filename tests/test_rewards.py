@@ -285,6 +285,21 @@ class TestConcreteNoncombatRewardCards:
         assert rewards[0].cost == 0
         assert rewards[0].has_energy_cost_x is False
 
+    def test_filters_card_type_before_selecting_card(self):
+        rs = RunState(1, character_id="Ironclad")
+        rs.initialize_run()
+
+        rewards = generate_noncombat_reward_cards(
+            rs,
+            num_cards=3,
+            forced_rarities=(CardRarity.UNCOMMON, CardRarity.UNCOMMON, CardRarity.UNCOMMON),
+            card_type=CardType.POWER,
+        )
+
+        assert len(rewards) == 3
+        assert all(card.rarity == CardRarity.UNCOMMON for card in rewards)
+        assert all(card.card_type == CardType.POWER for card in rewards)
+
 
 class TestCombatGenerationEligibility:
     def test_character_combat_generation_excludes_noncombat_cards(self):

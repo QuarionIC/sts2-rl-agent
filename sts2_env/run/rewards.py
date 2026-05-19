@@ -28,6 +28,7 @@ class CardRewardGenerationOptions:
     use_default_character_pool: bool = True
     generation_context: str | None = "combat"
     roll_upgrade: bool = True
+    card_type: CardType | None = None
     card_creation_source: str = "encounter"
     allow_card_pool_modifications: bool = True
     has_custom_card_pool: bool = False

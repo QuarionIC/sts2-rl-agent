@@ -3,10 +3,21 @@
 from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.status import make_curse_of_the_bell
-from sts2_env.core.enums import CardId, RoomType
+from sts2_env.core.enums import CardId, CardRarity, CardType, RoomType
 from sts2_env.run.reward_objects import CardReward, PotionReward, RelicReward, RewardsSet
 from sts2_env.run.rooms import CombatRoom
 from sts2_env.run.run_state import RunState
+
+
+class _ExtraRewardCardRelic:
+    def modify_card_reward_creation_options(self, player, options, reward, room, run_state):
+        return options
+
+    def modify_card_reward_options_late(self, player, cards, reward, room, run_state):
+        return [*cards, create_card(CardId.SHRUG_IT_OFF)]
+
+    def allow_card_reward_reroll(self, player, reward, room, run_state):
+        return False
 
 
 def test_rewards_set_merges_combat_room_extra_rewards_for_player():
@@ -39,6 +50,47 @@ def test_orrery_after_obtained_queues_five_card_rewards():
 
     assert len(run_state.pending_rewards) == 5
     assert all(isinstance(reward, CardReward) for reward in run_state.pending_rewards)
+
+
+def test_card_reward_can_upgrade_cards_after_generation():
+    run_state = RunState(seed=45, character_id="Ironclad")
+    run_state.initialize_run()
+    reward = CardReward(
+        run_state.player.player_id,
+        option_count=3,
+        forced_rarities=(CardRarity.COMMON, CardRarity.COMMON, CardRarity.COMMON),
+        generation_context=None,
+        roll_upgrade=False,
+        card_type=CardType.ATTACK,
+        upgrade_after_generation=True,
+    )
+
+    reward.populate(run_state, None)
+
+    assert len(reward.cards) == 3
+    assert all(card.card_type == CardType.ATTACK for card in reward.cards)
+    assert all(card.rarity == CardRarity.COMMON for card in reward.cards)
+    assert all(card.upgraded for card in reward.cards)
+
+
+def test_card_reward_upgrade_after_generation_runs_after_late_reward_modifiers():
+    run_state = RunState(seed=46, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.player.get_relic_objects = lambda: [_ExtraRewardCardRelic()]
+    reward = CardReward(
+        run_state.player.player_id,
+        option_count=1,
+        forced_rarities=(CardRarity.COMMON,),
+        generation_context=None,
+        roll_upgrade=False,
+        card_type=CardType.ATTACK,
+        upgrade_after_generation=True,
+    )
+
+    reward.populate(run_state, None)
+
+    added = next(card for card in reward.cards if card.card_id == CardId.SHRUG_IT_OFF)
+    assert added.upgraded
 
 
 def test_calling_bell_adds_curse_and_queues_three_relic_rewards():

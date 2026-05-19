@@ -7,7 +7,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 from sts2_env.cards.base import CardInstance
-from sts2_env.core.enums import CardId, CardRarity, RoomType
+from sts2_env.core.enums import CardId, CardRarity, CardType, RoomType
 from sts2_env.potions.base import create_potion, roll_random_potion_model
 from sts2_env.relics.base import RelicPool, RelicRarity
 from sts2_env.relics.registry import RELIC_REGISTRY, load_all_relics
@@ -175,6 +175,7 @@ class CardReward(Reward):
     cards_picked: int = 0
     generation_context: str | None = "combat"
     roll_upgrade: bool = True
+    card_type: CardType | None = None
     character_ids: tuple[str, ...] = field(default_factory=tuple)
     forced_rarities: tuple[CardRarity, ...] = field(default_factory=tuple)
     include_colorless: bool = False
@@ -183,6 +184,7 @@ class CardReward(Reward):
     allow_card_pool_modifications: bool = True
     has_custom_card_pool: bool = False
     custom_card_ids: tuple[CardId, ...] = field(default_factory=tuple)
+    upgrade_after_generation: bool = False
     cards: list[CardInstance] = field(default_factory=list)
     max_rerolls: int = 0
     rerolls_used: int = 0
@@ -198,6 +200,7 @@ class CardReward(Reward):
         skippable: bool = True,
         generation_context: str | None = "combat",
         roll_upgrade: bool = True,
+        card_type: CardType | None = None,
         character_ids: tuple[str, ...] | None = None,
         forced_rarities: tuple[CardRarity, ...] | None = None,
         include_colorless: bool = False,
@@ -206,6 +209,7 @@ class CardReward(Reward):
         allow_card_pool_modifications: bool = True,
         has_custom_card_pool: bool = False,
         custom_card_ids: tuple[CardId, ...] | None = None,
+        upgrade_after_generation: bool = False,
         cards: list[CardInstance] | None = None,
     ):
         super().__init__(player_id=player_id, reward_type=RewardType.CARD, rewards_set_index=5, skippable=skippable)
@@ -217,6 +221,7 @@ class CardReward(Reward):
         self.cards_picked = 0
         self.generation_context = generation_context
         self.roll_upgrade = roll_upgrade
+        self.card_type = card_type
         self.character_ids = tuple(character_ids or ())
         self.forced_rarities = resolved_rarities
         self.include_colorless = include_colorless
@@ -225,6 +230,7 @@ class CardReward(Reward):
         self.allow_card_pool_modifications = allow_card_pool_modifications
         self.has_custom_card_pool = has_custom_card_pool
         self.custom_card_ids = tuple(custom_card_ids or ())
+        self.upgrade_after_generation = upgrade_after_generation
         self.cards = resolved_cards
         self.max_rerolls = 0
         self.rerolls_used = 0
@@ -241,6 +247,7 @@ class CardReward(Reward):
             use_default_character_pool=self.use_default_character_pool,
             generation_context=self.generation_context,
             roll_upgrade=self.roll_upgrade,
+            card_type=self.card_type,
             card_creation_source=self.card_creation_source,
             allow_card_pool_modifications=self.allow_card_pool_modifications,
             has_custom_card_pool=self.has_custom_card_pool,
@@ -272,12 +279,14 @@ class CardReward(Reward):
                 include_colorless=options.include_colorless,
                 generation_context=options.generation_context,
                 roll_upgrade=options.roll_upgrade,
+                card_type=options.card_type,
                 custom_card_ids=options.custom_card_ids,
             )
         self.include_colorless = options.include_colorless
         self.use_default_character_pool = options.use_default_character_pool
         self.generation_context = options.generation_context
         self.roll_upgrade = options.roll_upgrade
+        self.card_type = options.card_type
         self.card_creation_source = options.card_creation_source
         self.allow_card_pool_modifications = options.allow_card_pool_modifications
         self.has_custom_card_pool = options.has_custom_card_pool
@@ -290,6 +299,9 @@ class CardReward(Reward):
                 room,
                 run_state,
             )
+        if self.upgrade_after_generation:
+            for card in self.cards:
+                player.upgrade_card_instance(card)
         if self.max_rerolls == 0 and self._can_regenerate:
             for relic in player.get_relic_objects():
                 if relic.allow_card_reward_reroll(player, self, room, run_state):

@@ -68,6 +68,7 @@ class _RareRewardModifier(ModifierModel):
             use_default_character_pool=options.use_default_character_pool,
             generation_context=options.generation_context,
             roll_upgrade=options.roll_upgrade,
+            card_type=options.card_type,
             card_creation_source=options.card_creation_source,
             allow_card_pool_modifications=options.allow_card_pool_modifications,
             has_custom_card_pool=options.has_custom_card_pool,

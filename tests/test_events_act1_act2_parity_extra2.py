@@ -228,14 +228,26 @@ def test_future_of_potions_trade_discards_potion_and_builds_upgraded_rewards():
     assert run_state.rng.up_front.counter == up_front_counter
 
     potions_before = len(run_state.player.held_potions())
+    rewards_counter_before = run_state.rng.rewards.counter
     result = event.choose(run_state, "trade_0")
     assert result.finished
     assert len(run_state.player.held_potions()) == potions_before - 1
+    assert run_state.rng.rewards.counter == rewards_counter_before
 
     reward_objects = result.rewards["reward_objects"]
     assert len(reward_objects) == 1
     assert isinstance(reward_objects[0], CardReward)
     reward = reward_objects[0]
+    assert reward.cards == []
+    assert reward.option_count == 3
+    assert reward.forced_rarities == (CardRarity.COMMON, CardRarity.COMMON, CardRarity.COMMON)
+    assert reward.generation_context is None
+    assert reward.roll_upgrade is False
+    assert reward.use_default_character_pool is False
+    assert reward.card_type in {CardType.ATTACK, CardType.SKILL}
+    assert reward.upgrade_after_generation is True
+
+    reward.populate(run_state, None)
     assert len(reward.cards) == 3
     assert all(card.upgraded for card in reward.cards)
     assert all(card.rarity == CardRarity.COMMON for card in reward.cards)

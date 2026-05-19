@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sts2_env.cards.factory import create_card, eligible_character_cards, eligible_registered_cards
+from sts2_env.cards.factory import create_card, eligible_registered_cards
 from sts2_env.cards.enchantments import can_enchant_card
 from sts2_env.cards.status import make_debt, make_feeding_frenzy, make_normality, make_spore_mind
 from sts2_env.core.enums import CardRarity, CardType, PotionRarity
@@ -1217,7 +1217,14 @@ class TheFutureOfPotions(EventModel):
         run_state.player.remove_potion(slot_index)
         rewards = CardReward(
             run_state.player.player_id,
-            cards=self._generate_reward_cards(run_state, target_rarity, target_type),
+            option_count=3,
+            character_ids=(run_state.player.character_id,),
+            forced_rarities=(target_rarity, target_rarity, target_rarity),
+            generation_context=None,
+            roll_upgrade=False,
+            use_default_character_pool=False,
+            card_type=target_type,
+            upgrade_after_generation=True,
         )
         return EventResult(finished=True,
                            description="Traded a potion for upgraded card rewards.",
@@ -1230,39 +1237,6 @@ class TheFutureOfPotions(EventModel):
         if potion_rarity == PotionRarity.UNCOMMON:
             return CardRarity.UNCOMMON
         return CardRarity.COMMON
-
-    @staticmethod
-    def _generate_reward_cards(run_state: RunState, target_rarity: CardRarity, target_type: CardType):
-        candidate_ids = []
-        for card_id in eligible_character_cards(
-            run_state.player.character_id,
-            rarity=target_rarity,
-            generation_context=None,
-        ):
-            try:
-                card = create_card(card_id, upgraded=True)
-            except KeyError:
-                continue
-            if card.card_type == target_type:
-                candidate_ids.append(card_id)
-
-        if not candidate_ids:
-            candidate_ids = eligible_character_cards(
-                run_state.player.character_id,
-                rarity=target_rarity,
-                generation_context=None,
-            )
-
-        if not candidate_ids:
-            return []
-
-        pool = list(candidate_ids)
-        run_state.rng.rewards.shuffle(pool)
-        chosen = pool[:3]
-        while len(chosen) < 3:
-            chosen.append(run_state.rng.rewards.choice(pool))
-        return [create_card(card_id, upgraded=True) for card_id in chosen]
-
 
 register_event(TheFutureOfPotions())
 
