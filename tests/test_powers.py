@@ -1135,6 +1135,22 @@ class TestPowerAmountChangedHooks:
         assert simple_combat.player.block == 7
         assert counter.calls == [7]
 
+    def test_toric_toughness_keeps_separate_block_values_like_reference(self, simple_combat):
+        counter = _BlockHookCounterPower()
+        simple_combat.player.powers[PowerId.JUGGERNAUT] = counter
+        simple_combat.apply_power_to(simple_combat.player, PowerId.TORIC_TOUGHNESS, 2)
+        power = simple_combat.player.powers[PowerId.TORIC_TOUGHNESS]
+        assert isinstance(power, ToricToughnessPower)
+        power.set_block(5)
+        simple_combat.apply_power_to(simple_combat.player, PowerId.TORIC_TOUGHNESS, 1)
+        power.set_block(7)
+
+        fire_after_block_cleared(simple_combat.player, simple_combat)
+
+        assert simple_combat.player.block == 12
+        assert counter.calls == [5, 7]
+        assert simple_combat.player.get_power_amount(PowerId.TORIC_TOUGHNESS) == 1
+
     def test_self_forming_clay_power_triggers_on_block_cleared_hook(self, simple_combat):
         simple_combat.player.apply_power(PowerId.SELF_FORMING_CLAY, 4)
 

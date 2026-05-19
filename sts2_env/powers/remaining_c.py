@@ -1584,18 +1584,41 @@ class ToricToughnessPower(PowerInstance):
     def __init__(self, amount: int):
         super().__init__(PowerId.TORIC_TOUGHNESS, amount)
         self._block_value: int = 0
+        self._instances: list[tuple[int, int]] = [(amount, 0)]
 
     def set_block(self, block: int) -> None:
         """Set the block value to grant when block is cleared."""
         self._block_value = block
+        amount, _ = self._instances[-1]
+        self._instances[-1] = (amount, block)
+
+    def after_power_amount_changed(
+        self,
+        owner: Creature,
+        target: Creature,
+        power_id: PowerId,
+        amount: int,
+        applier: Creature | None,
+        source: object | None,
+        combat: CombatState,
+    ) -> None:
+        if owner is target and power_id == self.power_id and amount > 0 and self.amount != amount:
+            self._instances.append((amount, 0))
 
     def on_block_cleared(self, owner: Creature, combat: CombatState) -> None:
         """Called when owner's block is cleared at turn start."""
-        if self._block_value > 0:
-            _gain_unpowered_block(owner, self._block_value, combat)
-            self.amount -= 1
-            if self.amount <= 0:
-                combat._remove_power(owner, self.power_id)
+        remaining_instances: list[tuple[int, int]] = []
+        for amount, block_value in self._instances:
+            if block_value > 0:
+                _gain_unpowered_block(owner, block_value, combat)
+            amount -= 1
+            if amount > 0:
+                remaining_instances.append((amount, block_value))
+        self._instances = remaining_instances
+        if not self._instances:
+            combat._remove_power(owner, self.power_id)
+            return
+        self.amount, self._block_value = self._instances[-1]
 
     def after_block_cleared(self, owner: Creature, creature: Creature, combat: CombatState) -> None:
         if creature is owner:
