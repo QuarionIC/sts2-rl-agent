@@ -243,7 +243,7 @@ class EndlessConveyor(EventModel):
 
     def _roll_dish(self, run_state: RunState) -> None:
         if (self._grabs + 1) % 5 == 0:
-            self._last_dish = self._current_dish
+            self._last_dish = "seapunk_salad"
             self._current_dish = "seapunk_salad"
             return
         weighted = [
@@ -256,7 +256,7 @@ class EndlessConveyor(EventModel):
             weighted.append(("suspicious_condiment", 3.0))
         if run_state.player.current_hp != run_state.player.max_hp:
             weighted.append(("clam_roll", 6.0))
-        if self._grabs > 1:
+        if self._grabs >= 1:
             weighted.append(("golden_fysh", 1.0))
         weighted = [(dish, weight) for dish, weight in weighted if dish != self._last_dish]
         total = sum(weight for _, weight in weighted)

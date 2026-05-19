@@ -60,6 +60,11 @@ class _FirstChoiceCountingRng:
         return seq[0]
 
 
+class _LastFloatRng:
+    def next_float(self) -> float:
+        return 0.999
+
+
 def test_the_architect_is_pool_disabled_and_has_single_proceed_option():
     run_state = _make_run_state(901)
     event = TheArchitect()
@@ -184,6 +189,33 @@ def test_endless_conveyor_excludes_the_dish_it_just_rolled_next_time():
 
     assert first_dish == "caviar"
     assert event._current_dish == "spicy_snappy"
+
+
+def test_endless_conveyor_golden_fysh_can_appear_after_first_grab():
+    run_state = _make_run_state(9063)
+    run_state.player.gold = 200
+    event = EndlessConveyor()
+    event.rng = _LastFloatRng()
+    event._grabs = 1
+
+    event._roll_dish(run_state)
+
+    assert event._current_dish == "golden_fysh"
+
+
+def test_endless_conveyor_forced_seapunk_counts_as_last_dish():
+    run_state = _make_run_state(9064)
+    run_state.player.gold = 200
+    event = EndlessConveyor()
+    event.rng = _SwapFirstTwoRng()
+    event._grabs = 4
+
+    event._roll_dish(run_state)
+    assert event._current_dish == "seapunk_salad"
+    event._grabs = 5
+    event._roll_dish(run_state)
+
+    assert event._current_dish != "seapunk_salad"
 
 
 def test_endless_conveyor_observe_uses_event_rng_for_upgrade_selection():
