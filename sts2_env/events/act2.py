@@ -763,7 +763,6 @@ class RanwidTheElder(EventModel):
             run_state.current_act_index > 0
             and run_state.player.gold >= 100
             and len(run_state.player.held_potions()) > 0
-            and run_state.player.has_available_relics()
             and bool(self._tradable_relics(run_state))
         )
 

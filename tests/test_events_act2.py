@@ -237,6 +237,29 @@ def test_ranwid_uses_event_rng_without_advancing_up_front_rng():
     assert run_state.rng.up_front.counter == up_front_counter
 
 
+def test_ranwid_allows_empty_reward_pool_and_uses_circlet_fallback():
+    run_state = RunState(seed=3105, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.current_act_index = 1
+    run_state.player.gold = 200
+    run_state.player.add_potion(create_potion("FirePotion"))
+    run_state.player.obtain_relic("ANCHOR")
+    run_state.player.relic_grab_bag_by_rarity = {
+        rarity: []
+        for rarity in run_state.player.relic_grab_bag_by_rarity
+    }
+    run_state.player.relic_grab_bag = []
+    run_state.player.relic_grab_bag_fallback = []
+    event = RanwidTheElder()
+
+    assert event.is_allowed(run_state) is True
+    result = event.choose(run_state, "gold")
+
+    assert result.finished
+    assert run_state.player.gold == 100
+    assert run_state.player.relics[-1] == "CIRCLET"
+
+
 def test_event_added_card_triggers_run_level_relic_hook():
     run_state = RunState(seed=33, character_id="Ironclad")
     run_state.initialize_run()
