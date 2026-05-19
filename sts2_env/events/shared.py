@@ -624,10 +624,15 @@ class BattlewornDummy(EventModel):
         if option_id == "setting_2":
             _upgrade_n_cards(run_state, 2, rng=run_state.rng.niche)
             return EventResult(finished=True, description="Fought dummy (medium), upgraded 2 cards.")
+        if _should_defer_event_rewards(run_state):
+            return _event_result_with_rewards(
+                "Fought dummy (hard), gained a relic.",
+                _roll_random_relic_rewards(run_state, 1),
+            )
+        _obtain_random_relics(run_state, 1)
         return EventResult(
             finished=True,
             description="Fought dummy (hard), gained a relic.",
-            rewards={"reward_objects": [RelicReward(run_state.player.player_id)]},
         )
 
 

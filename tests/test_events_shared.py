@@ -243,6 +243,19 @@ def test_battleworn_dummy_setting_two_upgrades_two_random_cards():
     assert sum(1 for card in run_state.player.deck if card.upgraded) >= 2
 
 
+def test_battleworn_dummy_setting_three_obtains_relic_immediately():
+    run_state = RunState(seed=1903, character_id="Ironclad")
+    run_state.initialize_run()
+    dummy = BattlewornDummy()
+    starting_relics = len(run_state.player.relics)
+
+    result = dummy.choose(run_state, "setting_3")
+
+    assert result.finished
+    assert len(run_state.player.relics) == starting_relics + 1
+    assert result.rewards == {}
+
+
 def test_event_specific_potion_rewards_are_rolled_before_reward_population():
     run_state = RunState(seed=1910, character_id="Ironclad")
     run_state.initialize_run()
