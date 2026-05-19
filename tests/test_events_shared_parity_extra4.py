@@ -109,6 +109,22 @@ def test_amalgamator_combines_two_basics_into_ultimate_card(option_id, expected_
     )
 
 
+def test_amalgamator_requires_all_players_to_have_enough_basic_strikes_and_defends():
+    run_state = _make_run_state(5021)
+    ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent"))
+    ally.deck = [
+        create_card(CardId.STRIKE_IRONCLAD),
+        create_card(CardId.STRIKE_IRONCLAD),
+        create_card(CardId.DEFEND_IRONCLAD),
+    ]
+    event = Amalgamator()
+
+    assert event.is_allowed(run_state) is False
+
+    ally.deck.append(create_card(CardId.DEFEND_IRONCLAD))
+    assert event.is_allowed(run_state) is True
+
+
 def test_aroma_of_chaos_maintain_control_upgrades_selected_card():
     run_state = _make_run_state(503)
     event = AromaOfChaos()

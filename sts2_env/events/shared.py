@@ -450,16 +450,11 @@ class Amalgamator(EventModel):
         return tag in card.card_id.name
 
     def is_allowed(self, run_state: RunState) -> bool:
-        deck = run_state.player.deck
-        strike_count = sum(
-            1 for c in deck
-            if self._is_valid(c, "STRIKE")
+        return all(
+            sum(1 for c in player.deck if self._is_valid(c, "STRIKE")) >= 2
+            and sum(1 for c in player.deck if self._is_valid(c, "DEFEND")) >= 2
+            for player in run_state.players
         )
-        defend_count = sum(
-            1 for c in deck
-            if self._is_valid(c, "DEFEND")
-        )
-        return strike_count >= 2 and defend_count >= 2
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         return [
