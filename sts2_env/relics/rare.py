@@ -1229,7 +1229,7 @@ class PaperKrane(RelicInstance):
         props: ValueProp,
         card: object | None = None,
     ) -> float:
-        if target is not owner or dealer is None or not props.is_powered():
+        if target is not owner or dealer is None or not props.is_powered_attack():
             return 1.0
         if dealer.get_power_amount(PowerId.WEAK) <= 0:
             return 1.0

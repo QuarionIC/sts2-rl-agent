@@ -429,7 +429,7 @@ class MiniatureCannon(RelicInstance):
                 and card is not None
                 and hasattr(card, "card_type") and card.card_type == CardType.ATTACK
                 and hasattr(card, "upgraded") and card.upgraded
-                and bool(props & ValueProp.MOVE) and not bool(props & ValueProp.UNPOWERED)):
+                and props.is_powered_attack()):
             return self.EXTRA_DAMAGE
         return 0
 
@@ -538,7 +538,7 @@ class PaperPhrog(RelicInstance):
         props: ValueProp,
         card: object | None = None,
     ) -> float:
-        if dealer is not owner or target is None or target is owner or not props.is_powered():
+        if dealer is not owner or target is None or target is owner or not props.is_powered_attack():
             return 1.0
         if target.get_power_amount(PowerId.VULNERABLE) <= 0:
             return 1.0
@@ -612,7 +612,7 @@ class PenNib(RelicInstance):
             self._is_active
             and card is not None
             and (dealer is owner or owner_osty)
-            and props.is_powered()
+            and props.is_powered_attack()
         ):
             return 2.0
         return 1.0
@@ -847,7 +847,7 @@ class Vambrace(RelicInstance):
         if (target is owner
                 and not self._block_gained_this_combat
                 and card_source is not None
-                and bool(props & ValueProp.MOVE)):
+                and props.is_card_or_monster_move()):
             return 2.0
         return 1.0
 

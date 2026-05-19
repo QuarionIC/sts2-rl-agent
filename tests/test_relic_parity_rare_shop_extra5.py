@@ -314,6 +314,7 @@ def test_strike_dummy_relics_count_owned_strike_card_even_from_pet_dealer():
 
     assert by_id["STRIKE_DUMMY"].modify_damage_additive(player, pet, enemy, ValueProp.MOVE, strike) == 3
     assert by_id["FAKE_STRIKE_DUMMY"].modify_damage_additive(player, pet, enemy, ValueProp.MOVE, strike) == 1
+    assert by_id["FAKE_STRIKE_DUMMY"].modify_damage_additive(player, pet, enemy, ValueProp.UNPOWERED, strike) == 0
 
 
 def test_mystic_lighter_counts_owned_enchanted_card_and_requires_powered_damage():

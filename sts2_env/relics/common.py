@@ -441,7 +441,7 @@ class StrikeDummy(RelicInstance):
         if ((dealer is owner or getattr(card, "owner", None) is owner)
                 and is_strike
                 and hasattr(card, "card_type") and card.card_type == CardType.ATTACK
-                and bool(props & ValueProp.MOVE) and not bool(props & ValueProp.UNPOWERED)):
+                and props.is_powered_attack()):
             return self.EXTRA_DAMAGE
         return 0
 

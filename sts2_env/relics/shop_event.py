@@ -490,7 +490,7 @@ class MysticLighter(RelicInstance):
                 and card is not None
                 and hasattr(card, "card_type") and card.card_type == CardType.ATTACK
                 and hasattr(card, "is_enchanted") and card.is_enchanted
-                and bool(props & ValueProp.MOVE) and not bool(props & ValueProp.UNPOWERED)):
+                and props.is_powered_attack()):
             return self.EXTRA_DAMAGE
         return 0
 
@@ -692,7 +692,7 @@ class UndyingSigil(RelicInstance):
             target is owner
             and dealer is not None
             and dealer is not owner
-            and props.is_powered()
+            and props.is_powered_attack()
             and dealer.current_hp <= dealer.get_power_amount(PowerId.DOOM)
         ):
             return self.MULTIPLIER
@@ -1719,7 +1719,7 @@ class FakeStrikeDummy(RelicInstance):
     ) -> int:
         if ((dealer is owner or getattr(card, "owner", None) is owner) and card is not None
                 and hasattr(card, "tags")):
-            if CardTag.STRIKE in card.tags:
+            if CardTag.STRIKE in card.tags and props.is_powered_attack():
                 return self.EXTRA_DAMAGE
         return 0
 
@@ -2569,7 +2569,7 @@ class PaelsLegion(RelicInstance):
             target is owner
             and self._cooldown <= 0
             and card_source is not None
-            and bool(props & ValueProp.MOVE)
+            and props.is_card_or_monster_move()
         ):
             return 2.0
         return 1.0
@@ -3334,8 +3334,7 @@ class TheBoot(RelicInstance):
         dealer: Creature | None, props: ValueProp
     ) -> float:
         if (dealer is owner
-                and bool(props & ValueProp.MOVE)
-                and not bool(props & ValueProp.UNPOWERED)
+                and props.is_powered_attack()
                 and 0 < amount < self.DAMAGE_MINIMUM):
             return float(self.DAMAGE_MINIMUM)
         return amount
