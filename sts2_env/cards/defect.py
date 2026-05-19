@@ -51,6 +51,12 @@ def _evoke_front(combat: CombatState) -> None:
         queue.evoke_front(combat)
 
 
+def _passive_front(combat: CombatState) -> None:
+    queue = getattr(combat, 'orb_queue', None)
+    if queue is not None and queue.orbs:
+        queue.orbs[0].on_evoke(combat)
+
+
 def _trigger_all_passives(combat: CombatState) -> None:
     """Trigger all orb passives once."""
     queue = getattr(combat, 'orb_queue', None)
@@ -921,8 +927,11 @@ def biased_cognition(card: CardInstance, combat: CombatState, target: Creature |
 
 @register_effect(CardId.QUADCAST)
 def quadcast(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    for _ in range(4):
-        _evoke_front(combat)
+    for index in range(4):
+        if index == 3:
+            _evoke_front(combat)
+        else:
+            _passive_front(combat)
 
 
 # ---------------------------------------------------------------------------

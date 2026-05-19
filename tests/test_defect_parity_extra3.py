@@ -8,34 +8,47 @@ from sts2_env.cards.defect import (
     make_all_for_one,
     make_biased_cognition,
     make_boost_away,
+    make_boot_sequence,
+    make_bulk_up,
     make_claw,
     make_cold_snap,
     make_consuming_shadow,
     make_creative_ai,
     make_darkness,
     make_defend_defect,
+    make_double_energy,
     make_fight_through,
     make_flak_cannon,
     make_ftl,
+    make_fusion,
     make_genetic_algorithm,
+    make_glasswork,
     make_go_for_the_eyes,
     make_gunk_up,
     make_helix_drill,
     make_hyperbeam,
     make_ice_lance,
+    make_leap,
     make_lightning_rod,
     make_machine_learning,
+    make_meteor_strike,
     make_momentum_strike,
+    make_modded,
     make_overclock,
+    make_quadcast,
     make_refract,
     make_reboot,
     make_shatter,
+    make_shadow_shield,
     make_signal_boost,
+    make_skim,
     make_strike_defect,
+    make_synthesis,
     make_sweeping_beam,
     make_tempest,
     make_tesla_coil,
     make_thunder,
+    make_uproar,
     make_voltaic,
 )
 from sts2_env.cards.factory import create_card
@@ -73,6 +86,68 @@ def _make_combat(monster_factory=create_shrinker_beetle, *, extra_enemies: int =
 
 
 class TestDefectParityExtra3:
+    def test_leap_gains_block(self):
+        combat = _make_combat()
+        combat.hand = [make_leap()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+
+        assert combat.player.block == 9
+
+    def test_boot_sequence_gains_block_and_exhausts(self):
+        combat = _make_combat()
+        card = make_boot_sequence()
+        combat.hand = [card]
+        combat.energy = 0
+
+        assert combat.play_card(0)
+
+        assert combat.player.block == 10
+        assert card in combat.exhaust_pile
+
+    def test_bulk_up_removes_slot_and_grants_strength_dexterity(self):
+        combat = _make_combat()
+        combat.orb_queue.capacity = 3
+        combat.hand = [make_bulk_up()]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+
+        assert combat.orb_queue.capacity == 2
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == 2
+        assert combat.player.get_power_amount(PowerId.DEXTERITY) == 2
+
+    def test_double_energy_gains_energy_equal_to_remaining_energy_after_cost(self):
+        combat = _make_combat()
+        combat.hand = [make_double_energy()]
+        combat.energy = 3
+
+        assert combat.play_card(0)
+
+        assert combat.energy == 4
+
+    def test_fusion_channels_plasma(self):
+        combat = _make_combat()
+        combat.hand = [make_fusion()]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+
+        assert len(combat.orb_queue.orbs) == 1
+        assert combat.orb_queue.orbs[0].orb_type == OrbType.PLASMA
+
+    def test_glasswork_gains_block_and_channels_glass(self):
+        combat = _make_combat()
+        combat.hand = [make_glasswork()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+
+        assert combat.player.block == 5
+        assert len(combat.orb_queue.orbs) == 1
+        assert combat.orb_queue.orbs[0].orb_type == OrbType.GLASS
+
     def test_cold_snap_deals_damage_and_channels_frost(self):
         """Matches ColdSnap.cs: attack target, then channel one Frost orb."""
         combat = _make_combat()
@@ -255,6 +330,17 @@ class TestDefectParityExtra3:
         assert len(combat.hand) == 4
         assert {id(card) for card in combat.hand} == {id(held_a), id(held_b), id(draw_a), id(draw_b)}
         assert combat.draw_pile == []
+
+    def test_skim_draws_three_cards(self):
+        combat = _make_combat()
+        drawn = [make_strike_defect(), make_defend_defect(), make_strike_defect()]
+        combat.hand = [make_skim()]
+        combat.draw_pile = list(drawn)
+        combat.energy = 1
+
+        assert combat.play_card(0)
+
+        assert combat.hand == drawn
 
     def test_all_for_one_returns_only_zero_cost_non_x_attack_skill_power_cards(self):
         """Matches AllForOne.cs: discard filter is zero energy, non-X, Attack/Skill/Power only."""
@@ -584,6 +670,84 @@ class TestDefectParityExtra3:
         assert len(copies) == 1
         assert copies[0].cost == 0
         assert copies[0].owner is combat.player
+
+    def test_shadow_shield_gains_block_and_channels_dark(self):
+        combat = _make_combat()
+        combat.hand = [make_shadow_shield()]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+
+        assert combat.player.block == 11
+        assert len(combat.orb_queue.orbs) == 1
+        assert combat.orb_queue.orbs[0].orb_type == OrbType.DARK
+
+    def test_synthesis_damages_and_grants_next_power_free(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        starting_hp = enemy.current_hp
+        combat.hand = [make_synthesis()]
+        combat.energy = 2
+
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == starting_hp - 12
+        assert combat.player.get_power_amount(PowerId.FREE_POWER) == 1
+
+    def test_meteor_strike_deals_damage_and_channels_three_plasma(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        combat.hand = [make_meteor_strike()]
+        combat.energy = 5
+
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == 76
+        assert len(combat.orb_queue.orbs) == 3
+        assert all(orb.orb_type == OrbType.PLASMA for orb in combat.orb_queue.orbs)
+
+    def test_modded_adds_slot_draws_and_raises_own_cost(self):
+        combat = _make_combat()
+        card = make_modded()
+        drawn = make_strike_defect()
+        combat.orb_queue.capacity = 3
+        combat.hand = [card]
+        combat.draw_pile = [drawn]
+        combat.energy = 0
+
+        assert combat.play_card(0)
+
+        assert combat.orb_queue.capacity == 4
+        assert drawn in combat.hand
+        assert card.cost == 1
+
+    def test_quadcast_triggers_front_orb_four_times_and_removes_once(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        combat.channel_orb(combat.player, "LIGHTNING")
+        combat.hand = [make_quadcast()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+
+        assert enemy.current_hp == 68
+        assert not combat.orb_queue.orbs
+
+    def test_uproar_hits_twice_then_autoplays_draw_pile_attack(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        attack = make_strike_defect()
+        combat.hand = [make_uproar()]
+        combat.draw_pile = [attack]
+        combat.energy = 2
+
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == 100 - 10 - 6
+        assert attack in combat.discard_pile
 
     def test_tempest_uses_x_energy_and_upgrade_adds_one_channel(self):
         """Matches Tempest.cs: channel X Lightning, and X+1 when upgraded."""

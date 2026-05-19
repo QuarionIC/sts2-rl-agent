@@ -21,6 +21,14 @@ The detailed backlog sections below were captured as the pre-pass baseline. Afte
 
 Latest local pass also added direct coverage for:
 
+- Cards: `BOOT_SEQUENCE`, `BULK_UP`, `DOUBLE_ENERGY`, `FUSION`, `GLASSWORK`, `LEAP`, `METEOR_STRIKE`, `MODDED`, `QUADCAST`, `SHADOW_SHIELD`, `SKIM`, `SYNTHESIS`, `UPROAR`
+
+This pass also exposed and fixed the following logic mismatch:
+
+- `Quadcast`: it now triggers the front orb three times without removing it, then removes it on the fourth evoke, matching the original.
+
+Latest local pass also added direct coverage for:
+
 - Cards: `ADAPTIVE_STRIKE`, `HELIX_DRILL`, `MOMENTUM_STRIKE`, `TESLA_COIL`, `VOLTAIC`
 
 This pass also exposed and fixed the following logic mismatches:
