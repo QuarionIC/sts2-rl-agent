@@ -642,6 +642,26 @@ class TestNecrobinderParityExtra4:
         assert combat.play_card(0, 0)
         assert enemy.current_hp == 95
 
+    def test_pull_from_below_counts_card_that_was_ethereal_when_played(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = REFERENCE_ENEMY_HP
+        ethereal_by_hex = make_defend_necrobinder()
+        combat.hand = [ethereal_by_hex]
+        combat.energy = 1
+        combat.apply_power_to(combat.player, PowerId.HEX, 1, applier=enemy)
+
+        assert ethereal_by_hex.is_ethereal
+        assert combat.play_card(0)
+
+        combat._remove_power(combat.player, PowerId.HEX)
+        assert not ethereal_by_hex.is_ethereal
+
+        combat.hand = [make_pull_from_below()]
+        combat.energy = 1
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == REFERENCE_ENEMY_HP - 5
+
     def test_sculpting_strike_attacks_then_makes_selected_hand_card_ethereal(self):
         combat = _make_combat()
         enemy = combat.enemies[0]
@@ -885,6 +905,24 @@ class TestNecrobinderParityExtra4:
         later.end_of_turn_cleanup()
         assert held.cost == 2
         assert later.cost == 2
+
+    def test_banshees_cry_cost_uses_ethereal_state_from_when_card_was_played(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        ethereal_by_hex = make_defend_necrobinder()
+        combat.hand = [ethereal_by_hex]
+        combat.energy = 1
+        combat.apply_power_to(combat.player, PowerId.HEX, 1, applier=enemy)
+
+        assert ethereal_by_hex.is_ethereal
+        assert combat.play_card(0)
+
+        combat._remove_power(combat.player, PowerId.HEX)
+        assert not ethereal_by_hex.is_ethereal
+
+        watcher = make_banshees_cry()
+        combat.move_card_to_creature_hand(combat.player, watcher)
+        assert watcher.cost == watcher.original_cost - watcher.effect_vars["energy"]
 
     def test_flatten_uses_osty_damage_and_makes_other_flatten_free_this_turn(self):
         combat = _make_combat()

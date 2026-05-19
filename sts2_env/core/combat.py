@@ -74,6 +74,12 @@ class CardPlayStartedEntry:
     energy_value: int
 
 
+@dataclass(frozen=True)
+class CardPlayFinishedEntry:
+    card: CardInstance
+    was_ethereal: bool
+
+
 class CombatState:
     """Full state of a single combat encounter."""
 
@@ -169,6 +175,7 @@ class CombatState:
         self._legacy_extra_card_rewards: int = 0
         self._played_cards_this_turn: list[CardInstance] = []
         self._played_cards_combat: list[CardInstance] = []
+        self._card_play_finished_entries_combat: list[CardPlayFinishedEntry] = []
         self._card_play_starts_this_turn: list[CardPlayStartedEntry] = []
         self._card_play_round_counts: dict[tuple[int, Creature], int] = {}
 
@@ -763,6 +770,7 @@ class CombatState:
         self._orb_channel_events_combat = []
         self._played_cards_this_turn = []
         self._played_cards_combat = []
+        self._card_play_finished_entries_combat = []
         self._card_play_starts_this_turn = []
         self._card_play_round_counts = {}
         self.extra_card_rewards = 0
@@ -983,8 +991,8 @@ class CombatState:
         elif card.card_id == CardId.BANSHEES_CRY:
             amount = sum(
                 1
-                for played in self._played_cards_combat
-                if played.is_ethereal and getattr(played, "owner", None) is owner
+                for entry in self._card_play_finished_entries_combat
+                if entry.was_ethereal and getattr(entry.card, "owner", None) is owner
             ) * card.effect_vars.get("energy", 2)
             if amount > 0:
                 card.set_combat_cost(max(0, card.cost - amount))
@@ -1481,6 +1489,9 @@ class CombatState:
     def _finish_card_play(self, card: CardInstance, owner: Creature) -> None:
         self._played_cards_this_turn.append(card)
         self._played_cards_combat.append(card)
+        self._card_play_finished_entries_combat.append(
+            CardPlayFinishedEntry(card, card.is_ethereal)
+        )
         self._record_finished_card_play(owner)
 
     def _record_finished_card_play(self, owner: Creature) -> None:
@@ -3153,6 +3164,13 @@ class CombatState:
             for card in self._played_cards_combat
             if getattr(card, "owner", None) is owner
             and (card_type is None or card.card_type == card_type)
+        )
+
+    def count_ethereal_cards_played_this_combat(self, owner: Creature) -> int:
+        return sum(
+            1
+            for entry in self._card_play_finished_entries_combat
+            if entry.was_ethereal and getattr(entry.card, "owner", None) is owner
         )
 
     def count_cards_played_last_round(self, owner: Creature) -> int:

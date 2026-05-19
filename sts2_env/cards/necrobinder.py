@@ -571,11 +571,7 @@ def pull_from_below(card: CardInstance, combat: CombatState, target: Creature | 
     """Deal damage multiple times — scales with ethereal cards played this combat."""
     assert target is not None
     owner = _owner(card, combat)
-    hits = sum(
-        1
-        for played in combat._played_cards_combat
-        if getattr(played, "owner", None) is owner and played.is_ethereal
-    )
+    hits = combat.count_ethereal_cards_played_this_combat(owner)
     for _ in range(hits):
         if owner.is_dead or target.is_dead:
             break
