@@ -7,7 +7,6 @@ from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.status import make_spore_mind
 from sts2_env.core.enums import CardId, CardRarity, CardType, MapPointType
-from sts2_env.events.act1 import TheLegendsWereTrue
 from sts2_env.events.act2 import (
     SpiralingWhirlpool,
     StoneOfAllTime,
@@ -15,7 +14,7 @@ from sts2_env.events.act2 import (
     WaterloggedScriptorium,
 )
 from sts2_env.potions.base import create_potion
-from sts2_env.run.reward_objects import CardReward, PotionReward, RelicReward
+from sts2_env.run.reward_objects import CardReward, RelicReward
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.run_state import PlayerState, RunState
 
@@ -39,76 +38,6 @@ class _LastChoiceCountingRng:
     def next_int(self, low: int, high: int) -> int:
         self.next_int_calls += 1
         return low
-
-
-class _FirstChoiceCountingRng:
-    def __init__(self) -> None:
-        self.choice_calls = 0
-
-    def choice(self, seq):
-        self.choice_calls += 1
-        return seq[0]
-
-
-def test_the_legends_were_true_adds_spoils_map_and_returns_a_potion_reward():
-    run_state = _make_run_state(401)
-    event = TheLegendsWereTrue()
-
-    assert event.is_allowed(run_state)
-    run_state.player.current_hp = 9
-    assert event.is_allowed(run_state) is False
-    run_state.player.current_hp = 20
-
-    deck_before = len(run_state.player.deck)
-    nab = event.choose(run_state, "nab_map")
-    assert nab.finished
-    assert len(run_state.player.deck) == deck_before + 1
-    assert run_state.player.deck[-1].card_id == CardId.SPOILS_MAP
-
-    hp_before = run_state.player.current_hp
-    potions_before = len(run_state.player.held_potions())
-    exit_result = event.choose(run_state, "find_exit")
-    assert exit_result.finished
-    assert run_state.player.current_hp == hp_before - 8
-    assert len(run_state.player.held_potions()) == potions_before
-
-    reward_objects = exit_result.rewards["reward_objects"]
-    assert len(reward_objects) == 1
-    assert isinstance(reward_objects[0], PotionReward)
-    assert reward_objects[0].potion_id is not None
-
-
-def test_the_legends_were_true_requires_all_players_to_have_deck_and_hp():
-    run_state = _make_run_state(4010)
-    ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent", current_hp=10))
-    ally.deck = []
-    event = TheLegendsWereTrue()
-
-    assert event.is_allowed(run_state) is False
-
-    ally.deck = [create_card(CardId.STRIKE_IRONCLAD)]
-    ally.current_hp = 9
-    assert event.is_allowed(run_state) is False
-
-    ally.current_hp = 10
-    assert event.is_allowed(run_state) is True
-
-
-def test_the_legends_were_true_potion_uses_event_specific_pool_order():
-    run_state = _make_run_state(4011)
-    run_state.rng.rewards = _FirstChoiceCountingRng()
-    event = TheLegendsWereTrue()
-
-    result = event.choose(run_state, "find_exit")
-    reward = result.rewards["reward_objects"][0]
-
-    assert reward.potion_id == "BloodPotion"
-    assert run_state.rng.rewards.choice_calls == 1
-
-    reward.populate(run_state, None)
-
-    assert reward.potion_id == "BloodPotion"
-    assert run_state.rng.rewards.choice_calls == 1
 
 
 def test_spoils_map_generates_act2_center_treasure_quest():

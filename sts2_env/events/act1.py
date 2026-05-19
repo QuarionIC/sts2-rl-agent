@@ -17,6 +17,20 @@ if TYPE_CHECKING:
     from sts2_env.run.run_state import RunState
 
 
+_BRAIN_LEECH_RIP_HP_LOSS = 5
+_BRAIN_LEECH_REWARD_COUNT = 1
+_BRAIN_LEECH_RIP_CARD_OPTION_COUNT = 3
+_BRAIN_LEECH_SHARE_CARD_CHOICE_COUNT = 1
+_BRAIN_LEECH_SHARE_FROM_CARD_CHOICE_COUNT = 5
+_ROOM_FULL_OF_CHEESE_SEARCH_HP_LOSS = 14
+_ROOM_FULL_OF_CHEESE_GORGE_CARD_CHOICE_COUNT = 2
+_ROOM_FULL_OF_CHEESE_GORGE_FROM_CARD_CHOICE_COUNT = 8
+_THE_LEGENDS_WERE_TRUE_MIN_HP = 10
+_THE_LEGENDS_WERE_TRUE_EXIT_HP_LOSS = 8
+_TEA_MASTER_BONE_TEA_COST = 50
+_TEA_MASTER_EMBER_TEA_COST = 150
+
+
 # ── BrainLeech ────────────────────────────────────────────────────────
 
 class BrainLeech(EventModel):
@@ -38,7 +52,7 @@ class BrainLeech(EventModel):
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "rip":
-            run_state.player.lose_hp(5)
+            run_state.player.lose_hp(_BRAIN_LEECH_RIP_HP_LOSS)
             return EventResult(
                 finished=True,
                 description="Took 5 damage, gained a colorless card.",
@@ -46,12 +60,14 @@ class BrainLeech(EventModel):
                     "reward_objects": [
                         CardReward(
                             run_state.player.player_id,
+                            option_count=_BRAIN_LEECH_RIP_CARD_OPTION_COUNT,
                             character_ids=(),
                             include_colorless=True,
                             generation_context=None,
                             roll_upgrade=False,
                             use_default_character_pool=False,
                         )
+                        for _ in range(_BRAIN_LEECH_REWARD_COUNT)
                     ]
                 },
             )
@@ -62,7 +78,8 @@ class BrainLeech(EventModel):
                 "reward_objects": [
                     CardReward(
                         run_state.player.player_id,
-                        option_count=5,
+                        option_count=_BRAIN_LEECH_SHARE_FROM_CARD_CHOICE_COUNT,
+                        cards_to_pick=_BRAIN_LEECH_SHARE_CARD_CHOICE_COUNT,
                         skippable=False,
                         generation_context=None,
                         roll_upgrade=False,
@@ -104,17 +121,19 @@ class RoomFullOfCheese(EventModel):
                     "reward_objects": [
                         CardReward(
                             run_state.player.player_id,
-                            option_count=8,
-                            cards_to_pick=2,
+                            option_count=_ROOM_FULL_OF_CHEESE_GORGE_FROM_CARD_CHOICE_COUNT,
+                            cards_to_pick=_ROOM_FULL_OF_CHEESE_GORGE_CARD_CHOICE_COUNT,
                             skippable=False,
-                            forced_rarities=(CardRarity.COMMON,) * 8,
+                            forced_rarities=(
+                                CardRarity.COMMON,
+                            ) * _ROOM_FULL_OF_CHEESE_GORGE_FROM_CARD_CHOICE_COUNT,
                             generation_context=None,
                             roll_upgrade=False,
                         )
                     ]
                 },
             )
-        run_state.player.lose_hp(14)
+        run_state.player.lose_hp(_ROOM_FULL_OF_CHEESE_SEARCH_HP_LOSS)
         if _should_defer_event_rewards(run_state):
             return _event_result_with_rewards(
                 "Took 14 damage, gained Chosen Cheese relic.",
@@ -141,7 +160,7 @@ class TheLegendsWereTrue(EventModel):
         return (
             run_state.current_act_index == 0
             and all(len(player.deck) > 0 for player in run_state.players)
-            and all(player.current_hp >= 10 for player in run_state.players)
+            and all(player.current_hp >= _THE_LEGENDS_WERE_TRUE_MIN_HP for player in run_state.players)
         )
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
@@ -160,7 +179,7 @@ class TheLegendsWereTrue(EventModel):
                 )
             run_state.player.add_card_instance_to_deck(create_card(CardId.SPOILS_MAP))
             return EventResult(finished=True, description="Gained Spoils Map card.")
-        run_state.player.lose_hp(8)
+        run_state.player.lose_hp(_THE_LEGENDS_WERE_TRUE_EXIT_HP_LOSS)
         reward_objects = []
         potion_id = _roll_event_potion_id(run_state)
         if potion_id is not None:
@@ -184,29 +203,32 @@ class TeaMaster(EventModel):
     event_id = "TeaMaster"
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return run_state.current_act_index < 2 and all(player.gold >= 150 for player in run_state.players)
+        return (
+            run_state.current_act_index < 2
+            and all(player.gold >= _TEA_MASTER_EMBER_TEA_COST for player in run_state.players)
+        )
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         gold = run_state.player.gold
         return [
             EventOption(
                 "bone_tea",
-                "Bone Tea (50g)" if gold >= 50 else "Bone Tea",
+                "Bone Tea (50g)" if gold >= _TEA_MASTER_BONE_TEA_COST else "Bone Tea",
                 "Gain Bone Tea relic",
-                enabled=gold >= 50,
+                enabled=gold >= _TEA_MASTER_BONE_TEA_COST,
             ),
             EventOption(
                 "ember_tea",
-                "Ember Tea (150g)" if gold >= 150 else "Ember Tea",
+                "Ember Tea (150g)" if gold >= _TEA_MASTER_EMBER_TEA_COST else "Ember Tea",
                 "Gain Ember Tea relic",
-                enabled=gold >= 150,
+                enabled=gold >= _TEA_MASTER_EMBER_TEA_COST,
             ),
             EventOption("discourtesy", "Tea of Discourtesy", "Free: gain Tea of Discourtesy relic"),
         ]
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "bone_tea":
-            run_state.player.lose_gold(50)
+            run_state.player.lose_gold(_TEA_MASTER_BONE_TEA_COST)
             if _should_defer_event_rewards(run_state):
                 return _event_result_with_rewards(
                     "Paid 50g, gained Bone Tea relic.",
@@ -215,7 +237,7 @@ class TeaMaster(EventModel):
             run_state.player.obtain_relic("BONE_TEA")
             return EventResult(finished=True, description="Paid 50g, gained Bone Tea relic.")
         if option_id == "ember_tea":
-            run_state.player.lose_gold(150)
+            run_state.player.lose_gold(_TEA_MASTER_EMBER_TEA_COST)
             if _should_defer_event_rewards(run_state):
                 return _event_result_with_rewards(
                     "Paid 150g, gained Ember Tea relic.",
