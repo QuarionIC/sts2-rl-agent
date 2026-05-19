@@ -20,6 +20,13 @@ from sts2_env.run.rewards import (
 )
 
 
+PANDORAS_BOX_RELIC_ID = "PANDORAS_BOX"
+DRAFT_REWARD_COUNT = 10
+DRAFT_REWARD_OPTION_COUNT = 3
+INSANITY_CARD_COUNT = 30
+ALL_STAR_CARD_COUNT = 5
+
+
 @dataclass
 class ModifierModel:
     modifier_id: str
@@ -85,7 +92,7 @@ class ModifierModel:
 
     def _remove_pandoras_box(self, run_state) -> None:
         for player in run_state.players:
-            player.remove_relic_from_grab_bag("PANDORAS_BOX")
+            player.remove_relic_from_grab_bag(PANDORAS_BOX_RELIC_ID)
 
 
 class DraftModifier(ModifierModel):
@@ -96,12 +103,12 @@ class DraftModifier(ModifierModel):
         rewards = [
             CardReward(
                 run_state.player.player_id,
-                option_count=3,
+                option_count=DRAFT_REWARD_OPTION_COUNT,
                 skippable=False,
                 generation_context=None,
                 roll_upgrade=False,
             )
-            for _ in range(10)
+            for _ in range(DRAFT_REWARD_COUNT)
         ]
         self._remove_pandoras_box(run_state)
         return EventResult(
@@ -118,13 +125,16 @@ class InsanityModifier(ModifierModel):
     def generate_neow_event_result(self, run_state) -> EventResult:
         cards = generate_uniform_noncombat_cards(
             run_state,
-            num_cards=30,
+            num_cards=INSANITY_CARD_COUNT,
             distinct=False,
         )
         for card in cards:
             run_state.player.add_card_instance_to_deck(card)
         self._remove_pandoras_box(run_state)
-        return EventResult(finished=True, description="Added 30 random cards.")
+        return EventResult(
+            finished=True,
+            description=f"Added {INSANITY_CARD_COUNT} random cards.",
+        )
 
 
 class AllStarModifier(ModifierModel):
@@ -134,14 +144,17 @@ class AllStarModifier(ModifierModel):
     def generate_neow_event_result(self, run_state) -> EventResult:
         cards = generate_uniform_noncombat_cards(
             run_state,
-            num_cards=5,
+            num_cards=ALL_STAR_CARD_COUNT,
             character_ids=(),
             include_colorless=True,
             distinct=False,
         )
         for card in cards:
             run_state.player.add_card_instance_to_deck(card)
-        return EventResult(finished=True, description="Added 5 random colorless cards.")
+        return EventResult(
+            finished=True,
+            description=f"Added {ALL_STAR_CARD_COUNT} random colorless cards.",
+        )
 
 
 class MurderousModifier(ModifierModel):

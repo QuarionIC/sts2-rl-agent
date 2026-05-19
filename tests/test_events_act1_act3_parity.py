@@ -16,7 +16,7 @@ from sts2_env.events.act3 import (
     WarHistorianRepy,
 )
 from sts2_env.monsters.act1_weak import create_twig_slime_s
-from sts2_env.relics.base import RelicId
+from sts2_env.relics.base import RelicId, RelicRarity
 from sts2_env.run.modifiers import (
     AllStarModifier,
     BigGameHunterModifier,
@@ -24,10 +24,12 @@ from sts2_env.run.modifiers import (
     CursedRunModifier,
     DeadlyEventsModifier,
     DraftModifier,
+    InsanityModifier,
     MidasModifier,
     ModifierModel,
     MurderousModifier,
     NightTerrorsModifier,
+    PANDORAS_BOX_RELIC_ID,
     SealedDeckModifier,
     TerminalModifier,
     VintageModifier,
@@ -39,6 +41,12 @@ from sts2_env.run.rooms import RoomVisitContext, create_room
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.run_state import PlayerState, RunState
 from sts2_env.run.shop import _create_character_shop_card
+
+
+IRONCLAD_CHARACTER_ID = "Ironclad"
+INSANITY_PARITY_SEED = 818
+INSANITY_EXPECTED_CARD_COUNT = 30
+INSANITY_EXPECTED_DECK_SIZE = INSANITY_EXPECTED_CARD_COUNT
 
 
 class _NeowChoiceRng:
@@ -331,6 +339,25 @@ def test_neow_all_star_modifier_adds_five_colorless_cards():
     assert result.finished
     assert len(run_state.player.deck) == 15
     assert all(card.card_id not in {CardId.BASH, CardId.STRIKE_IRONCLAD, CardId.DEFEND_IRONCLAD} for card in run_state.player.deck[-5:])
+
+
+def test_neow_insanity_modifier_adds_thirty_random_cards_and_removes_pandoras_box():
+    run_state = RunState(seed=INSANITY_PARITY_SEED, character_id=IRONCLAD_CHARACTER_ID)
+    run_state.player.deck = create_ironclad_starter_deck()
+    run_state.player.relic_grab_bag = [PANDORAS_BOX_RELIC_ID]
+    run_state.player.relic_grab_bag_by_rarity = {RelicRarity.ANCIENT: [PANDORAS_BOX_RELIC_ID]}
+    run_state.player.relic_grab_bag_fallback = [PANDORAS_BOX_RELIC_ID]
+    modifier = InsanityModifier()
+    modifier.on_run_created(run_state)
+
+    result = modifier.generate_neow_event_result(run_state)
+
+    assert result.finished
+    assert len(run_state.player.deck) == INSANITY_EXPECTED_DECK_SIZE
+    assert all(card.card_id in get_character(IRONCLAD_CHARACTER_ID).card_pool for card in run_state.player.deck)
+    assert PANDORAS_BOX_RELIC_ID not in run_state.player.relic_grab_bag
+    assert all(PANDORAS_BOX_RELIC_ID not in relic_ids for relic_ids in run_state.player.relic_grab_bag_by_rarity.values())
+    assert PANDORAS_BOX_RELIC_ID not in run_state.player.relic_grab_bag_fallback
 
 
 def test_murderous_modifier_applies_strength_to_combat_creatures_and_added_enemies():
