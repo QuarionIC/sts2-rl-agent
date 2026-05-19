@@ -2305,6 +2305,20 @@ class CombatState:
             and (exclude_card_play is _NO_CARD_PLAY_FILTER or card_play is not exclude_card_play)
         )
 
+    def count_card_or_monster_move_block_gained_events_this_turn(
+        self,
+        target: Creature,
+        *,
+        exclude_card_play: object | None = _NO_CARD_PLAY_FILTER,
+    ) -> int:
+        return sum(
+            1
+            for logged_target, props, card_play in self._block_events_this_turn
+            if logged_target is target
+            and props.is_card_or_monster_move()
+            and (exclude_card_play is _NO_CARD_PLAY_FILTER or card_play is not exclude_card_play)
+        )
+
     def count_non_hand_draws_this_turn(self, owner: Creature) -> int:
         return sum(
             1

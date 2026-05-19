@@ -1775,20 +1775,17 @@ class UnmovablePower(PowerInstance):
 
     def modify_block_multiplicative(
         self, owner: Creature, target: Creature, props: ValueProp,
-        card_source: object | None = None, card_play: object | None = None,
-        combat: CombatState | None = None,
+        card_source: object | None, card_play: object | None,
+        combat: CombatState,
     ) -> float:
         if target.side == CombatSide.ENEMY:
             return 1.0
-        if not bool(props & ValueProp.MOVE):
+        if not props.is_card_or_monster_move():
             return 1.0
         if card_source is not None and getattr(card_source, "owner", None) is not owner:
             return 1.0
-        if combat is None:
-            return 2.0
-        count = combat.count_block_gained_events_this_turn(
+        count = combat.count_card_or_monster_move_block_gained_events_this_turn(
             target,
-            props_mask=ValueProp.MOVE,
             exclude_card_play=card_play,
         )
         if count >= self.amount:

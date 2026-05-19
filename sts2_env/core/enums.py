@@ -58,8 +58,11 @@ class ValueProp(IntFlag):
     MOVE = 8
     SKIP_HURT_ANIM = 16
 
+    def is_card_or_monster_move(self) -> bool:
+        return bool(self & ValueProp.MOVE)
+
     def is_powered(self) -> bool:
-        return bool(self & ValueProp.MOVE) and not bool(self & ValueProp.UNPOWERED)
+        return self.is_card_or_monster_move() and not bool(self & ValueProp.UNPOWERED)
 
 
 class CardKeyword(Enum):
