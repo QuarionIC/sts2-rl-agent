@@ -352,3 +352,34 @@ class TestDeferredChoiceParity:
         assert len(generated) == 4
         assert sum(1 for card in generated if card.base_damage == 6) == 3
         assert sum(1 for card in generated if card.base_damage == 99) == 1
+
+    def test_multiple_nightmares_keep_separate_selected_cards(self):
+        """Matches NightmarePower.cs: each applied instance stores its own selected card."""
+        combat = _make_combat([], "Silent")
+        combat.start_combat()
+
+        strike = make_strike_silent()
+        defend = make_defend_silent()
+        combat.hand = [make_nightmare(), strike, defend]
+        combat.energy = 6
+
+        assert combat.play_card(0)
+        assert combat.pending_choice is not None
+        assert combat.resolve_pending_choice(0)
+
+        combat.hand.insert(0, make_nightmare())
+        assert combat.play_card(0)
+        assert combat.pending_choice is not None
+        assert combat.resolve_pending_choice(1)
+
+        power = combat.player.powers[PowerId.NIGHTMARE]
+        strike.base_damage = 99
+        defend.base_block = 99
+        power.before_hand_draw(combat.player, combat)
+
+        generated_strikes = [card for card in combat.hand if card.card_id == CardId.STRIKE_SILENT]
+        generated_defends = [card for card in combat.hand if card.card_id == CardId.DEFEND_SILENT]
+        assert len(generated_strikes) == 4
+        assert len(generated_defends) == 4
+        assert sum(1 for card in generated_strikes if card.base_damage == 6) == 3
+        assert sum(1 for card in generated_defends if card.base_block == 5) == 3

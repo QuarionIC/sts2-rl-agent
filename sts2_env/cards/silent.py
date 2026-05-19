@@ -796,9 +796,11 @@ def nightmare(card: CardInstance, combat: CombatState, target: Creature | None) 
         if selected is None:
             return
         owner = _owner(card, combat)
+        before_amount = owner.get_power_amount(PowerId.NIGHTMARE)
         combat.apply_power_to(owner, PowerId.NIGHTMARE, 3)
         power = owner.powers.get(PowerId.NIGHTMARE)
         if power is not None and hasattr(power, "set_selected_card"):
+            power.amount = max(0, power.amount - before_amount)
             power.set_selected_card(selected)
 
     combat.request_card_choice(

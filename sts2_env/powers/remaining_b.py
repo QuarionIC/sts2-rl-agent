@@ -1081,6 +1081,7 @@ class NightmarePower(PowerInstance):
     def __init__(self, amount: int):
         super().__init__(PowerId.NIGHTMARE, amount)
         self.selected_card: object | None = None
+        self._selected_cards: list[tuple[object, int]] = []
 
     def set_selected_card(self, card: object) -> None:
         """Store the card to be cloned next turn."""
@@ -1089,14 +1090,18 @@ class NightmarePower(PowerInstance):
             self.selected_card = clone(0)
         else:
             self.selected_card = card
+        self._selected_cards.append((self.selected_card, self.amount))
 
     def before_hand_draw(self, owner: Creature, combat: CombatState) -> None:
-        if owner.is_player and self.selected_card is not None:
+        if owner.is_player and self._selected_cards:
             clone_fn = getattr(combat, "clone_card_to_hand", None)
             if clone_fn is not None:
-                for _ in range(self.amount):
-                    clone_fn(owner, self.selected_card)
-            self.amount = 0
+                for selected_card, amount in self._selected_cards:
+                    for _ in range(amount):
+                        clone_fn(owner, selected_card)
+            self._selected_cards.clear()
+            self.selected_card = None
+            owner.powers.pop(self.power_id, None)
 
 
 # ---------------------------------------------------------------------------
