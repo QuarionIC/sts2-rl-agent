@@ -95,8 +95,8 @@ class TestDefend:
     def test_defend_with_dexterity(self, small_combat):
         """Dexterity adds to Defend block."""
         small_combat.player.apply_power(PowerId.DEXTERITY, 2)
-        defend = make_defend_ironclad()
-        play_card_effect(defend, small_combat, None)
+        small_combat.hand = [make_defend_ironclad()]
+        assert small_combat.play_card(0)
         assert small_combat.player.block == 7  # 5 + 2
 
     def test_defend_stacks_block(self, small_combat):

@@ -84,7 +84,7 @@ class NoBlockPower(PowerInstance):
     ) -> float:
         if target is not owner:
             return 1.0
-        if bool(props & ValueProp.UNPOWERED):
+        if props.is_unpowered():
             return 1.0
         if card_source is None:
             return 1.0

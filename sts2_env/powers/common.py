@@ -25,7 +25,7 @@ class StrengthPower(PowerInstance):
     def modify_damage_additive(
         self, owner: Creature, dealer: Creature | None, target: Creature, props: ValueProp
     ) -> int:
-        if dealer is owner and props.is_powered():
+        if dealer is owner and props.is_powered_attack():
             return self.amount
         return 0
 
@@ -44,9 +44,14 @@ class DexterityPower(PowerInstance):
         self, owner: Creature, target: Creature, props: ValueProp,
         card_source: object | None = None, card_play: object | None = None,
     ) -> int:
-        if target is owner and props.is_powered():
-            return self.amount
-        return 0
+        if card_source is not None:
+            if getattr(card_source, "owner", None) is not owner:
+                return 0
+        elif target is not owner:
+            return 0
+        if not props.is_powered_card_or_monster_move_block():
+            return 0
+        return self.amount
 
 
 class VulnerablePower(PowerInstance):
@@ -61,7 +66,7 @@ class VulnerablePower(PowerInstance):
     def modify_damage_multiplicative(
         self, owner: Creature, dealer: Creature | None, target: Creature, props: ValueProp
     ) -> float:
-        if target is owner and props.is_powered():
+        if target is owner and props.is_powered_attack():
             multiplier = VULNERABLE_MULTIPLIER
             if dealer is not None:
                 cruelty = dealer.powers.get(PowerId.CRUELTY)
@@ -91,7 +96,7 @@ class WeakPower(PowerInstance):
     def modify_damage_multiplicative(
         self, owner: Creature, dealer: Creature | None, target: Creature, props: ValueProp
     ) -> float:
-        if dealer is owner and props.is_powered():
+        if dealer is owner and props.is_powered_attack():
             multiplier = WEAK_MULTIPLIER
             if owner.has_power(PowerId.DEBILITATE):
                 multiplier -= 1.0 - multiplier
@@ -119,7 +124,7 @@ class FrailPower(PowerInstance):
         card_source: object | None = None, card_play: object | None = None,
         combat: CombatState | None = None,
     ) -> float:
-        if target is owner and props.is_powered():
+        if target is owner and props.is_powered_card_or_monster_move_block():
             return FRAIL_MULTIPLIER
         return 1.0
 

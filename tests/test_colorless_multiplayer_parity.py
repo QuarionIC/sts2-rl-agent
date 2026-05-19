@@ -5,7 +5,7 @@ from sts2_env.cards.colorless import make_believe_in_you, make_huddle_up, make_l
 from sts2_env.cards.ironclad_basic import make_strike_ironclad
 from sts2_env.core.combat import CombatState
 from sts2_env.core.creature import Creature
-from sts2_env.core.enums import CardId, CardRarity, CardType, CombatSide, TargetType
+from sts2_env.core.enums import CardId, CardRarity, CardType, CombatSide, PowerId, TargetType
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 from sts2_env.run.run_state import PlayerState
@@ -61,6 +61,38 @@ def test_ally_lift_targets_primary_player_block_without_affecting_ally():
     assert combat.play_card_from_creature(ally, 0, 0)
     assert combat.primary_player.block == 11
     assert ally.block == 0
+
+
+def test_ally_lift_uses_ally_dexterity_when_blocking_primary_player():
+    combat = _make_combat()
+    ally_state = PlayerState(player_id=2, character_id="Ironclad", max_hp=60, current_hp=60)
+    ally = combat.add_ally_player(ally_state)
+    ally_combat_state = combat.combat_player_state_for(ally)
+    assert ally_combat_state is not None
+    ally.apply_power(PowerId.DEXTERITY, 2)
+    combat.primary_player.apply_power(PowerId.DEXTERITY, 5)
+
+    card = make_lift()
+    card.owner = ally
+    ally_combat_state.hand = [card]
+    ally_combat_state.zone_map["hand"] = ally_combat_state.hand
+    ally_combat_state.energy = 1
+
+    assert combat.play_card_from_creature(ally, 0, 0)
+    assert combat.primary_player.block == 13
+
+
+def test_rally_uses_card_owner_dexterity_for_teammate_block():
+    combat = _make_combat()
+    ally_state = PlayerState(player_id=2, character_id="Ironclad", max_hp=60, current_hp=60)
+    ally = combat.add_ally_player(ally_state)
+    combat.player.apply_power(PowerId.DEXTERITY, 3)
+    ally.apply_power(PowerId.DEXTERITY, 5)
+    combat.hand = [make_rally()]
+    combat.energy = 2
+
+    assert combat.play_card(0)
+    assert ally.block == 15
 
 
 def test_ally_huddle_up_draws_cards_to_primary_player_hand():

@@ -61,8 +61,17 @@ class ValueProp(IntFlag):
     def is_card_or_monster_move(self) -> bool:
         return bool(self & ValueProp.MOVE)
 
-    def is_powered(self) -> bool:
+    def is_powered_attack(self) -> bool:
         return self.is_card_or_monster_move() and not bool(self & ValueProp.UNPOWERED)
+
+    def is_powered_card_or_monster_move_block(self) -> bool:
+        return self.is_card_or_monster_move() and not bool(self & ValueProp.UNPOWERED)
+
+    def is_unpowered(self) -> bool:
+        return bool(self & ValueProp.UNPOWERED)
+
+    def is_powered(self) -> bool:
+        return self.is_powered_attack()
 
 
 class CardKeyword(Enum):
