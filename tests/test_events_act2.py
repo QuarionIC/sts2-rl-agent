@@ -146,6 +146,7 @@ def test_potion_courier_ranwid_and_whispering_hollow_change_inventory():
     assert [reward.reward_type.name for reward in gold.rewards["reward_objects"]] == ["POTION", "POTION"]
     result = hollow.choose(run_state, "hug")
     assert not result.finished
+    assert run_state.player.current_hp == starting_hp
     hollow.resolve_pending_choice(0)
     after_ids = [card.card_id for card in run_state.player.deck]
     assert run_state.player.current_hp == starting_hp - 9

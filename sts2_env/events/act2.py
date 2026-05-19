@@ -1486,9 +1486,9 @@ class WhisperingHollow(EventModel):
                 description="Paid 50g, gained 2 potions.",
                 rewards={"reward_objects": rewards},
             )
-        run_state.player.lose_hp(9)
         candidates = run_state.player.transformable_deck_cards()
         if _should_defer_event_rewards(run_state):
+            run_state.player.lose_hp(9)
             return _event_result_with_rewards(
                 "Took 9 damage, transformed 1 card.",
                 [
@@ -1505,6 +1505,7 @@ class WhisperingHollow(EventModel):
             source_pile="deck",
             resolver=lambda selected: (
                 _transform_selected_cards(selected, run_state, rng=self.get_rng(run_state)),
+                run_state.player.lose_hp(9),
                 EventResult(finished=True, description="Took 9 damage, transformed 1 card."),
             )[-1],
             description="Choose a card to transform.",
