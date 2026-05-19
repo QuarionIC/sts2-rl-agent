@@ -13,6 +13,7 @@ import pytest
 
 from sts2_env.cards.ironclad_basic import create_ironclad_starter_deck
 from sts2_env.core.combat import CombatState
+from sts2_env.core.enums import PowerId
 from sts2_env.core.rng import Rng
 from sts2_env.encounters.events import setup_punch_off
 
@@ -253,7 +254,14 @@ class TestAct1NormalEncounters:
     def test_inklets_count(self):
         combat = _make_combat()
         setup_inklets_normal(combat, Rng(42))
-        assert len(combat.enemies) == 2
+        assert [enemy.monster_id for enemy in combat.enemies] == ["INKLET", "INKLET", "INKLET"]
+        assert [combat.enemy_ais[enemy.combat_id].current_move.state_id for enemy in combat.enemies] == [
+            "JAB_MOVE",
+            "WHIRLWIND_MOVE",
+            "JAB_MOVE",
+        ]
+        assert all(11 <= enemy.max_hp <= 17 for enemy in combat.enemies)
+        assert all(enemy.get_power_amount(PowerId.SLIPPERY) == 1 for enemy in combat.enemies)
 
     def test_mawler_count(self):
         combat = _make_combat()

@@ -248,40 +248,55 @@ def create_fogmog(rng: Rng) -> tuple[Creature, MonsterAI]:
     return creature, MonsterAI(states, "ILLUSION_MOVE")
 
 
-# ---- Inklet (HP 30-33 / 32-35 asc) ----
+# ---- Inklet (HP 11-17 / 12-18 asc) ----
 
-def create_inklet(rng: Rng, slot: str = "first") -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(30, 33)
+def create_inklet(rng: Rng, *, middle_inklet: bool = False) -> tuple[Creature, MonsterAI]:
+    min_initial_hp = 11
+    max_initial_hp = 17
+    hp = rng.next_int(min_initial_hp, max_initial_hp)
     creature = Creature(max_hp=hp, monster_id="INKLET")
+    jab_move = "JAB_MOVE"
+    whirlwind_move = "WHIRLWIND_MOVE"
+    piercing_gaze_move = "PIERCING_GAZE_MOVE"
+    rand_move = "RAND"
+    jab_dmg = 3
+    whirlwind_dmg = 2
+    whirlwind_hits = 3
+    piercing_gaze_dmg = 10
+    slippery_amount = 1
 
-    splatter_dmg = 6
-    sub_dmg = 4
-    sub_block = 8
+    def jab(combat: CombatState) -> None:
+        _deal_damage_to_player(combat, creature, jab_dmg)
 
-    def splatter(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, splatter_dmg)
+    def whirlwind(combat: CombatState) -> None:
+        _deal_damage_to_player(combat, creature, whirlwind_dmg, hits=whirlwind_hits)
 
-    def submerge(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, sub_dmg)
-        _gain_block(creature, sub_block, combat)
+    def piercing_gaze(combat: CombatState) -> None:
+        _deal_damage_to_player(combat, creature, piercing_gaze_dmg)
 
-    rand = RandomBranchState("RAND")
-    rand.add_branch("SPLATTER", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("SUBMERGE", MoveRepeatType.CANNOT_REPEAT)
+    rand = RandomBranchState(rand_move)
+    rand.add_branch(piercing_gaze_move, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(whirlwind_move, MoveRepeatType.CANNOT_REPEAT)
 
     states: dict[str, MonsterState] = {
-        "RAND": rand,
-        "SPLATTER": MoveState("SPLATTER", splatter, [attack_intent(splatter_dmg)], follow_up_id="SUBMERGE"),
-        "SUBMERGE": MoveState("SUBMERGE", submerge, [attack_intent(sub_dmg), defend_intent()], follow_up_id="RAND"),
+        jab_move: MoveState(jab_move, jab, [attack_intent(jab_dmg)], follow_up_id=rand_move),
+        whirlwind_move: MoveState(
+            whirlwind_move,
+            whirlwind,
+            [multi_attack_intent(whirlwind_dmg, whirlwind_hits)],
+            follow_up_id=jab_move,
+        ),
+        piercing_gaze_move: MoveState(
+            piercing_gaze_move,
+            piercing_gaze,
+            [attack_intent(piercing_gaze_dmg)],
+            follow_up_id=jab_move,
+        ),
+        rand_move: rand,
     }
 
-    if slot == "first":
-        initial = "SPLATTER"
-    elif slot == "second":
-        initial = "SUBMERGE"
-    else:
-        initial = "RAND"
-
+    creature.apply_power(PowerId.SLIPPERY, slippery_amount)
+    initial = whirlwind_move if middle_inklet else jab_move
     return creature, MonsterAI(states, initial, rng)
 
 

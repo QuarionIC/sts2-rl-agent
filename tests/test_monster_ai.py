@@ -236,7 +236,7 @@ CS_MONSTER_FACTORY_PARITY_CASES = [
         48,
     ),
     ("FakeMerchantMonster", create_fake_merchant_monster, "FAKE_MERCHANT_MONSTER", "SWIPE", 165, 165),
-    ("Inklet", create_inklet, "INKLET", "SPLATTER", 30, 33),
+    ("Inklet", create_inklet, "INKLET", "JAB_MOVE", 11, 17),
     ("KinFollower", create_kin_follower, "KIN_FOLLOWER", "QUICK_SLASH_MOVE", 58, 59),
     ("KinPriest", create_kin_priest, "KIN_PRIEST", "CONVERSION", 119, 119),
     ("LeafSlimeM", create_leaf_slime_m, "LEAF_SLIME_M", "STICKY_SHOT", 32, 35),
@@ -363,6 +363,38 @@ class TestFixedRotation:
         _, twig_m_ai = create_twig_slime_m(rng)
         assert {"STICKY_SHOT_MOVE", "CLUMP_SHOT_MOVE"}.issubset(twig_m_ai.states)
         assert twig_m_ai.current_move.state_id == "STICKY_SHOT_MOVE"
+
+    def test_inklet_matches_original_stats_setup_and_starter_moves(self):
+        rng_seed = 1254
+        jab_damage = 3
+        whirlwind_damage = 2
+        whirlwind_hits = 3
+        piercing_gaze_damage = 10
+        slippery_amount = 1
+        combat = _make_combat(rng_seed)
+        creature, ai = create_inklet(Rng(rng_seed))
+        middle_creature, middle_ai = create_inklet(Rng(rng_seed), middle_inklet=True)
+        combat.add_enemy(creature, ai)
+
+        assert 11 <= creature.max_hp <= 17
+        assert creature.get_power_amount(PowerId.SLIPPERY) == slippery_amount
+        assert middle_creature.get_power_amount(PowerId.SLIPPERY) == slippery_amount
+        assert ai.current_move.state_id == "JAB_MOVE"
+        assert middle_ai.current_move.state_id == "WHIRLWIND_MOVE"
+        assert {"JAB_MOVE", "WHIRLWIND_MOVE", "PIERCING_GAZE_MOVE", "RAND"} == set(ai.states)
+        assert ai.states["JAB_MOVE"].follow_up_id == "RAND"
+        assert ai.states["WHIRLWIND_MOVE"].follow_up_id == "JAB_MOVE"
+        assert ai.states["PIERCING_GAZE_MOVE"].follow_up_id == "JAB_MOVE"
+
+        hp_before = combat.primary_player.current_hp
+        ai.states["JAB_MOVE"].perform(combat)
+        ai.states["WHIRLWIND_MOVE"].perform(combat)
+        ai.states["PIERCING_GAZE_MOVE"].perform(combat)
+
+        assert combat.primary_player.current_hp == (
+            hp_before - jab_damage - whirlwind_damage * whirlwind_hits - piercing_gaze_damage
+        )
+        assert creature.block == 0
 
     def test_single_state_self_loop(self):
         """A->A stays on A forever."""
@@ -663,6 +695,12 @@ class TestFixedRotation:
         _, fogmog_ai = create_fogmog(Rng(14))
         assert fogmog_ai.current_move.state_id == "ILLUSION_MOVE"
         assert {"SWIPE_MOVE", "SWIPE_RANDOM_MOVE", "HEADBUTT_MOVE"}.issubset(fogmog_ai.states)
+
+        inklet, inklet_ai = create_inklet(Rng(113))
+        assert 11 <= inklet.max_hp <= 17
+        assert inklet.get_power_amount(PowerId.SLIPPERY) == 1
+        assert inklet_ai.current_move.state_id == "JAB_MOVE"
+        assert {"JAB_MOVE", "WHIRLWIND_MOVE", "PIERCING_GAZE_MOVE"} < set(inklet_ai.states)
 
         lethal_fogmog, lethal_fogmog_ai = create_fogmog(Rng(114))
         lethal_fogmog_combat = _make_combat(114)

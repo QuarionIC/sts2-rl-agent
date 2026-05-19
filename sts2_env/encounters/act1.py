@@ -100,10 +100,12 @@ def setup_fogmog_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_inklets_normal(combat: CombatState, rng: Rng) -> None:
-    c1, a1 = create_inklet(rng, slot="first")
-    combat.add_enemy(c1, a1)
-    c2, a2 = create_inklet(rng, slot="second")
-    combat.add_enemy(c2, a2)
+    first, first_ai = create_inklet(rng)
+    combat.add_enemy(first, first_ai)
+    middle, middle_ai = create_inklet(rng, middle_inklet=True)
+    combat.add_enemy(middle, middle_ai)
+    last, last_ai = create_inklet(rng)
+    combat.add_enemy(last, last_ai)
 
 
 def setup_mawler_normal(combat: CombatState, rng: Rng) -> None:
