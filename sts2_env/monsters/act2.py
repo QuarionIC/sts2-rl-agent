@@ -496,13 +496,14 @@ def create_wriggler(
     hp = rng.next_int(17, 21)
     creature = Creature(max_hp=hp, monster_id="WRIGGLER")
     bite_dmg = 6
+    wriggle_infections = 1
     wriggle_str = 2
 
     def bite(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, bite_dmg)
 
     def wriggle(combat: CombatState) -> None:
-        combat.add_card_to_discard(make_infection())
+        add_generated_cards_to_living_player_discards(combat, make_infection, wriggle_infections)
         creature.apply_power(PowerId.STRENGTH, wriggle_str)
 
     def spawned(combat: CombatState) -> None:

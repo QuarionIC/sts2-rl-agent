@@ -1567,6 +1567,32 @@ class TestFixedRotation:
         assert combat.discard_pile[-1].card_id == CardId.INFECTION
         assert creature.get_power_amount(PowerId.STRENGTH) == 2
 
+    def test_act2_wriggler_wriggle_adds_infection_to_original_player_targets_not_pets(self):
+        rng_seed = 1249
+        ally_hp = 70
+        osty_hp = 10
+        wriggle_infections = 1
+        wriggle_strength = 2
+        combat = _make_combat(rng_seed)
+        ally = _add_test_ally(combat, hp=ally_hp)
+        primary_state = combat.combat_player_state_for(combat.primary_player)
+        ally_state = combat.combat_player_state_for(ally)
+        assert primary_state is not None
+        assert ally_state is not None
+        primary_state.discard.clear()
+        ally_state.discard.clear()
+        osty = combat.summon_osty(combat.primary_player, osty_hp)
+        assert osty is not None
+        creature, ai = create_wriggler(Rng(rng_seed), slot="wriggler2")
+        combat.add_enemy(creature, ai)
+
+        ai.states["WRIGGLE_MOVE"].perform(combat)
+
+        assert [card.card_id for card in primary_state.discard] == [CardId.INFECTION] * wriggle_infections
+        assert [card.card_id for card in ally_state.discard] == [CardId.INFECTION] * wriggle_infections
+        assert combat.combat_player_state_for(osty) is None
+        assert creature.get_power_amount(PowerId.STRENGTH) == wriggle_strength
+
     def test_louse_progenitor_uses_web_curl_pounce_cycle(self):
         combat = _make_combat(23)
         creature, ai = create_louse_progenitor(Rng(23))
