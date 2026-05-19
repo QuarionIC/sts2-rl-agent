@@ -781,7 +781,7 @@ class ColossalFlower(EventModel):
         self._digs = 0
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return _hp_ge(run_state, 19)
+        return all(player.current_hp >= 19 for player in run_state.players)
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         self._digs = 0

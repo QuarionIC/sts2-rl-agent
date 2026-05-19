@@ -23,7 +23,7 @@ from sts2_env.events.shared import (
 )
 from sts2_env.relics.base import RelicId
 from sts2_env.run.reward_objects import AddCardsReward
-from sts2_env.run.run_state import RunState
+from sts2_env.run.run_state import PlayerState, RunState
 
 
 class _ChoiceLastRng:
@@ -93,6 +93,18 @@ def test_colossal_flower_progression_scales_gold_damage_and_final_relic():
     assert core_state.player.current_hp == hp_before_core - 18
     assert len(core_state.player.relics) == relics_before_core + 1
     assert core_state.player.relics[-1] == RelicId.POLLINOUS_CORE.name
+
+
+def test_colossal_flower_requires_all_players_to_have_minimum_hp():
+    run_state = _make_run_state(6031)
+    run_state.player.current_hp = 19
+    ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent", current_hp=18))
+    event = ColossalFlower()
+
+    assert event.is_allowed(run_state) is False
+
+    ally.current_hp = 19
+    assert event.is_allowed(run_state) is True
 
 
 def test_darv_includes_dusty_tome_branch_and_awards_selected_boss_relic():
