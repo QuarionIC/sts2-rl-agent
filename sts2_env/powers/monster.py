@@ -305,6 +305,17 @@ class ThieveryPower(PowerInstance):
         super().__init__(PowerId.THIEVERY, amount)
         self.gold_stolen: int = 0
         self.gold_stolen_by_player: dict[Creature, int] = {}
+        self._targets: list[Creature] = []
+
+    def add_target(self, target_player: Creature) -> None:
+        if target_player not in self._targets:
+            self._targets.append(target_player)
+
+    def _ensure_targets(self, combat: CombatState) -> None:
+        if self._targets:
+            return
+        for state in getattr(combat, "combat_player_states", ()):
+            self.add_target(state.creature)
 
     def _player_gold(self, target_player: object) -> int:
         if hasattr(target_player, "gold"):
@@ -335,6 +346,11 @@ class ThieveryPower(PowerInstance):
 
     def after_attack(self, owner: Creature, attack: object, combat: CombatState) -> None:
         if getattr(attack, "attacker", None) is not owner:
+            return
+        self._ensure_targets(combat)
+        if self._targets:
+            for target in list(self._targets):
+                self.steal(owner, target)
             return
         seen_targets: set[int] = set()
         for result in getattr(attack, "results", ()):

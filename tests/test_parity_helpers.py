@@ -809,6 +809,35 @@ class TestMonsterDeathBroadcast:
         assert enemy.powers[PowerId.THIEVERY].gold_stolen_by_player[combat.primary_player] == 15
         assert enemy.powers[PowerId.THIEVERY].gold_stolen_by_player[ally] == 15
 
+    def test_thievery_power_steals_from_each_player_instance_like_reference(self):
+        combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
+        enemy = combat.enemies[0]
+        enemy.powers[PowerId.THIEVERY] = ThieveryPower(15)
+        ally = combat.add_ally_player(
+            PlayerState(
+                player_id=2,
+                character_id="Ironclad",
+                max_hp=40,
+                current_hp=40,
+                gold=30,
+            )
+        )
+        combat.gold = 40
+        combat.start_combat()
+
+        combat.deal_damage(
+            dealer=enemy,
+            amount=1,
+            props=ValueProp.MOVE,
+            targets=[combat.primary_player],
+        )
+
+        assert combat.combat_player_state_for(combat.primary_player).player_state.gold == 25
+        assert combat.combat_player_state_for(ally).player_state.gold == 15
+        assert enemy.powers[PowerId.THIEVERY].gold_stolen == 30
+        assert enemy.powers[PowerId.THIEVERY].gold_stolen_by_player[combat.primary_player] == 15
+        assert enemy.powers[PowerId.THIEVERY].gold_stolen_by_player[ally] == 15
+
     def test_eye_with_teeth_has_illusion_and_minion(self):
         eye, _ = create_eye_with_teeth(Rng(88))
 
