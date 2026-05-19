@@ -182,6 +182,20 @@ class TestRegentParityExtra3:
         assert combat.play_card(0, 0)
         assert enemy.current_hp == 80
 
+    def test_sovereign_blade_upgrade_preserves_forged_damage(self):
+        combat = _make_combat()
+        blade = create_card(CardId.SOVEREIGN_BLADE)
+        combat.hand = [blade]
+
+        combat.forge(combat.player, 7)
+        assert blade.base_damage == 17
+
+        combat.upgrade_card(blade)
+
+        assert blade.upgraded is True
+        assert blade.cost == 1
+        assert blade.base_damage == 17
+
     def test_tyranny_upgrade_adds_innate_and_power_increases_turn_draw(self):
         """Matches Tyranny.cs + TyrannyPower.cs: upgraded Innate and +draw from power."""
         upgraded = create_card(CardId.TYRANNY_CARD, upgraded=True)

@@ -88,6 +88,7 @@ _SELF_MUTATING_DAMAGE_BASES = {
     CardId.KINGLY_PUNCH: (8, 8),
     CardId.MAUL: (5, 6),
     CardId.RAMPAGE: (9, 9),
+    CardId.SOVEREIGN_BLADE: (10, 10),
     CardId.THE_SCYTHE: (13, 13),
     CardId.THRASH: (4, 6),
 }
