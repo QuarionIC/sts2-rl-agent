@@ -1025,6 +1025,9 @@ class StoneOfAllTime(EventModel):
 
     event_id = "StoneOfAllTime"
 
+    def __init__(self) -> None:
+        self._lift_potion_slot: int | None = None
+
     def is_allowed(self, run_state: RunState) -> bool:
         return (
             run_state.current_act_index == 1
@@ -1038,7 +1041,10 @@ class StoneOfAllTime(EventModel):
         run_state.player.can_remove_potions = True
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
-        has_lift = bool(run_state.player.held_potions())
+        held = run_state.player.held_potions()
+        lift_potion = self.get_rng(run_state).choice(held) if held else None
+        self._lift_potion_slot = lift_potion.slot_index if lift_potion is not None else None
+        has_lift = lift_potion is not None
         has_push = any(can_enchant_card(card, "Vigorous") for card in run_state.player.deck)
         return [
             EventOption("lift", "Lift", "Discard a potion, gain 10 Max HP", enabled=has_lift),
@@ -1047,10 +1053,14 @@ class StoneOfAllTime(EventModel):
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "lift":
-            held = run_state.player.held_potions()
-            if held:
-                run_state.player.remove_potion(held[0].slot_index)
+            if self._lift_potion_slot is None:
+                held = run_state.player.held_potions()
+                lift_potion = self.get_rng(run_state).choice(held) if held else None
+                self._lift_potion_slot = lift_potion.slot_index if lift_potion is not None else None
+            if self._lift_potion_slot is not None:
+                run_state.player.remove_potion(self._lift_potion_slot)
             run_state.player.gain_max_hp(10)
+            self.get_rng(run_state).next_int(0, 99)
             return EventResult(finished=True,
                                description="Discarded a potion, gained 10 Max HP.")
         run_state.player.lose_hp(6)
@@ -1076,6 +1086,7 @@ class StoneOfAllTime(EventModel):
             source_pile="deck",
             resolver=lambda selected: (
                 selected and selected[0].add_enchantment("Vigorous", 8),
+                self.get_rng(run_state).next_int(0, 99),
                 EventResult(finished=True, description="Took 6 damage, enchanted a card with Vigorous +8."),
             )[-1],
             description="Choose a card to enchant.",

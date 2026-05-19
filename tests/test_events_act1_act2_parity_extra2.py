@@ -27,6 +27,20 @@ def _make_run_state(seed: int = 401) -> RunState:
     return run_state
 
 
+class _LastChoiceCountingRng:
+    def __init__(self) -> None:
+        self.choice_calls = 0
+        self.next_int_calls = 0
+
+    def choice(self, seq):
+        self.choice_calls += 1
+        return seq[-1]
+
+    def next_int(self, low: int, high: int) -> int:
+        self.next_int_calls += 1
+        return low
+
+
 def test_the_legends_were_true_adds_spoils_map_and_returns_a_potion_reward():
     run_state = _make_run_state(401)
     event = TheLegendsWereTrue()
@@ -159,6 +173,45 @@ def test_stone_of_all_time_lift_discards_potion_and_push_enchants_attack():
     no_push_event = StoneOfAllTime()
     no_push_options = no_push_event.generate_initial_options(no_push_state)
     assert [option.enabled for option in no_push_options] == [True, False]
+
+
+def test_stone_of_all_time_lift_uses_preselected_event_rng_potion_and_consumes_rng():
+    run_state = _make_run_state(4042)
+    run_state.current_act_index = 1
+    run_state.player.add_potion(create_potion("FirePotion"))
+    run_state.player.add_potion(create_potion("FlexPotion"))
+    event = StoneOfAllTime()
+    event.rng = _LastChoiceCountingRng()
+
+    options = event.generate_initial_options(run_state)
+    assert [option.enabled for option in options] == [True, True]
+    assert event.rng.choice_calls == 1
+    assert event._lift_potion_slot == 1  # noqa: SLF001
+
+    result = event.choose(run_state, "lift")
+
+    assert result.finished
+    assert event.rng.choice_calls == 1
+    assert event.rng.next_int_calls == 1
+    assert [potion.potion_id for potion in run_state.player.held_potions()] == ["FirePotion"]
+
+
+def test_stone_of_all_time_push_consumes_event_rng_after_enchanting():
+    run_state = _make_run_state(4043)
+    run_state.current_act_index = 1
+    run_state.player.add_potion(create_potion("FirePotion"))
+    event = StoneOfAllTime()
+    event.rng = _LastChoiceCountingRng()
+    event.generate_initial_options(run_state)
+
+    result = event.choose(run_state, "push")
+    target = event.pending_choice.options[0].card
+    resolved = event.resolve_pending_choice(0)
+
+    assert result.finished is False
+    assert resolved.finished
+    assert target.enchantments.get("Vigorous") == 8
+    assert event.rng.next_int_calls == 1
 
 
 def test_future_of_potions_trade_discards_potion_and_builds_upgraded_rewards():
