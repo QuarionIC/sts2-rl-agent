@@ -715,6 +715,28 @@ class KnockdownPower(PowerInstance):
     def __init__(self, amount: int):
         super().__init__(PowerId.KNOCKDOWN, amount)
         self.applier: Creature | None = None
+        self._instances: list[tuple[int, Creature | None]] = [(amount, None)]
+
+    def _add_instance(self, amount: int, applier: Creature | None) -> None:
+        self._instances.append((amount, applier))
+        self.amount = amount
+        self.applier = applier
+
+    def after_power_amount_changed(
+        self,
+        owner: Creature,
+        target: Creature,
+        power_id: PowerId,
+        amount: int,
+        applier: Creature | None,
+        source: object | None,
+        combat: CombatState,
+    ) -> None:
+        if owner is target and power_id == self.power_id and amount > 0:
+            if len(self._instances) == 1 and self._instances[0][1] is None:
+                self._instances[0] = (self._instances[0][0], self.applier)
+                return
+            self._add_instance(amount, applier)
 
     def modify_damage_multiplicative(
         self, owner: Creature, dealer: Creature | None, target: Creature, props: ValueProp
@@ -725,9 +747,12 @@ class KnockdownPower(PowerInstance):
             return 1.0
         if not props.is_powered():
             return 1.0
-        if dealer is self.applier:
-            return 1.0
-        return float(self.amount)
+        multiplier = 1.0
+        for amount, applier in self._instances:
+            if dealer is applier:
+                continue
+            multiplier *= float(amount)
+        return multiplier
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side == owner.side:
