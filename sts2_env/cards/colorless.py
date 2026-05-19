@@ -452,10 +452,14 @@ def the_bomb_card(card: CardInstance, combat: CombatState, target: Creature | No
     turns = card.effect_vars.get("turns", 3)
     damage = card.effect_vars.get("bomb_damage", 40)
     owner = _owner(card, combat)
-    combat.apply_power_to(owner, PowerId.THE_BOMB, turns)
-    bomb_power = owner.powers.get(PowerId.THE_BOMB)
-    if bomb_power is not None and hasattr(bomb_power, "damage"):
-        bomb_power.damage = damage
+    existing = owner.powers.get(PowerId.THE_BOMB)
+    if existing is not None and hasattr(existing, "add_instance"):
+        existing.add_instance(turns, damage)
+    else:
+        combat.apply_power_to(owner, PowerId.THE_BOMB, turns)
+        bomb_power = owner.powers.get(PowerId.THE_BOMB)
+        if bomb_power is not None and hasattr(bomb_power, "set_latest_damage"):
+            bomb_power.set_latest_damage(damage)
 
 
 @register_effect(CardId.THINKING_AHEAD)

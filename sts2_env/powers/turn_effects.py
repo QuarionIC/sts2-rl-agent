@@ -645,22 +645,38 @@ class TheBombPower(PowerInstance):
     def __init__(self, amount: int):
         super().__init__(PowerId.THE_BOMB, amount)
         self.damage: int = self.DEFAULT_DAMAGE
+        self._instances: list[tuple[int, int]] = [(amount, self.damage)]
+
+    def add_instance(self, turns: int, damage: int) -> None:
+        self._instances.append((turns, damage))
+        self.amount = turns
+        self.damage = damage
+
+    def set_latest_damage(self, damage: int) -> None:
+        turns, _ = self._instances[-1]
+        self._instances[-1] = (turns, damage)
+        self.damage = damage
 
     def before_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side != owner.side:
             return
-        if self.amount > 1:
-            self.amount -= 1
-            return
-        # Explode: deal damage to all enemies
-        for enemy in combat.hittable_enemies:
-            combat.deal_damage(
-                dealer=owner,
-                target=enemy,
-                amount=self.damage,
-                props=ValueProp.UNPOWERED,
-            )
-        self.amount = 0
+        remaining_instances: list[tuple[int, int]] = []
+        for turns, damage in self._instances:
+            if turns > 1:
+                remaining_instances.append((turns - 1, damage))
+                continue
+            for enemy in combat.hittable_enemies:
+                combat.deal_damage(
+                    dealer=owner,
+                    target=enemy,
+                    amount=damage,
+                    props=ValueProp.UNPOWERED,
+                )
+        self._instances = remaining_instances
+        if remaining_instances:
+            self.amount, self.damage = remaining_instances[-1]
+        else:
+            self.amount = 0
 
 
 class TemporaryStrengthPower(PowerInstance):

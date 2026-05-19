@@ -170,6 +170,34 @@ class TestColorlessParityExtra2:
         assert first_enemy.current_hp == 80
         assert second_enemy.current_hp == 80
 
+    def test_multiple_the_bombs_keep_separate_countdowns_like_reference(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 120
+        first = make_the_bomb_card()
+        second = make_the_bomb_card()
+        second.effect_vars["turns"] = 1
+        second.effect_vars["bomb_damage"] = 50
+        combat.hand = [first, second]
+        combat.energy = 4
+
+        assert combat.play_card(0)
+        assert combat.play_card(0)
+        assert combat.player.get_power_amount(PowerId.THE_BOMB) == 1
+
+        combat.end_player_turn()
+
+        assert enemy.current_hp == 70
+        assert combat.player.get_power_amount(PowerId.THE_BOMB) == 2
+
+        combat.end_player_turn()
+        assert enemy.current_hp == 70
+        assert combat.player.get_power_amount(PowerId.THE_BOMB) == 1
+
+        combat.end_player_turn()
+        assert enemy.current_hp == 30
+        assert combat.player.get_power_amount(PowerId.THE_BOMB) == 0
+
     def test_panache_damage_hits_only_hittable_enemies(self):
         combat = _make_combat(extra_enemies=1)
         blocked, hittable = combat.enemies
