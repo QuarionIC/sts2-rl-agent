@@ -759,9 +759,11 @@ def genetic_algorithm(card: CardInstance, combat: CombatState, target: Creature 
 def helix_drill(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     owner = _owner(card, combat)
-    # Hits scale with orb count
-    hits = _get_orb_count(combat)
-    for _ in range(max(1, hits)):
+    hits = getattr(combat, "_energy_spent_this_turn", {}).get(owner, 0)
+    state = combat.combat_player_state_for(owner)
+    if state is not None and card in state.play:
+        hits -= combat.modified_card_cost(owner, card)
+    for _ in range(max(0, hits)):
         if owner.is_dead or target.is_dead:
             break
         dmg = calculate_damage(card.base_damage, owner, target, ValueProp.MOVE, combat)
@@ -881,9 +883,13 @@ def trash_to_treasure(card: CardInstance, combat: CombatState, target: Creature 
 
 @register_effect(CardId.VOLTAIC)
 def voltaic(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    # Channel Lightning orbs based on orb count
-    orb_count = _get_orb_count(combat)
-    for _ in range(max(1, orb_count)):
+    owner = _owner(card, combat)
+    channel_count = sum(
+        1
+        for channel_owner, orb_type in getattr(combat, "_orb_channel_events_combat", ())
+        if channel_owner is owner and orb_type == OrbType.LIGHTNING
+    )
+    for _ in range(channel_count):
         _channel_orb(combat, OrbType.LIGHTNING)
 
 

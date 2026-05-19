@@ -19,6 +19,7 @@ from sts2_env.cards.defect import (
     make_genetic_algorithm,
     make_go_for_the_eyes,
     make_gunk_up,
+    make_helix_drill,
     make_hyperbeam,
     make_ice_lance,
     make_lightning_rod,
@@ -32,6 +33,7 @@ from sts2_env.cards.defect import (
     make_sweeping_beam,
     make_tempest,
     make_thunder,
+    make_voltaic,
 )
 from sts2_env.cards.factory import create_card
 from sts2_env.cards.status import make_burn, make_dazed, make_slimed
@@ -445,6 +447,70 @@ class TestDefectParityExtra3:
         assert enemy.current_hp == starting_hp - 19
         assert len(combat.orb_queue.orbs) == 3
         assert all(orb.orb_type == OrbType.FROST for orb in combat.orb_queue.orbs)
+
+    def test_helix_drill_hits_once_per_prior_energy_spent_this_turn(self):
+        """Matches HelixDrill.cs: hit count uses owner energy spent this turn, excluding this card."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        combat.hand = [make_defend_defect(), make_strike_defect(), make_helix_drill()]
+        combat.energy = 3
+
+        assert combat.play_card(0)
+        assert combat.play_card(0, 0)
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == 100 - 6 - 6
+
+    def test_helix_drill_can_hit_zero_times(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        combat.hand = [make_helix_drill()]
+        combat.energy = 0
+
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == 100
+
+    def test_helix_drill_excludes_its_own_modified_cost(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        drill = make_helix_drill()
+        drill.cost = 2
+        combat.hand = [drill]
+        combat.energy = 2
+
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == 100
+
+    def test_voltaic_channels_one_lightning_per_owner_lightning_channel_history(self):
+        """Matches Voltaic.cs: count all owner Lightning channels in combat history."""
+        combat = _make_combat()
+        combat.channel_orb(combat.player, "LIGHTNING")
+        combat.channel_orb(combat.player, "FROST")
+        combat.channel_orb(combat.player, "LIGHTNING")
+        combat.channel_orb(combat.player, "LIGHTNING")
+        combat.hand = [make_voltaic()]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+
+        assert len(combat.orb_queue.orbs) == 3
+        assert all(orb.orb_type == OrbType.LIGHTNING for orb in combat.orb_queue.orbs)
+
+    def test_voltaic_can_channel_zero_lightning(self):
+        combat = _make_combat()
+        combat.channel_orb(combat.player, "FROST")
+        combat.hand = [make_voltaic()]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+
+        assert len(combat.orb_queue.orbs) == 1
+        assert combat.orb_queue.orbs[0].orb_type == OrbType.FROST
 
     def test_ftl_draws_only_before_owner_has_finished_three_card_plays(self):
         """Matches Ftl.cs: draw is gated by owner card plays finished this turn."""

@@ -144,6 +144,8 @@ class CombatState:
         self._stars_gained_this_turn: list[tuple[Creature, int]] = []
         self._power_events_this_turn: list[tuple[Creature, PowerId, int, Creature | None]] = []
         self._generated_cards_combat: list[tuple[Creature, bool]] = []
+        self._energy_spent_this_turn: dict[Creature, int] = {}
+        self._orb_channel_events_combat: list[tuple[Creature, object]] = []
         self._active_card_source: object | None = None
         self._active_card_target: Creature | None = None
         self._card_being_played_for_cost: CardInstance | None = None
@@ -739,6 +741,8 @@ class CombatState:
         self._stars_gained_this_turn = []
         self._power_events_this_turn = []
         self._generated_cards_combat = []
+        self._energy_spent_this_turn = {}
+        self._orb_channel_events_combat = []
         self._played_cards_this_turn = []
         self._played_cards_combat = []
         self._card_play_starts_this_turn = []
@@ -776,6 +780,7 @@ class CombatState:
         self._power_events_this_turn = []
         self._played_cards_this_turn = []
         self._card_play_starts_this_turn = []
+        self._energy_spent_this_turn = {}
         self._after_energy_reset_owners_this_turn = set()
 
         fire_before_side_turn_start(CombatSide.PLAYER, self)
@@ -1344,6 +1349,8 @@ class CombatState:
 
             if spend_energy:
                 owner_state.energy = max(0, owner_state.energy - energy_spent)
+                if energy_spent > 0:
+                    self._energy_spent_this_turn[owner] = self._energy_spent_this_turn.get(owner, 0) + energy_spent
                 fire_after_energy_spent(owner, card, energy_spent, self)
                 star_cost = self.modified_star_cost(owner, card)
                 if star_cost > 0:
@@ -1603,6 +1610,7 @@ class CombatState:
         )
 
         self.current_side = CombatSide.ENEMY
+        self._energy_spent_this_turn = {}
 
         fire_before_side_turn_start(CombatSide.ENEMY, self)
 
@@ -2693,6 +2701,7 @@ class CombatState:
                 return
             with self.acting_player_view(owner):
                 orb_queue.channel(orb_type, self)
+                self._orb_channel_events_combat.append((owner, orb_type))
                 for relic in self.relics_for_creature(owner):
                     on_orb_channeled = getattr(relic, "on_orb_channeled", None)
                     if callable(on_orb_channeled):
