@@ -124,7 +124,7 @@ class DollRoom(EventModel):
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "random":
-            relic_id, _ = run_state.rng.up_front.choice(list(self._DOLLS))
+            relic_id, _ = self.get_rng(run_state).choice(list(self._DOLLS))
             if _should_defer_event_rewards(run_state):
                 return _event_result_with_rewards(
                     "Got a random doll relic.",
@@ -136,7 +136,7 @@ class DollRoom(EventModel):
         if option_id == "take_time":
             run_state.player.lose_hp(5)
             dolls = list(self._DOLLS)
-            run_state.rng.up_front.shuffle(dolls)
+            self.get_rng(run_state).shuffle(dolls)
             shown = dolls[:2]
             self._doll_choices = {f"doll_{i + 1}": relic_id for i, (relic_id, _) in enumerate(shown)}
             return EventResult(
@@ -150,7 +150,7 @@ class DollRoom(EventModel):
         if option_id == "examine":
             run_state.player.lose_hp(15)
             dolls = list(self._DOLLS)
-            run_state.rng.up_front.shuffle(dolls)
+            self.get_rng(run_state).shuffle(dolls)
             self._doll_choices = {f"doll_{i + 1}": relic_id for i, (relic_id, _) in enumerate(dolls)}
             return EventResult(
                 finished=False,
@@ -772,8 +772,9 @@ class RanwidTheElder(EventModel):
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         tradable_relics = self._tradable_relics(run_state)
         held_potions = run_state.player.held_potions()
-        chosen_potion = run_state.rng.up_front.choice(held_potions) if held_potions else None
-        chosen_relic = run_state.rng.up_front.choice(tradable_relics) if tradable_relics else None
+        rng = self.get_rng(run_state)
+        chosen_potion = rng.choice(held_potions) if held_potions else None
+        chosen_relic = rng.choice(tradable_relics) if tradable_relics else None
         self._potion_slot = chosen_potion.slot_index if chosen_potion is not None else None
         self._relic_id = chosen_relic
         return [
@@ -850,7 +851,7 @@ class RelicTrader(EventModel):
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         owned = self._tradable_relics(run_state)
-        run_state.rng.up_front.shuffle(owned)
+        self.get_rng(run_state).shuffle(owned)
         self._owned_relic_choices = owned[:3]
         self._new_relic_choices = []
         for _ in self._owned_relic_choices:

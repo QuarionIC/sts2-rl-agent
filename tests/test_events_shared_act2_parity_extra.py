@@ -19,6 +19,11 @@ def _make_run_state(seed: int = 91) -> RunState:
     return run_state
 
 
+class _NoopShuffleRng:
+    def shuffle(self, seq) -> None:
+        pass
+
+
 def test_relic_trader_excludes_starter_relics_and_swaps_selected_relic():
     run_state = _make_run_state(91)
     run_state.current_act_index = 1
@@ -26,6 +31,7 @@ def test_relic_trader_excludes_starter_relics_and_swaps_selected_relic():
         run_state.player.obtain_relic(relic_id)
 
     event = RelicTrader()
+    event.rng = _NoopShuffleRng()
     options = event.generate_initial_options(run_state)
 
     assert len(options) == 3
@@ -40,6 +46,20 @@ def test_relic_trader_excludes_starter_relics_and_swaps_selected_relic():
     assert len(run_state.player.relics) == starting_relics
     assert old_relic not in run_state.player.relics
     assert new_relic in run_state.player.relics
+
+
+def test_relic_trader_uses_event_rng_without_advancing_up_front_rng():
+    run_state = _make_run_state(911)
+    run_state.current_act_index = 1
+    for relic_id in ("ANCHOR", "VAJRA", "PEAR", "JUZU_BRACELET", "LANTERN"):
+        run_state.player.obtain_relic(relic_id)
+    event = RelicTrader()
+    up_front_counter = run_state.rng.up_front.counter
+
+    options = event.generate_initial_options(run_state)
+
+    assert len(options) == 3
+    assert run_state.rng.up_front.counter == up_front_counter
 
 
 def test_slippery_bridge_hold_on_escalates_damage_and_overcome_removes_card():

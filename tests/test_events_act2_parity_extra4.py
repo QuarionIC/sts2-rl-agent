@@ -18,6 +18,14 @@ def _doll_ids() -> set[str]:
     return {relic_id for relic_id, _ in DollRoom._DOLLS}  # noqa: SLF001
 
 
+class _NoopShuffleFirstChoiceRng:
+    def choice(self, seq):
+        return seq[0]
+
+    def shuffle(self, seq) -> None:
+        pass
+
+
 def test_doll_room_is_act2_only_and_initial_options_reset_followup_choices():
     run_state = _make_run_state(1001)
     event = DollRoom()
@@ -37,6 +45,7 @@ def test_doll_room_random_finishes_and_grants_one_doll_relic():
     run_state = _make_run_state(1002)
     run_state.current_act_index = 1
     event = DollRoom()
+    event.rng = _NoopShuffleFirstChoiceRng()
     relics_before = set(run_state.player.relics)
 
     result = event.choose(run_state, "random")
@@ -51,6 +60,7 @@ def test_doll_room_take_some_time_damages_and_selected_option_grants_that_relic(
     run_state = _make_run_state(1003)
     run_state.current_act_index = 1
     event = DollRoom()
+    event.rng = _NoopShuffleFirstChoiceRng()
     hp_before = run_state.player.current_hp
     relics_before = set(run_state.player.relics)
 
@@ -76,6 +86,7 @@ def test_doll_room_examine_damages_and_selected_option_grants_that_relic():
     run_state = _make_run_state(1004)
     run_state.current_act_index = 1
     event = DollRoom()
+    event.rng = _NoopShuffleFirstChoiceRng()
     hp_before = run_state.player.current_hp
     relics_before = set(run_state.player.relics)
 
@@ -110,3 +121,19 @@ def test_doll_room_invalid_followup_option_finishes_without_granting_relic():
 
     assert second.finished
     assert set(run_state.player.relics) == relics_before
+
+
+def test_doll_room_uses_event_rng_without_advancing_up_front_rng():
+    run_state = _make_run_state(1006)
+    run_state.current_act_index = 1
+    event = DollRoom()
+    up_front_counter = run_state.rng.up_front.counter
+
+    random_result = event.choose(run_state, "random")
+    take_time_result = event.choose(run_state, "take_time")
+    examine_result = event.choose(run_state, "examine")
+
+    assert random_result.finished
+    assert take_time_result.finished is False
+    assert examine_result.finished is False
+    assert run_state.rng.up_front.counter == up_front_counter

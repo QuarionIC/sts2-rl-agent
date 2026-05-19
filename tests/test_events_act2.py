@@ -38,6 +38,16 @@ class _ExclusiveHighRng:
         return high - 0.5
 
 
+class _LastChoiceRng:
+    def choice(self, seq):
+        return seq[-1]
+
+
+class _NoopShuffleRng(_LastChoiceRng):
+    def shuffle(self, seq) -> None:
+        pass
+
+
 def test_act2_event_random_values_use_exclusive_upper_bounds():
     run_state = RunState(seed=28, character_id="Ironclad")
     run_state.initialize_run()
@@ -110,7 +120,7 @@ def test_potion_courier_ranwid_and_whispering_hollow_change_inventory():
     assert [reward.reward_type.name for reward in grab.rewards["reward_objects"]] == ["POTION", "POTION", "POTION"]
 
     ranwid = RanwidTheElder()
-    run_state.rng.up_front.choice = lambda seq: seq[-1]
+    ranwid.rng = _LastChoiceRng()
     ranwid_options = ranwid.generate_initial_options(run_state)
     assert [option.enabled for option in ranwid_options] == [True, True, True]
     chosen_potion_slot = ranwid._potion_slot
@@ -159,7 +169,7 @@ def test_ranwid_uses_the_randomly_selected_potion_and_relic_targets():
     potion_state.player.obtain_relic("ANCHOR")
     potion_state.player.obtain_relic("VAJRA")
     potion_event = RanwidTheElder()
-    potion_state.rng.up_front.choice = lambda seq: seq[-1]
+    potion_event.rng = _LastChoiceRng()
 
     potion_event.generate_initial_options(potion_state)
     assert potion_event._potion_slot == 1
@@ -174,12 +184,29 @@ def test_ranwid_uses_the_randomly_selected_potion_and_relic_targets():
     relic_state.player.obtain_relic("ANCHOR")
     relic_state.player.obtain_relic("VAJRA")
     relic_event = RanwidTheElder()
-    relic_state.rng.up_front.choice = lambda seq: seq[-1]
+    relic_event.rng = _LastChoiceRng()
 
     relic_event.generate_initial_options(relic_state)
     assert relic_event._relic_id == "VAJRA"
     relic_event.choose(relic_state, "relic")
     assert "VAJRA" not in relic_state.player.relics
+
+
+def test_ranwid_uses_event_rng_without_advancing_up_front_rng():
+    run_state = RunState(seed=3104, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.current_act_index = 1
+    run_state.player.gold = 200
+    run_state.player.add_potion(create_potion("FirePotion"))
+    run_state.player.obtain_relic("ANCHOR")
+    run_state.player.obtain_relic("VAJRA")
+    event = RanwidTheElder()
+    up_front_counter = run_state.rng.up_front.counter
+
+    options = event.generate_initial_options(run_state)
+
+    assert [option.enabled for option in options] == [True, True, True]
+    assert run_state.rng.up_front.counter == up_front_counter
 
 
 def test_event_added_card_triggers_run_level_relic_hook():
@@ -343,6 +370,7 @@ def test_doll_room_and_relic_trader_apply_real_relic_changes():
     for relic_id in ("ANCHOR", "VAJRA", "PEAR", "JUZU_BRACELET", "LANTERN"):
         run_state.player.obtain_relic(relic_id)
     trader = RelicTrader()
+    trader.rng = _NoopShuffleRng()
     options = trader.generate_initial_options(run_state)
     result = trader.choose(run_state, options[0].option_id)
     assert result.finished
