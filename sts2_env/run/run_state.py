@@ -182,7 +182,7 @@ class PlayerState:
         for relic in self._ensure_relic_objects():
             if relic.should_gain_gold(self, amount) is False:
                 return
-        self.gold += amount
+        self.gold += int(amount)
         for relic in self._ensure_relic_objects():
             on_gold_gained = getattr(relic, "on_gold_gained", None)
             if callable(on_gold_gained):

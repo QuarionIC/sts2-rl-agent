@@ -298,6 +298,20 @@ def test_event_gold_gain_triggers_run_level_relic_hook():
     assert run_state.player.max_hp == starting_max_hp + 1
 
 
+def test_jungle_maze_adventure_truncates_gold_gain_after_decimal_relic_hooks():
+    run_state = RunState(seed=35, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.player.gold = 0
+    run_state.player.obtain_relic("BOWLER_HAT")
+
+    event = JungleMazeAdventure()
+    event._join_gold = 64.5
+    result = event.choose(run_state, "join")
+
+    assert result.finished
+    assert run_state.player.gold == 76
+
+
 def test_whispering_hollow_hug_uses_run_level_transform_reward_in_run_manager():
     mgr = RunManager(seed=43, character_id="Ironclad")
     mgr.run_state.player.deck = create_ironclad_starter_deck()
