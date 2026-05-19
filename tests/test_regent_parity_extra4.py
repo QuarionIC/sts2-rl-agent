@@ -7,19 +7,29 @@ from sts2_env.cards.factory import create_card
 from sts2_env.cards.regent import (
     make_bombardment,
     make_astral_pulse,
+    make_celestial_might,
     create_regent_starter_deck,
     make_bundle_of_joy,
     make_child_of_the_stars,
     make_cloak_of_stars,
     make_comet,
+    make_crescent_spear,
     make_crush_under,
     make_defend_regent,
+    make_devastate,
     make_dying_star,
+    make_gamma_blast,
+    make_glitterstream,
     make_hammer_time,
+    make_hegemony,
     make_i_am_invincible,
     make_kingly_kick,
     make_kingly_punch,
+    make_know_thy_place,
+    make_lunar_blast,
     make_monologue_card,
+    make_neutron_aegis,
+    make_prophesize,
     make_quasar,
     make_resonance,
     make_royalties_card,
@@ -27,6 +37,7 @@ from sts2_env.cards.regent import (
     make_spoils_of_battle,
     make_spectrum_shift,
     make_stardust,
+    make_the_sealed_throne,
     make_venerate,
 )
 from sts2_env.core.combat import CombatState
@@ -64,6 +75,148 @@ class _CannotHitPower(PowerInstance):
 
 
 class TestRegentParityExtra4:
+    def test_celestial_might_hits_three_times(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        combat.hand = [make_celestial_might()]
+        combat.energy = 2
+
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == 82
+
+    def test_crescent_spear_scales_with_current_star_cost_cards(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        star_card = make_the_sealed_throne()
+        combat.hand = [make_crescent_spear(), star_card]
+        combat.draw_pile = [make_celestial_might()]
+        combat.discard_pile = [make_devastate()]
+        combat.energy = 1
+        combat.gain_stars(combat.player, 1)
+
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == 88
+        assert combat.stars == 0
+
+    def test_devastate_spends_stars_and_deals_large_damage(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        combat.hand = [make_devastate()]
+        combat.energy = 1
+        combat.gain_stars(combat.player, 4)
+
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == 70
+        assert combat.stars == 0
+
+    def test_gamma_blast_spends_stars_then_applies_weak_and_vulnerable(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        combat.hand = [make_gamma_blast()]
+        combat.energy = 0
+        combat.gain_stars(combat.player, 3)
+
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == 87
+        assert combat.stars == 0
+        assert enemy.get_power_amount(PowerId.WEAK) == 2
+        assert enemy.get_power_amount(PowerId.VULNERABLE) == 2
+
+    def test_glitterstream_next_turn_block_uses_block_modifiers(self):
+        combat = _make_combat()
+        combat.apply_power_to(combat.player, PowerId.DEXTERITY, 2)
+        combat.hand = [make_glitterstream()]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+
+        assert combat.player.block == 13
+        assert combat.player.get_power_amount(PowerId.BLOCK_NEXT_TURN) == 6
+
+    def test_hegemony_deals_damage_and_grants_energy_next_turn(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        starting_hp = enemy.current_hp
+        combat.hand = [make_hegemony()]
+        combat.energy = 2
+
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == starting_hp - 15
+        assert combat.player.get_power_amount(PowerId.ENERGY_NEXT_TURN) == 2
+
+    def test_know_thy_place_base_exhausts_and_upgrade_does_not(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        base = make_know_thy_place()
+        upgraded = make_know_thy_place(upgraded=True)
+        combat.hand = [base, upgraded]
+        combat.energy = 0
+
+        assert combat.play_card(0, 0)
+        assert enemy.get_power_amount(PowerId.WEAK) == 1
+        assert enemy.get_power_amount(PowerId.VULNERABLE) == 1
+        assert base in combat.exhaust_pile
+
+        assert combat.play_card(0, 0)
+        assert enemy.get_power_amount(PowerId.WEAK) == 2
+        assert enemy.get_power_amount(PowerId.VULNERABLE) == 2
+        assert upgraded in combat.discard_pile
+
+    def test_lunar_blast_hits_once_per_finished_skill_play_this_turn(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        combat.hand = [make_defend_regent(), make_know_thy_place(upgraded=True), make_lunar_blast()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert combat.play_card(0, 0)
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == 88
+
+    def test_neutron_aegis_spends_stars_and_applies_plating(self):
+        combat = _make_combat()
+        combat.hand = [make_neutron_aegis()]
+        combat.energy = 1
+        combat.gain_stars(combat.player, 5)
+
+        assert combat.play_card(0)
+
+        assert combat.stars == 0
+        assert combat.player.get_power_amount(PowerId.PLATING) == 8
+
+    def test_prophesize_draws_six_cards(self):
+        combat = _make_combat()
+        drawn = [make_defend_regent() for _ in range(6)]
+        combat.hand = [make_prophesize()]
+        combat.draw_pile = list(drawn)
+        combat.energy = 2
+
+        assert combat.play_card(0)
+
+        assert combat.hand == drawn
+
+    def test_the_sealed_throne_spends_stars_and_applies_power(self):
+        combat = _make_combat()
+        combat.hand = [make_the_sealed_throne()]
+        combat.energy = 1
+        combat.gain_stars(combat.player, 3)
+
+        assert combat.play_card(0)
+
+        assert combat.stars == 0
+        assert combat.player.get_power_amount(PowerId.THE_SEALED_THRONE) == 1
+
     def test_defend_regent_base_and_upgrade_block_values_match_reference(self):
         combat = _make_combat()
         combat.hand = [make_defend_regent(), make_defend_regent(upgraded=True)]

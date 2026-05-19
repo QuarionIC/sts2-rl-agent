@@ -197,10 +197,12 @@ def gather_light(card: CardInstance, combat: CombatState, target: Creature | Non
 
 @register_effect(CardId.GLITTERSTREAM)
 def glitterstream(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
+    owner = _owner(card, combat)
     _gain_block(card, combat)
     block_next = card.effect_vars.get("block_next", 0)
     if block_next:
-        combat.apply_power_to(_owner(card, combat), PowerId.BLOCK_NEXT_TURN, block_next)
+        modified = calculate_block(block_next, owner, ValueProp.MOVE, combat, card_source=card)
+        combat.apply_power_to(owner, PowerId.BLOCK_NEXT_TURN, modified)
 
 
 @register_effect(CardId.GLOW)
@@ -1398,6 +1400,15 @@ def make_i_am_invincible(upgraded: bool = False) -> CardInstance:
     return create_reference_card(CardId.I_AM_INVINCIBLE, upgraded=upgraded, allow_generation=False)
 
 
+def make_glitterstream(upgraded: bool = False) -> CardInstance:
+    from sts2_env.cards.factory import create_reference_card
+
+    card = create_reference_card(CardId.GLITTERSTREAM, upgraded=upgraded, allow_generation=True)
+    card.effect_vars.pop("block_next_turn", None)
+    card.effect_vars["block_next"] = 6 if upgraded else 4
+    return card
+
+
 def _make_reference_factory_card(card_id: CardId, upgraded: bool = False) -> CardInstance:
     from sts2_env.cards.factory import create_reference_card
 
@@ -1406,7 +1417,6 @@ def _make_reference_factory_card(card_id: CardId, upgraded: bool = False) -> Car
 
 _REFERENCE_FACTORY_CARD_IDS = (
     CardId.CRUSH_UNDER,
-    CardId.GLITTERSTREAM,
     CardId.ALIGNMENT,
     CardId.BLACK_HOLE,
     CardId.CHILD_OF_THE_STARS,

@@ -21,6 +21,14 @@ The detailed backlog sections below were captured as the pre-pass baseline. Afte
 
 Latest local pass also added direct coverage for:
 
+- Cards: `CELESTIAL_MIGHT`, `CRESCENT_SPEAR`, `DEVASTATE`, `GAMMA_BLAST`, `GLITTERSTREAM`, `HEGEMONY`, `KNOW_THY_PLACE`, `LUNAR_BLAST`, `NEUTRON_AEGIS`, `PROPHESIZE`, `THE_SEALED_THRONE`
+
+This pass also exposed and fixed the following logic mismatch:
+
+- `Glitterstream`: its `BlockNextTurn` amount now exists in the card factory and goes through the normal block modifier pipeline before applying.
+
+Latest local pass also added direct coverage for:
+
 - Cards: `CATASTROPHE`, `ETERNAL_ARMOR`, `JACKPOT`, `PREP_TIME`, `PROWESS`, `SALVO`
 
 Latest local pass also added direct coverage for:
