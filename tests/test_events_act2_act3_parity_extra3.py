@@ -27,8 +27,12 @@ def _make_run_state(seed: int) -> RunState:
     return run_state
 
 
-class _TransformSecondCardRng:
+class _SwapFirstTwoRng:
+    def __init__(self) -> None:
+        self.shuffle_calls = 0
+
     def shuffle(self, seq) -> None:
+        self.shuffle_calls += 1
         seq[0], seq[1] = seq[1], seq[0]
 
     def choice(self, seq):
@@ -150,6 +154,45 @@ def test_endless_conveyor_observe_and_targeted_dishes_apply_expected_effects():
     assert len(run_state.player.deck) == deck_before + 1
 
 
+def test_endless_conveyor_observe_uses_event_rng_for_upgrade_selection():
+    run_state = _make_run_state(9051)
+    run_state.player.gold = 200
+    first = create_card(CardId.DEFEND_IRONCLAD)
+    second = create_card(CardId.STRIKE_IRONCLAD)
+    run_state.player.deck = [first, second]
+    event = EndlessConveyor()
+    event.rng = _SwapFirstTwoRng()
+    rewards_counter = run_state.rng.rewards.counter
+
+    result = event.choose(run_state, "observe")
+
+    assert result.finished
+    assert event.rng.shuffle_calls == 1
+    assert run_state.rng.rewards.counter == rewards_counter
+    assert first.upgraded is False
+    assert second.upgraded is True
+
+
+def test_endless_conveyor_spicy_snappy_uses_event_rng_for_upgrade_selection():
+    run_state = _make_run_state(9052)
+    run_state.player.gold = 200
+    first = create_card(CardId.DEFEND_IRONCLAD)
+    second = create_card(CardId.STRIKE_IRONCLAD)
+    run_state.player.deck = [first, second]
+    event = EndlessConveyor()
+    event.rng = _SwapFirstTwoRng()
+    event._current_dish = "spicy_snappy"  # noqa: SLF001
+    rewards_counter = run_state.rng.rewards.counter
+
+    result = event.choose(run_state, "grab")
+
+    assert result.finished is False
+    assert event.rng.shuffle_calls == 1
+    assert run_state.rng.rewards.counter == rewards_counter
+    assert first.upgraded is False
+    assert second.upgraded is True
+
+
 def test_endless_conveyor_jelly_liver_uses_event_rng_for_transform_selection():
     run_state = _make_run_state(9061)
     run_state.player.gold = 200
@@ -157,7 +200,7 @@ def test_endless_conveyor_jelly_liver_uses_event_rng_for_transform_selection():
     second = create_card(CardId.DEFEND_IRONCLAD)
     run_state.player.deck = [first, second]
     event = EndlessConveyor()
-    event.rng = _TransformSecondCardRng()
+    event.rng = _SwapFirstTwoRng()
     event._current_dish = "jelly_liver"  # noqa: SLF001
     niche_counter = run_state.rng.niche.counter
 

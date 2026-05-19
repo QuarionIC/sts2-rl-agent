@@ -124,7 +124,7 @@ class DollRoom(EventModel):
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "random":
-            relic_id, _ = self.get_rng(run_state).choice(list(self._DOLLS))
+            relic_id, _ = run_state.rng.niche.choice(list(self._DOLLS))
             if _should_defer_event_rewards(run_state):
                 return _event_result_with_rewards(
                     "Got a random doll relic.",
@@ -207,7 +207,7 @@ class EndlessConveyor(EventModel):
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "observe":
-            _upgrade_n_cards(run_state, 1)
+            _upgrade_n_cards(run_state, 1, rng=self.get_rng(run_state))
             return EventResult(finished=True,
                                description="Observed chef, upgraded a random card.")
         if option_id == "leave":
@@ -275,7 +275,7 @@ class EndlessConveyor(EventModel):
         elif dish == "clam_roll":
             run_state.player.heal(10)
         elif dish == "spicy_snappy":
-            _upgrade_n_cards(run_state, 1)
+            _upgrade_n_cards(run_state, 1, rng=self.get_rng(run_state))
         elif dish == "jelly_liver":
             _transform_n_cards(run_state, 1, rng=self.get_rng(run_state))
         elif dish == "fried_eel":

@@ -132,7 +132,7 @@ def _add_random_character_card(
     return True
 
 
-def _upgrade_n_cards(run_state: RunState, count: int) -> int:
+def _upgrade_n_cards(run_state: RunState, count: int, rng=None) -> int:
     if _should_defer_event_rewards(run_state):
         run_state.pending_rewards.append(
             UpgradeCardsReward(
@@ -142,7 +142,7 @@ def _upgrade_n_cards(run_state: RunState, count: int) -> int:
             )
         )
         return 0
-    return run_state.player.upgrade_random_cards(None, count)
+    return run_state.player.upgrade_random_cards(None, count, rng=rng)
 
 
 def _transform_n_cards(run_state: RunState, count: int, rng=None) -> int:
