@@ -976,7 +976,10 @@ class SpiralingWhirlpool(EventModel):
     event_id = "SpiralingWhirlpool"
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return any(can_enchant_card(card, "Spiral") for card in run_state.player.deck)
+        return all(
+            any(can_enchant_card(card, "Spiral") for card in player.deck)
+            for player in run_state.players
+        )
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         heal = int(run_state.player.max_hp * 0.33)

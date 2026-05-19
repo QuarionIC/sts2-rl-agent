@@ -164,6 +164,18 @@ def test_spiraling_whirlpool_requires_spiral_targets_and_applies_observe_drink()
     assert run_state.player.current_hp == min(run_state.player.max_hp, heal_before + heal_amount)
 
 
+def test_spiraling_whirlpool_requires_all_players_to_have_spiral_targets():
+    run_state = _make_run_state(4031)
+    ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent"))
+    ally.deck = [create_card(CardId.BASH)]
+    event = SpiralingWhirlpool()
+
+    assert event.is_allowed(run_state) is False
+
+    ally.deck = [create_card(CardId.STRIKE_IRONCLAD)]
+    assert event.is_allowed(run_state) is True
+
+
 def test_stone_of_all_time_lift_discards_potion_and_push_enchants_attack():
     run_state = _make_run_state(404)
     run_state.current_act_index = 1
