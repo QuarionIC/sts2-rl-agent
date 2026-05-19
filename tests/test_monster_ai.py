@@ -2671,6 +2671,167 @@ class TestFixedRotation:
             for enemy in rats_combat.enemies
         } == {"SCRATCH_MOVE", "DISEASE_BITE_MOVE", "SCREECH_MOVE"}
 
+    def test_act4_debuff_moves_use_original_player_targets_not_pets(self):
+        rng_seed = 1244
+        ally_hp = 200
+        osty_hp = 200
+        oil_spray_damage = 8
+        tackle_damage = 9
+        double_smash_damage = 6
+        double_smash_hits = 2
+        advanced_gas_damage = 8
+        fast_punch_damage = 5
+        fast_punch_hits = 2
+        giant_stomp_damage = 15
+        goop_frail = 2
+        oil_spray_weak = 1
+        tackle_frail = 1
+        double_smash_weak = 2
+        haunt_debuff = 2
+        advanced_gas_smoggy = 1
+        fast_punch_weak = 1
+        screech_frail = 1
+        giant_stomp_weak = 1
+        no_debuff = 0
+        expected_weak = oil_spray_weak + double_smash_weak + haunt_debuff + fast_punch_weak + giant_stomp_weak
+        expected_frail = goop_frail + tackle_frail + haunt_debuff + screech_frail
+        expected_vulnerable = haunt_debuff
+        expected_smoggy = advanced_gas_smoggy
+        expected_damage = (
+            oil_spray_damage
+            + tackle_damage
+            + double_smash_damage * double_smash_hits
+            + advanced_gas_damage
+            + fast_punch_damage * fast_punch_hits
+            + giant_stomp_damage
+        )
+        combat = _make_combat(rng_seed)
+        ally = _add_test_ally(combat, hp=ally_hp)
+        osty = combat.summon_osty(combat.primary_player, osty_hp)
+        assert osty is not None
+        slug, slug_ai = create_corpse_slug(Rng(rng_seed), starter_idx=2)
+        spinner, spinner_ai = create_sludge_spinner(Rng(rng_seed))
+        stalker, stalker_ai = create_fossil_stalker(Rng(rng_seed))
+        merc, merc_ai = create_gremlin_merc(Rng(rng_seed))
+        fog, fog_ai = create_living_fog(Rng(rng_seed))
+        punch, punch_ai = create_punch_construct(Rng(rng_seed), starts_with_strong_punch=True)
+        giant, giant_ai = create_waterfall_giant(Rng(rng_seed))
+        ship, ship_ai = create_haunted_ship(Rng(rng_seed))
+        rat, rat_ai = create_two_tailed_rat(Rng(rng_seed), starter_move_idx=2)
+        for enemy, enemy_ai in (
+            (slug, slug_ai),
+            (spinner, spinner_ai),
+            (stalker, stalker_ai),
+            (merc, merc_ai),
+            (fog, fog_ai),
+            (punch, punch_ai),
+            (giant, giant_ai),
+            (ship, ship_ai),
+            (rat, rat_ai),
+        ):
+            combat.add_enemy(enemy, enemy_ai)
+
+        primary_hp_before = combat.primary_player.current_hp
+        ally_hp_before = ally.current_hp
+        osty_hp_before = osty.current_hp
+        slug_ai.states["GOOP_MOVE"].perform(combat)
+        spinner_ai.states["OIL_SPRAY_MOVE"].perform(combat)
+        stalker_ai.states["TACKLE_MOVE"].perform(combat)
+        merc_ai.states["DOUBLE_SMASH_MOVE"].perform(combat)
+        fog_ai.states["ADVANCED_GAS_MOVE"].perform(combat)
+        punch_ai.states["FAST_PUNCH_MOVE"].perform(combat)
+        giant_ai.states["STOMP_MOVE"].perform(combat)
+        ship_ai.states["HAUNT_MOVE"].perform(combat)
+        rat_ai.states["SCREECH_MOVE"].perform(combat)
+
+        assert combat.primary_player.current_hp == primary_hp_before
+        assert ally.current_hp == ally_hp_before - expected_damage
+        assert osty.current_hp == osty_hp_before - expected_damage
+        assert combat.primary_player.get_power_amount(PowerId.WEAK) == expected_weak
+        assert ally.get_power_amount(PowerId.WEAK) == expected_weak
+        assert osty.get_power_amount(PowerId.WEAK) == no_debuff
+        assert combat.primary_player.get_power_amount(PowerId.FRAIL) == expected_frail
+        assert ally.get_power_amount(PowerId.FRAIL) == expected_frail
+        assert osty.get_power_amount(PowerId.FRAIL) == no_debuff
+        assert combat.primary_player.get_power_amount(PowerId.VULNERABLE) == expected_vulnerable
+        assert ally.get_power_amount(PowerId.VULNERABLE) == expected_vulnerable
+        assert osty.get_power_amount(PowerId.VULNERABLE) == no_debuff
+        assert combat.primary_player.get_power_amount(PowerId.SMOGGY) == expected_smoggy
+        assert ally.get_power_amount(PowerId.SMOGGY) == expected_smoggy
+        assert osty.get_power_amount(PowerId.SMOGGY) == no_debuff
+
+    def test_act4_status_moves_add_cards_to_original_player_targets_not_pets(self):
+        rng_seed = 1245
+        ally_hp = 100
+        osty_hp = 100
+        ramming_speed_damage = 10
+        smash_damage = 9
+        ramming_speed_wounds = 2
+        smash_dazed = 4
+        expected_damage = ramming_speed_damage + smash_damage
+        combat = _make_combat(rng_seed)
+        ally = _add_test_ally(combat, hp=ally_hp)
+        primary_state = combat.combat_player_state_for(combat.primary_player)
+        ally_state = combat.combat_player_state_for(ally)
+        assert primary_state is not None
+        assert ally_state is not None
+        primary_state.discard.clear()
+        ally_state.discard.clear()
+        osty = combat.summon_osty(combat.primary_player, osty_hp)
+        assert osty is not None
+        ship, ship_ai = create_haunted_ship(Rng(rng_seed))
+        colony, colony_ai = create_skulking_colony(Rng(rng_seed))
+        combat.add_enemy(ship, ship_ai)
+        combat.add_enemy(colony, colony_ai)
+
+        primary_hp_before = combat.primary_player.current_hp
+        ally_hp_before = ally.current_hp
+        osty_hp_before = osty.current_hp
+        ship_ai.states["RAMMING_SPEED_MOVE"].perform(combat)
+        colony_ai.states["SMASH_MOVE"].perform(combat)
+
+        assert combat.primary_player.current_hp == primary_hp_before
+        assert ally.current_hp == ally_hp_before - expected_damage
+        assert osty.current_hp == osty_hp_before - expected_damage
+        assert [card.card_id for card in primary_state.discard] == (
+            [CardId.WOUND] * ramming_speed_wounds + [CardId.DAZED] * smash_dazed
+        )
+        assert [card.card_id for card in ally_state.discard] == (
+            [CardId.WOUND] * ramming_speed_wounds + [CardId.DAZED] * smash_dazed
+        )
+        assert combat.combat_player_state_for(osty) is None
+
+    def test_act4_elite_and_boss_debuffs_use_original_player_targets_not_pets(self):
+        rng_seed = 1246
+        ally_hp = 100
+        osty_hp = 100
+        terror_vulnerable = 99
+        soul_siphon_debuff = -2
+        soul_siphon_strength = 2
+        no_debuff = 0
+        combat = _make_combat(rng_seed)
+        ally = _add_test_ally(combat, hp=ally_hp)
+        osty = combat.summon_osty(combat.primary_player, osty_hp)
+        assert osty is not None
+        eel, eel_ai = create_terror_eel(Rng(rng_seed))
+        matriarch, matriarch_ai = create_lagavulin_matriarch(Rng(rng_seed))
+        combat.add_enemy(eel, eel_ai)
+        combat.add_enemy(matriarch, matriarch_ai)
+
+        eel_ai.states["TERROR_MOVE"].perform(combat)
+        matriarch_ai.states["SOUL_SIPHON_MOVE"].perform(combat)
+
+        assert combat.primary_player.get_power_amount(PowerId.VULNERABLE) == terror_vulnerable
+        assert ally.get_power_amount(PowerId.VULNERABLE) == terror_vulnerable
+        assert osty.get_power_amount(PowerId.VULNERABLE) == no_debuff
+        assert combat.primary_player.get_power_amount(PowerId.STRENGTH) == soul_siphon_debuff
+        assert ally.get_power_amount(PowerId.STRENGTH) == soul_siphon_debuff
+        assert osty.get_power_amount(PowerId.STRENGTH) == no_debuff
+        assert combat.primary_player.get_power_amount(PowerId.DEXTERITY) == soul_siphon_debuff
+        assert ally.get_power_amount(PowerId.DEXTERITY) == soul_siphon_debuff
+        assert osty.get_power_amount(PowerId.DEXTERITY) == no_debuff
+        assert matriarch.get_power_amount(PowerId.STRENGTH) == soul_siphon_strength
+
     def test_act4_elites_match_original_moves_and_setup(self):
         assert create_phantasmal_gardener(Rng(77), slot="first")[1].current_move.state_id == "FLAIL_MOVE"
         assert create_phantasmal_gardener(Rng(77), slot="second")[1].current_move.state_id == "BITE_MOVE"
