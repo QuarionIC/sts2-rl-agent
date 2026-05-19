@@ -1360,7 +1360,7 @@ class WelcomeToWongos(EventModel):
         self._featured_relic_id: str | None = None
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return run_state.current_act_index == 1 and run_state.player.gold >= 100
+        return run_state.current_act_index == 1 and all(player.gold >= 100 for player in run_state.players)
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         gold = run_state.player.gold

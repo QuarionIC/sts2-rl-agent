@@ -505,6 +505,19 @@ def test_welcome_to_wongos_thresholds_purchase_effects_and_leave_downgrade():
     assert leave_state.rng.up_front.counter == up_front_counter
 
 
+def test_welcome_to_wongos_requires_all_players_to_have_initial_gold():
+    run_state = _make_run_state(9140)
+    run_state.current_act_index = 1
+    run_state.player.gold = 100
+    ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent", gold=99))
+    event = WelcomeToWongos()
+
+    assert event.is_allowed(run_state) is False
+
+    ally.gold = 100
+    assert event.is_allowed(run_state) is True
+
+
 def test_welcome_to_wongos_leave_uses_single_event_rng_choice():
     run_state = _make_run_state(9141)
     run_state.current_act_index = 1
