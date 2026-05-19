@@ -298,9 +298,25 @@ class TestAct1NormalEncounters:
         assert len(combat.enemies) == 3
 
     def test_slimes_normal_count(self):
-        combat = _make_combat()
-        setup_slimes_normal(combat, Rng(42))
-        assert len(combat.enemies) == 2
+        seen_small_orders = set()
+        for seed in range(5):
+            combat = _make_combat(seed)
+
+            setup_slimes_normal(combat, Rng(seed))
+
+            monster_ids = [enemy.monster_id for enemy in combat.enemies]
+            assert monster_ids[:2] == ["TWIG_SLIME_M", "LEAF_SLIME_M"]
+            assert set(monster_ids[2:]) == {"LEAF_SLIME_S", "TWIG_SLIME_S"}
+            assert [combat.enemy_ais[enemy.combat_id].current_move.state_id for enemy in combat.enemies[:2]] == [
+                "STICKY_SHOT_MOVE",
+                "STICKY_SHOT",
+            ]
+            seen_small_orders.add(tuple(monster_ids[2:]))
+
+        assert seen_small_orders == {
+            ("LEAF_SLIME_S", "TWIG_SLIME_S"),
+            ("TWIG_SLIME_S", "LEAF_SLIME_S"),
+        }
 
     def test_slithering_strangler_normal_uses_original_secondary_enemy_branches(self):
         expected_secondary_ids = {

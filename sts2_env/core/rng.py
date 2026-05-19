@@ -151,6 +151,10 @@ class Rng:
             raise ValueError("low must be < high")
         return self.next_int(low, high - 1)
 
+    def next_bool(self) -> bool:
+        """Return random bool matching the game's Rng.NextBool."""
+        return self.next_int(0, 1) == 0
+
     def random_int(self, low: int, high: int) -> int:
         """Backward-compatible alias for ``next_int``."""
         return self.next_int(low, high)

@@ -145,8 +145,18 @@ def setup_ruby_raiders_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_slimes_normal(combat: CombatState, rng: Rng) -> None:
-    medium_creators = [create_leaf_slime_m, create_twig_slime_m]
-    for creator in medium_creators:
+    first_small_creator, second_small_creator = (
+        (create_leaf_slime_s, create_twig_slime_s)
+        if rng.next_bool()
+        else (create_twig_slime_s, create_leaf_slime_s)
+    )
+    slime_creators = [
+        create_twig_slime_m,
+        create_leaf_slime_m,
+        first_small_creator,
+        second_small_creator,
+    ]
+    for creator in slime_creators:
         creature, ai = creator(rng)
         combat.add_enemy(creature, ai)
 
