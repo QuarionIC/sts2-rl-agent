@@ -19,6 +19,7 @@ from sts2_env.monsters.intents import (
 from sts2_env.monsters.state_machine import (
     ConditionalBranchState, MonsterAI, MonsterState, MoveState, RandomBranchState,
 )
+from sts2_env.monsters.targets import living_player_targets
 
 if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
@@ -1003,13 +1004,14 @@ def create_soul_fysh(rng: Rng) -> tuple[Creature, MonsterAI]:
     def beckon(combat: CombatState) -> None:
         from sts2_env.cards.status import make_beckon
 
-        combat.add_generated_card_to_creature_draw_pile(
-            combat.primary_player,
-            make_beckon(),
-            added_by_player=False,
-            random_position=True,
-        )
-        combat.add_generated_card_to_creature_discard(combat.primary_player, make_beckon(), added_by_player=False)
+        for target in living_player_targets(combat):
+            combat.add_generated_card_to_creature_draw_pile(
+                target,
+                make_beckon(),
+                added_by_player=False,
+                random_position=True,
+            )
+            combat.add_generated_card_to_creature_discard(target, make_beckon(), added_by_player=False)
 
     def de_gas(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, de_gas_dmg)
@@ -1020,7 +1022,8 @@ def create_soul_fysh(rng: Rng) -> tuple[Creature, MonsterAI]:
         _deal_damage_to_player(combat, creature, gaze_dmg)
         if combat.is_over:
             return
-        combat.add_generated_card_to_creature_discard(combat.primary_player, make_beckon(), added_by_player=False)
+        for target in living_player_targets(combat):
+            combat.add_generated_card_to_creature_discard(target, make_beckon(), added_by_player=False)
 
     def fade(combat: CombatState) -> None:
         creature.apply_power(PowerId.INTANGIBLE, 2, applier=creature)

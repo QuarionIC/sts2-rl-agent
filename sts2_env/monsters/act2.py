@@ -19,6 +19,7 @@ from sts2_env.monsters.intents import (
 from sts2_env.monsters.state_machine import (
     ConditionalBranchState, MonsterAI, MonsterState, MoveState, RandomBranchState,
 )
+from sts2_env.monsters.targets import living_player_targets, player_or_pet_owner
 from sts2_env.cards.status import (
     make_dazed,
     make_disintegration,
@@ -62,11 +63,7 @@ def _gain_block(creature: Creature, amount: int, combat: CombatState) -> None:
 
 
 def _thieving_hopper_targets(combat: CombatState, creature: Creature) -> list[Creature]:
-    return [
-        state.creature
-        for state in combat.combat_player_states
-        if state.creature.is_alive
-    ]
+    return living_player_targets(combat)
 
 
 def _contains_card_instance(cards: list, card) -> bool:
@@ -80,12 +77,8 @@ def _remove_card_instance(cards: list, card) -> None:
             return
 
 
-def _player_or_pet_owner(target: Creature) -> Creature:
-    return getattr(target, "pet_owner", None) or target
-
-
 def _thieving_hopper_steal_candidates(combat: CombatState, target: Creature) -> list:
-    target_owner = _player_or_pet_owner(target)
+    target_owner = player_or_pet_owner(target)
     state = combat.combat_player_state_for(target_owner)
     if state is None:
         return []
@@ -118,7 +111,7 @@ def _steal_card_with_swipe(combat: CombatState, creature: Creature, target: Crea
     if card is None:
         return
     combat._remove_card_from_piles(card)
-    target_owner = _player_or_pet_owner(target)
+    target_owner = player_or_pet_owner(target)
     state = combat.combat_player_state_for(target_owner)
     if state is not None:
         _remove_card_instance(state.player_state.deck, card)
@@ -1022,15 +1015,8 @@ def create_the_insatiable(rng: Rng) -> tuple[Creature, MonsterAI]:
     bite_dmg = 28
     salivate_str = 2
 
-    def _player_targets(combat: CombatState) -> list[Creature]:
-        return [
-            state.creature
-            for state in combat.combat_player_states
-            if state.creature.is_alive
-        ]
-
     def liquify_ground(combat: CombatState) -> None:
-        for target in _player_targets(combat):
+        for target in living_player_targets(combat):
             sandpit = SandpitPower(4)
             sandpit.set_target(target)
             existing = creature.powers.get(PowerId.SANDPIT)

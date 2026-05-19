@@ -19,6 +19,7 @@ from sts2_env.monsters.intents import (
 from sts2_env.monsters.state_machine import (
     ConditionalBranchState, MonsterAI, MonsterState, MoveState, RandomBranchState,
 )
+from sts2_env.monsters.targets import living_player_targets
 from sts2_env.cards.status import make_burn, make_dazed, make_slimed
 
 if TYPE_CHECKING:
@@ -233,17 +234,18 @@ def create_noisebot(rng: Rng) -> tuple[Creature, MonsterAI]:
     creature = Creature(max_hp=hp, monster_id="NOISEBOT")
 
     def noise(combat: CombatState) -> None:
-        combat.add_generated_card_to_creature_discard(
-            combat.primary_player,
-            make_dazed(),
-            added_by_player=False,
-        )
-        combat.add_generated_card_to_creature_draw_pile(
-            combat.primary_player,
-            make_dazed(),
-            added_by_player=False,
-            random_position=True,
-        )
+        for target in living_player_targets(combat):
+            combat.add_generated_card_to_creature_discard(
+                target,
+                make_dazed(),
+                added_by_player=False,
+            )
+            combat.add_generated_card_to_creature_draw_pile(
+                target,
+                make_dazed(),
+                added_by_player=False,
+                random_position=True,
+            )
 
     states: dict[str, MonsterState] = {
         "NOISE_MOVE": MoveState("NOISE_MOVE", noise, [status_intent()], follow_up_id="NOISE_MOVE"),

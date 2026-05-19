@@ -160,6 +160,7 @@ from sts2_env.monsters.state_machine import (
 )
 from sts2_env.powers.base import PowerInstance
 from sts2_env.run.rooms import CombatRoom
+from sts2_env.run.run_state import PlayerState
 
 
 # ---- Helpers ----
@@ -1887,6 +1888,40 @@ class TestFixedRotation:
         assert lethal_combat.enemies[-1].get_power_amount(PowerId.HIGH_VOLTAGE) == 0
         assert lethal_combat.enemies[-1].get_power_amount(PowerId.MINION) == 0
 
+    def test_noisebot_adds_dazed_to_each_living_player_not_osty(self):
+        rng_seed = 1236
+        osty_hp = 5
+        ally_player_id = 2
+        ally_character_id = "Silent"
+        ally_hp = 70
+        combat = _make_combat(rng_seed)
+        ally = combat.add_ally_player(
+            PlayerState(
+                player_id=ally_player_id,
+                character_id=ally_character_id,
+                max_hp=ally_hp,
+                current_hp=ally_hp,
+            )
+        )
+        ally_state = combat.combat_player_state_for(ally)
+        primary_state = combat.combat_player_state_for(combat.primary_player)
+        assert primary_state is not None
+        assert ally_state is not None
+        primary_state.draw.clear()
+        primary_state.discard.clear()
+        ally_state.draw.clear()
+        ally_state.discard.clear()
+        combat.summon_osty(combat.primary_player, osty_hp)
+        noisebot, noisebot_ai = create_noisebot(Rng(rng_seed))
+        combat.add_enemy(noisebot, noisebot_ai)
+
+        noisebot_ai.current_move.perform(combat)
+
+        assert [card.card_id for card in primary_state.draw] == [CardId.DAZED]
+        assert [card.card_id for card in primary_state.discard] == [CardId.DAZED]
+        assert [card.card_id for card in ally_state.draw] == [CardId.DAZED]
+        assert [card.card_id for card in ally_state.discard] == [CardId.DAZED]
+
     def test_fabricator_disintegrates_when_four_teammates_are_alive(self):
         combat = _make_combat(37)
         fabricator, fabricator_ai = create_fabricator(Rng(37))
@@ -2576,6 +2611,38 @@ class TestFixedRotation:
         soul_effect_ai.states["SCREAM_MOVE"].perform(soul_effect_combat)
         assert soul_effect_combat.player.current_hp == 46
         assert soul_effect_combat.player.get_power_amount(PowerId.VULNERABLE) == 3
+
+        soul_multiplayer, soul_multiplayer_ai = create_soul_fysh(Rng(88))
+        soul_multiplayer_combat = _make_combat(88)
+        ally_player_id = 2
+        ally_character_id = "Silent"
+        ally_hp = 70
+        ally = soul_multiplayer_combat.add_ally_player(
+            PlayerState(
+                player_id=ally_player_id,
+                character_id=ally_character_id,
+                max_hp=ally_hp,
+                current_hp=ally_hp,
+            )
+        )
+        primary_state = soul_multiplayer_combat.combat_player_state_for(soul_multiplayer_combat.primary_player)
+        ally_state = soul_multiplayer_combat.combat_player_state_for(ally)
+        assert primary_state is not None
+        assert ally_state is not None
+        primary_state.draw.clear()
+        primary_state.discard.clear()
+        ally_state.draw.clear()
+        ally_state.discard.clear()
+        soul_multiplayer_combat.summon_osty(soul_multiplayer_combat.primary_player, 5)
+        soul_multiplayer_combat.add_enemy(soul_multiplayer, soul_multiplayer_ai)
+        soul_multiplayer_ai.states["BECKON_MOVE"].perform(soul_multiplayer_combat)
+        assert [card.card_id for card in primary_state.draw] == [CardId.BECKON]
+        assert [card.card_id for card in primary_state.discard] == [CardId.BECKON]
+        assert [card.card_id for card in ally_state.draw] == [CardId.BECKON]
+        assert [card.card_id for card in ally_state.discard] == [CardId.BECKON]
+        soul_multiplayer_ai.states["GAZE_MOVE"].perform(soul_multiplayer_combat)
+        assert [card.card_id for card in primary_state.discard] == [CardId.BECKON, CardId.BECKON]
+        assert [card.card_id for card in ally_state.discard] == [CardId.BECKON, CardId.BECKON]
 
         matriarch, matriarch_ai = create_lagavulin_matriarch(Rng(87))
         matriarch_combat = _make_combat(87)
