@@ -71,6 +71,7 @@ _NO_CARD_FILTER = object()
 class CardPlayStartedEntry:
     card: CardInstance
     is_first_in_series: bool
+    energy_value: int
 
 
 class CombatState:
@@ -1191,7 +1192,7 @@ class CombatState:
             for hand_card in owner_state.hand
             if hand_card.card_id == CardId.NORMALITY
         ]
-        if any(self.count_cards_played_this_turn(owner) >= limit for limit in normality_limits):
+        if any(self.count_card_play_starts_this_turn(owner) >= limit for limit in normality_limits):
             return False
         if card.card_id == CardId.HIGH_FIVE:
             osty = self.get_osty(owner)
@@ -1389,6 +1390,7 @@ class CombatState:
             "owner": owner,
             "remaining_plays": play_count,
             "play_count": play_count,
+            "energy_spent": energy_spent,
             "force_exhaust": force_exhaust,
             "is_auto_play": not spend_energy if is_auto_play is None else is_auto_play,
             "awaiting_after_hook": False,
@@ -1451,7 +1453,9 @@ class CombatState:
                 self._apply_card_before_card_played(card, owner)
                 fire_before_card_played(card, self)
             is_first_in_series = ctx["remaining_plays"] == ctx["play_count"]
-            self._card_play_starts_this_turn.append(CardPlayStartedEntry(card, is_first_in_series))
+            self._card_play_starts_this_turn.append(
+                CardPlayStartedEntry(card, is_first_in_series, ctx["energy_spent"])
+            )
             ctx["remaining_plays"] -= 1
             previous_card_source = self._active_card_source
             self._active_card_source = card
@@ -3109,6 +3113,7 @@ class CombatState:
         card_type: CardType | None = None,
         first_in_series_only: bool = False,
         exclude_card: object | None = _NO_CARD_FILTER,
+        energy_value: int | None = None,
     ) -> int:
         return sum(
             1
@@ -3117,7 +3122,23 @@ class CombatState:
             and (card_type is None or entry.card.card_type == card_type)
             and (not first_in_series_only or entry.is_first_in_series)
             and (exclude_card is _NO_CARD_FILTER or entry.card is not exclude_card)
+            and (energy_value is None or entry.energy_value == energy_value)
         )
+
+    def last_card_play_started_this_turn(
+        self,
+        owner: Creature,
+        *,
+        exclude_card: object | None = _NO_CARD_FILTER,
+    ) -> CardInstance | None:
+        for entry in reversed(self._card_play_starts_this_turn):
+            card = entry.card
+            if getattr(card, "owner", None) is not owner:
+                continue
+            if exclude_card is not _NO_CARD_FILTER and card is exclude_card:
+                continue
+            return card
+        return None
 
     def count_cards_played_this_combat(
         self,

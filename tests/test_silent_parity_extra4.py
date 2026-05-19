@@ -289,6 +289,22 @@ class TestSilentParityExtra4:
         assert enemy.current_hp == 92
         assert enemy.get_power_amount(PowerId.WEAK) == 2
 
+    def test_follow_through_replay_uses_prior_started_card_for_weak(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.max_hp = 100
+        enemy.current_hp = 100
+        follow_through = make_follow_through(upgraded=True)
+        follow_through.base_replay_count = 1
+        combat.hand = [make_deflect(), follow_through]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert combat.play_card(0)
+
+        assert enemy.current_hp == 84
+        assert enemy.get_power_amount(PowerId.WEAK) == 4
+
     def test_murder_scales_with_cards_drawn_this_combat(self):
         combat = _make_combat()
         enemy = combat.enemies[0]

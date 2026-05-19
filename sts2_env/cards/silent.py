@@ -412,14 +412,7 @@ def follow_through(card: CardInstance, combat: CombatState, target: Creature | N
     for enemy in combat.hittable_enemies:
         dmg = calculate_damage(card.base_damage, owner, enemy, ValueProp.MOVE, combat)
         apply_damage(enemy, dmg, ValueProp.MOVE, combat, owner)
-    previous = next(
-        (
-            played
-            for played in reversed(combat._played_cards_this_turn)
-            if getattr(played, "owner", None) is owner
-        ),
-        None,
-    )
+    previous = combat.last_card_play_started_this_turn(owner, exclude_card=card)
     if previous is None or previous.card_type != CardType.SKILL:
         return
     weak = card.effect_vars.get("weak", 1)

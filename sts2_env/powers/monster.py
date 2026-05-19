@@ -501,10 +501,9 @@ class SmoggyPower(PowerInstance):
     def after_card_entered_combat(self, owner: Creature, card: object, combat: CombatState) -> None:
         if getattr(card, "owner", None) is not owner or getattr(card, "card_type", None) != CardType.SKILL:
             return
-        if self.skills_locked or any(
-            getattr(played, "owner", None) is owner and getattr(played, "card_type", None) == CardType.SKILL
-            for played in getattr(combat, "_played_cards_this_turn", ())
-        ):
+        card_play_starts = getattr(combat, "count_card_play_starts_this_turn", None)
+        skill_started_this_turn = callable(card_play_starts) and card_play_starts(owner, card_type=CardType.SKILL) > 0
+        if self.skills_locked or skill_started_this_turn:
             self._afflict_skill(owner, card)
 
     def should_card_be_playable(self, owner: Creature, card: object) -> bool:

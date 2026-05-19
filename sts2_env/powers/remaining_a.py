@@ -1428,6 +1428,7 @@ class FeralPower(PowerInstance):
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.COUNTER
+    FREE_ATTACK_ENERGY_VALUE = 0
 
     def __init__(self, amount: int):
         super().__init__(PowerId.FERAL, amount)
@@ -1444,14 +1445,10 @@ class FeralPower(PowerInstance):
         combat: CombatState,
     ) -> None:
         if owner is target and power_id == PowerId.FERAL and amount > 0:
-            self._zero_cost_attacks_played = sum(
-                1
-                for card in combat._played_cards_this_turn
-                if (
-                    getattr(card, "owner", None) is owner
-                    and getattr(card, "card_type", None) == CardType.ATTACK
-                    and getattr(card, "energy_spent", 0) == 0
-                )
+            self._zero_cost_attacks_played = combat.count_card_play_starts_this_turn(
+                owner,
+                card_type=CardType.ATTACK,
+                energy_value=self.FREE_ATTACK_ENERGY_VALUE,
             )
 
     def should_return_to_hand(self, owner: Creature, card: object, energy_spent: int) -> bool:
@@ -1459,7 +1456,7 @@ class FeralPower(PowerInstance):
         card_type = getattr(card, "card_type", None) or getattr(card, "type", None)
         if card_type != CardType.ATTACK:
             return False
-        if energy_spent > 0:
+        if energy_spent != self.FREE_ATTACK_ENERGY_VALUE:
             return False
         if self._zero_cost_attacks_played >= self.amount:
             return False

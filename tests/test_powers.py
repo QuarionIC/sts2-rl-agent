@@ -235,7 +235,7 @@ class TestPowerApplication:
         first.afflict("ringing")
         second.afflict("ringing")
         simple_combat.hand = [first, second]
-        simple_combat._card_play_starts_this_turn.append(CardPlayStartedEntry(first, True))  # noqa: SLF001
+        simple_combat._card_play_starts_this_turn.append(CardPlayStartedEntry(first, True, 1))  # noqa: SLF001
         simple_combat.apply_power_to(simple_combat.player, PowerId.RINGING, 1)
 
         assert simple_combat.can_play_card(second) is False
@@ -1548,6 +1548,17 @@ class TestPowerAmountChangedHooks:
         simple_combat.move_card_to_hand(new_skill)
 
         assert simple_combat.can_play_card(new_skill) is False
+
+    def test_smoggy_marks_new_skills_after_skill_play_started(self, simple_combat):
+        started_skill = make_defend_ironclad()
+        started_skill.owner = simple_combat.player
+        new_skill = make_defend_ironclad()
+        simple_combat.player.powers[PowerId.SMOGGY] = SmoggyPower()
+        simple_combat._card_play_starts_this_turn.append(CardPlayStartedEntry(started_skill, True, 1))  # noqa: SLF001
+
+        simple_combat.move_card_to_hand(new_skill)
+
+        assert new_skill.has_affliction("smog")
 
     def test_smoggy_does_not_block_new_skill_with_existing_affliction(self, simple_combat):
         first_skill = make_defend_ironclad()
