@@ -88,8 +88,11 @@ def _source_card_order(card) -> tuple[int, str]:
 def _attack_potion(combat: CombatState, user: Creature, target: Creature | None) -> None:
     """Generate 3 random Attack cards; add one with cost 0 this turn to hand.
     """
+    state = combat.combat_player_state_for(user)
+    if state is None:
+        return
     generated = create_character_cards(
-        combat.character_id,
+        state.character_id,
         combat.combat_card_generation_rng,
         3,
         card_type=CardType.ATTACK,
@@ -98,6 +101,7 @@ def _attack_potion(combat: CombatState, user: Creature, target: Creature | None)
         is_multiplayer=combat.is_multiplayer,
     )
     for generated_card in generated:
+        generated_card.owner = user
         generated_card.set_temporary_free_this_turn()
     if generated:
         combat.request_card_choice(
@@ -106,6 +110,7 @@ def _attack_potion(combat: CombatState, user: Creature, target: Creature | None)
             source_pile="generated",
             resolver=combat.move_card_to_hand,
             allow_skip=True,
+            owner=user,
         )
 
 
@@ -125,6 +130,9 @@ def _blood_potion(combat: CombatState, user: Creature, target: Creature | None) 
 def _colorless_potion(combat: CombatState, user: Creature, target: Creature | None) -> None:
     """Generate a random Colorless card (cost 0) in hand.
     """
+    state = combat.combat_player_state_for(user)
+    if state is None:
+        return
     colorless_ids = eligible_registered_cards(
         module_name="sts2_env.cards.colorless",
         generation_context="combat",
@@ -132,6 +140,7 @@ def _colorless_potion(combat: CombatState, user: Creature, target: Creature | No
     )
     generated = create_cards_from_ids(colorless_ids, combat.combat_card_generation_rng, 3, distinct=True)
     for generated_card in generated:
+        generated_card.owner = user
         generated_card.set_temporary_free_this_turn()
     if generated:
         combat.request_card_choice(
@@ -140,6 +149,7 @@ def _colorless_potion(combat: CombatState, user: Creature, target: Creature | No
             source_pile="generated",
             resolver=combat.move_card_to_hand,
             allow_skip=True,
+            owner=user,
         )
 
 
@@ -192,8 +202,11 @@ def _potion_of_doom(combat: CombatState, user: Creature, target: Creature | None
 def _power_potion(combat: CombatState, user: Creature, target: Creature | None) -> None:
     """Generate a random Power card (cost 0) in hand.
     """
+    state = combat.combat_player_state_for(user)
+    if state is None:
+        return
     generated = create_character_cards(
-        combat.character_id,
+        state.character_id,
         combat.combat_card_generation_rng,
         3,
         card_type=CardType.POWER,
@@ -202,6 +215,7 @@ def _power_potion(combat: CombatState, user: Creature, target: Creature | None) 
         is_multiplayer=combat.is_multiplayer,
     )
     for generated_card in generated:
+        generated_card.owner = user
         generated_card.set_temporary_free_this_turn()
     if generated:
         combat.request_card_choice(
@@ -210,14 +224,18 @@ def _power_potion(combat: CombatState, user: Creature, target: Creature | None) 
             source_pile="generated",
             resolver=combat.move_card_to_hand,
             allow_skip=True,
+            owner=user,
         )
 
 
 def _skill_potion(combat: CombatState, user: Creature, target: Creature | None) -> None:
     """Generate a random Skill card (cost 0) in hand.
     """
+    state = combat.combat_player_state_for(user)
+    if state is None:
+        return
     generated = create_character_cards(
-        combat.character_id,
+        state.character_id,
         combat.combat_card_generation_rng,
         3,
         card_type=CardType.SKILL,
@@ -226,6 +244,7 @@ def _skill_potion(combat: CombatState, user: Creature, target: Creature | None) 
         is_multiplayer=combat.is_multiplayer,
     )
     for generated_card in generated:
+        generated_card.owner = user
         generated_card.set_temporary_free_this_turn()
     if generated:
         combat.request_card_choice(
@@ -234,6 +253,7 @@ def _skill_potion(combat: CombatState, user: Creature, target: Creature | None) 
             source_pile="generated",
             resolver=combat.move_card_to_hand,
             allow_skip=True,
+            owner=user,
         )
 
 
@@ -602,29 +622,33 @@ def _mazaleths_gift(combat: CombatState, user: Creature, target: Creature | None
 def _orobic_acid(combat: CombatState, user: Creature, target: Creature | None) -> None:
     """Generate 1 random Attack, 1 Skill, 1 Power, each with cost 0, in hand.
     """
+    state = combat.combat_player_state_for(user)
+    if state is None:
+        return
     generated = []
     generated.extend(
         create_character_cards(
-            combat.character_id, combat.combat_card_generation_rng, 1,
+            state.character_id, combat.combat_card_generation_rng, 1,
             card_type=CardType.ATTACK, distinct=True, generation_context="combat",
             is_multiplayer=combat.is_multiplayer,
         )
     )
     generated.extend(
         create_character_cards(
-            combat.character_id, combat.combat_card_generation_rng, 1,
+            state.character_id, combat.combat_card_generation_rng, 1,
             card_type=CardType.SKILL, distinct=True, generation_context="combat",
             is_multiplayer=combat.is_multiplayer,
         )
     )
     generated.extend(
         create_character_cards(
-            combat.character_id, combat.combat_card_generation_rng, 1,
+            state.character_id, combat.combat_card_generation_rng, 1,
             card_type=CardType.POWER, distinct=True, generation_context="combat",
             is_multiplayer=combat.is_multiplayer,
         )
     )
     for generated_card in generated:
+        generated_card.owner = user
         generated_card.set_temporary_free_this_turn()
         combat.add_generated_card_to_creature_hand(user, generated_card)
 

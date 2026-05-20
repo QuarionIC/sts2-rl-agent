@@ -13,6 +13,7 @@ from sts2_env.cards.regent import create_regent_starter_deck
 from sts2_env.cards.silent import create_silent_starter_deck
 from sts2_env.cards.silent import make_defend_silent, make_neutralize, make_strike_silent
 from sts2_env.cards.status import make_ascenders_bane, make_byrd_swoop, make_wound
+from sts2_env.characters.all import get_character
 from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import CardId, CardType, CombatSide, OrbType, PowerId, PotionRarity, PotionUsageType, PotionTargetType
 from sts2_env.core.hooks import fire_after_turn_end
@@ -622,6 +623,74 @@ class TestPotionInstance:
         assert ally_state.hand == ally_draw_cards
         assert ally_state.draw == []
         assert ally_state.exhaust == ally_hand_cards
+
+    def test_generated_potion_choices_use_owner_card_pool_like_reference(self):
+        combat = _make_silent_combat()
+        ally = combat.add_ally_player(PlayerState(player_id=2, character_id="Regent", max_hp=60, current_hp=60))
+        ally_state = combat.combat_player_state_for(ally)
+        assert ally_state is not None
+        ally_state.potions = [
+            create_potion("AttackPotion"),
+            create_potion("ColorlessPotion"),
+            create_potion("PowerPotion"),
+        ]
+
+        assert combat.use_potion(0, owner=ally)
+        assert combat.pending_choice is not None
+        regent_pool = set(get_character("Regent").card_pool)
+        attack_cards = [option.card for option in combat.pending_choice.options]
+        assert all(card.card_id in regent_pool for card in attack_cards)
+        assert all(card.card_type == CardType.ATTACK for card in attack_cards)
+        assert all(card.owner is ally for card in attack_cards)
+        assert combat.resolve_pending_choice(0)
+        assert any(card.owner is ally for card in ally_state.hand)
+        assert not any(card.owner is ally for card in combat.hand)
+
+        assert combat.use_potion(1, owner=ally)
+        assert combat.pending_choice is not None
+        colorless_cards = [option.card for option in combat.pending_choice.options]
+        assert all(card.owner is ally for card in colorless_cards)
+        assert combat.resolve_pending_choice(0)
+        assert any(card.owner is ally for card in ally_state.hand)
+        assert not any(card.owner is ally for card in combat.hand)
+
+        assert combat.use_potion(2, owner=ally)
+        assert combat.pending_choice is not None
+        power_cards = [option.card for option in combat.pending_choice.options]
+        assert all(card.card_id in regent_pool for card in power_cards)
+        assert all(card.card_type == CardType.POWER for card in power_cards)
+        assert all(card.owner is ally for card in power_cards)
+        assert combat.resolve_pending_choice(0)
+        assert any(card.owner is ally for card in ally_state.hand)
+        assert not any(card.owner is ally for card in combat.hand)
+
+    def test_skill_and_orobic_acid_generation_use_owner_card_pool_like_reference(self):
+        combat = _make_silent_combat()
+        ally = combat.add_ally_player(PlayerState(player_id=2, character_id="Regent", max_hp=60, current_hp=60))
+        ally_state = combat.combat_player_state_for(ally)
+        assert ally_state is not None
+        ally_state.potions = [create_potion("SkillPotion"), create_potion("OrobicAcid"), None]
+
+        assert combat.use_potion(0, owner=ally)
+        assert combat.pending_choice is not None
+        regent_pool = set(get_character("Regent").card_pool)
+        skill_cards = [option.card for option in combat.pending_choice.options]
+        assert all(card.card_id in regent_pool for card in skill_cards)
+        assert all(card.card_type == CardType.SKILL for card in skill_cards)
+        assert all(card.owner is ally for card in skill_cards)
+        assert combat.resolve_pending_choice(0)
+        assert any(card.owner is ally for card in ally_state.hand)
+        assert not any(card.owner is ally for card in combat.hand)
+
+        ally_hand_before = list(ally_state.hand)
+        assert combat.use_potion(1, owner=ally)
+        assert combat.pending_choice is None
+        added_cards = [card for card in ally_state.hand if card not in ally_hand_before]
+        assert len(added_cards) == 3
+        assert {card.card_type for card in added_cards} == {CardType.ATTACK, CardType.SKILL, CardType.POWER}
+        assert all(card.card_id in regent_pool for card in added_cards)
+        assert all(card.owner is ally for card in added_cards)
+        assert not any(card.owner is ally for card in combat.hand)
 
     def test_droplet_of_precognition_uses_only_current_draw_pile(self):
         combat = _make_silent_combat()
