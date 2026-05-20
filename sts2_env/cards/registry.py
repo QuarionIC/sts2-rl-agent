@@ -20,6 +20,10 @@ CardChosenHook = Callable[
     ["CardInstance", "CombatState"],
     None,
 ]
+CardAfterCombatEndHook = Callable[
+    ["CardInstance", "PlayerState"],
+    bool,
+]
 CardRestSiteOptionsHook = Callable[
     ["CardInstance", "PlayerState", list["RestSiteOption"], "RunState | None"],
     list["RestSiteOption"],
@@ -28,6 +32,7 @@ CardRestSiteOptionsHook = Callable[
 _CARD_EFFECTS: dict[CardId, CardEffect] = {}
 _CARD_LATE_EFFECTS: dict[CardId, CardLateEffect] = {}
 _CARD_CHOSEN_HOOKS: dict[CardId, CardChosenHook] = {}
+_CARD_AFTER_COMBAT_END_HOOKS: dict[CardId, CardAfterCombatEndHook] = {}
 _CARD_REST_SITE_OPTIONS_HOOKS: dict[CardId, CardRestSiteOptionsHook] = {}
 
 
@@ -50,6 +55,13 @@ def register_late_effect(card_id: CardId):
 def register_chosen_hook(card_id: CardId):
     def decorator(func: CardChosenHook) -> CardChosenHook:
         _CARD_CHOSEN_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_after_combat_end_hook(card_id: CardId):
+    def decorator(func: CardAfterCombatEndHook) -> CardAfterCombatEndHook:
+        _CARD_AFTER_COMBAT_END_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -95,6 +107,13 @@ def fire_card_chosen(
     hook = _CARD_CHOSEN_HOOKS.get(card.card_id)
     if hook is not None:
         hook(card, combat)
+
+
+def apply_card_after_combat_end(card: "CardInstance", owner: "PlayerState") -> bool:
+    hook = _CARD_AFTER_COMBAT_END_HOOKS.get(card.card_id)
+    if hook is None:
+        return True
+    return hook(card, owner)
 
 
 def modify_card_rest_site_options(

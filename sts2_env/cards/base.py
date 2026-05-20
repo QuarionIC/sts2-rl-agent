@@ -460,6 +460,11 @@ class CardInstance:
 
         fire_card_chosen(self, combat)
 
+    def after_combat_end_in_deck(self, owner: object) -> bool:
+        from sts2_env.cards.registry import apply_card_after_combat_end
+
+        return apply_card_after_combat_end(self, owner)
+
     def modify_rest_site_options(
         self,
         owner: object,

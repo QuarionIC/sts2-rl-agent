@@ -1337,13 +1337,8 @@ class RunManager:
         player = self._run_state.player
         remaining_deck: list[CardInstance] = []
         for card in player.deck:
-            if card.card_id == CardId.GUILTY:
-                seen = card.effect_vars.get("combats_seen", 0) + 1
-                card.effect_vars["combats_seen"] = seen
-                card.effect_vars["combats"] = max(0, card.effect_vars.get("combats", 5) - 1)
-                if seen >= 5:
-                    continue
-            remaining_deck.append(card)
+            if card.after_combat_end_in_deck(player):
+                remaining_deck.append(card)
         player.deck = remaining_deck
 
     def _do_card_reward_pick(self, action: dict) -> dict:

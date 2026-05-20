@@ -117,6 +117,20 @@ def test_guilty_counts_combat_victories_and_removes_itself_after_five():
     assert all(card.card_id != CardId.GUILTY for card in mgr.run_state.player.deck)
 
 
+def test_guilty_deck_combat_end_behavior_lives_on_card_hook():
+    mgr = RunManager(seed=55, character_id="Ironclad")
+    guilty = make_guilty()
+
+    for expected_seen in range(1, 5):
+        assert guilty.after_combat_end_in_deck(mgr.run_state.player)
+        assert guilty.effect_vars["combats_seen"] == expected_seen
+        assert guilty.effect_vars["combats"] == 5 - expected_seen
+
+    assert not guilty.after_combat_end_in_deck(mgr.run_state.player)
+    assert guilty.effect_vars["combats_seen"] == 5
+    assert guilty.effect_vars["combats"] == 0
+
+
 def test_fruit_juice_updates_persistent_player_state_inside_combat():
     combat = _won_combat()
     combat.player_won = False

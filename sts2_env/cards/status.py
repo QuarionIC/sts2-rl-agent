@@ -8,7 +8,12 @@ from __future__ import annotations
 
 from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage, new_card_instance_id
 from sts2_env.cards.factory import create_character_cards
-from sts2_env.cards.registry import register_chosen_hook, register_effect, register_rest_site_options_hook
+from sts2_env.cards.registry import (
+    register_after_combat_end_hook,
+    register_chosen_hook,
+    register_effect,
+    register_rest_site_options_hook,
+)
 from sts2_env.core.enums import (
     CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId,
 )
@@ -21,6 +26,7 @@ from sts2_env.core.combat import CombatState
 BURN_DAMAGE = 2
 DECAY_DAMAGE = 2
 BRIGHTEST_FLAME_MAX_HP = 1
+GUILTY_MAX_COMBATS = 5
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -288,7 +294,7 @@ def make_guilty() -> CardInstance:
         card_id=CardId.GUILTY, cost=-1, card_type=CardType.CURSE,
         target_type=TargetType.NONE, rarity=CardRarity.CURSE,
         keywords=frozenset({"unplayable"}),
-        effect_vars={"combats": 5}, instance_id=_get_next_id(),
+        effect_vars={"combats": GUILTY_MAX_COMBATS}, instance_id=_get_next_id(),
     )
 
 
@@ -1468,9 +1474,16 @@ def greed_effect(card: CardInstance, combat: CombatState, target: Creature | Non
 
 @register_effect(CardId.GUILTY)
 def guilty_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    """Unplayable. After 5 combats, removes itself from deck.
-    Combat counter is tracked outside the play-effect path."""
+    """Unplayable curse. Deck combat-end behavior is handled by card hooks."""
     pass
+
+
+@register_after_combat_end_hook(CardId.GUILTY)
+def guilty_after_combat_end(card: CardInstance, player) -> bool:
+    seen = card.effect_vars.get("combats_seen", 0) + 1
+    card.effect_vars["combats_seen"] = seen
+    card.effect_vars["combats"] = max(0, GUILTY_MAX_COMBATS - seen)
+    return seen < GUILTY_MAX_COMBATS
 
 
 @register_effect(CardId.INJURY)
