@@ -360,6 +360,18 @@ def make_writhe() -> CardInstance:
 
 
 # ===========================================================================
+# DEPRECATED SAVE PLACEHOLDER CARD
+# ===========================================================================
+
+def make_deprecated_card() -> CardInstance:
+    return CardInstance(
+        card_id=CardId.DEPRECATED_CARD, cost=-1, card_type=CardType.CURSE,
+        target_type=TargetType.NONE, rarity=CardRarity.CURSE,
+        keywords=frozenset({"unplayable"}), instance_id=_get_next_id(),
+    )
+
+
+# ===========================================================================
 # EVENT CARDS (27)
 # ===========================================================================
 
@@ -1463,6 +1475,12 @@ def spore_mind_effect(card: CardInstance, combat: CombatState, target: Creature 
 @register_effect(CardId.WRITHE)
 def writhe_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     """Unplayable, Innate. Always drawn first turn. Dead weight."""
+    pass
+
+
+@register_effect(CardId.DEPRECATED_CARD)
+def deprecated_card_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
+    """Unplayable save placeholder."""
     pass
 
 

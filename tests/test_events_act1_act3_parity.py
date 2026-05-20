@@ -22,6 +22,8 @@ from sts2_env.run.modifiers import (
     CharacterCardsModifier,
     CursedRunModifier,
     DeadlyEventsModifier,
+    DEPRECATED_MODIFIER_ID,
+    DeprecatedModifier,
     DraftModifier,
     InsanityModifier,
     MidasModifier,
@@ -201,6 +203,18 @@ def test_murderous_modifier_applies_strength_to_combat_creatures_and_added_enemi
     combat.add_enemy(added_enemy, ai)
 
     assert added_enemy.get_power_amount(PowerId.STRENGTH) == 3
+
+
+def test_deprecated_modifier_is_no_op_save_placeholder():
+    run_state = RunState(seed=2400, character_id="Ironclad")
+    modifier = DeprecatedModifier()
+
+    modifier.on_run_created(run_state)
+    result = modifier.generate_neow_event_result(run_state)
+
+    assert modifier.modifier_id == DEPRECATED_MODIFIER_ID
+    assert modifier.clears_player_deck is False
+    assert result is None
 
 
 def test_terminal_modifier_adds_player_plating_in_combat_and_drains_base_room_hp():

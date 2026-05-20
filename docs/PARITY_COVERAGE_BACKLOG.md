@@ -11,20 +11,20 @@ Absence from this document's covered lists is not proof of a bug. It means the r
 
 ## Post-Agent Updates
 
-The detailed backlog sections below were captured as the pre-pass baseline. After the latest local coverage passes, the current direct-reference audit reports:
+The detailed backlog sections below were captured as the pre-pass baseline. After the latest local coverage passes, the stricter direct-reference audit including deprecated save placeholders reports:
 
 | Surface | Total | Missing implementation references | Missing direct test references |
 | --- | ---: | ---: | ---: |
-| Cards | 576 | 0 | 0 |
-| Encounters | 87 | 0 | 0 |
-| Events | 66 | 0 | 0 |
-| Modifiers | 16 | 0 | 0 |
+| Cards | 577 | 0 | 0 |
+| Encounters | 88 | 0 | 0 |
+| Events | 68 | 0 | 0 |
+| Modifiers | 17 | 0 | 0 |
 | Monsters | 121 | 0 | 0 |
-| Potions | 63 | 0 | 0 |
+| Potions | 64 | 0 | 0 |
 | Powers | 260 | 0 | 0 |
-| Relics | 289 | 0 | 0 |
+| Relics | 290 | 0 | 0 |
 
-This table is a coverage gate, not a full behavior proof. It means every decompiled surface currently counted by `scripts/parity_reference_audit.py --direct-test-references --show-missing` has a Python implementation mention and a direct test mention. Exact parity still depends on the deeper behavior and bridge validation tracked in [PARITY_GAPS.md](./PARITY_GAPS.md).
+This table is a coverage gate, not a full behavior proof. It means every decompiled surface currently counted by `scripts/parity_reference_audit.py --direct-test-references --include-deprecated --code-implementation-references --show-missing` has a Python implementation mention and a direct test mention. Exact parity still depends on the deeper behavior and bridge validation tracked in [PARITY_GAPS.md](./PARITY_GAPS.md).
 
 Latest local pass also added direct coverage for:
 
@@ -285,9 +285,7 @@ All currently implemented shared events now have direct coverage.
 
 ### Remaining Relics (0)
 
-All currently counted relic classes now have direct implementation and test references.
-
-`DeprecatedRelic` is intentionally excluded from the audit's default decompiled-reference count, matching the audit script's default `Deprecated` filter.
+All currently counted relic classes now have direct implementation and test references, including the deprecated save placeholder under the stricter audit.
 
 ## Baseline Snapshot
 
@@ -592,7 +590,7 @@ ZenWeaver
 
 ## Current Direct Relic Coverage
 
-`scripts/parity_reference_audit.py --direct-test-references --show-missing` currently reports all 289 counted relic classes with implementation and direct-test references.
+`scripts/parity_reference_audit.py --direct-test-references --include-deprecated --code-implementation-references --show-missing` currently reports all 290 counted relic classes with implementation and direct-test references.
 
 The older uncovered-relic buckets have been removed from this live backlog because they became stale after the focused relic parity suites were added. Relic exactness should still be judged by the behavior-specific tests and by the remaining exact-parity blockers in [PARITY_GAPS.md](./PARITY_GAPS.md), not by direct name coverage alone.
 

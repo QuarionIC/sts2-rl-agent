@@ -25,6 +25,7 @@ DRAFT_REWARD_COUNT = 10
 DRAFT_REWARD_OPTION_COUNT = 3
 INSANITY_CARD_COUNT = 30
 ALL_STAR_CARD_COUNT = 5
+DEPRECATED_MODIFIER_ID = "deprecated"
 
 
 @dataclass
@@ -189,6 +190,11 @@ class TerminalModifier(ModifierModel):
 class FlightModifier(ModifierModel):
     def __init__(self) -> None:
         super().__init__("flight")
+
+
+class DeprecatedModifier(ModifierModel):
+    def __init__(self) -> None:
+        super().__init__(DEPRECATED_MODIFIER_ID)
 
 
 class HoarderModifier(ModifierModel):

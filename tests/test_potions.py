@@ -113,7 +113,7 @@ GLOWWATER_DRAW_COUNT = 10
 
 class TestPotionRegistry:
     def test_total_count(self):
-        assert len(all_potion_models()) == 63
+        assert len(all_potion_models()) == 64
 
     def test_normal_pool_excludes_event_token(self):
         pool = normal_pool_models()
@@ -121,7 +121,7 @@ class TestPotionRegistry:
             assert m.rarity not in (PotionRarity.EVENT, PotionRarity.TOKEN, PotionRarity.NONE)
 
     def test_normal_pool_count(self):
-        """63 total - 2 Event (FoulPotion, GlowwaterPotion) - 1 Token (PotionShapedRock) = 60."""
+        """64 total - 2 Event - 1 Token - 1 None = 60."""
         assert len(normal_pool_models()) == 60
 
     def test_character_filtered_pool_excludes_other_character_potions(self):
@@ -151,6 +151,15 @@ class TestPotionRegistry:
 
     def test_nonexistent_returns_none(self):
         assert get_potion_model("NonexistentPotion") is None
+
+    def test_deprecated_potion_matches_original_save_placeholder(self):
+        model = get_potion_model("DeprecatedPotion")
+
+        assert model is not None
+        assert model.rarity is PotionRarity.NONE
+        assert model.usage_type is PotionUsageType.COMBAT_ONLY
+        assert model.target_type is PotionTargetType.ANY_ENEMY
+        assert model not in normal_pool_models()
 
 
 class TestRarityCounts:

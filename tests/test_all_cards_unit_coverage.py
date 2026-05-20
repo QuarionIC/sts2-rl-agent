@@ -457,6 +457,20 @@ def test_knowledge_demon_status_cards_are_cost_unplayable_without_keyword(card_i
     assert card.is_unplayable
 
 
+def test_deprecated_card_matches_original_save_placeholder():
+    card = create_card(CardId.DEPRECATED_CARD, upgraded=True)
+
+    assert card.cost == -1
+    assert card.original_cost == -1
+    assert card.card_type is CardType.CURSE
+    assert card.rarity is CardRarity.CURSE
+    assert card.target_type is TargetType.NONE
+    assert card.keywords == frozenset({"unplayable"})
+    assert card.upgraded is False
+    assert not card.can_be_generated_in_combat
+    assert not card.can_be_generated_by_modifiers
+
+
 def test_new_real_necrobinder_factory_cards_participate_in_generation_pools():
     assert CardId.BORROWED_TIME in eligible_character_cards("Necrobinder", generation_context=None)
 

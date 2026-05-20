@@ -1098,4 +1098,6 @@ class CardId(Enum):
     LANTERN_KEY = auto()
     SPOILS_MAP = auto()
 
+    DEPRECATED_CARD = auto()
+
     GENERIC = auto()

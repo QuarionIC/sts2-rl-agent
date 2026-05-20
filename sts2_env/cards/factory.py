@@ -46,6 +46,7 @@ _COMBAT_GENERATION_EXCLUDED = frozenset({
     CardId.NEOWS_FURY,
     CardId.PAIN,
     CardId.PARASITE,
+    CardId.DEPRECATED_CARD,
     CardId.ROYALTIES_CARD,
     CardId.SLOTH_STATUS,
     CardId.SOOT,
@@ -57,6 +58,7 @@ _MODIFIER_GENERATION_EXCLUDED = frozenset({
     CardId.ASCENDERS_BANE,
     CardId.BAD_LUCK,
     CardId.CURSE_OF_THE_BELL,
+    CardId.DEPRECATED_CARD,
     CardId.ENTHRALLED,
     CardId.FOLLY,
     CardId.GREED,
@@ -66,7 +68,8 @@ _MODIFIER_GENERATION_EXCLUDED = frozenset({
     CardId.SPORE_MIND,
 })
 
-_LEGACY_NON_REFERENCE_CARD_IDS = frozenset({
+_REGISTERED_POOL_EXCLUDED_CARD_IDS = frozenset({
+    CardId.DEPRECATED_CARD,
     CardId.PAIN,
     CardId.PARASITE,
 })
@@ -539,7 +542,7 @@ def eligible_registered_cards(
             continue
         if not _matches_player_count(card_id, is_multiplayer=is_multiplayer):
             continue
-        if card_id in _LEGACY_NON_REFERENCE_CARD_IDS:
+        if card_id in _REGISTERED_POOL_EXCLUDED_CARD_IDS:
             continue
         if card_id.name == "GENERIC":
             continue

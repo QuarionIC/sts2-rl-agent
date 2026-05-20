@@ -33,6 +33,11 @@ from sts2_env.monsters.shared import (
 from sts2_env.monsters.act4 import create_punch_construct
 
 EncounterSetup = Callable[..., None]
+DEPRECATED_ENCOUNTER_ID = "deprecated"
+
+
+def setup_deprecated_encounter(combat: CombatState, rng: Rng) -> None:
+    return
 
 
 # ---- BattlewornDummyEventEncounter ----
@@ -132,6 +137,7 @@ EVENT_ENCOUNTERS: list[EncounterSetup] = [
 ]
 
 EVENT_ENCOUNTER_REGISTRY: dict[str, EncounterSetup] = {
+    DEPRECATED_ENCOUNTER_ID: setup_deprecated_encounter,
     "battleworn_dummy_v1": setup_battleworn_dummy_v1,
     "battleworn_dummy_v2": setup_battleworn_dummy_v2,
     "battleworn_dummy_v3": setup_battleworn_dummy_v3,

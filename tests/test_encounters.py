@@ -15,7 +15,12 @@ from sts2_env.cards.ironclad_basic import create_ironclad_starter_deck
 from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import PowerId
 from sts2_env.core.rng import Rng
-from sts2_env.encounters.events import setup_punch_off
+from sts2_env.encounters.events import (
+    DEPRECATED_ENCOUNTER_ID,
+    get_event_encounter_setup,
+    setup_deprecated_encounter,
+    setup_punch_off,
+)
 
 # Act 1
 from sts2_env.encounters.act1 import (
@@ -650,3 +655,13 @@ class TestAllActsHaveEncounters:
             assert len(normal) >= 5, f"{name} has too few normal encounters"
             assert len(elite) >= 2, f"{name} has too few elite encounters"
             assert len(boss) >= 2, f"{name} has too few boss encounters"
+
+
+def test_deprecated_encounter_is_debug_placeholder_with_no_monsters():
+    rng = Rng(42)
+    combat = _make_combat(42)
+
+    setup_deprecated_encounter(combat, rng)
+
+    assert combat.enemies == []
+    assert get_event_encounter_setup(DEPRECATED_ENCOUNTER_ID) is setup_deprecated_encounter

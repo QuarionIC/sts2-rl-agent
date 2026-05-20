@@ -1,4 +1,4 @@
-"""All 63 potions from STS2.
+"""All 64 potions from STS2.
 
 Each potion is registered with its rarity, usage type, and target type,
 matching the decompiled MegaCrit.Sts2.Core.Models.Potions source.
@@ -116,3 +116,4 @@ _r("SoldiersStew",        R,  CO, AP, character_pool="Ironclad")
 _r("FoulPotion",          E,  AT, S)
 _r("GlowwaterPotion",     E,  CO, S)
 _r("PotionShapedRock",    T,  CO, AE)
+_r("DeprecatedPotion",    N,  CO, AE)

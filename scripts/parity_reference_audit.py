@@ -154,6 +154,19 @@ def collect_text(root: Path, paths: Iterable[str]) -> str:
     return "\n".join(chunks)
 
 
+def collect_code_text(root: Path, paths: Iterable[str]) -> str:
+    chunks: list[str] = []
+    for path_text in paths:
+        path = root / path_text
+        if path.is_file() and path.suffix == ".py":
+            chunks.append(path.read_text(errors="ignore"))
+        elif path.is_dir():
+            for file_path in sorted(path.rglob(PYTHON_FILE_PATTERN)):
+                if "__pycache__" not in file_path.parts:
+                    chunks.append(file_path.read_text(errors="ignore"))
+    return "\n".join(chunks)
+
+
 def collect_test_text(root: Path, *, direct_references_only: bool = False) -> str:
     if direct_references_only:
         return collect_direct_test_reference_text(root)
@@ -302,9 +315,14 @@ def build_report(
     include_deprecated: bool = False,
     *,
     direct_test_references: bool = False,
+    code_implementation_references: bool = False,
 ) -> SurfaceReport:
     config = SURFACES[surface]
-    implementation_text = collect_text(root, config.implementation_paths)
+    implementation_text = (
+        collect_code_text(root, config.implementation_paths)
+        if code_implementation_references
+        else collect_text(root, config.implementation_paths)
+    )
     test_text = collect_test_text(root, direct_references_only=direct_test_references)
     implementation_index = alias_index(implementation_text)
     test_index = alias_index(test_text)
@@ -340,6 +358,7 @@ def build_reports(
     include_deprecated: bool = False,
     *,
     direct_test_references: bool = False,
+    code_implementation_references: bool = False,
 ) -> tuple[SurfaceReport, ...]:
     return tuple(
         build_report(
@@ -347,6 +366,7 @@ def build_reports(
             surface,
             include_deprecated=include_deprecated,
             direct_test_references=direct_test_references,
+            code_implementation_references=code_implementation_references,
         )
         for surface in surfaces
     )
@@ -438,6 +458,11 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--code-implementation-references",
+        action="store_true",
+        help="Only count Python source files for implementation mentions, excluding docs and bytecode.",
+    )
+    parser.add_argument(
         "--show-missing",
         action="store_true",
         help="Print the missing implementation and test mention names.",
@@ -458,6 +483,7 @@ def main() -> int:
         surfaces,
         include_deprecated=args.include_deprecated,
         direct_test_references=args.direct_test_references,
+        code_implementation_references=args.code_implementation_references,
     )
     if args.json:
         print(json.dumps([asdict(report) for report in reports], indent=2, sort_keys=True))

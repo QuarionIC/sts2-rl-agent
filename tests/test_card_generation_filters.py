@@ -106,6 +106,12 @@ def test_modifier_generation_excludes_modifier_blacklisted_cards():
     assert CardId.ANGER in ironclad_modifier_cards
 
 
+def test_deprecated_card_is_reference_placeholder_not_registered_generation_candidate():
+    all_curses = set(eligible_registered_cards(card_type=CardType.CURSE, generation_context=None))
+
+    assert CardId.DEPRECATED_CARD not in all_curses
+
+
 def test_curse_pool_matches_reference_pool_without_legacy_curses():
     all_curses = set(eligible_registered_cards(card_type=CardType.CURSE, generation_context=None))
     modifier_curses = set(eligible_registered_cards(card_type=CardType.CURSE, generation_context="modifier"))
