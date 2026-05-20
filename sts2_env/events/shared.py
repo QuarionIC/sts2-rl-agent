@@ -1189,13 +1189,18 @@ class LostWisp(EventModel):
     """Claim: Gain Decay curse + Lost Wisp relic. Search: Gain ~60 gold."""
 
     event_id = "LostWisp"
+    BASE_GOLD = 60
+    GOLD_VARIANCE = 15
 
     def __init__(self) -> None:
-        self._gold = 60
+        self._gold = self.BASE_GOLD
 
     def calculate_vars(self, run_state: RunState) -> None:
-        variance = self.get_rng(run_state).next_int_exclusive(-15, 16)
-        self._gold = 60 + variance
+        variance = self.get_rng(run_state).next_int_exclusive(
+            -self.GOLD_VARIANCE,
+            self.GOLD_VARIANCE + 1,
+        )
+        self._gold = self.BASE_GOLD + variance
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         self.ensure_vars_calculated(run_state)
@@ -1758,12 +1763,18 @@ class SunkenStatue(EventModel):
     """
 
     event_id = "SunkenStatue"
+    GOLD = 111
+    GOLD_VARIANCE = 10
+    HP_LOSS = 7
 
     def __init__(self) -> None:
-        self._gold = 111
+        self._gold = self.GOLD
 
     def calculate_vars(self, run_state: RunState) -> None:
-        self._gold = 111 + self.get_rng(run_state).next_int_exclusive(-10, 11)
+        self._gold = self.GOLD + self.get_rng(run_state).next_int_exclusive(
+            -self.GOLD_VARIANCE,
+            self.GOLD_VARIANCE + 1,
+        )
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         self.ensure_vars_calculated(run_state)
@@ -1771,7 +1782,7 @@ class SunkenStatue(EventModel):
             EventOption("grab_sword", "Grab the Sword",
                          "Gain Sword of Stone relic"),
             EventOption("dive", "Dive Into Water",
-                         f"Gain {self._gold} gold, take 7 damage"),
+                         f"Gain {self._gold} gold, take {self.HP_LOSS} damage"),
         ]
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
@@ -1784,9 +1795,11 @@ class SunkenStatue(EventModel):
             run_state.player.obtain_relic(RelicId.SWORD_OF_STONE.name)
             return EventResult(finished=True, description="Gained Sword of Stone relic.")
         run_state.player.gain_gold(self._gold)
-        run_state.player.lose_hp(7)
-        return EventResult(finished=True,
-                           description=f"Gained {self._gold} gold, took 7 damage.")
+        run_state.player.lose_hp(self.HP_LOSS)
+        return EventResult(
+            finished=True,
+            description=f"Gained {self._gold} gold, took {self.HP_LOSS} damage.",
+        )
 
 
 register_event(SunkenStatue())
