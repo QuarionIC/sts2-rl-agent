@@ -1035,15 +1035,6 @@ class CombatState:
         from sts2_env.core.hooks import fire_after_card_generated_for_combat
 
         fire_after_card_generated_for_combat(card, added_by_player, self)
-        for state in self.combat_player_states:
-            for pile in state.all_piles:
-                for active_card in list(pile):
-                    if active_card.card_id != CardId.ROCKET_PUNCH:
-                        continue
-                    active_owner = getattr(active_card, "owner", None) or state.creature
-                    if getattr(card, "owner", None) is active_owner:
-                        if card.card_type == CardType.STATUS:
-                            active_card.set_temporary_cost_for_turn(0)
 
     def _add_generated_card_to_combat(
         self,

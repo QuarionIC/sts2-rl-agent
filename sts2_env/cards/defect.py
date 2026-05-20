@@ -10,7 +10,7 @@ from sts2_env.cards.base import (
     new_card_instance_id,
 )
 from sts2_env.cards.factory import create_character_cards
-from sts2_env.cards.registry import register_effect
+from sts2_env.cards.registry import register_after_card_generated_for_combat_hook, register_effect
 from sts2_env.core.enums import (
     CardId, CardType, TargetType, CardRarity, ValueProp, PowerId, OrbType,
 )
@@ -783,6 +783,22 @@ def rocket_punch(card: CardInstance, combat: CombatState, target: Creature | Non
     dmg = calculate_damage(card.base_damage, _owner(card, combat), target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, _owner(card, combat))
     combat._draw_cards(card.effect_vars.get(ROCKET_PUNCH_CARDS_KEY, ROCKET_PUNCH_CARDS))
+
+
+@register_after_card_generated_for_combat_hook(CardId.ROCKET_PUNCH)
+def rocket_punch_after_card_generated_for_combat(
+    card: CardInstance,
+    generated_card: CardInstance,
+    added_by_player: bool,
+    combat: CombatState,
+) -> None:
+    if generated_card.card_type is not CardType.STATUS:
+        return
+    owner = getattr(card, "owner", None)
+    generated_owner = getattr(generated_card, "owner", None)
+    if owner is not None and generated_owner is not owner:
+        return
+    card.set_temporary_cost_for_turn(0)
 
 
 @register_effect(CardId.SCAVENGE)

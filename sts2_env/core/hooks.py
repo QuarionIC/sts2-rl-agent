@@ -653,10 +653,15 @@ def fire_after_card_generated_for_combat(
     added_by_player: bool,
     combat: CombatState,
 ) -> None:
+    from sts2_env.cards.registry import fire_card_after_card_generated_for_combat
+
     for owner, power in _iter_power_listeners(combat):
         power.after_card_generated_for_combat(owner, card, added_by_player, combat)
     for owner, relic in _iter_relic_listeners(combat):
         relic.after_card_generated_for_combat(owner, card, added_by_player, combat)
+    for state in getattr(combat, "combat_player_states", ()):
+        for listener_card in combat.unique_cards_in_piles(state.all_piles):
+            fire_card_after_card_generated_for_combat(listener_card, card, added_by_player, combat)
 
 
 def fire_after_card_exhausted(card: object, combat: CombatState) -> None:

@@ -83,6 +83,10 @@ CardTurnEndInHandHook = Callable[
     ["CardInstance", "CombatState", int],
     None,
 ]
+CardAfterCardGeneratedForCombatHook = Callable[
+    ["CardInstance", "CardInstance", bool, "CombatState"],
+    None,
+]
 
 _CARD_EFFECTS: dict[CardId, CardEffect] = {}
 _CARD_LATE_EFFECTS: dict[CardId, CardLateEffect] = {}
@@ -103,6 +107,7 @@ _CARD_BEFORE_HAND_DRAW_HOOKS: dict[CardId, CardBeforeHandDrawHook] = {}
 _CARD_AFTER_TURN_END_HOOKS: dict[CardId, CardAfterTurnEndHook] = {}
 _CARD_AFTER_CARD_DRAWN_HOOKS: dict[CardId, CardAfterCardDrawnHook] = {}
 _CARD_TURN_END_IN_HAND_HOOKS: dict[CardId, CardTurnEndInHandHook] = {}
+_CARD_AFTER_CARD_GENERATED_FOR_COMBAT_HOOKS: dict[CardId, CardAfterCardGeneratedForCombatHook] = {}
 
 
 def register_effect(card_id: CardId):
@@ -236,6 +241,15 @@ def register_after_card_drawn_hook(card_id: CardId):
 def register_turn_end_in_hand_hook(card_id: CardId):
     def decorator(func: CardTurnEndInHandHook) -> CardTurnEndInHandHook:
         _CARD_TURN_END_IN_HAND_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_after_card_generated_for_combat_hook(card_id: CardId):
+    def decorator(
+        func: CardAfterCardGeneratedForCombatHook,
+    ) -> CardAfterCardGeneratedForCombatHook:
+        _CARD_AFTER_CARD_GENERATED_FOR_COMBAT_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -442,3 +456,14 @@ def fire_card_turn_end_in_hand(
     hook = _CARD_TURN_END_IN_HAND_HOOKS.get(card.card_id)
     if hook is not None:
         hook(card, combat, cards_in_hand_at_turn_end)
+
+
+def fire_card_after_card_generated_for_combat(
+    listener_card: "CardInstance",
+    generated_card: "CardInstance",
+    added_by_player: bool,
+    combat: "CombatState",
+) -> None:
+    hook = _CARD_AFTER_CARD_GENERATED_FOR_COMBAT_HOOKS.get(listener_card.card_id)
+    if hook is not None:
+        hook(listener_card, generated_card, added_by_player, combat)
