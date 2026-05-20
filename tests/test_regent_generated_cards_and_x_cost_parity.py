@@ -24,7 +24,7 @@ def _make_combat() -> CombatState:
     return combat
 
 
-class TestRegentParityExtra2:
+class TestRegentGeneratedCardsAndXCostParity:
     def test_venerate_base_and_upgraded_gain_expected_stars(self):
         """Matches Venerate.cs: gain Stars using base and upgraded dynamic vars."""
         combat = _make_combat()

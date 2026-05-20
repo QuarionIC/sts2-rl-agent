@@ -24,7 +24,7 @@ def _make_combat() -> CombatState:
     return combat
 
 
-class TestRegentParityExtra3:
+class TestRegentStarCostVoidFormForgeParity:
     def test_astral_pulse_requires_stars_then_spends_them_for_aoe(self):
         """Matches AstralPulse.cs: StarCost 3, then damage all enemies."""
         combat = _make_combat()

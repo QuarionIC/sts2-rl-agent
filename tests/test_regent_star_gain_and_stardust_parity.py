@@ -39,7 +39,7 @@ def _play_card_by_id(combat: CombatState, card_id: CardId, target_index: int | N
     return False
 
 
-class TestRegentParityExtra:
+class TestRegentStarGainAndStardustParity:
     def test_gather_light_gains_block_and_stars(self):
         """Matches GatherLight.cs: gain block, then gain stars."""
         combat = _make_combat()

@@ -83,7 +83,7 @@ class _CannotHitPower(PowerInstance):
         return False
 
 
-class TestRegentParityExtra4:
+class TestRegentCardEffectsReferenceParity:
     def test_patter_gains_block_then_applies_vigor(self):
         combat = _make_combat()
         combat.hand = [make_patter()]
