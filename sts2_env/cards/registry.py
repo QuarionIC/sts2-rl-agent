@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from sts2_env.cards.base import CardInstance
     from sts2_env.core.combat import CombatState
     from sts2_env.core.creature import Creature
-    from sts2_env.core.enums import RoomType, TargetType
+    from sts2_env.core.enums import CombatSide, RoomType, TargetType
     from sts2_env.map.generator import ActMap
     from sts2_env.run.events import EventModel
     from sts2_env.run.rest_site import RestSiteOption
@@ -67,6 +67,14 @@ CardRestSiteOptionsHook = Callable[
     ["CardInstance", "PlayerState", list["RestSiteOption"], "RunState | None"],
     list["RestSiteOption"],
 ]
+CardBeforeHandDrawHook = Callable[
+    ["CardInstance", "Creature", "CombatState"],
+    None,
+]
+CardAfterTurnEndHook = Callable[
+    ["CardInstance", "CombatSide", "CombatState"],
+    None,
+]
 
 _CARD_EFFECTS: dict[CardId, CardEffect] = {}
 _CARD_LATE_EFFECTS: dict[CardId, CardLateEffect] = {}
@@ -83,6 +91,8 @@ _CARD_GENERATED_MAP_LATE_HOOKS: dict[CardId, CardGeneratedMapHook] = {}
 _CARD_AFTER_MAP_GENERATED_HOOKS: dict[CardId, CardAfterMapGeneratedHook] = {}
 _CARD_QUEST_COMPLETE_HOOKS: dict[CardId, CardQuestCompleteHook] = {}
 _CARD_REST_SITE_OPTIONS_HOOKS: dict[CardId, CardRestSiteOptionsHook] = {}
+_CARD_BEFORE_HAND_DRAW_HOOKS: dict[CardId, CardBeforeHandDrawHook] = {}
+_CARD_AFTER_TURN_END_HOOKS: dict[CardId, CardAfterTurnEndHook] = {}
 
 
 def register_effect(card_id: CardId):
@@ -188,6 +198,20 @@ def register_quest_complete_hook(card_id: CardId):
 def register_rest_site_options_hook(card_id: CardId):
     def decorator(func: CardRestSiteOptionsHook) -> CardRestSiteOptionsHook:
         _CARD_REST_SITE_OPTIONS_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_before_hand_draw_hook(card_id: CardId):
+    def decorator(func: CardBeforeHandDrawHook) -> CardBeforeHandDrawHook:
+        _CARD_BEFORE_HAND_DRAW_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_after_turn_end_hook(card_id: CardId):
+    def decorator(func: CardAfterTurnEndHook) -> CardAfterTurnEndHook:
+        _CARD_AFTER_TURN_END_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -353,3 +377,23 @@ def modify_card_rest_site_options(
     if hook is None:
         return options
     return hook(card, owner, options, run_state)
+
+
+def fire_card_before_hand_draw(
+    card: "CardInstance",
+    drawing_owner: "Creature",
+    combat: "CombatState",
+) -> None:
+    hook = _CARD_BEFORE_HAND_DRAW_HOOKS.get(card.card_id)
+    if hook is not None:
+        hook(card, drawing_owner, combat)
+
+
+def fire_card_after_turn_end(
+    card: "CardInstance",
+    side: "CombatSide",
+    combat: "CombatState",
+) -> None:
+    hook = _CARD_AFTER_TURN_END_HOOKS.get(card.card_id)
+    if hook is not None:
+        hook(card, side, combat)

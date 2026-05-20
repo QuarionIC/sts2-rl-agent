@@ -38,7 +38,12 @@ from sts2_env.cards.factory import (
     eligible_registered_cards,
     eligible_transform_cards,
 )
-from sts2_env.cards.registry import fire_card_late_effects, play_card_effect
+from sts2_env.cards.registry import (
+    fire_card_after_turn_end,
+    fire_card_before_hand_draw,
+    fire_card_late_effects,
+    play_card_effect,
+)
 from sts2_env.characters.all import ALL_CHARACTERS, get_character
 from sts2_env.core.attack import AttackContext
 from sts2_env.core.card_pools import CardPoolId
@@ -949,23 +954,29 @@ class CombatState:
         for card in list(state.draw) + list(state.discard) + list(state.exhaust) + list(state.play):
             if card.combat_vars.get("_return_before_hand_draw_round") == self.round_number:
                 self.move_card_to_creature_hand(owner, card)
-        for card in list(state.exhaust):
-            if card.card_id in (CardId.HOWL_FROM_BEYOND, CardId.BOMBARDMENT):
-                self.auto_play_card(card)
+        for card in self._unique_cards_in_piles(state.all_piles):
+            fire_card_before_hand_draw(card, owner, self)
+            if self.is_over:
+                return
+
+    def _apply_card_after_turn_end(self, side: CombatSide) -> None:
+        for state in self.combat_player_states:
+            for card in self._unique_cards_in_piles(state.all_piles):
+                fire_card_after_turn_end(card, side, self)
                 if self.is_over:
                     return
 
-    def _apply_card_after_turn_end(self, side: CombatSide) -> None:
-        if side != CombatSide.PLAYER:
-            return
-        for state in self.combat_player_states:
-            if not state.draw:
-                continue
-            card = state.draw[0]
-            if card.card_id == CardId.I_AM_INVINCIBLE:
-                self.auto_play_card(card, force_exhaust=False)
-                if self.is_over:
-                    return
+    def _unique_cards_in_piles(self, piles: tuple[list[CardInstance], ...]) -> list[CardInstance]:
+        cards: list[CardInstance] = []
+        seen_ids: set[int] = set()
+        for pile in piles:
+            for card in list(pile):
+                instance_id = getattr(card, "instance_id", 0) or id(card)
+                if instance_id in seen_ids:
+                    continue
+                seen_ids.add(instance_id)
+                cards.append(card)
+        return cards
 
     def _is_card_in_combat(self, card: CardInstance) -> bool:
         for state in self.combat_player_states:

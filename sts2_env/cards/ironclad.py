@@ -7,7 +7,7 @@ Each card has a registered effect function and a make_*() factory.
 from __future__ import annotations
 
 from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage
-from sts2_env.cards.registry import register_effect, register_playability_hook
+from sts2_env.cards.registry import register_before_hand_draw_hook, register_effect, register_playability_hook
 from sts2_env.core.enums import (
     CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, CombatSide,
 )
@@ -1120,6 +1120,13 @@ def make_hemokinesis(upgraded: bool = False) -> CardInstance:
 @register_effect(CardId.HOWL_FROM_BEYOND)
 def howl_from_beyond(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     _deal_damage_all_enemies(card, combat)
+
+
+@register_before_hand_draw_hook(CardId.HOWL_FROM_BEYOND)
+def howl_from_beyond_before_hand_draw(card: CardInstance, drawing_owner: Creature, combat: CombatState) -> None:
+    state = combat.combat_player_state_for(drawing_owner)
+    if getattr(card, "owner", None) is drawing_owner and state is not None and card in state.exhaust:
+        combat.auto_play_card(card)
 
 
 def make_howl_from_beyond(upgraded: bool = False) -> CardInstance:

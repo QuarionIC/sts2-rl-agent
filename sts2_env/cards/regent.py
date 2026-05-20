@@ -8,10 +8,15 @@ from __future__ import annotations
 
 from sts2_env.cards.base import CardInstance, _get_next_id, new_card_instance_id
 from sts2_env.cards.factory import create_cards_from_ids, eligible_registered_cards
-from sts2_env.cards.registry import register_effect, register_late_effect
+from sts2_env.cards.registry import (
+    register_after_turn_end_hook,
+    register_before_hand_draw_hook,
+    register_effect,
+    register_late_effect,
+)
 from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import (
-    CardId, CardType, TargetType, CardRarity, ValueProp, PowerId,
+    CardId, CardType, TargetType, CardRarity, ValueProp, PowerId, CombatSide,
 )
 from sts2_env.core.damage import calculate_damage, apply_damage, calculate_block
 from sts2_env.core.hooks import fire_after_block_gained
@@ -663,6 +668,13 @@ def bombardment(card: CardInstance, combat: CombatState, target: Creature | None
     _deal_damage_single(card, combat, target)
 
 
+@register_before_hand_draw_hook(CardId.BOMBARDMENT)
+def bombardment_before_hand_draw(card: CardInstance, drawing_owner: Creature, combat: CombatState) -> None:
+    state = combat.combat_player_state_for(drawing_owner)
+    if getattr(card, "owner", None) is drawing_owner and state is not None and card in state.exhaust:
+        combat.auto_play_card(card)
+
+
 @register_effect(CardId.BUNDLE_OF_JOY)
 def bundle_of_joy(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     colorless_ids = eligible_registered_cards(
@@ -816,6 +828,15 @@ def heirloom_hammer(card: CardInstance, combat: CombatState, target: Creature | 
 @register_effect(CardId.I_AM_INVINCIBLE)
 def i_am_invincible(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     _gain_block(card, combat)
+
+
+@register_after_turn_end_hook(CardId.I_AM_INVINCIBLE)
+def i_am_invincible_after_turn_end(card: CardInstance, side: CombatSide, combat: CombatState) -> None:
+    owner = getattr(card, "owner", None)
+    if owner is not None and side == owner.side:
+        state = combat.combat_player_state_for(owner)
+        if state is not None and state.draw and state.draw[0] is card:
+            combat.auto_play_card(card, force_exhaust=False)
 
 
 @register_effect(CardId.MAKE_IT_SO)
