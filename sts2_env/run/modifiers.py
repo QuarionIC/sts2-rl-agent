@@ -17,6 +17,7 @@ from sts2_env.run.events import EventResult
 from sts2_env.run.reward_objects import CardReward, GoldReward, RelicReward
 from sts2_env.run.rewards import (
     CardRewardGenerationOptions,
+    DEFAULT_CARD_REWARD_OPTION_COUNT,
     generate_combat_reward_cards,
     generate_uniform_noncombat_cards,
 )
@@ -24,9 +25,24 @@ from sts2_env.run.rewards import (
 
 PANDORAS_BOX_RELIC_ID = "PANDORAS_BOX"
 DRAFT_REWARD_COUNT = 10
-DRAFT_REWARD_OPTION_COUNT = 3
+DRAFT_REWARD_OPTION_COUNT = DEFAULT_CARD_REWARD_OPTION_COUNT
 INSANITY_CARD_COUNT = 30
 ALL_STAR_CARD_COUNT = 5
+MURDEROUS_STRENGTH = 3
+TERMINAL_BASE_ROOM_MAX_HP_LOSS = 1
+TERMINAL_PLATING = 5
+HOARDER_EXTRA_COPIES = 2
+BIG_GAME_HUNTER_TREASURE_ROW_OFFSET = 7
+BIG_GAME_HUNTER_ELITE_COUNT_MULTIPLIER = 2.5
+DEADLY_EVENTS_ELITE_UNKNOWN_ODDS = 0.1
+DEADLY_EVENTS_TREASURE_ODDS_INCREASE_MULTIPLIER = 2
+CURSED_RUN_CURSES_PER_ACT = 1
+MIDAS_GOLD_MULTIPLIER = 2
+NIGHT_TERRORS_MAX_HP_LOSS = 5
+SPECIALIZED_CARD_REWARD_COUNT = 1
+SPECIALIZED_CARD_COPIES = 5
+SEALED_DECK_OFFERED_CARD_COUNT = 30
+SEALED_DECK_PICK_COUNT = 10
 DEPRECATED_MODIFIER_ID = "deprecated"
 
 
@@ -65,6 +81,9 @@ class ModifierModel:
 
     def should_allow_merchant_card_removal(self, player) -> bool:
         return True
+
+    def modify_rewards(self, player, rewards, room, run_state):
+        return rewards
 
     def modify_rewards_late(self, player, rewards, room, run_state):
         return rewards
@@ -168,11 +187,11 @@ class MurderousModifier(ModifierModel):
         if combat is None:
             return
         for creature in combat.all_creatures:
-            combat.apply_power_to(creature, PowerId.STRENGTH, 3)
+            combat.apply_power_to(creature, PowerId.STRENGTH, MURDEROUS_STRENGTH)
 
     def after_creature_added_to_combat(self, creature, combat) -> None:
         if creature.side != CombatSide.PLAYER:
-            combat.apply_power_to(creature, PowerId.STRENGTH, 3)
+            combat.apply_power_to(creature, PowerId.STRENGTH, MURDEROUS_STRENGTH)
 
 
 class TerminalModifier(ModifierModel):
@@ -182,11 +201,11 @@ class TerminalModifier(ModifierModel):
     def after_room_entered(self, run_state, room, combat=None) -> None:
         if getattr(run_state, "base_room", None) is room:
             for player in run_state.players:
-                player.lose_max_hp(1)
+                player.lose_max_hp(TERMINAL_BASE_ROOM_MAX_HP_LOSS)
         if combat is None:
             return
         for state in combat.combat_player_states:
-            combat.apply_power_to(state.creature, PowerId.PLATING, 5)
+            combat.apply_power_to(state.creature, PowerId.PLATING, TERMINAL_PLATING)
 
 
 class FlightModifier(ModifierModel):
@@ -206,7 +225,7 @@ class HoarderModifier(ModifierModel):
     def after_card_added_to_deck(self, player, card, source=None) -> None:
         if source is not None:
             return
-        for _ in range(2):
+        for _ in range(HOARDER_EXTRA_COPIES):
             player.add_card_instance_to_deck(player.clone_card_for_deck(card), source=self)
 
     def should_allow_merchant_card_removal(self, player) -> bool:
@@ -222,7 +241,7 @@ class BigGameHunterModifier(ModifierModel):
         from sts2_env.map.generator import generate_act_map
 
         current_elites = sum(1 for point in act_map.room_points() if point.point_type == MapPointType.ELITE)
-        treasure_row = act_map.map_length - 7
+        treasure_row = act_map.map_length - BIG_GAME_HUNTER_TREASURE_ROW_OFFSET
         treasure_points = act_map.get_row(treasure_row) if treasure_row > 0 else []
         replace_treasure = bool(treasure_points) and all(point.point_type == MapPointType.ELITE for point in treasure_points)
         return generate_act_map(
@@ -231,7 +250,7 @@ class BigGameHunterModifier(ModifierModel):
             ascension_level=run_state.ascension_level,
             replace_treasure_with_elite=replace_treasure,
             act_index=act_index,
-            num_elites_override=round(current_elites * 2.5),
+            num_elites_override=round(current_elites * BIG_GAME_HUNTER_ELITE_COUNT_MULTIPLIER),
         )
 
     def modify_card_reward_creation_options(self, player, options, reward, room, run_state):
@@ -344,7 +363,7 @@ class CursedRunModifier(ModifierModel):
 
     def after_act_entered(self, run_state) -> None:
         for player in run_state.players:
-            player.add_random_curses(1, rng=run_state.rng.niche)
+            player.add_random_curses(CURSED_RUN_CURSES_PER_ACT, rng=run_state.rng.niche)
 
 
 class DeadlyEventsModifier(ModifierModel):
@@ -362,12 +381,12 @@ class DeadlyEventsModifier(ModifierModel):
             player.remove_relic_from_grab_bag("JUZU_BRACELET")
 
     def _set_unknown_elite_odds(self, run_state) -> None:
-        run_state.unknown_odds._base[RoomType.ELITE] = 0.1
-        run_state.unknown_odds._current[RoomType.ELITE] = 0.1
+        run_state.unknown_odds._base[RoomType.ELITE] = DEADLY_EVENTS_ELITE_UNKNOWN_ODDS
+        run_state.unknown_odds._current[RoomType.ELITE] = DEADLY_EVENTS_ELITE_UNKNOWN_ODDS
 
     def modify_odds_increase_for_unrolled_room_type(self, room_type, odds_increase: float) -> float:
         if room_type is RoomType.TREASURE:
-            return odds_increase * 2
+            return odds_increase * DEADLY_EVENTS_TREASURE_ODDS_INCREASE_MULTIPLIER
         return odds_increase
 
 
@@ -380,8 +399,9 @@ class MidasModifier(ModifierModel):
         for reward in rewards:
             if isinstance(reward, GoldReward):
                 amount = reward.amount if reward.is_populated else reward.min_gold
-                doubled = GoldReward(player.player_id, amount * 2, amount * 2)
-                doubled.amount = amount * 2
+                doubled_amount = amount * MIDAS_GOLD_MULTIPLIER
+                doubled = GoldReward(player.player_id, doubled_amount, doubled_amount)
+                doubled.amount = doubled_amount
                 doubled.is_populated = True
                 modified.append(doubled)
             else:
@@ -400,7 +420,7 @@ class NightTerrorsModifier(ModifierModel):
         return player.max_hp
 
     def after_rest_site_heal(self, player, healed: int, run_state) -> None:
-        player.lose_max_hp(5)
+        player.lose_max_hp(NIGHT_TERRORS_MAX_HP_LOSS)
 
 
 class VintageModifier(ModifierModel):
@@ -426,17 +446,17 @@ class SpecializedModifier(ModifierModel):
     def generate_neow_event_result(self, run_state) -> EventResult:
         cards = generate_uniform_noncombat_cards(
             run_state,
-            num_cards=1,
+            num_cards=SPECIALIZED_CARD_REWARD_COUNT,
             distinct=True,
         )
         if cards:
             card = cards[0]
             clones = []
-            for _ in range(5):
+            for _ in range(SPECIALIZED_CARD_COPIES):
                 clone = card.clone(new_card_instance_id_after([*run_state.player.deck, *clones]))
                 clones.append(clone)
                 run_state.player.add_card_instance_to_deck(clone)
-        return EventResult(finished=True, description="Added 5 copies of one random card.")
+        return EventResult(finished=True, description=f"Added {SPECIALIZED_CARD_COPIES} copies of one random card.")
 
 
 class SealedDeckModifier(ModifierModel):
@@ -447,22 +467,22 @@ class SealedDeckModifier(ModifierModel):
         cards = generate_combat_reward_cards(
             run_state,
             context="regular",
-            num_cards=30,
+            num_cards=SEALED_DECK_OFFERED_CARD_COUNT,
             generation_context=None,
             roll_upgrade=False,
         )
         if not cards:
             return EventResult(finished=True, description="No cards available.")
         run_state.pending_choice = PendingCardChoice(
-            prompt="Choose 10 cards for your sealed deck",
+            prompt=f"Choose {SEALED_DECK_PICK_COUNT} cards for your sealed deck",
             options=[CardChoiceOption(card=card, source_pile="deck") for card in cards],
             resolver=lambda selected: [run_state.player.add_card_instance_to_deck(card) for card in selected],
             allow_skip=False,
-            min_choices=min(10, len(cards)),
-            max_choices=min(10, len(cards)),
+            min_choices=min(SEALED_DECK_PICK_COUNT, len(cards)),
+            max_choices=min(SEALED_DECK_PICK_COUNT, len(cards)),
         )
         self._remove_pandoras_box(run_state)
         return EventResult(
             finished=False,
-            description="Choose 10 cards for your sealed deck.",
+            description=f"Choose {SEALED_DECK_PICK_COUNT} cards for your sealed deck.",
         )

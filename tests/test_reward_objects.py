@@ -5,13 +5,22 @@ from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.status import make_curse_of_the_bell
 from sts2_env.core.enums import CardId, CardRarity, CardType, RoomType
 from sts2_env.run.reward_objects import (
+    AddCardsReward,
     CardReward,
+    CARD_REMOVAL_REWARD_SET_INDEX,
+    CARD_REWARD_SET_INDEX,
     ENCOUNTER_GOLD_REWARD_RANGES,
+    GOLD_REWARD_SET_INDEX,
     GoldReward,
+    POTION_REWARD_SET_INDEX,
     PotionReward,
+    RELIC_REWARD_SET_INDEX,
     RelicReward,
+    RemoveCardReward,
     RewardsSet,
+    SPECIAL_REWARD_SET_INDEX,
 )
+from sts2_env.run.modifiers import ModifierModel
 from sts2_env.run.rooms import CombatRoom
 from sts2_env.run.run_state import RunState
 
@@ -27,6 +36,29 @@ class _ExtraRewardCardRelic:
         return False
 
 
+class _EarlyExtraCardRewardModifier(ModifierModel):
+    def __init__(self):
+        super().__init__("early_extra_card_reward")
+        self.modified_rewards = []
+        self.after_saw_all_populated = False
+
+    def modify_rewards(self, player, rewards, room, run_state):
+        self.modified_rewards = [*rewards, CardReward(player.player_id, context="boss")]
+        return self.modified_rewards
+
+    def modify_rewards_late(self, player, rewards, room, run_state):
+        for reward in rewards:
+            if isinstance(reward, CardReward):
+                reward.include_colorless = True
+        return rewards
+
+    def after_modifying_rewards(self, player, run_state):
+        self.after_saw_all_populated = all(
+            not isinstance(reward, CardReward) or reward.is_populated
+            for reward in self.modified_rewards
+        )
+
+
 def test_rewards_set_merges_combat_room_extra_rewards_for_player():
     run_state = RunState(seed=42, character_id="Ironclad")
     room = CombatRoom(room_type=RoomType.MONSTER)
@@ -37,6 +69,44 @@ def test_rewards_set_merges_combat_room_extra_rewards_for_player():
     generated = rewards.generate_without_offering(run_state)
 
     assert any(reward is extra for reward in generated)
+
+
+def test_reward_set_indices_match_reference_reward_order():
+    player_id = 1
+
+    rewards = [
+        GoldReward(player_id, 1, 1),
+        PotionReward(player_id),
+        RelicReward(player_id),
+        AddCardsReward(player_id, [create_card(CardId.ANGER)]),
+        CardReward(player_id),
+        RemoveCardReward(player_id),
+    ]
+
+    assert [reward.rewards_set_index for reward in rewards] == [
+        GOLD_REWARD_SET_INDEX,
+        POTION_REWARD_SET_INDEX,
+        RELIC_REWARD_SET_INDEX,
+        SPECIAL_REWARD_SET_INDEX,
+        CARD_REWARD_SET_INDEX,
+        CARD_REMOVAL_REWARD_SET_INDEX,
+    ]
+
+
+def test_reward_modification_runs_early_then_late_before_populating_new_rewards():
+    run_state = RunState(seed=47, character_id="Ironclad")
+    modifier = _EarlyExtraCardRewardModifier()
+    run_state.modifiers = [modifier]
+    room = CombatRoom(room_type=RoomType.MONSTER)
+
+    rewards = RewardsSet(run_state.player.player_id).with_rewards_from_room(room, run_state)
+    generated = rewards.generate_without_offering(run_state)
+
+    card_rewards = [reward for reward in generated if isinstance(reward, CardReward)]
+    assert len(card_rewards) == 2
+    assert all(reward.include_colorless is True for reward in card_rewards)
+    assert all(reward.is_populated for reward in card_rewards)
+    assert modifier.after_saw_all_populated is True
 
 
 def test_combat_room_gold_ranges_match_encounter_model_defaults():

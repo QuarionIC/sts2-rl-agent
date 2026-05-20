@@ -832,6 +832,18 @@ class RelicInstance:
     ) -> list[Reward]:
         return rewards
 
+    def modify_rewards_late(
+        self,
+        owner: Creature,
+        rewards: list[Reward],
+        room: Room | None,
+        run_state: RunState,
+    ) -> list[Reward]:
+        return rewards
+
+    def after_modifying_rewards(self, owner: Creature, run_state: RunState) -> None:
+        pass
+
     def modify_card_reward_creation_options(
         self,
         owner: Creature,

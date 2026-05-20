@@ -11,7 +11,7 @@ from sts2_env.core.enums import CardId, CombatSide, PowerId
 from sts2_env.core.hooks import fire_after_card_played, fire_before_turn_end, should_flush
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
-from sts2_env.run.reward_objects import AddCardsReward, RelicReward, UpgradeCardsReward
+from sts2_env.run.reward_objects import AddCardsReward, RelicReward, RemoveCardReward, UpgradeCardsReward
 from sts2_env.run.rest_site import generate_rest_site_options
 from sts2_env.run.run_state import RunState
 
@@ -291,10 +291,11 @@ class TestRelicEventObtainOpeningRestHooksParity:
         run_state.defer_followup_rewards = True
 
         assert run_state.player.obtain_relic("PRESERVED_FOG")
-        assert len(run_state.pending_rewards) == 2
-        assert isinstance(run_state.pending_rewards[0], UpgradeCardsReward) is False
-        assert isinstance(run_state.pending_rewards[1], AddCardsReward)
-        assert [card.card_id.name for card in run_state.pending_rewards[1].cards] == ["FOLLY"]
+        assert len(run_state.pending_rewards) == 1
+        reward = run_state.pending_rewards[0]
+        assert isinstance(reward, RemoveCardReward)
+        assert reward.count == 5
+        assert reward.after_remove_card_names == ("Folly",)
 
     def test_pumpkin_candle_only_grants_energy_in_act_obtained(self):
         run_state = RunState(seed=884, character_id="Ironclad")

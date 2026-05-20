@@ -1460,6 +1460,20 @@ class Driftwood(RelicInstance):
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
 
+    def modify_rewards_late(
+        self,
+        owner: Creature,
+        rewards: list[Reward],
+        room: Room | None,
+        run_state: RunState,
+    ) -> list[Reward]:
+        from sts2_env.run.reward_objects import CardReward
+
+        for reward in rewards:
+            if isinstance(reward, CardReward) and reward._can_regenerate:
+                reward.max_rerolls = max(reward.max_rerolls, 1)
+        return rewards
+
     def allow_card_reward_reroll(
         self,
         owner: Creature,
@@ -2817,8 +2831,18 @@ class PreservedFog(RelicInstance):
     def after_obtained(self, owner: Creature) -> None:
         candidates = owner.removable_deck_cards()
         if getattr(owner.run_state, "defer_followup_rewards", False):
-            owner.offer_remove_card_reward(self.CARDS, cards=candidates)
-            if not _queue_named_cards_reward(owner, "Folly"):
+            from sts2_env.run.reward_objects import RemoveCardReward
+
+            folly_id = owner._coerce_card_id("Folly")
+            owner.run_state.pending_rewards.append(
+                RemoveCardReward(
+                    owner.player_id,
+                    count=self.CARDS,
+                    cards=candidates,
+                    after_remove_card_names=("Folly",) if folly_id is not None else (),
+                )
+            )
+            if folly_id is None:
                 owner.add_card_to_deck("Folly")
             return
         if getattr(owner.run_state, "enable_deck_choice_requests", False):
@@ -3654,8 +3678,10 @@ class WongosMysteryTicket(RelicInstance):
             return rewards
         if room is None or room.room_type not in {RoomType.MONSTER, RoomType.ELITE, RoomType.BOSS}:
             return rewards
-        self._gave_relic = True
         return [*rewards, *(RelicReward(owner.player_id) for _ in range(self.RELICS))]
+
+    def after_modifying_rewards(self, owner: Creature, run_state: RunState) -> None:
+        self._gave_relic = True
 
     def after_combat_end(self, owner: Creature, combat: CombatState) -> None:
         if not self._gave_relic:
