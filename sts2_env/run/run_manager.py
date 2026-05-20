@@ -730,10 +730,7 @@ class RunManager:
 
     def _enter_rest_site(self) -> None:
         self._phase = self.PHASE_REST_SITE
-        self._rest_options = generate_rest_site_options(
-            self._run_state.player,
-            relic_ids=self._run_state.relics,
-        )
+        self._rest_options = generate_rest_site_options(self._run_state.player)
 
     def _enter_event(self) -> None:
         self._phase = self.PHASE_EVENT

@@ -93,3 +93,12 @@ def test_miniature_tent_returns_to_rest_site_after_dream_catcher_reward():
     actions = mgr.get_available_actions()
     assert all(action["option_id"] != "HEAL" for action in actions)
     assert any(action["option_id"] == "SMITH" for action in actions)
+
+
+def test_rest_site_relic_options_come_from_hooks_without_relic_id_list():
+    run_state = RunState(seed=208, character_id="Ironclad")
+    assert run_state.player.obtain_relic("SHOVEL")
+
+    options = generate_rest_site_options(run_state.player)
+
+    assert any(option.option_id == "DIG" for option in options)

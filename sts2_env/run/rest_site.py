@@ -11,8 +11,6 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from sts2_env.relics.registry import coerce_relic_id
-
 if TYPE_CHECKING:
     from sts2_env.run.reward_objects import Reward
     from sts2_env.run.run_state import PlayerState
@@ -218,16 +216,6 @@ def generate_rest_site_options(
     Default: Heal + Smith (always available, Smith disabled if nothing to upgrade).
     Additional options based on relics.
     """
-    if relic_ids is None:
-        relic_ids = []
-
-    normalized_relic_ids = set()
-    for relic_id in relic_ids:
-        try:
-            normalized_relic_ids.add(coerce_relic_id(relic_id).name)
-        except KeyError:
-            normalized_relic_ids.add(str(relic_id).upper())
-
     options: list[RestSiteOption] = []
 
     # Heal is always available
@@ -236,26 +224,6 @@ def generate_rest_site_options(
     # Smith: always available, disabled if no upgradable cards
     has_upgradable = any(not c.upgraded for c in player.deck)
     options.append(SmithOption(has_upgradable=has_upgradable))
-
-    # Relic-based options
-    if "SHOVEL" in normalized_relic_ids:
-        options.append(DigOption())
-
-    if "GIRYA" in normalized_relic_ids:
-        lifts_done = 0
-        for relic in player.get_relic_objects():
-            if getattr(relic, "relic_id", None).name == "GIRYA":
-                lifts_done = getattr(relic, "_times_lifted", 0)
-                break
-        if lifts_done < 3:
-            options.append(LiftOption(lifts_done=lifts_done))
-
-    removable_count = len(player.removable_deck_cards())
-    if "MEAT_CLEAVER" in normalized_relic_ids:
-        options.append(CookOption(has_enough_removable=removable_count >= 2))
-
-    if "PAELS_GROWTH" in normalized_relic_ids:
-        options.append(CloneOption())
 
     if any(card.card_id.name == "BYRDONIS_EGG" for card in player.deck):
         options.append(HatchOption())
@@ -266,5 +234,14 @@ def generate_rest_site_options(
             options = list(relic.modify_rest_site_options(player, options, run_state))
         for modifier in run_state.modifiers:
             options = list(modifier.modify_rest_site_options(player, options, run_state))
+    elif relic_ids:
+        from sts2_env.relics.registry import create_relic_by_name
+
+        for relic_id in relic_ids:
+            try:
+                relic = create_relic_by_name(relic_id)
+            except KeyError:
+                continue
+            options = list(relic.modify_rest_site_options(player, options, None))
 
     return options
