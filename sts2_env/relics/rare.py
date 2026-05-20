@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from sts2_env.core.constants import WEAK_MULTIPLIER
 from sts2_env.core.creature import _power_type_for_amount, get_power_class
 from sts2_env.core.enums import (
-    RelicRarity, CombatSide, CardType, PowerId, PowerType, ValueProp,
+    RelicRarity, CombatSide, CardType, PowerId, PowerType, RoomType, ValueProp,
 )
 from sts2_env.relics.base import RelicId, RelicPool, RelicInstance
 from sts2_env.relics.registry import register_relic
@@ -1184,7 +1184,13 @@ class WhiteBeastStatue(RelicInstance):
     def is_allowed(self, run_state: RunState) -> bool:
         return self.is_before_act3_treasure_chest(run_state)
 
-    def should_force_potion_reward(self, owner: Creature) -> bool | None:
+    def should_force_potion_reward(self, owner: Creature, room: Room | None = None) -> bool | None:
+        if room is not None and getattr(room, "room_type", None) not in {
+            RoomType.MONSTER,
+            RoomType.ELITE,
+            RoomType.BOSS,
+        }:
+            return False
         return True
 
 

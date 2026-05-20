@@ -768,12 +768,13 @@ class RewardsSet:
                 )
             player = run_state.get_player(self.player_id)
             forced_potion = any(
-                relic.should_force_potion_reward(player) is True
+                relic.should_force_potion_reward(player, room) is True
                 for relic in player.get_relic_objects()
             )
-            if forced_potion or run_state.potion_reward_odds.roll(
+            if run_state.potion_reward_odds.roll(
                 run_state.rng.rewards,
                 is_elite=room.room_type == RoomType.ELITE,
+                force=forced_potion,
             ):
                 self.rewards.append(PotionReward(self.player_id))
             self.rewards.append(CardReward(self.player_id, context=self._card_context(room.room_type)))

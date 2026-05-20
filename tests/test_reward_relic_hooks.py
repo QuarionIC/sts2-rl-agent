@@ -69,6 +69,15 @@ def test_white_beast_statue_forces_potion_reward():
     generated = rewards.generate_without_offering(run_state)
 
     assert any(isinstance(reward, PotionReward) for reward in generated)
+    assert run_state.potion_reward_odds.current_value == -1.1
+
+
+def test_white_beast_statue_does_not_force_noncombat_potion_rewards():
+    run_state = RunState(seed=1041, character_id="Ironclad")
+    assert run_state.player.obtain_relic("WHITE_BEAST_STATUE")
+    relic = run_state.player.relic_objects[-1]
+
+    assert relic.should_force_potion_reward(run_state.player, create_room(RoomType.TREASURE)) is False
 
 
 def test_glass_eye_enqueues_five_single_rarity_card_rewards():

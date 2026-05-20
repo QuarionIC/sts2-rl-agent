@@ -622,6 +622,14 @@ class TestPotionRewardOdds:
 
         assert elite_drops > reg_drops
 
+    def test_forced_drop_reduces_future_odds(self):
+        odds = PotionRewardOdds()
+        rng = Rng(42)
+        initial = odds.current_value
+
+        assert odds.roll(rng, force=True)
+        assert odds.current_value == pytest.approx(initial - 0.10)
+
 
 class TestRunDeterminism:
     def test_same_seed_same_state(self):

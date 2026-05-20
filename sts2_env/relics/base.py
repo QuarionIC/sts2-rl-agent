@@ -983,7 +983,7 @@ class RelicInstance:
         """Return False to prevent gold gain. None = no opinion."""
         return None
 
-    def should_force_potion_reward(self, owner: Creature) -> bool | None:
+    def should_force_potion_reward(self, owner: Creature, room: Room | None = None) -> bool | None:
         """Return True to force potion reward. None = no opinion."""
         return None
 

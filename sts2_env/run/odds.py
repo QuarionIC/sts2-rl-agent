@@ -205,7 +205,7 @@ class PotionRewardOdds:
     def __init__(self) -> None:
         self.current_value: float = self.INITIAL_VALUE
 
-    def roll(self, rng: Rng, is_elite: bool = False) -> bool:
+    def roll(self, rng: Rng, is_elite: bool = False, force: bool = False) -> bool:
         """Roll whether a potion drops. Returns True if yes.
 
         Matches C# PotionRewardOdds.Roll: odds update uses base value
@@ -215,11 +215,11 @@ class PotionRewardOdds:
         roll_val = rng.next_float()
 
         # Update odds based on raw roll vs base value (no elite bonus)
-        if roll_val < saved_value:
+        if roll_val < saved_value or force:
             self.current_value -= self.SWING
         else:
             self.current_value += self.SWING
 
         # Return check includes elite bonus
         elite_bonus = self.ELITE_BONUS if is_elite else 0.0
-        return roll_val < saved_value + elite_bonus * 0.50
+        return force or roll_val < saved_value + elite_bonus * 0.50
