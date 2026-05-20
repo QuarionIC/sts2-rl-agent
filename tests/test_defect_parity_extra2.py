@@ -6,6 +6,7 @@ from sts2_env.cards.defect import (
     create_defect_starter_deck,
     make_ball_lightning,
     make_barrage,
+    make_beam_cell,
     make_capacitor,
     make_chaos,
     make_chill,
@@ -16,6 +17,19 @@ from sts2_env.cards.defect import (
     make_multi_cast,
     make_strike_defect,
 )
+
+
+BALL_LIGHTNING_DAMAGE = 7
+BALL_LIGHTNING_UPGRADED_DAMAGE = 10
+BARRAGE_DAMAGE = 5
+BARRAGE_UPGRADED_DAMAGE = 7
+BARRAGE_TEST_ORB_COUNT = 2
+BEAM_CELL_DAMAGE = 3
+BEAM_CELL_UPGRADED_DAMAGE = 4
+BEAM_CELL_VULNERABLE = 1
+BEAM_CELL_UPGRADED_VULNERABLE = 2
+COMPILE_DRIVER_DAMAGE = 7
+COMPILE_DRIVER_UPGRADED_DAMAGE = 10
 from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import OrbType, PowerId
 from sts2_env.core.rng import Rng
@@ -46,9 +60,21 @@ class TestDefectParityExtra2:
         combat.energy = 1
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == starting_hp - 7
+        assert enemy.current_hp == starting_hp - BALL_LIGHTNING_DAMAGE
         assert len(combat.orb_queue.orbs) == 1
         assert combat.orb_queue.orbs[0].orb_type == OrbType.LIGHTNING
+
+    def test_upgraded_ball_lightning_deals_ten_damage_and_still_channels_lightning(self):
+        """Matches BallLightning.cs: upgrade changes Damage only."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        starting_hp = enemy.current_hp
+        combat.hand = [make_ball_lightning(upgraded=True)]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == starting_hp - BALL_LIGHTNING_UPGRADED_DAMAGE
+        assert [orb.orb_type for orb in combat.orb_queue.orbs] == [OrbType.LIGHTNING]
 
     def test_barrage_hits_once_per_current_orb(self):
         """Matches Barrage.cs: hit count equals current orb count."""
@@ -61,7 +87,44 @@ class TestDefectParityExtra2:
         combat.energy = 1
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == starting_hp - 10
+        assert enemy.current_hp == starting_hp - BARRAGE_DAMAGE * BARRAGE_TEST_ORB_COUNT
+
+    def test_upgraded_barrage_hits_current_orb_count_with_seven_damage(self):
+        """Matches Barrage.cs: upgrade changes Damage only."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        starting_hp = enemy.current_hp
+        combat.channel_orb(combat.player, "LIGHTNING")
+        combat.channel_orb(combat.player, "FROST")
+        combat.hand = [make_barrage(upgraded=True)]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == starting_hp - BARRAGE_UPGRADED_DAMAGE * BARRAGE_TEST_ORB_COUNT
+
+    def test_beam_cell_damage_and_vulnerable_match_reference_values(self):
+        """Matches BeamCell.cs: damage target, then apply Vulnerable."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        starting_hp = enemy.current_hp
+        combat.hand = [make_beam_cell()]
+        combat.energy = 0
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == starting_hp - BEAM_CELL_DAMAGE
+        assert enemy.get_power_amount(PowerId.VULNERABLE) == BEAM_CELL_VULNERABLE
+
+    def test_upgraded_beam_cell_upgrades_damage_and_vulnerable(self):
+        """Matches BeamCell.cs: upgrade changes Damage and Vulnerable."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        starting_hp = enemy.current_hp
+        combat.hand = [make_beam_cell(upgraded=True)]
+        combat.energy = 0
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == starting_hp - BEAM_CELL_UPGRADED_DAMAGE
+        assert enemy.get_power_amount(PowerId.VULNERABLE) == BEAM_CELL_UPGRADED_VULNERABLE
 
     def test_capacitor_adds_orb_slots_up_to_cap(self):
         """Matches Capacitor.cs: add Repeat slots, clamped by queue max capacity."""
@@ -125,6 +188,25 @@ class TestDefectParityExtra2:
         combat.energy = 1
 
         assert combat.play_card(0, 0)
+        assert enemy.current_hp == enemy.max_hp - COMPILE_DRIVER_DAMAGE
+        assert combat.hand == [draw_a, draw_b]
+
+    def test_upgraded_compile_driver_deals_ten_damage_with_same_distinct_orb_draw(self):
+        """Matches CompileDriver.cs: upgrade changes Damage only."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        draw_a = make_strike_defect()
+        draw_b = make_strike_defect()
+        draw_c = make_strike_defect()
+        combat.channel_orb(combat.player, "LIGHTNING")
+        combat.channel_orb(combat.player, "LIGHTNING")
+        combat.channel_orb(combat.player, "FROST")
+        combat.hand = [make_compile_driver(upgraded=True)]
+        combat.draw_pile = [draw_a, draw_b, draw_c]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == enemy.max_hp - COMPILE_DRIVER_UPGRADED_DAMAGE
         assert combat.hand == [draw_a, draw_b]
 
     def test_defragment_applies_focus_that_scales_orb_passives(self):

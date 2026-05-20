@@ -79,6 +79,8 @@ NULL_UPGRADED_WEAK = 3
 RAINBOW_ORBS = (OrbType.LIGHTNING, OrbType.FROST, OrbType.DARK)
 TEST_ENEMY_HP = 100
 EXHAUST_KEYWORD = "exhaust"
+COLD_SNAP_DAMAGE = 6
+COLD_SNAP_UPGRADED_DAMAGE = 9
 FIGHT_THROUGH_BLOCK = 13
 FIGHT_THROUGH_UPGRADED_BLOCK = 17
 FIGHT_THROUGH_WOUND_COUNT = 2
@@ -226,9 +228,21 @@ class TestDefectParityExtra3:
         combat.energy = 1
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == starting_hp - 6
+        assert enemy.current_hp == starting_hp - COLD_SNAP_DAMAGE
         assert len(combat.orb_queue.orbs) == 1
         assert combat.orb_queue.orbs[0].orb_type == OrbType.FROST
+
+    def test_upgraded_cold_snap_deals_nine_damage_and_still_channels_frost(self):
+        """Matches ColdSnap.cs: upgrade changes Damage only."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        starting_hp = enemy.current_hp
+        combat.hand = [make_cold_snap(upgraded=True)]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == starting_hp - COLD_SNAP_UPGRADED_DAMAGE
+        assert [orb.orb_type for orb in combat.orb_queue.orbs] == [OrbType.FROST]
 
     def test_sweeping_beam_hits_only_hittable_enemies_then_draws(self):
         combat = _make_combat(extra_enemies=1)

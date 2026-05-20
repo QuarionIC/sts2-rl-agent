@@ -15,9 +15,15 @@ The detailed backlog sections below were captured as the pre-pass baseline. Afte
 
 | Surface | Total | Directly Covered | Gap | Coverage |
 | --- | ---: | ---: | ---: | ---: |
-| Cards | 578 | 237 | 341 | 41.0% |
+| Cards | 578 | 242 | 336 | 41.9% |
 | Relics | 289 | 206 | 83 | 71.3% |
 | Events | 68 | 68 | 0 | 100.0% |
+
+Latest local pass also added direct coverage for:
+
+- Cards: `BALL_LIGHTNING`, `BARRAGE`, `BEAM_CELL`, `COLD_SNAP`, `COMPILE_DRIVER`
+
+No new logic mismatch was found in this pass. The pass also made these Defect card factories accept `upgraded=True` directly, so upgraded parity tests can use the semantic factory names.
 
 Latest local pass also added direct coverage for:
 
@@ -263,12 +269,12 @@ STRIKE_SILENT, SUCKER_PUNCH, SUPPRESS, TACTICIAN, TOOLS_OF_THE_TRADE,
 TRACKING, UNTOUCHABLE, UP_MY_SLEEVE, WELL_LAID_PLANS
 ```
 
-#### `sts2_env.cards.defect` (75)
+#### `sts2_env.cards.defect` (70)
 
 ```text
-ADAPTIVE_STRIKE, ALL_FOR_ONE, BALL_LIGHTNING, BARRAGE, BEAM_CELL,
+ADAPTIVE_STRIKE, ALL_FOR_ONE,
 BIASED_COGNITION_CARD, BOOST_AWAY, BOOT_SEQUENCE, BUFFER_CARD, BULK_UP,
-CAPACITOR, CHAOS, CHILL, CLAW, COLD_SNAP, COMPILE_DRIVER, CONSUMING_SHADOW,
+CAPACITOR, CHAOS, CHILL, CLAW, CONSUMING_SHADOW,
 COOLANT, CREATIVE_AI_CARD, DARKNESS_CARD, DEFEND_DEFECT, DEFRAGMENT,
 DOUBLE_ENERGY, ECHO_FORM_CARD, ENERGY_SURGE, FERAL,
 FOCUSED_STRIKE_CARD, FTL, FUSION, GENETIC_ALGORITHM, GLACIER, GLASSWORK,

@@ -977,28 +977,35 @@ def make_dualcast(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_ball_lightning() -> CardInstance:
+def make_ball_lightning(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.BALL_LIGHTNING, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=7, instance_id=_get_next_id(),
-    )
-
-
-def make_barrage() -> CardInstance:
-    return CardInstance(
-        card_id=CardId.BARRAGE, cost=1, card_type=CardType.ATTACK,
-        target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=5, effect_vars={"calc_base": 0, "calc_extra": 1},
+        base_damage=10 if upgraded else 7,
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
 
-def make_beam_cell() -> CardInstance:
+def make_barrage(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.BARRAGE, cost=1, card_type=CardType.ATTACK,
+        target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
+        base_damage=7 if upgraded else 5,
+        effect_vars={"calc_base": 0, "calc_extra": 1},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_beam_cell(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.BEAM_CELL, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=3, effect_vars={"vulnerable": 1}, instance_id=_get_next_id(),
+        base_damage=4 if upgraded else 3,
+        effect_vars={"vulnerable": 2 if upgraded else 1},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1026,19 +1033,23 @@ def make_claw() -> CardInstance:
     )
 
 
-def make_cold_snap() -> CardInstance:
+def make_cold_snap(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.COLD_SNAP, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=6, instance_id=_get_next_id(),
+        base_damage=9 if upgraded else 6,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_compile_driver() -> CardInstance:
+def make_compile_driver(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.COMPILE_DRIVER, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=7, effect_vars={"calc_base": 0, "calc_extra": 1},
+        base_damage=10 if upgraded else 7,
+        effect_vars={"calc_base": 0, "calc_extra": 1},
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
