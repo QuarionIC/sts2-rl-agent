@@ -58,6 +58,8 @@ def _collect_mismatches_for_upgrade_state(
             "orb_evoke_type": reference.orb_evoke_type,
             "multiplayer_constraint": reference.multiplayer_constraint,
         }
+        if reference.visual_card_pool is not None:
+            expected["visual_card_pool"] = reference.visual_card_pool
         actual = {
             "upgraded": card.upgraded,
             "cost": card.cost,
@@ -74,6 +76,7 @@ def _collect_mismatches_for_upgrade_state(
             "has_turn_end_in_hand_effect": card.has_turn_end_in_hand_effect,
             "gains_block": card.gains_block,
             "orb_evoke_type": card.orb_evoke_type,
+            "visual_card_pool": card.visual_card_pool,
             "multiplayer_constraint": card_metadata(reference.card_id).multiplayer_constraint,
         }
         for field_name, expected_value in expected.items():

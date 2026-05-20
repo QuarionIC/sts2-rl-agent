@@ -695,6 +695,7 @@ class Regalite(RelicInstance):
         visual_card_pool = getattr(card, "visual_card_pool", None)
         is_colorless = bool(
             getattr(card, "is_colorless", False)
+            or getattr(card, "visual_card_pool_is_colorless", False)
             or getattr(visual_card_pool, "is_colorless", False)
             or getattr(card, "card_id", None) in _colorless_card_ids()
         )

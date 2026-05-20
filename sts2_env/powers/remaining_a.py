@@ -181,7 +181,11 @@ class ArsenalPower(PowerInstance):
         super().__init__(PowerId.ARSENAL, amount)
 
     def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
-        is_colorless = getattr(card, "is_colorless", False) or getattr(card, "card_id", None) in _colorless_card_ids()
+        is_colorless = bool(
+            getattr(card, "is_colorless", False)
+            or getattr(card, "visual_card_pool_is_colorless", False)
+            or getattr(card, "card_id", None) in _colorless_card_ids()
+        )
         card_owner = getattr(card, "owner", None)
         if is_colorless and (card_owner is owner or card_owner is None):
             owner.apply_power(PowerId.STRENGTH, self.amount)

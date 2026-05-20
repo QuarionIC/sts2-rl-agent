@@ -3,6 +3,7 @@
 from scripts.audit_card_dynamic_vars import collect_card_dynamic_var_mismatches
 from scripts.audit_card_static_metadata import collect_static_metadata_mismatches
 from sts2_env.cards.factory import create_card
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import CardId, OrbEvokeType
 
 
@@ -20,3 +21,12 @@ def test_orb_evoke_type_matches_decompiled_card_properties() -> None:
     assert create_card(CardId.MULTI_CAST).orb_evoke_type is OrbEvokeType.ALL
     assert create_card(CardId.SHATTER).orb_evoke_type is OrbEvokeType.ALL
     assert create_card(CardId.ZAP).orb_evoke_type is OrbEvokeType.NONE
+
+
+def test_visual_card_pool_matches_decompiled_card_properties() -> None:
+    assert create_card(CardId.ENTRENCH).visual_card_pool is CardPoolId.IRONCLAD
+    assert create_card(CardId.CALTROPS).visual_card_pool is CardPoolId.SILENT
+    assert create_card(CardId.STACK).visual_card_pool is CardPoolId.DEFECT
+    assert create_card(CardId.VOLLEY).visual_card_pool is CardPoolId.COLORLESS
+    assert create_card(CardId.ENTRENCH).visual_card_pool_is_colorless is False
+    assert create_card(CardId.VOLLEY).visual_card_pool_is_colorless is True

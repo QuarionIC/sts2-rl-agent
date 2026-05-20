@@ -121,6 +121,10 @@ class TestRelicParityUncommonExtra7:
         combat.move_card_to_creature_hand(player, colorless)
         assert player.block == 2
 
+        event_with_class_visual_pool = create_card(CardId.ENTRENCH)
+        combat.move_card_to_creature_hand(player, event_with_class_visual_pool)
+        assert player.block == 2
+
         non_colorless = create_card(CardId.STRIKE_IRONCLAD)
         combat.move_card_to_creature_hand(player, non_colorless)
         assert player.block == 2

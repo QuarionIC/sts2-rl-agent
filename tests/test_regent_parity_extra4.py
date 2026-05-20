@@ -305,6 +305,12 @@ class TestRegentParityExtra4:
         assert combat.play_card(0)
         assert combat.player.get_power_amount(PowerId.STRENGTH) == 1
 
+        combat.hand = [create_card(CardId.ENTRENCH)]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == 1
+
     def test_child_of_the_stars_gains_block_when_stars_are_spent(self):
         combat = _make_combat()
         combat.hand = [make_child_of_the_stars(), make_quasar()]

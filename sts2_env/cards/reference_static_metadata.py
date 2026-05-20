@@ -8,6 +8,7 @@ from dataclasses import replace
 from functools import lru_cache
 from pathlib import Path
 
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import CardId, CardRarity, CardTag, CardType, OrbEvokeType, TargetType
 
 
@@ -42,6 +43,10 @@ HAS_TURN_END_IN_HAND_EFFECT_RE = re.compile(
 GAINS_BLOCK_RE = re.compile(r"override\s+bool\s+GainsBlock\s*=>\s*(?P<value>true|false)\s*;")
 ORB_EVOKE_TYPE_RE = re.compile(
     r"override\s+OrbEvokeType\s+OrbEvokeType\s*=>\s*OrbEvokeType\.(?P<value>[A-Za-z]+)\s*;"
+)
+VISUAL_CARD_POOL_RE = re.compile(
+    r"override\s+CardPoolModel\s+VisualCardPool\s*=>\s*"
+    r"ModelDb\.CardPool<(?P<pool>[A-Za-z]+)CardPool>\(\)\s*;"
 )
 MULTIPLAYER_CONSTRAINT_RE = re.compile(
     r"override\s+CardMultiplayerConstraint\s+MultiplayerConstraint\s*=>\s*"
@@ -168,6 +173,7 @@ class ReferenceCardStaticMetadata:
     has_turn_end_in_hand_effect: bool
     gains_block: bool
     orb_evoke_type: OrbEvokeType
+    visual_card_pool: CardPoolId | None
     multiplayer_constraint: str
 
 
@@ -227,6 +233,7 @@ def reference_metadata_from_source(path: Path) -> ReferenceCardStaticMetadata:
     turn_end_in_hand_match = HAS_TURN_END_IN_HAND_EFFECT_RE.search(source)
     gains_block_match = GAINS_BLOCK_RE.search(source)
     orb_evoke_type_match = ORB_EVOKE_TYPE_RE.search(source)
+    visual_card_pool_match = VISUAL_CARD_POOL_RE.search(source)
     multiplayer_constraint_match = MULTIPLAYER_CONSTRAINT_RE.search(source)
 
     return ReferenceCardStaticMetadata(
@@ -269,6 +276,11 @@ def reference_metadata_from_source(path: Path) -> ReferenceCardStaticMetadata:
             OrbEvokeType[snake_case(orb_evoke_type_match.group("value")).upper()]
             if orb_evoke_type_match is not None
             else OrbEvokeType.NONE
+        ),
+        visual_card_pool=(
+            CardPoolId[snake_case(visual_card_pool_match.group("pool")).upper()]
+            if visual_card_pool_match is not None
+            else None
         ),
         multiplayer_constraint=(
             multiplayer_constraint_match.group("constraint")

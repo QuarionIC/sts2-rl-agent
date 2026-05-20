@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from sts2_env.core.card_pools import (
+    CHARACTER_CARD_POOLS_BY_ID,
+    SHARED_CARD_POOLS_BY_ID,
+    CardPoolId,
+)
 from sts2_env.core.enums import CardId, CardTag, CardType, TargetType, CardRarity, OrbEvokeType
 
 
@@ -82,6 +87,22 @@ _TAG_ALIASES = {
     "shiv": CardTag.SHIV,
 }
 
+_DEFAULT_VISUAL_CARD_POOL_BY_RARITY = {
+    CardRarity.CURSE: CardPoolId.CURSE,
+    CardRarity.EVENT: CardPoolId.EVENT,
+    CardRarity.QUEST: CardPoolId.QUEST,
+    CardRarity.STATUS: CardPoolId.STATUS,
+}
+
+_DEFAULT_VISUAL_CARD_POOL_BY_CARD_ID = {
+    card_id: pool_id
+    for pool_id, card_ids in {
+        **CHARACTER_CARD_POOLS_BY_ID,
+        **SHARED_CARD_POOLS_BY_ID,
+    }.items()
+    for card_id in card_ids
+}
+
 _SELF_MUTATING_DAMAGE_BASES = {
     CardId.CLAW: (3, 4),
     CardId.KINGLY_PUNCH: (8, 8),
@@ -152,6 +173,13 @@ def reference_orb_evoke_type(card_id: CardId) -> OrbEvokeType:
     return metadata.orb_evoke_type if metadata is not None else OrbEvokeType.NONE
 
 
+def reference_visual_card_pool(card_id: CardId) -> CardPoolId | None:
+    from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+
+    metadata = reference_metadata_by_card_id().get(card_id)
+    return metadata.visual_card_pool if metadata is not None else None
+
+
 @dataclass
 class CardInstance:
     """A single card instance in combat."""
@@ -216,6 +244,20 @@ class CardInstance:
     @property
     def orb_evoke_type(self) -> OrbEvokeType:
         return reference_orb_evoke_type(self.card_id)
+
+    @property
+    def visual_card_pool(self) -> CardPoolId | None:
+        reference_pool = reference_visual_card_pool(self.card_id)
+        if reference_pool is not None:
+            return reference_pool
+        return _DEFAULT_VISUAL_CARD_POOL_BY_CARD_ID.get(
+            self.card_id,
+            _DEFAULT_VISUAL_CARD_POOL_BY_RARITY.get(self.rarity),
+        )
+
+    @property
+    def visual_card_pool_is_colorless(self) -> bool:
+        return self.visual_card_pool in {CardPoolId.COLORLESS, CardPoolId.EVENT, CardPoolId.TOKEN}
 
     @property
     def is_status(self) -> bool:

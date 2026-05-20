@@ -154,6 +154,7 @@ class CardMetadata:
     has_turn_end_in_hand_effect: bool
     gains_block: bool
     orb_evoke_type: OrbEvokeType
+    visual_card_pool: CardPoolId | None
     multiplayer_constraint: str
 
 
@@ -487,6 +488,7 @@ def card_metadata(card_id: CardId) -> CardMetadata:
         has_turn_end_in_hand_effect=card.has_turn_end_in_hand_effect,
         gains_block=card.gains_block,
         orb_evoke_type=card.orb_evoke_type,
+        visual_card_pool=card.visual_card_pool,
         multiplayer_constraint=(
             _static_metadata_override(card_id).multiplayer_constraint
             if _static_metadata_override(card_id) is not None
