@@ -39,7 +39,7 @@ def _make_combat(*, extra_enemies: int = 0) -> CombatState:
     return combat
 
 
-class TestColorlessParityExtra3:
+class TestColorlessSupportPowersAndReturningAttacksParity:
     def test_believe_in_you_upgraded_grants_four_energy_to_target_ally(self):
         combat = _make_combat()
         ally_state = PlayerState(player_id=2, character_id="Ironclad", max_hp=60, current_hp=60)

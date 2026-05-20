@@ -52,7 +52,7 @@ class _CannotHitPower(PowerInstance):
         return False
 
 
-class TestColorlessParityExtra2:
+class TestColorlessDrawGenerationAndHittableTargetsParity:
     def test_flash_of_steel_deals_damage_then_draws_one(self):
         combat = _make_combat()
         enemy = combat.enemies[0]

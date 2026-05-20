@@ -32,7 +32,7 @@ def _make_combat() -> CombatState:
     return combat
 
 
-class TestColorlessParityExtra:
+class TestColorlessStrategyBlastPanacheMimicVolleyParity:
     def test_master_of_strategy_draws_exact_number_of_cards(self):
         """Matches MasterOfStrategy.cs: draw N cards immediately."""
         combat = _make_combat()

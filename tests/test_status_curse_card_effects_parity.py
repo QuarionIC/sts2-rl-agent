@@ -84,7 +84,7 @@ class _FirstRng:
         return list(lst)[0]
 
 
-class TestStatusParityExtra:
+class TestStatusCurseCardEffectsParity:
     def test_caltrops_applies_thorns_power(self):
         combat = _make_combat()
         combat.hand = [make_caltrops(upgraded=True)]

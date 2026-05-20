@@ -229,7 +229,7 @@ This pass also exposed and fixed the following logic mismatches:
 
 Previously scoped blocker `NORMALITY` is now closed:
 
-- `NORMALITY` is now enforced in `CombatState.can_play_card`, and has direct parity coverage in `tests/test_status_parity_extra.py`.
+- `NORMALITY` is now enforced in `CombatState.can_play_card`, and has direct parity coverage in `tests/test_status_curse_card_effects_parity.py`.
 
 ## Current Remaining Backlog
 

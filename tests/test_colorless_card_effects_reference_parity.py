@@ -72,7 +72,7 @@ def _make_combat() -> CombatState:
     return combat
 
 
-class TestColorlessParityExtra4:
+class TestColorlessCardEffectsReferenceParity:
     def test_anointed_moves_only_rare_draw_pile_cards_to_hand_and_exhausts(self):
         """Matches Anointed.cs: move all Rare draw-pile cards to hand."""
         combat = _make_combat()
