@@ -17,11 +17,124 @@ from sts2_env.cards.factory import (
 from sts2_env.cards.registry import register_effect
 from sts2_env.characters.all import ALL_CHARACTERS, get_character
 from sts2_env.core.enums import (
-    CardId, CardType, TargetType, CardRarity, PowerStackType, PowerType, ValueProp, PowerId,
+    CardId, CardType, TargetType, CardRarity, CardTag, PowerStackType, PowerType, ValueProp, PowerId,
 )
 from sts2_env.core.damage import calculate_damage, apply_damage, calculate_block
 from sts2_env.core.creature import Creature, _power_type_for_amount, get_power_class
 from sts2_env.core.combat import CombatState
+
+
+BELIEVE_IN_YOU_ENERGY_KEY = "energy"
+BELIEVE_IN_YOU_ENERGY = 3
+BELIEVE_IN_YOU_UPGRADED_ENERGY = 4
+CATASTROPHE_CARDS_KEY = "cards"
+CATASTROPHE_CARDS = 2
+CATASTROPHE_UPGRADED_CARDS = 3
+COORDINATE_STRENGTH_KEY = "strength"
+COORDINATE_STRENGTH = 5
+COORDINATE_UPGRADED_STRENGTH = 8
+DARK_SHACKLES_STRENGTH_LOSS_KEY = "strength_loss"
+DARK_SHACKLES_STRENGTH_LOSS = 9
+DARK_SHACKLES_UPGRADED_STRENGTH_LOSS = 15
+DRAMATIC_ENTRANCE_DAMAGE = 11
+DRAMATIC_ENTRANCE_UPGRADED_DAMAGE = 15
+EQUILIBRIUM_BLOCK = 13
+EQUILIBRIUM_UPGRADED_BLOCK = 16
+EQUILIBRIUM_POWER = 1
+FASTEN_EXTRA_BLOCK_KEY = "extra_block"
+FASTEN_EXTRA_BLOCK = 5
+FASTEN_UPGRADED_EXTRA_BLOCK = 7
+FINESSE_BLOCK = 4
+FINESSE_UPGRADED_BLOCK = 7
+FINESSE_CARDS_KEY = "cards"
+FINESSE_CARDS = 1
+FLASH_OF_STEEL_DAMAGE = 5
+FLASH_OF_STEEL_UPGRADED_DAMAGE = 8
+FLASH_OF_STEEL_CARDS_KEY = "cards"
+FLASH_OF_STEEL_CARDS = 1
+INTERCEPT_BLOCK = 9
+INTERCEPT_UPGRADED_BLOCK = 13
+INTERCEPT_COVERED = 1
+JACK_OF_ALL_TRADES_CARDS_KEY = "cards"
+JACK_OF_ALL_TRADES_CARDS = 1
+JACK_OF_ALL_TRADES_UPGRADED_CARDS = 2
+LIFT_BLOCK = 11
+LIFT_UPGRADED_BLOCK = 16
+OMNISLICE_DAMAGE_KEY = "damage"
+OMNISLICE_DAMAGE = 8
+OMNISLICE_UPGRADED_DAMAGE = 11
+PANIC_BUTTON_BLOCK = 30
+PANIC_BUTTON_UPGRADED_BLOCK = 40
+PANIC_BUTTON_TURNS_KEY = "turns"
+PANIC_BUTTON_TURNS = 2
+PRODUCTION_ENERGY_KEY = "energy"
+PRODUCTION_ENERGY = 2
+PROWESS_STRENGTH_KEY = "strength"
+PROWESS_DEXTERITY_KEY = "dexterity"
+PROWESS_POWER = 1
+PROWESS_UPGRADED_POWER = 2
+RESTLESSNESS_CARDS_KEY = "cards"
+RESTLESSNESS_CARDS = 2
+RESTLESSNESS_UPGRADED_CARDS = 3
+RESTLESSNESS_ENERGY_KEY = "energy"
+RESTLESSNESS_ENERGY = 2
+RESTLESSNESS_UPGRADED_ENERGY = 3
+SEEKER_STRIKE_DAMAGE = 6
+SEEKER_STRIKE_UPGRADED_DAMAGE = 9
+SEEKER_STRIKE_CARDS_KEY = "cards"
+SEEKER_STRIKE_CARDS = 3
+SHOCKWAVE_POWER_KEY = "power"
+SHOCKWAVE_POWER = 3
+SHOCKWAVE_UPGRADED_POWER = 5
+STRATAGEM_COST = 1
+STRATAGEM_UPGRADED_COST = 0
+TAG_TEAM_DAMAGE = 11
+TAG_TEAM_UPGRADED_DAMAGE = 15
+TAG_TEAM_POWER = 1
+THE_BOMB_COST = 2
+THE_BOMB_TURNS_KEY = "turns"
+THE_BOMB_TURNS = 3
+THE_BOMB_DAMAGE_KEY = "bomb_damage"
+THE_BOMB_DAMAGE = 40
+THE_BOMB_UPGRADED_DAMAGE = 50
+THRUMMING_HATCHET_DAMAGE = 11
+THRUMMING_HATCHET_UPGRADED_DAMAGE = 14
+ULTIMATE_DEFEND_BLOCK = 11
+ULTIMATE_DEFEND_UPGRADED_BLOCK = 15
+ULTIMATE_STRIKE_DAMAGE = 14
+ULTIMATE_STRIKE_UPGRADED_DAMAGE = 20
+BOLAS_DAMAGE = 3
+BOLAS_UPGRADED_DAMAGE = 4
+CALAMITY_COST = 3
+CALAMITY_UPGRADED_COST = 2
+CALAMITY_POWER = 1
+ENTROPY_CARDS_KEY = "cards"
+ENTROPY_CARDS = 1
+ETERNAL_ARMOR_PLATING_KEY = "plating"
+ETERNAL_ARMOR_PLATING = 7
+ETERNAL_ARMOR_UPGRADED_PLATING = 9
+JACKPOT_DAMAGE = 25
+JACKPOT_UPGRADED_DAMAGE = 30
+JACKPOT_CARDS_KEY = "cards"
+JACKPOT_CARDS = 3
+MAYHEM_COST = 2
+MAYHEM_UPGRADED_COST = 1
+MAYHEM_POWER = 1
+NOSTALGIA_COST = 1
+NOSTALGIA_UPGRADED_COST = 0
+NOSTALGIA_POWER = 1
+RALLY_BLOCK = 12
+RALLY_UPGRADED_BLOCK = 17
+REND_CALC_BASE_KEY = "calc_base"
+REND_DAMAGE = 15
+REND_UPGRADED_DAMAGE = 18
+REND_EXTRA_DAMAGE_KEY = "extra_damage"
+REND_EXTRA_DAMAGE = 5
+REND_UPGRADED_EXTRA_DAMAGE = 8
+SALVO_DAMAGE = 12
+SALVO_UPGRADED_DAMAGE = 16
+THE_GAMBIT_BLOCK = 50
+THE_GAMBIT_UPGRADED_BLOCK = 75
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -78,13 +191,13 @@ def automation(card: CardInstance, combat: CombatState, target: Creature | None)
 
 @register_effect(CardId.BELIEVE_IN_YOU)
 def believe_in_you(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    energy = card.effect_vars.get("energy", 3)
+    energy = card.effect_vars.get(BELIEVE_IN_YOU_ENERGY_KEY, BELIEVE_IN_YOU_ENERGY)
     combat.gain_energy(target if target is not None else _owner(card, combat), energy)
 
 
 @register_effect(CardId.CATASTROPHE)
 def catastrophe(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    for _ in range(card.effect_vars.get("cards", 2)):
+    for _ in range(card.effect_vars.get(CATASTROPHE_CARDS_KEY, CATASTROPHE_CARDS)):
         candidates = [c for c in combat.draw_pile if not c.is_unplayable]
         if not candidates:
             candidates = list(combat.draw_pile)
@@ -96,7 +209,7 @@ def catastrophe(card: CardInstance, combat: CombatState, target: Creature | None
 
 @register_effect(CardId.COORDINATE_CARD)
 def coordinate_card(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    strength = card.effect_vars.get("strength", 5)
+    strength = card.effect_vars.get(COORDINATE_STRENGTH_KEY, COORDINATE_STRENGTH)
     resolved_target = target if target is not None else _owner(card, combat)
     if target is not None:
         combat.apply_power_to(target, PowerId.COORDINATE, strength)
@@ -107,7 +220,10 @@ def coordinate_card(card: CardInstance, combat: CombatState, target: Creature | 
 @register_effect(CardId.DARK_SHACKLES)
 def dark_shackles(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
-    strength_loss = card.effect_vars.get("strength_loss", 9)
+    strength_loss = card.effect_vars.get(
+        DARK_SHACKLES_STRENGTH_LOSS_KEY,
+        DARK_SHACKLES_STRENGTH_LOSS,
+    )
     combat.apply_power_to(target, PowerId.DARK_SHACKLES, strength_loss)
 
 
@@ -146,19 +262,19 @@ def dramatic_entrance(card: CardInstance, combat: CombatState, target: Creature 
 @register_effect(CardId.EQUILIBRIUM)
 def equilibrium(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     _gain_block(card, combat)
-    combat.apply_power_to(_owner(card, combat), PowerId.RETAIN_HAND, 1)
+    combat.apply_power_to(_owner(card, combat), PowerId.RETAIN_HAND, EQUILIBRIUM_POWER)
 
 
 @register_effect(CardId.FASTEN)
 def fasten(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    extra_block = card.effect_vars.get("extra_block", 5)
+    extra_block = card.effect_vars.get(FASTEN_EXTRA_BLOCK_KEY, FASTEN_EXTRA_BLOCK)
     combat.apply_power_to(_owner(card, combat), PowerId.FASTEN, extra_block)
 
 
 @register_effect(CardId.FINESSE)
 def finesse(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     _gain_block(card, combat)
-    cards = card.effect_vars.get("cards", 1)
+    cards = card.effect_vars.get(FINESSE_CARDS_KEY, FINESSE_CARDS)
     combat._draw_cards(cards)
 
 
@@ -184,7 +300,7 @@ def fisticuffs(card: CardInstance, combat: CombatState, target: Creature | None)
 def flash_of_steel(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     _deal_damage_single(card, combat, target)
-    cards = card.effect_vars.get("cards", 1)
+    cards = card.effect_vars.get(FLASH_OF_STEEL_CARDS_KEY, FLASH_OF_STEEL_CARDS)
     combat._draw_cards(cards)
 
 
@@ -227,7 +343,7 @@ def intercept_card(card: CardInstance, combat: CombatState, target: Creature | N
     resolved_target = target if target is not None else owner
     block = calculate_block(card.base_block, owner, ValueProp.MOVE, combat, card_source=card)
     _gain_resolved_block(owner, block, combat)
-    combat.apply_power_to(resolved_target, PowerId.COVERED, 1, applier=owner, source=card)
+    combat.apply_power_to(resolved_target, PowerId.COVERED, INTERCEPT_COVERED, applier=owner, source=card)
 
 
 @register_effect(CardId.JACK_OF_ALL_TRADES)
@@ -241,7 +357,7 @@ def jack_of_all_trades(card: CardInstance, combat: CombatState, target: Creature
     generated = create_cards_from_ids(
         colorless_ids,
         combat.combat_card_generation_rng,
-        card.effect_vars.get("cards", 1),
+        card.effect_vars.get(JACK_OF_ALL_TRADES_CARDS_KEY, JACK_OF_ALL_TRADES_CARDS),
         distinct=True,
     )
     for generated_card in generated:
@@ -270,7 +386,11 @@ def mind_blast(card: CardInstance, combat: CombatState, target: Creature | None)
 def omnislice(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     owner = _owner(card, combat)
-    base_damage = card.base_damage if card.base_damage is not None else card.effect_vars.get("damage", 8)
+    base_damage = (
+        card.base_damage
+        if card.base_damage is not None
+        else card.effect_vars.get(OMNISLICE_DAMAGE_KEY, OMNISLICE_DAMAGE)
+    )
     damage = calculate_damage(base_damage, owner, target, ValueProp.MOVE, combat)
     result = apply_damage(target, damage, ValueProp.MOVE, combat, owner)
 
@@ -304,7 +424,7 @@ def panache_card(card: CardInstance, combat: CombatState, target: Creature | Non
 @register_effect(CardId.PANIC_BUTTON)
 def panic_button(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     _gain_block(card, combat)
-    turns = card.effect_vars.get("turns", 2)
+    turns = card.effect_vars.get(PANIC_BUTTON_TURNS_KEY, PANIC_BUTTON_TURNS)
     combat.apply_power_to(_owner(card, combat), PowerId.NO_BLOCK, turns)
 
 
@@ -316,7 +436,7 @@ def prep_time(card: CardInstance, combat: CombatState, target: Creature | None) 
 
 @register_effect(CardId.PRODUCTION)
 def production(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    energy = card.effect_vars.get("energy", 2)
+    energy = card.effect_vars.get(PRODUCTION_ENERGY_KEY, PRODUCTION_ENERGY)
     combat.gain_energy(_owner(card, combat), energy)
 
 
@@ -331,8 +451,8 @@ def prolong(card: CardInstance, combat: CombatState, target: Creature | None) ->
 
 @register_effect(CardId.PROWESS)
 def prowess(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    strength = card.effect_vars.get("strength", 1)
-    dexterity = card.effect_vars.get("dexterity", 1)
+    strength = card.effect_vars.get(PROWESS_STRENGTH_KEY, PROWESS_POWER)
+    dexterity = card.effect_vars.get(PROWESS_DEXTERITY_KEY, PROWESS_POWER)
     combat.apply_power_to(_owner(card, combat), PowerId.STRENGTH, strength)
     combat.apply_power_to(_owner(card, combat), PowerId.DEXTERITY, dexterity)
 
@@ -357,8 +477,8 @@ def purity(card: CardInstance, combat: CombatState, target: Creature | None) -> 
 def restlessness(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     if combat.hand:
         return
-    cards = card.effect_vars.get("cards", 2)
-    energy = card.effect_vars.get("energy", 2)
+    cards = card.effect_vars.get(RESTLESSNESS_CARDS_KEY, RESTLESSNESS_CARDS)
+    energy = card.effect_vars.get(RESTLESSNESS_ENERGY_KEY, RESTLESSNESS_ENERGY)
     combat._draw_cards(cards)
     combat.gain_energy(_owner(card, combat), energy)
 
@@ -371,7 +491,7 @@ def seeker_strike(card: CardInstance, combat: CombatState, target: Creature | No
     if not candidates:
         return
     combat.stable_shuffle_cards(candidates, combat.combat_card_selection_rng)
-    candidates = candidates[:card.effect_vars.get("cards", 2)]
+    candidates = candidates[:card.effect_vars.get(SEEKER_STRIKE_CARDS_KEY, SEEKER_STRIKE_CARDS)]
     combat.request_card_choice(
         prompt="Choose one of the revealed cards",
         cards=candidates,
@@ -382,7 +502,7 @@ def seeker_strike(card: CardInstance, combat: CombatState, target: Creature | No
 
 @register_effect(CardId.SHOCKWAVE)
 def shockwave(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    amount = card.effect_vars.get("power", 3)
+    amount = card.effect_vars.get(SHOCKWAVE_POWER_KEY, SHOCKWAVE_POWER)
     for enemy in list(combat.hittable_enemies):
         combat.apply_power_to(enemy, PowerId.WEAK, amount)
         combat.apply_power_to(enemy, PowerId.VULNERABLE, amount)
@@ -436,13 +556,13 @@ def stratagem(card: CardInstance, combat: CombatState, target: Creature | None) 
 def tag_team(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     _deal_damage_single(card, combat, target)
-    combat.apply_power_to(target, PowerId.TAG_TEAM, 1)
+    combat.apply_power_to(target, PowerId.TAG_TEAM, TAG_TEAM_POWER)
 
 
 @register_effect(CardId.THE_BOMB_CARD)
 def the_bomb_card(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    turns = card.effect_vars.get("turns", 3)
-    damage = card.effect_vars.get("bomb_damage", 40)
+    turns = card.effect_vars.get(THE_BOMB_TURNS_KEY, THE_BOMB_TURNS)
+    damage = card.effect_vars.get(THE_BOMB_DAMAGE_KEY, THE_BOMB_DAMAGE)
     owner = _owner(card, combat)
     existing = owner.powers.get(PowerId.THE_BOMB)
     if existing is not None and hasattr(existing, "add_instance"):
@@ -548,7 +668,7 @@ def bolas(card: CardInstance, combat: CombatState, target: Creature | None) -> N
 
 @register_effect(CardId.CALAMITY_CARD)
 def calamity_card(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.CALAMITY, 1)
+    combat.apply_power_to(_owner(card, combat), PowerId.CALAMITY, CALAMITY_POWER)
 
 
 @register_effect(CardId.ENTROPY)
@@ -558,7 +678,7 @@ def entropy(card: CardInstance, combat: CombatState, target: Creature | None) ->
 
 @register_effect(CardId.ETERNAL_ARMOR)
 def eternal_armor(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    plating = card.effect_vars.get("plating", 7)
+    plating = card.effect_vars.get(ETERNAL_ARMOR_PLATING_KEY, ETERNAL_ARMOR_PLATING)
     combat.apply_power_to(_owner(card, combat), PowerId.PLATING, plating)
 
 
@@ -620,7 +740,7 @@ def jackpot(card: CardInstance, combat: CombatState, target: Creature | None) ->
     generated = create_cards_from_ids(
         [card_id for card_id in zero_cost_ids if card_id in set(get_character(combat.character_id).card_pool)],
         combat.combat_card_generation_rng,
-        card.effect_vars.get("cards", 3),
+        card.effect_vars.get(JACKPOT_CARDS_KEY, JACKPOT_CARDS),
         distinct=False,
     )
     for generated_card in generated:
@@ -645,7 +765,7 @@ def master_of_strategy(card: CardInstance, combat: CombatState, target: Creature
 
 @register_effect(CardId.MAYHEM_CARD)
 def mayhem_card(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.MAYHEM, 1)
+    combat.apply_power_to(_owner(card, combat), PowerId.MAYHEM, MAYHEM_POWER)
 
 
 @register_effect(CardId.MIMIC)
@@ -661,7 +781,7 @@ def mimic(card: CardInstance, combat: CombatState, target: Creature | None) -> N
 
 @register_effect(CardId.NOSTALGIA_CARD)
 def nostalgia_card(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.NOSTALGIA, 1)
+    combat.apply_power_to(_owner(card, combat), PowerId.NOSTALGIA, NOSTALGIA_POWER)
 
 
 @register_effect(CardId.RALLY)
@@ -686,8 +806,8 @@ def rend(card: CardInstance, combat: CombatState, target: Creature | None) -> No
         and _power_type_for_amount(cls, power.amount) == PowerType.DEBUFF
         and not getattr(power, "is_temporary", False)
     )
-    base = card.effect_vars.get("calc_base", card.base_damage or 15)
-    extra = card.effect_vars.get("extra_damage", 5)
+    base = card.effect_vars.get(REND_CALC_BASE_KEY, card.base_damage or REND_DAMAGE)
+    extra = card.effect_vars.get(REND_EXTRA_DAMAGE_KEY, REND_EXTRA_DAMAGE)
     total_damage = base + extra * debuffs
     owner = _owner(card, combat)
     damage = calculate_damage(total_damage, owner, target, ValueProp.MOVE, combat)
@@ -766,7 +886,8 @@ def make_dramatic_entrance(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.DRAMATIC_ENTRANCE, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ALL_ENEMIES, rarity=CardRarity.UNCOMMON,
-        base_damage=15 if upgraded else 11, upgraded=upgraded,
+        base_damage=DRAMATIC_ENTRANCE_UPGRADED_DAMAGE if upgraded else DRAMATIC_ENTRANCE_DAMAGE,
+        upgraded=upgraded,
         keywords=frozenset({"exhaust", "innate"}),
         instance_id=_get_next_id(),
     )
@@ -776,8 +897,10 @@ def make_finesse(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.FINESSE, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        base_block=7 if upgraded else 4, upgraded=upgraded,
-        effect_vars={"cards": 1}, instance_id=_get_next_id(),
+        base_block=FINESSE_UPGRADED_BLOCK if upgraded else FINESSE_BLOCK,
+        upgraded=upgraded,
+        effect_vars={FINESSE_CARDS_KEY: FINESSE_CARDS},
+        instance_id=_get_next_id(),
     )
 
 
@@ -785,8 +908,10 @@ def make_flash_of_steel(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.FLASH_OF_STEEL, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
-        base_damage=8 if upgraded else 5, upgraded=upgraded,
-        effect_vars={"cards": 1}, instance_id=_get_next_id(),
+        base_damage=FLASH_OF_STEEL_UPGRADED_DAMAGE if upgraded else FLASH_OF_STEEL_DAMAGE,
+        upgraded=upgraded,
+        effect_vars={FLASH_OF_STEEL_CARDS_KEY: FLASH_OF_STEEL_CARDS},
+        instance_id=_get_next_id(),
     )
 
 
@@ -795,7 +920,7 @@ def make_shockwave(upgraded: bool = False) -> CardInstance:
         card_id=CardId.SHOCKWAVE, cost=2, card_type=CardType.SKILL,
         target_type=TargetType.ALL_ENEMIES, rarity=CardRarity.UNCOMMON,
         upgraded=upgraded, keywords=frozenset({"exhaust"}),
-        effect_vars={"power": 5 if upgraded else 3},
+        effect_vars={SHOCKWAVE_POWER_KEY: SHOCKWAVE_UPGRADED_POWER if upgraded else SHOCKWAVE_POWER},
         instance_id=_get_next_id(),
     )
 
@@ -811,12 +936,12 @@ def make_master_of_strategy(upgraded: bool = False) -> CardInstance:
 
 
 def make_omnislice(upgraded: bool = False) -> CardInstance:
-    damage = 11 if upgraded else 8
+    damage = OMNISLICE_UPGRADED_DAMAGE if upgraded else OMNISLICE_DAMAGE
     return CardInstance(
         card_id=CardId.OMNISLICE, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
         base_damage=damage, upgraded=upgraded,
-        effect_vars={"damage": damage},
+        effect_vars={OMNISLICE_DAMAGE_KEY: damage},
         instance_id=_get_next_id(),
     )
 
@@ -894,9 +1019,11 @@ def make_panic_button(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.PANIC_BUTTON, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        base_block=40 if upgraded else 30, upgraded=upgraded,
+        base_block=PANIC_BUTTON_UPGRADED_BLOCK if upgraded else PANIC_BUTTON_BLOCK,
+        upgraded=upgraded,
         keywords=frozenset({"exhaust"}),
-        effect_vars={"turns": 2}, instance_id=_get_next_id(),
+        effect_vars={PANIC_BUTTON_TURNS_KEY: PANIC_BUTTON_TURNS},
+        instance_id=_get_next_id(),
     )
 
 
@@ -914,7 +1041,8 @@ def make_ultimate_strike(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.ULTIMATE_STRIKE, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
-        base_damage=20 if upgraded else 14, upgraded=upgraded,
+        base_damage=ULTIMATE_STRIKE_UPGRADED_DAMAGE if upgraded else ULTIMATE_STRIKE_DAMAGE,
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
@@ -923,7 +1051,300 @@ def make_ultimate_defend(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.ULTIMATE_DEFEND, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        base_block=15 if upgraded else 11, upgraded=upgraded,
+        base_block=ULTIMATE_DEFEND_UPGRADED_BLOCK if upgraded else ULTIMATE_DEFEND_BLOCK,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_believe_in_you(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.BELIEVE_IN_YOU, cost=0, card_type=CardType.SKILL,
+        target_type=TargetType.ANY_ALLY, rarity=CardRarity.UNCOMMON,
+        effect_vars={
+            BELIEVE_IN_YOU_ENERGY_KEY: (
+                BELIEVE_IN_YOU_UPGRADED_ENERGY if upgraded else BELIEVE_IN_YOU_ENERGY
+            )
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_catastrophe(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.CATASTROPHE, cost=2, card_type=CardType.SKILL,
+        target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
+        effect_vars={
+            CATASTROPHE_CARDS_KEY: (
+                CATASTROPHE_UPGRADED_CARDS if upgraded else CATASTROPHE_CARDS
+            )
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_dark_shackles(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.DARK_SHACKLES, cost=0, card_type=CardType.SKILL,
+        target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
+        keywords=frozenset({"exhaust"}),
+        effect_vars={
+            DARK_SHACKLES_STRENGTH_LOSS_KEY: (
+                DARK_SHACKLES_UPGRADED_STRENGTH_LOSS
+                if upgraded
+                else DARK_SHACKLES_STRENGTH_LOSS
+            )
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_equilibrium(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.EQUILIBRIUM, cost=2, card_type=CardType.SKILL,
+        target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
+        base_block=EQUILIBRIUM_UPGRADED_BLOCK if upgraded else EQUILIBRIUM_BLOCK,
+        effect_vars={"equilibrium": EQUILIBRIUM_POWER},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_fasten(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.FASTEN, cost=1, card_type=CardType.POWER,
+        target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
+        tags=frozenset({CardTag.DEFEND}),
+        effect_vars={
+            FASTEN_EXTRA_BLOCK_KEY: (
+                FASTEN_UPGRADED_EXTRA_BLOCK if upgraded else FASTEN_EXTRA_BLOCK
+            )
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_intercept_card(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.INTERCEPT_CARD, cost=1, card_type=CardType.SKILL,
+        target_type=TargetType.ANY_ALLY, rarity=CardRarity.UNCOMMON,
+        base_block=INTERCEPT_UPGRADED_BLOCK if upgraded else INTERCEPT_BLOCK,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_jack_of_all_trades(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.JACK_OF_ALL_TRADES, cost=0, card_type=CardType.SKILL,
+        target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
+        keywords=frozenset({"exhaust"}),
+        effect_vars={
+            JACK_OF_ALL_TRADES_CARDS_KEY: (
+                JACK_OF_ALL_TRADES_UPGRADED_CARDS if upgraded else JACK_OF_ALL_TRADES_CARDS
+            )
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_lift(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.LIFT, cost=1, card_type=CardType.SKILL,
+        target_type=TargetType.ANY_ALLY, rarity=CardRarity.UNCOMMON,
+        base_block=LIFT_UPGRADED_BLOCK if upgraded else LIFT_BLOCK,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_production(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.PRODUCTION, cost=0, card_type=CardType.SKILL,
+        target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
+        keywords=frozenset() if upgraded else frozenset({"exhaust"}),
+        effect_vars={PRODUCTION_ENERGY_KEY: PRODUCTION_ENERGY},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_prolong(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.PROLONG, cost=0, card_type=CardType.SKILL,
+        target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
+        keywords=frozenset() if upgraded else frozenset({"exhaust"}),
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_prowess(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.PROWESS, cost=1, card_type=CardType.POWER,
+        target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
+        effect_vars={
+            PROWESS_STRENGTH_KEY: PROWESS_UPGRADED_POWER if upgraded else PROWESS_POWER,
+            PROWESS_DEXTERITY_KEY: PROWESS_UPGRADED_POWER if upgraded else PROWESS_POWER,
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_restlessness(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.RESTLESSNESS, cost=0, card_type=CardType.SKILL,
+        target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
+        keywords=frozenset({"retain"}),
+        effect_vars={
+            RESTLESSNESS_CARDS_KEY: (
+                RESTLESSNESS_UPGRADED_CARDS if upgraded else RESTLESSNESS_CARDS
+            ),
+            RESTLESSNESS_ENERGY_KEY: (
+                RESTLESSNESS_UPGRADED_ENERGY if upgraded else RESTLESSNESS_ENERGY
+            ),
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_seeker_strike(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.SEEKER_STRIKE, cost=1, card_type=CardType.ATTACK,
+        target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
+        base_damage=SEEKER_STRIKE_UPGRADED_DAMAGE if upgraded else SEEKER_STRIKE_DAMAGE,
+        effect_vars={SEEKER_STRIKE_CARDS_KEY: SEEKER_STRIKE_CARDS},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_stratagem(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.STRATAGEM,
+        cost=STRATAGEM_UPGRADED_COST if upgraded else STRATAGEM_COST,
+        card_type=CardType.POWER,
+        target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_tag_team(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.TAG_TEAM, cost=2, card_type=CardType.ATTACK,
+        target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
+        base_damage=TAG_TEAM_UPGRADED_DAMAGE if upgraded else TAG_TEAM_DAMAGE,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_the_bomb_card(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.THE_BOMB_CARD, cost=THE_BOMB_COST, card_type=CardType.SKILL,
+        target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
+        effect_vars={
+            THE_BOMB_TURNS_KEY: THE_BOMB_TURNS,
+            THE_BOMB_DAMAGE_KEY: THE_BOMB_UPGRADED_DAMAGE if upgraded else THE_BOMB_DAMAGE,
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_thrumming_hatchet(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.THRUMMING_HATCHET, cost=1, card_type=CardType.ATTACK,
+        target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
+        base_damage=THRUMMING_HATCHET_UPGRADED_DAMAGE if upgraded else THRUMMING_HATCHET_DAMAGE,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_bolas(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.BOLAS, cost=0, card_type=CardType.ATTACK,
+        target_type=TargetType.ANY_ENEMY, rarity=CardRarity.RARE,
+        base_damage=BOLAS_UPGRADED_DAMAGE if upgraded else BOLAS_DAMAGE,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_calamity_card(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.CALAMITY_CARD,
+        cost=CALAMITY_UPGRADED_COST if upgraded else CALAMITY_COST,
+        card_type=CardType.POWER,
+        target_type=TargetType.SELF, rarity=CardRarity.RARE,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_entropy(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.ENTROPY, cost=1, card_type=CardType.POWER,
+        target_type=TargetType.SELF, rarity=CardRarity.RARE,
+        keywords=frozenset({"innate"}) if upgraded else frozenset(),
+        effect_vars={ENTROPY_CARDS_KEY: ENTROPY_CARDS},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_eternal_armor(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.ETERNAL_ARMOR, cost=3, card_type=CardType.POWER,
+        target_type=TargetType.SELF, rarity=CardRarity.RARE,
+        effect_vars={
+            ETERNAL_ARMOR_PLATING_KEY: (
+                ETERNAL_ARMOR_UPGRADED_PLATING if upgraded else ETERNAL_ARMOR_PLATING
+            )
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_jackpot(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.JACKPOT, cost=3, card_type=CardType.ATTACK,
+        target_type=TargetType.ANY_ENEMY, rarity=CardRarity.RARE,
+        base_damage=JACKPOT_UPGRADED_DAMAGE if upgraded else JACKPOT_DAMAGE,
+        effect_vars={JACKPOT_CARDS_KEY: JACKPOT_CARDS},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_mayhem_card(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.MAYHEM_CARD,
+        cost=MAYHEM_UPGRADED_COST if upgraded else MAYHEM_COST,
+        card_type=CardType.POWER,
+        target_type=TargetType.SELF, rarity=CardRarity.RARE,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
+def make_nostalgia_card(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.NOSTALGIA_CARD,
+        cost=NOSTALGIA_UPGRADED_COST if upgraded else NOSTALGIA_COST,
+        card_type=CardType.POWER,
+        target_type=TargetType.SELF, rarity=CardRarity.RARE,
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
@@ -987,7 +1408,9 @@ for _card_id in _REFERENCE_FACTORY_CARD_IDS:
 
 def make_coordinate_card(upgraded: bool = False) -> CardInstance:
     card = _make_reference_factory_card(CardId.COORDINATE_CARD, upgraded=upgraded)
-    card.effect_vars["strength"] = 8 if upgraded else 5
+    card.effect_vars[COORDINATE_STRENGTH_KEY] = (
+        COORDINATE_UPGRADED_STRENGTH if upgraded else COORDINATE_STRENGTH
+    )
     return card
 
 
@@ -1031,27 +1454,29 @@ def make_mimic(upgraded: bool = False) -> CardInstance:
 
 def make_rally(upgraded: bool = False) -> CardInstance:
     card = _make_reference_factory_card(CardId.RALLY, upgraded=upgraded)
-    card.base_block = 17 if upgraded else 12
+    card.base_block = RALLY_UPGRADED_BLOCK if upgraded else RALLY_BLOCK
     return card
 
 
 def make_rend(upgraded: bool = False) -> CardInstance:
     card = _make_reference_factory_card(CardId.REND, upgraded=upgraded)
-    card.base_damage = 18 if upgraded else 15
-    card.effect_vars["calc_base"] = 18 if upgraded else 15
-    card.effect_vars["extra_damage"] = 8 if upgraded else 5
+    card.base_damage = REND_UPGRADED_DAMAGE if upgraded else REND_DAMAGE
+    card.effect_vars[REND_CALC_BASE_KEY] = REND_UPGRADED_DAMAGE if upgraded else REND_DAMAGE
+    card.effect_vars[REND_EXTRA_DAMAGE_KEY] = (
+        REND_UPGRADED_EXTRA_DAMAGE if upgraded else REND_EXTRA_DAMAGE
+    )
     return card
 
 
 def make_salvo(upgraded: bool = False) -> CardInstance:
     card = _make_reference_factory_card(CardId.SALVO, upgraded=upgraded)
-    card.base_damage = 16 if upgraded else 12
+    card.base_damage = SALVO_UPGRADED_DAMAGE if upgraded else SALVO_DAMAGE
     return card
 
 
 def make_the_gambit(upgraded: bool = False) -> CardInstance:
     card = _make_reference_factory_card(CardId.THE_GAMBIT, upgraded=upgraded)
-    card.base_block = 75 if upgraded else 50
+    card.base_block = THE_GAMBIT_UPGRADED_BLOCK if upgraded else THE_GAMBIT_BLOCK
     return card
 
 
