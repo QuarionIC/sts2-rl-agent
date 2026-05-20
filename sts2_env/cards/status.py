@@ -692,8 +692,8 @@ def make_entrench(upgraded: bool = False) -> CardInstance:
 
 @register_effect(CardId.EXTERMINATE)
 def exterminate_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    hits = card.effect_vars.get("hits", 3)
-    for _ in range(hits):
+    repeat = card.effect_vars.get("repeat", 4)
+    for _ in range(repeat):
         _deal_damage_all(card, combat)
 
 
@@ -702,7 +702,7 @@ def make_exterminate(upgraded: bool = False) -> CardInstance:
         card_id=CardId.EXTERMINATE, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ALL_ENEMIES, rarity=CardRarity.EVENT,
         base_damage=4 if upgraded else 3, upgraded=upgraded,
-        effect_vars={"hits": 4}, instance_id=_get_next_id(),
+        effect_vars={"repeat": 4}, instance_id=_get_next_id(),
     )
 
 

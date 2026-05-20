@@ -268,7 +268,7 @@
 - **Target:** RandomEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 3}
+- **Vars:** {Damage: 3, Repeat: 3}
 - **Effect:** Deal Damage to target enemy multiple times
 - **Upgrade:** Repeat+1
 ### Thunderclap
@@ -6350,7 +6350,7 @@
 - **Target:** AllEnemies
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 3}
+- **Vars:** {Damage: 3, Repeat: 4}
 - **Effect:** Deal Damage to ALL enemies multiple times
 - **Upgrade:** Damage+1
 ### FeedingFrenzy
@@ -6422,7 +6422,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 2}
+- **Vars:** {Damage: 2, Repeat: 3}
 - **Effect:** Deal Damage to target enemy multiple times
 - **Upgrade:** Repeat+1
 ### Rebound
@@ -6599,7 +6599,7 @@
 - **Target:** RandomEnemy
 - **Keywords:** Ethereal, Exhaust
 - **Tags:** OstyAttack
-- **Vars:** None
+- **Vars:** {OstyDamage: 10}
 - **Effect:** Deal Damage to target enemy
 - **Upgrade:** Damage+5; OstyDamage+5
 ### Disintegration

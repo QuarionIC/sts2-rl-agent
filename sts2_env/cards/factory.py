@@ -300,7 +300,10 @@ def _build_reference_card(
         star_cost = int(star_cost_match.group(1))
 
     has_energy_cost_x = cost_text == "X"
-    cost = 0 if has_energy_cost_x else int(cost_text)
+    if cost_text == "Unplayable":
+        cost = -1
+    else:
+        cost = 0 if has_energy_cost_x else int(cost_text)
     effect_vars = _build_reference_effect_vars(definition.vars_text)
     card_type = CardType[definition.card_type.upper()]
     base_damage = effect_vars.get("damage", effect_vars.get("calc_base"))
@@ -310,6 +313,7 @@ def _build_reference_card(
     if base_block is None and card_type in {CardType.SKILL, CardType.POWER}:
         base_block = 0
 
+    can_upgrade = definition.upgrade_text != "Cannot be upgraded"
     card = CardInstance(
         card_id=card_id,
         cost=cost,
@@ -318,14 +322,14 @@ def _build_reference_card(
         rarity=_coerce_reference_rarity(definition.rarity),
         base_damage=base_damage,
         base_block=base_block,
-        upgraded=upgraded,
+        upgraded=upgraded and can_upgrade,
         keywords=frozenset(definition.keywords),
         tags=frozenset(definition.tags),
         effect_vars=effect_vars,
         has_energy_cost_x=has_energy_cost_x,
         star_cost=star_cost,
     )
-    if upgraded:
+    if upgraded and can_upgrade:
         _apply_upgrade_text(card, effect_vars, definition.upgrade_text)
     card = _apply_generation_metadata(card)
     if not allow_generation:
