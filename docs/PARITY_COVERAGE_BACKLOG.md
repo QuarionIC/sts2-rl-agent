@@ -15,9 +15,15 @@ The detailed backlog sections below were captured as the pre-pass baseline. Afte
 
 | Surface | Total | Directly Covered | Gap | Coverage |
 | --- | ---: | ---: | ---: | ---: |
-| Cards | 578 | 226 | 352 | 39.1% |
+| Cards | 578 | 227 | 351 | 39.3% |
 | Relics | 289 | 206 | 83 | 71.3% |
 | Events | 68 | 68 | 0 | 100.0% |
+
+Latest local pass also added direct coverage for:
+
+- Cards: `ANOINTED`
+
+No new logic mismatch was found in this pass.
 
 Latest local pass also added direct coverage for:
 
@@ -241,13 +247,12 @@ SYNCHRONIZE, SYNTHESIS, TEMPEST, TESLA_COIL, THUNDER_CARD, TRASH_TO_TREASURE,
 TURBO, UPROAR, VOLTAIC, ZAP
 ```
 
-#### `sts2_env.cards.colorless` (43)
+#### `sts2_env.cards.colorless` (42)
 
 ```text
-ANOINTED, AUTOMATION, BELIEVE_IN_YOU, BOLAS, CALAMITY_CARD,
-CATASTROPHE, COORDINATE_CARD, DARK_SHACKLES, DRAMATIC_ENTRANCE, ENTROPY,
-EQUILIBRIUM, ETERNAL_ARMOR, FASTEN, FINESSE, FLASH_OF_STEEL, INTERCEPT_CARD,
-JACKPOT, JACK_OF_ALL_TRADES, KNOCKDOWN, LIFT,
+AUTOMATION, BELIEVE_IN_YOU, BOLAS, CALAMITY_CARD, CATASTROPHE, COORDINATE_CARD,
+DARK_SHACKLES, DRAMATIC_ENTRANCE, ENTROPY, EQUILIBRIUM, ETERNAL_ARMOR, FASTEN,
+FINESSE, FLASH_OF_STEEL, INTERCEPT_CARD, JACKPOT, JACK_OF_ALL_TRADES, KNOCKDOWN, LIFT,
 MAYHEM_CARD, NOSTALGIA_CARD,
 OMNISLICE, PANIC_BUTTON, PREP_TIME, PRODUCTION, PROLONG, PROWESS, RALLY,
 REND, RESTLESSNESS, ROLLING_BOULDER, SALVO, SEEKER_STRIKE, SHOCKWAVE, SPLASH,

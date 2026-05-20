@@ -4,6 +4,7 @@ import sts2_env.powers  # noqa: F401
 
 from sts2_env.cards.base import CardInstance
 from sts2_env.cards.colorless import (
+    make_anointed,
     make_beacon_of_hope,
     make_calamity_card,
     make_catastrophe,
@@ -58,6 +59,31 @@ def _make_combat() -> CombatState:
 
 
 class TestColorlessParityExtra4:
+    def test_anointed_moves_only_rare_draw_pile_cards_to_hand_and_exhausts(self):
+        """Matches Anointed.cs: move all Rare draw-pile cards to hand."""
+        combat = _make_combat()
+        rare = CardInstance(
+            card_id=CardId.ALCHEMIZE,
+            cost=1,
+            card_type=CardType.SKILL,
+            target_type=TargetType.SELF,
+            rarity=CardRarity.RARE,
+        )
+        common = make_strike_ironclad()
+        combat.hand = [make_anointed()]
+        combat.draw_pile = [common, rare]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+
+        assert rare in combat.hand
+        assert common in combat.draw_pile
+        assert any(card.card_id == CardId.ANOINTED for card in combat.exhaust_pile)
+
+    def test_anointed_plus_adds_retain(self):
+        """Matches Anointed.cs: upgraded Anointed adds Retain."""
+        assert make_anointed(upgraded=True).is_retain
+
     def test_calamity_generates_owner_attack_after_owner_attack_only(self):
         combat = _make_combat()
         ally = combat.add_ally_player(
