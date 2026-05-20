@@ -20,6 +20,7 @@ from sts2_env.cards.registry import (
     register_quest_complete_hook,
     register_rest_site_options_hook,
     register_should_play_hook,
+    register_target_type_hook,
     register_unknown_room_types_hook,
 )
 from sts2_env.core.enums import (
@@ -826,6 +827,13 @@ def mad_science_effect(card: CardInstance, combat: CombatState, target: Creature
         combat.apply_power_to(owner, PowerId.IMPROVEMENT, 1, applier=owner)
 
 
+@register_target_type_hook(CardId.MAD_SCIENCE)
+def mad_science_target_type(card: CardInstance, owner: Creature, target_type: TargetType) -> TargetType:
+    if card.card_type != CardType.ATTACK:
+        return TargetType.SELF
+    return target_type
+
+
 def make_mad_science(upgraded: bool = False) -> CardInstance:
     kw = frozenset({"innate"}) if upgraded else frozenset()
     return CardInstance(
@@ -1104,6 +1112,13 @@ def shiv_effect(card: CardInstance, combat: CombatState, target: Creature | None
     _deal_damage_single(card, combat, target)
 
 
+@register_target_type_hook(CardId.SHIV)
+def shiv_target_type(card: CardInstance, owner: Creature, target_type: TargetType) -> TargetType:
+    if owner.get_power_amount(PowerId.FAN_OF_KNIVES) > 0:
+        return TargetType.ALL_ENEMIES
+    return target_type
+
+
 def make_shiv(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SHIV, cost=0, card_type=CardType.ATTACK,
@@ -1148,6 +1163,13 @@ def sovereign_blade_effect(card: CardInstance, combat: CombatState, target: Crea
     if target is not None:
         for _ in range(max(1, repeats)):
             _deal_damage_single(card, combat, target)
+
+
+@register_target_type_hook(CardId.SOVEREIGN_BLADE)
+def sovereign_blade_target_type(card: CardInstance, owner: Creature, target_type: TargetType) -> TargetType:
+    if owner.has_power(PowerId.SEEKING_EDGE):
+        return TargetType.ALL_ENEMIES
+    return target_type
 
 
 def make_sovereign_blade(upgraded: bool = False) -> CardInstance:

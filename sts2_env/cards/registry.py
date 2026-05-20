@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from sts2_env.cards.base import CardInstance
     from sts2_env.core.combat import CombatState
     from sts2_env.core.creature import Creature
-    from sts2_env.core.enums import RoomType
+    from sts2_env.core.enums import RoomType, TargetType
     from sts2_env.map.generator import ActMap
     from sts2_env.run.events import EventModel
     from sts2_env.run.rest_site import RestSiteOption
@@ -30,6 +30,10 @@ CardPlayabilityHook = Callable[
 CardShouldPlayHook = Callable[
     ["CardInstance", "CardInstance", object, "CombatState", "Creature", bool],
     bool,
+]
+CardTargetTypeHook = Callable[
+    ["CardInstance", "Creature", "TargetType"],
+    "TargetType",
 ]
 CardAfterCombatEndHook = Callable[
     ["CardInstance", "PlayerState"],
@@ -65,6 +69,7 @@ _CARD_LATE_EFFECTS: dict[CardId, CardLateEffect] = {}
 _CARD_CHOSEN_HOOKS: dict[CardId, CardChosenHook] = {}
 _CARD_PLAYABILITY_HOOKS: dict[CardId, CardPlayabilityHook] = {}
 _CARD_SHOULD_PLAY_HOOKS: dict[CardId, CardShouldPlayHook] = {}
+_CARD_TARGET_TYPE_HOOKS: dict[CardId, CardTargetTypeHook] = {}
 _CARD_AFTER_COMBAT_END_HOOKS: dict[CardId, CardAfterCombatEndHook] = {}
 _CARD_NEXT_EVENT_HOOKS: dict[CardId, CardNextEventHook] = {}
 _CARD_UNKNOWN_ROOM_TYPES_HOOKS: dict[CardId, CardUnknownRoomTypesHook] = {}
@@ -108,6 +113,13 @@ def register_playability_hook(card_id: CardId):
 def register_should_play_hook(card_id: CardId):
     def decorator(func: CardShouldPlayHook) -> CardShouldPlayHook:
         _CARD_SHOULD_PLAY_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_target_type_hook(card_id: CardId):
+    def decorator(func: CardTargetTypeHook) -> CardTargetTypeHook:
+        _CARD_TARGET_TYPE_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -228,6 +240,17 @@ def should_play_card_from_hand(
     if hook is None:
         return True
     return hook(listener_card, played_card, owner_state, combat, owner, is_auto_play)
+
+
+def card_target_type_for(
+    card: "CardInstance",
+    owner: "Creature",
+    target_type: "TargetType",
+) -> "TargetType":
+    hook = _CARD_TARGET_TYPE_HOOKS.get(card.card_id)
+    if hook is None:
+        return target_type
+    return hook(card, owner, target_type)
 
 
 def apply_card_after_combat_end(card: "CardInstance", owner: "PlayerState") -> bool:
