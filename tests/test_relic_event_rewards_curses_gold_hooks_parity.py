@@ -39,7 +39,7 @@ def _make_necrobinder_combat(relics: list[str] | None = None, *, seed: int = 771
     return combat
 
 
-class TestRelicParityEventExtra9:
+class TestRelicEventRewardsCursesGoldHooksParity:
     def test_book_repair_knife_heals_three_per_enemy_that_dies_to_doom(self):
         combat = _make_necrobinder_combat(["BookRepairKnife"], seed=771)
         enemy = combat.enemies[0]

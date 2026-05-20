@@ -65,7 +65,7 @@ class _InsertAtEndRng:
         return high
 
 
-class TestRelicParityEventExtra11:
+class TestRelicEventFakePaelAncientHooksParity:
     def test_fake_anchor_grants_four_block_at_combat_start(self):
         combat = _make_combat(["FakeAnchor"], seed=980)
 

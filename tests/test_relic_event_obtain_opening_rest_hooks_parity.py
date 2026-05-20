@@ -32,7 +32,7 @@ def _make_combat(relics: list[str] | None = None, *, seed: int = 881) -> CombatS
     return combat
 
 
-class TestRelicParityEventExtra10:
+class TestRelicEventObtainOpeningRestHooksParity:
     def test_golden_pearl_grants_one_hundred_fifty_gold_on_obtain(self):
         run_state = RunState(seed=895, character_id="Ironclad")
         starting_gold = run_state.player.gold
