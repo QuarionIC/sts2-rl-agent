@@ -887,7 +887,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** Exhaust
 - **Tags:** None
-- **Vars:** {Damage: 10}
+- **Vars:** {Damage: 10, MaxHp: 3}
 - **Effect:** Deal Damage to target enemy; Gain Max HP
 - **Upgrade:** Damage+2; MaxHp+1
 ### FiendFire

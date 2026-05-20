@@ -10,6 +10,7 @@ from sts2_env.cards.ironclad import (
     make_bloodletting,
     make_bully,
     make_cruelty,
+    make_feed,
     make_feel_no_pain,
     make_fiend_fire,
     make_hellraiser,
@@ -72,6 +73,10 @@ HELLRAISER_POWER_AMOUNT = 1
 HELLRAISER_BASE_COST = 2
 HELLRAISER_PLUS_COST = 1
 VULNERABLE_TRIGGER_AMOUNT = 1
+FEED_DAMAGE = 10
+FEED_MAX_HP_GAIN = 3
+FEED_PLUS_DAMAGE = 12
+FEED_PLUS_MAX_HP_GAIN = 4
 
 
 def _make_combat() -> CombatState:
@@ -202,6 +207,29 @@ class TestIroncladCoreCardModelParity:
         assert first.escaped
         assert first.get_power_amount(PowerId.VULNERABLE) == 0
         assert second.get_power_amount(PowerId.VULNERABLE) == 0
+
+    def test_feed_gains_reference_max_hp_on_fatal_hit(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = FEED_DAMAGE
+        enemy.max_hp = FEED_DAMAGE
+        max_hp_before = combat.player.max_hp
+        combat.hand = [make_feed()]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+        assert combat.player.max_hp == max_hp_before + FEED_MAX_HP_GAIN
+
+        upgraded_combat = _make_combat()
+        upgraded_enemy = upgraded_combat.enemies[0]
+        upgraded_enemy.current_hp = FEED_PLUS_DAMAGE
+        upgraded_enemy.max_hp = FEED_PLUS_DAMAGE
+        upgraded_max_hp_before = upgraded_combat.player.max_hp
+        upgraded_combat.hand = [make_feed(upgraded=True)]
+        upgraded_combat.energy = 1
+
+        assert upgraded_combat.play_card(0, 0)
+        assert upgraded_combat.player.max_hp == upgraded_max_hp_before + FEED_PLUS_MAX_HP_GAIN
 
     def test_inflame_applies_strength_power_amount(self):
         """Matches Inflame.cs: apply StrengthPower using the configured amount."""
