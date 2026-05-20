@@ -1,4 +1,4 @@
-"""Focused parity tests for additional uncovered shared events."""
+"""Parity tests for shared event reward and choice handling."""
 
 import sts2_env.events.shared  # noqa: F401
 

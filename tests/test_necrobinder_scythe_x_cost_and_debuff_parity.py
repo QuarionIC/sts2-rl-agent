@@ -1,4 +1,4 @@
-"""Additional high-signal Necrobinder parity tests."""
+"""Parity tests for Necrobinder scythe, X-cost, and debuff effects."""
 
 import sts2_env.powers  # noqa: F401
 

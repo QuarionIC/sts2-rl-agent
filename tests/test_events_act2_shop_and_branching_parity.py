@@ -1,4 +1,4 @@
-"""Focused parity coverage for remaining Act 2 / Act 3 events."""
+"""Parity tests for Act 2 shop and branching events."""
 
 import sts2_env.events.act2  # noqa: F401
 import sts2_env.events.act3  # noqa: F401

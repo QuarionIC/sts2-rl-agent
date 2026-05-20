@@ -1,4 +1,4 @@
-"""Additional focused parity tests for rare/shop/event relics."""
+"""Parity tests for rare/shop/event relic replay and turn timing hooks."""
 
 import sts2_env.powers  # noqa: F401
 

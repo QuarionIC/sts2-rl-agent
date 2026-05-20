@@ -1,4 +1,4 @@
-"""Additional focused Regent parity tests for currently uncovered cards."""
+"""Parity tests for Regent star gain and Stardust card effects."""
 
 import sts2_env.powers  # noqa: F401
 

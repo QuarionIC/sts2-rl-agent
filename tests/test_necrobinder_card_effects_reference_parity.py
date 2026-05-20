@@ -1,4 +1,4 @@
-"""Additional focused parity tests for remaining Necrobinder cards."""
+"""Reference parity tests for Necrobinder card effects."""
 
 import sts2_env.powers  # noqa: F401
 

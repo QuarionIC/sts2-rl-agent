@@ -1,4 +1,4 @@
-"""Focused parity coverage for additional uncovered rare/shop/event relic hooks."""
+"""Parity tests for rare/shop/event relic combat-start, map, and autoplay hooks."""
 
 import sts2_env.potions  # noqa: F401
 import sts2_env.powers  # noqa: F401

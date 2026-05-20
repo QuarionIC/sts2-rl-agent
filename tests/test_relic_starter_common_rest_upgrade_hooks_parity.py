@@ -1,4 +1,4 @@
-"""Sixth batch of focused parity tests for starter/common relic hooks."""
+"""Parity tests for starter/common relic rest and upgrade hooks."""
 
 import sts2_env.powers  # noqa: F401
 

@@ -1,4 +1,4 @@
-"""Focused direct parity coverage for additional rare/shop/event relic hooks."""
+"""Parity tests for rare/shop/event relic opening, energy, and replay hooks."""
 
 import sts2_env.powers  # noqa: F401
 

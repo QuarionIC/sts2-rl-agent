@@ -1,4 +1,4 @@
-"""Focused direct parity coverage for uncovered rare/shop/event relic hooks."""
+"""Parity tests for rare/shop/event relic reward, energy, and card-limit hooks."""
 
 from sts2_env.cards.factory import create_card
 from sts2_env.core.enums import CardId, CombatSide, RoomType

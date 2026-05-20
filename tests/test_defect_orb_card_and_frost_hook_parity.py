@@ -1,4 +1,4 @@
-"""Additional Defect parity tests for remaining high-signal orb cards."""
+"""Parity tests for Defect orb-card and frost hooks."""
 
 import sts2_env.powers  # noqa: F401
 

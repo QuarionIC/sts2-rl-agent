@@ -1,4 +1,4 @@
-"""Direct parity coverage for remaining high-signal Act 2 DollRoom behavior."""
+"""Parity tests for Act 2 DollRoom behavior."""
 
 import sts2_env.events.act2  # noqa: F401
 

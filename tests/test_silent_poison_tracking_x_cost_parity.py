@@ -1,4 +1,4 @@
-"""Additional high-signal parity tests for remaining Silent cards."""
+"""Parity tests for Silent poison tracking and X-cost effects."""
 
 import sts2_env.powers  # noqa: F401
 

@@ -1,4 +1,4 @@
-"""Focused parity coverage for selected Act 1 / Act 3 events."""
+"""Parity tests for Act 1 and Act 3 events."""
 
 import sts2_env.events.act1  # noqa: F401
 import sts2_env.events.act3  # noqa: F401

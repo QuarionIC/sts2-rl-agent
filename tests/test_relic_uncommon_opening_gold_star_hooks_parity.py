@@ -1,4 +1,4 @@
-"""Fifth batch of focused uncommon relic parity tests for uncovered hook behavior."""
+"""Parity tests for uncommon relic opening, gold, and star hooks."""
 
 import sts2_env.powers  # noqa: F401
 

@@ -1,4 +1,4 @@
-"""Additional focused parity tests for event/ancient relics."""
+"""Parity tests for Fake, Pael, and ancient event relic hooks."""
 
 import sts2_env.powers  # noqa: F401
 

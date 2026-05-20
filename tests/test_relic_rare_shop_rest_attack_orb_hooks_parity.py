@@ -1,4 +1,4 @@
-"""Ninth batch of focused parity tests for rare/shop relic hooks."""
+"""Parity tests for rare/shop relic rest, attack, and orb hooks."""
 
 import sts2_env.powers  # noqa: F401
 

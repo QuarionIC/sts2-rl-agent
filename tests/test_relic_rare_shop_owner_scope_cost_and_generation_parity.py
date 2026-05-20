@@ -1,4 +1,4 @@
-"""Tenth batch of focused parity tests for rare/shop relic hooks."""
+"""Parity tests for rare/shop relic owner scope, costs, and generation hooks."""
 
 from types import SimpleNamespace
 

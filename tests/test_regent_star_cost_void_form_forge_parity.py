@@ -1,4 +1,4 @@
-"""Additional focused Regent parity tests for high-signal remaining cards."""
+"""Parity tests for Regent star-cost, Void Form, and forge card effects."""
 
 import sts2_env.powers  # noqa: F401
 

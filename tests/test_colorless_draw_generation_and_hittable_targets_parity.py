@@ -1,4 +1,4 @@
-"""Additional high-signal parity tests for remaining Colorless cards."""
+"""Parity tests for Colorless draw, generation, and hittable-target effects."""
 
 import sts2_env.powers  # noqa: F401
 

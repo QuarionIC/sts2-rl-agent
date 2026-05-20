@@ -1,4 +1,4 @@
-"""Additional parity coverage for high-signal Colorless cards."""
+"""Parity tests for Colorless support powers and returning attacks."""
 
 import sts2_env.powers  # noqa: F401
 

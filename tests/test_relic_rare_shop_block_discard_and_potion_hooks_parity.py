@@ -1,4 +1,4 @@
-"""Focused parity coverage for additional rare/shop/event relic hooks."""
+"""Parity tests for rare/shop/event relic block, discard, and potion hooks."""
 
 import sts2_env.powers  # noqa: F401
 

@@ -1,4 +1,4 @@
-"""Additional focused parity tests for remaining Regent cards."""
+"""Reference parity tests for Regent card effects."""
 
 import sts2_env.powers  # noqa: F401
 

@@ -1,4 +1,4 @@
-"""Additional focused parity tests for remaining Silent cards."""
+"""Reference parity tests for Silent card effects."""
 
 import sts2_env.cards.silent as silent_cards
 import sts2_env.powers  # noqa: F401

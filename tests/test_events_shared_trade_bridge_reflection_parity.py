@@ -1,4 +1,4 @@
-"""Additional focused parity tests for Shared / Act 2 events."""
+"""Parity tests for shared and Act 2 event trade, bridge, and reflection paths."""
 
 import sts2_env.events.act2  # noqa: F401
 import sts2_env.events.shared  # noqa: F401

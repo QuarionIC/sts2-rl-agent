@@ -1,4 +1,4 @@
-"""Additional Defect parity tests for remaining high-signal card behaviors."""
+"""Reference parity tests for Defect card effects."""
 
 import sts2_env.powers  # noqa: F401
 

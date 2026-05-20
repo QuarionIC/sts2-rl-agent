@@ -1,4 +1,4 @@
-"""Focused parity coverage for additional Act 1 / Act 2 events."""
+"""Parity tests for quest, potion, and Scriptorium events."""
 
 import sts2_env.events.act1  # noqa: F401
 import sts2_env.events.act2  # noqa: F401

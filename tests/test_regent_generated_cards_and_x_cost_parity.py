@@ -1,4 +1,4 @@
-"""Additional focused Regent parity tests for remaining high-signal cards."""
+"""Parity tests for Regent generated-card and X-cost effects."""
 
 import sts2_env.powers  # noqa: F401
 

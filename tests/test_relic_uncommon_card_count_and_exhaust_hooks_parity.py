@@ -1,4 +1,4 @@
-"""Focused uncommon relic parity tests for remaining high-signal hook behavior."""
+"""Parity tests for uncommon relic card-count and exhaust hooks."""
 
 import sts2_env.powers  # noqa: F401
 

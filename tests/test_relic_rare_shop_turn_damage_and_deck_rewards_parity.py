@@ -1,4 +1,4 @@
-"""Focused parity coverage for remaining high-signal rare and event relic hooks."""
+"""Parity tests for rare/shop relic turn, damage, and deck-reward hooks."""
 
 import sts2_env.powers  # noqa: F401
 

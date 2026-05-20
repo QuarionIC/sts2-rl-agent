@@ -1,4 +1,4 @@
-"""Additional focused parity tests for remaining Colorless cards."""
+"""Reference parity tests for Colorless card effects."""
 
 import sts2_env.powers  # noqa: F401
 

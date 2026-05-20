@@ -1,4 +1,4 @@
-"""Second batch of focused parity tests for high-risk relics."""
+"""Parity tests for relic turn-start, turn-end, and reward hooks."""
 
 import sts2_env.powers  # noqa: F401
 

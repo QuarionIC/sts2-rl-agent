@@ -1,4 +1,4 @@
-"""Fourth batch of focused uncommon relic parity tests for trigger timing and combat math."""
+"""Parity tests for uncommon relic room, potion, and orb hooks."""
 
 import sts2_env.potions  # noqa: F401
 import sts2_env.powers  # noqa: F401
