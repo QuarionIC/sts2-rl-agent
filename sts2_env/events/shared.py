@@ -2569,6 +2569,8 @@ class WoodCarvings(EventModel):
     """
 
     event_id = "WoodCarvings"
+    BIRD_CARD_ID = CardId.PECK
+    TORUS_CARD_ID = CardId.TORIC_TOUGHNESS
 
     def is_allowed(self, run_state: RunState) -> bool:
         from sts2_env.core.enums import CardRarity
@@ -2586,6 +2588,9 @@ class WoodCarvings(EventModel):
                          "Transform a Basic card into Toric Toughness"),
         ]
 
+    def _basic_transform_mapping(self, cards: list[CardInstance], target_id: CardId) -> dict[CardId, CardId]:
+        return {card.card_id: target_id for card in cards}
+
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "bird":
             candidates = [card for card in run_state.player.deck if card.rarity == CardRarity.BASIC and card.is_removable]
@@ -2599,7 +2604,7 @@ class WoodCarvings(EventModel):
                             run_state.player.player_id,
                             count=1,
                             cards=candidates,
-                            mapping={card.card_id: CardId.PECK for card in candidates},
+                            mapping=self._basic_transform_mapping(candidates, self.BIRD_CARD_ID),
                         )
                     ],
                 )
@@ -2609,7 +2614,7 @@ class WoodCarvings(EventModel):
                 source_pile="deck",
                 resolver=lambda selected: (
                     run_state.player.transform_specific_cards_with_mapping(
-                        selected, {card.card_id: CardId.PECK for card in selected}
+                        selected, self._basic_transform_mapping(selected, self.BIRD_CARD_ID)
                     ),
                     EventResult(finished=True, description="Transformed a Basic card into Peck."),
                 )[-1],
@@ -2652,7 +2657,7 @@ class WoodCarvings(EventModel):
                             run_state.player.player_id,
                             count=1,
                             cards=candidates,
-                            mapping={card.card_id: CardId.TORIC_TOUGHNESS for card in candidates},
+                            mapping=self._basic_transform_mapping(candidates, self.TORUS_CARD_ID),
                         )
                     ],
                 )
@@ -2662,7 +2667,7 @@ class WoodCarvings(EventModel):
                 source_pile="deck",
                 resolver=lambda selected: (
                     run_state.player.transform_specific_cards_with_mapping(
-                        selected, {card.card_id: CardId.TORIC_TOUGHNESS for card in selected}
+                        selected, self._basic_transform_mapping(selected, self.TORUS_CARD_ID)
                     ),
                     EventResult(finished=True, description="Transformed a Basic card into Toric Toughness."),
                 )[-1],
