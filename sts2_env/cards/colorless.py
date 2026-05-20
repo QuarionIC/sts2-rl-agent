@@ -416,6 +416,10 @@ def omnislice(card: CardInstance, combat: CombatState, target: Creature | None) 
         )
 
 
+def is_omnislice(card: object) -> bool:
+    return getattr(card, "card_id", None) == CardId.OMNISLICE
+
+
 @register_effect(CardId.PANACHE_CARD)
 def panache_card(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     damage = card.effect_vars.get("panache_damage", 10)

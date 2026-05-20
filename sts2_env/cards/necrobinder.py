@@ -843,6 +843,10 @@ def hang(card: CardInstance, combat: CombatState, target: Creature | None) -> No
     combat.apply_power_to(target, PowerId.HANG, amount)
 
 
+def is_hang(card: object) -> bool:
+    return getattr(card, "card_id", None) == CardId.HANG
+
+
 @register_effect(CardId.MISERY)
 def misery(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None

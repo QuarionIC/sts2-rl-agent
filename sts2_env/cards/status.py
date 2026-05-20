@@ -1189,6 +1189,10 @@ def soul_effect(card: CardInstance, combat: CombatState, target: Creature | None
     combat._draw_cards(cards)
 
 
+def is_soul(card: object) -> bool:
+    return getattr(card, "card_id", None) == CardId.SOUL
+
+
 def make_soul(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SOUL, cost=0, card_type=CardType.SKILL,

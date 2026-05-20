@@ -64,9 +64,10 @@ class ThornsPower(PowerInstance):
         props: ValueProp,
         combat: CombatState,
     ) -> None:
+        from sts2_env.cards.colorless import is_omnislice
+
         card_source = getattr(combat, "active_card_source", None)
-        is_omnislice = getattr(card_source, "card_id", None) == CardId.OMNISLICE
-        if target is owner and dealer is not None and (props.is_powered_attack() or is_omnislice):
+        if target is owner and dealer is not None and (props.is_powered_attack() or is_omnislice(card_source)):
             combat.deal_damage(
                 dealer=owner,
                 target=dealer,

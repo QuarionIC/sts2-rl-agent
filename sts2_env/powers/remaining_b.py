@@ -268,10 +268,12 @@ class HangPower(PowerInstance):
     def modify_damage_multiplicative(
         self, owner: Creature, dealer: Creature | None, target: Creature, props: ValueProp
     ) -> float:
+        from sts2_env.cards.necrobinder import is_hang
+
         if target is not owner:
             return 1.0
         card_source = getattr(owner.combat_state, "active_card_source", None)
-        if getattr(card_source, "card_id", None) != CardId.HANG:
+        if not is_hang(card_source):
             return 1.0
         return float(self.amount)
 
@@ -322,9 +324,9 @@ class HauntPower(PowerInstance):
         super().__init__(PowerId.HAUNT, amount)
 
     def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
-        card_id = getattr(card, "card_id", None)
-        is_soul = (card_id is not None and card_id.name == "SOUL") or getattr(card, "is_soul", False)
-        if not is_soul:
+        from sts2_env.cards.status import is_soul
+
+        if not is_soul(card):
             return
         target = combat.random_enemy_of(owner)
         if target is not None:

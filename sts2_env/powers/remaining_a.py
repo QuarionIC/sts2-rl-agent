@@ -1109,11 +1109,10 @@ class DevourLifePower(PowerInstance):
         super().__init__(PowerId.DEVOUR_LIFE, amount)
 
     def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
-        card_id = getattr(card, "card_id", None)
+        from sts2_env.cards.status import is_soul
+
         card_owner = getattr(card, "owner", None)
-        is_soul = (card_id is not None and str(card_id) == "SOUL") or \
-                  getattr(card, "is_soul", False)
-        if is_soul and (card_owner is owner or card_owner is None):
+        if is_soul(card) and (card_owner is owner or card_owner is None):
             summon = getattr(combat, "summon_osty", None)
             if summon is not None:
                 summon(owner, self.amount)
