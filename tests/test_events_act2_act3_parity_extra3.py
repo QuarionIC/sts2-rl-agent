@@ -113,7 +113,11 @@ def test_crystal_sphere_thresholds_and_choices_apply_cost_or_debt():
     run_state.player.gold = 180
     options = event.generate_initial_options(run_state)
     assert [option.option_id for option in options] == ["pay", "debt"]
-    assert 51 <= event._cost <= 100  # noqa: SLF001
+    assert (
+        event.UNCOVER_FUTURE_BASE_COST + event.UNCOVER_FUTURE_RANDOM_MIN
+        <= event._cost  # noqa: SLF001
+        <= event.UNCOVER_FUTURE_BASE_COST + event.UNCOVER_FUTURE_RANDOM_MAX
+    )
 
     gold_before = run_state.player.gold
     pay = event.choose(run_state, "pay")

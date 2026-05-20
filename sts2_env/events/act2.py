@@ -49,40 +49,67 @@ class CrystalSphere(EventModel):
     """
 
     event_id = "CrystalSphere"
+    REQUIRED_GOLD = 100
+    UNCOVER_FUTURE_BASE_COST = 50
+    UNCOVER_FUTURE_RANDOM_MIN = 1
+    UNCOVER_FUTURE_RANDOM_MAX = 50
+    UNCOVER_FUTURE_PROPHESIZE_COUNT = 3
+    PAYMENT_PLAN_PROPHESIZE_COUNT = 6
 
     def __init__(self) -> None:
-        self._cost = 50
+        self._cost = self.UNCOVER_FUTURE_BASE_COST
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return all(player.gold >= 100 for player in run_state.players) and run_state.current_act_index > 0
+        return (
+            all(player.gold >= self.REQUIRED_GOLD for player in run_state.players)
+            and run_state.current_act_index > 0
+        )
 
     def calculate_vars(self, run_state: RunState) -> None:
-        extra = self.get_rng(run_state).next_int_exclusive(1, 50)
-        self._cost = 50 + extra
+        extra = self.get_rng(run_state).next_int_exclusive(
+            self.UNCOVER_FUTURE_RANDOM_MIN,
+            self.UNCOVER_FUTURE_RANDOM_MAX,
+        )
+        self._cost = self.UNCOVER_FUTURE_BASE_COST + extra
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         self.ensure_vars_calculated(run_state)
         return [
-            EventOption("pay", f"Uncover Future ({self._cost}g)",
-                         "3 Prophesize picks"),
-            EventOption("debt", "Payment Plan",
-                         "6 picks, gain Debt curse"),
+            EventOption(
+                "pay",
+                f"Uncover Future ({self._cost}g)",
+                f"{self.UNCOVER_FUTURE_PROPHESIZE_COUNT} Prophesize picks",
+            ),
+            EventOption(
+                "debt",
+                "Payment Plan",
+                f"{self.PAYMENT_PLAN_PROPHESIZE_COUNT} picks, gain Debt curse",
+            ),
         ]
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "pay":
             run_state.player.lose_gold(self._cost)
             return EventResult(finished=True,
-                               description=f"Paid {self._cost}g for 3 Prophesize picks.")
+                               description=(
+                                   f"Paid {self._cost}g for "
+                                   f"{self.UNCOVER_FUTURE_PROPHESIZE_COUNT} Prophesize picks."
+                               ))
         if option_id == "debt":
             if _should_defer_event_rewards(run_state):
                 return _event_result_with_rewards(
-                    "Gained Debt curse for 6 Prophesize picks.",
+                    (
+                        "Gained Debt curse for "
+                        f"{self.PAYMENT_PLAN_PROPHESIZE_COUNT} Prophesize picks."
+                    ),
                     [AddCardsReward(run_state.player.player_id, [make_debt()])],
                 )
             run_state.player.add_card_instance_to_deck(make_debt())
             return EventResult(finished=True,
-                               description="Gained Debt curse for 6 Prophesize picks.")
+                               description=(
+                                   "Gained Debt curse for "
+                                   f"{self.PAYMENT_PLAN_PROPHESIZE_COUNT} Prophesize picks."
+                               ))
         return EventResult(finished=True)
 
 
