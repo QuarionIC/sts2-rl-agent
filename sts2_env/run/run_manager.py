@@ -378,8 +378,10 @@ class RunManager:
             return self._do_relic_reward_skip()
         if self._phase == self.PHASE_BOSS_RELIC and action_type == "pick_relic":
             return self._do_boss_relic_pick(action)
+        if self._phase != self.PHASE_COMBAT and action_type == "use_potion":
+            return self._do_out_of_combat_potion(action)
         if self._phase == self.PHASE_SHOP and action_type in (
-            "buy_card", "buy_relic", "buy_potion", "remove_card", "leave_shop", "use_potion",
+            "buy_card", "buy_relic", "buy_potion", "remove_card", "leave_shop",
         ):
             return self._do_shop_action(action)
         if self._phase == self.PHASE_REST_SITE and action_type in ("rest_option",):
@@ -1553,20 +1555,6 @@ class RunManager:
                     }
             return {"phase": self.phase, "description": "Cannot afford potion."}
 
-        if action_type == "use_potion":
-            slot_index = action.get("slot_index", -1)
-            try:
-                slot = int(slot_index)
-            except (TypeError, ValueError):
-                slot = -1
-            if 0 <= slot < len(player.potions):
-                potion = player.potions[slot]
-                if potion is not None and potion.potion_id == "FoulPotion":
-                    player.remove_potion(slot)
-                    player.gain_gold(100)
-                    return {"phase": self.phase, "description": "Used Foul Potion for 100 gold."}
-            return {"phase": self.phase, "description": "Cannot use potion."}
-
         if action_type == "remove_card":
             removable = [card for card in player.deck if card.rarity.name != "QUEST" and card.is_removable]
             if (
@@ -1649,6 +1637,48 @@ class RunManager:
         else:
             self._enter_map_choice()
         return {"phase": self.phase, "description": description}
+
+    def _do_out_of_combat_potion(self, action: dict) -> dict:
+        player = self._run_state.player
+        slot_index = action.get("slot_index", -1)
+        try:
+            slot = int(slot_index)
+        except (TypeError, ValueError):
+            slot = -1
+        if slot < 0 or slot >= len(player.potions):
+            return {"phase": self.phase, "description": "Cannot use potion."}
+        potion = player.potions[slot]
+        if potion is None:
+            return {"phase": self.phase, "description": "Cannot use potion."}
+
+        if potion.potion_id == "FoulPotion":
+            if self._phase != self.PHASE_SHOP:
+                return {"phase": self.phase, "description": "Cannot use potion."}
+            player.remove_potion(slot)
+            player.gain_gold(100)
+            return {"phase": self.phase, "description": "Used Foul Potion for 100 gold."}
+
+        if potion.potion_id == "EntropicBrew":
+            player.remove_potion(slot)
+            filled = player.fill_empty_potion_slots()
+            return {"phase": self.phase, "description": f"Filled {filled} potion slot(s)."}
+
+        if potion.potion_id in {"BloodPotion", "FruitJuice"}:
+            target_player_id = action.get("target_player_id")
+            if target_player_id is None:
+                return {"phase": self.phase, "description": "Cannot use potion."}
+            try:
+                target = self._run_state.get_player(int(target_player_id))
+            except (KeyError, TypeError, ValueError):
+                return {"phase": self.phase, "description": "Cannot use potion."}
+            player.remove_potion(slot)
+            if potion.potion_id == "BloodPotion":
+                healed = target.heal(target.max_hp * 20 // 100)
+                return {"phase": self.phase, "description": f"Healed {healed} HP."}
+            target.gain_max_hp(5)
+            return {"phase": self.phase, "description": "Gained 5 Max HP."}
+
+        return {"phase": self.phase, "description": "Cannot use potion."}
 
     def _should_allow_merchant_card_removal(self) -> bool:
         player = self._run_state.player

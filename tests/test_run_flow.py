@@ -383,6 +383,56 @@ class TestConcreteRunObjects:
         assert mgr.run_state.player.gold == 112
         assert mgr.run_state.player.held_potions() == []
 
+    def test_noncombat_blood_potion_heals_target_player(self):
+        from sts2_env.potions.base import create_potion
+
+        mgr = RunManager(seed=66, character_id="Ironclad")
+        mgr.run_state.player.current_hp = 40
+        assert mgr.run_state.player.add_potion(create_potion("BloodPotion"))
+
+        result = mgr.take_action({"action": "use_potion", "slot_index": 0, "target_player_id": 1})
+
+        assert result["description"] == "Healed 16 HP."
+        assert mgr.run_state.player.current_hp == 56
+        assert mgr.run_state.player.held_potions() == []
+
+    def test_noncombat_fruit_juice_gains_target_player_max_hp(self):
+        from sts2_env.potions.base import create_potion
+
+        mgr = RunManager(seed=67, character_id="Ironclad")
+        assert mgr.run_state.player.add_potion(create_potion("FruitJuice"))
+
+        result = mgr.take_action({"action": "use_potion", "slot_index": 0, "target_player_id": 1})
+
+        assert result["description"] == "Gained 5 Max HP."
+        assert mgr.run_state.player.max_hp == 85
+        assert mgr.run_state.player.current_hp == 85
+        assert mgr.run_state.player.held_potions() == []
+
+    def test_noncombat_entropic_brew_fills_empty_potion_slots(self):
+        from sts2_env.potions.base import create_potion
+
+        mgr = RunManager(seed=68, character_id="Ironclad")
+        assert mgr.run_state.player.add_potion(create_potion("EntropicBrew"))
+
+        result = mgr.take_action({"action": "use_potion", "slot_index": 0})
+
+        assert result["description"] == "Filled 3 potion slot(s)."
+        assert len(mgr.run_state.player.held_potions()) == 3
+        assert all(potion.potion_id != "EntropicBrew" for potion in mgr.run_state.player.held_potions())
+
+    def test_foul_potion_cannot_be_used_outside_shop_or_fake_merchant_event(self):
+        from sts2_env.potions.base import create_potion
+
+        mgr = RunManager(seed=69, character_id="Ironclad")
+        assert mgr.run_state.player.add_potion(create_potion("FoulPotion"))
+
+        result = mgr.take_action({"action": "use_potion", "slot_index": 0})
+
+        assert result["description"] == "Cannot use potion."
+        assert mgr.run_state.player.gold == 99
+        assert [potion.potion_id for potion in mgr.run_state.player.held_potions()] == ["FoulPotion"]
+
     def test_boss_relic_options_are_real_ids(self):
         mgr = RunManager(seed=73, character_id="Ironclad")
         mgr._enter_boss_relic()
