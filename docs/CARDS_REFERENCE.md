@@ -4473,7 +4473,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Block: 11}
+- **Vars:** {Block: 11, BlockNextTurn: 4}
 - **Effect:** Gain Block; Apply BlockNextTurn to self
 - **Upgrade:** Block+2; BlockNextTurn+2
 ### Glow
@@ -7108,4 +7108,3 @@
 - **Upgrade:** Cannot be upgraded
 - **Special:** Cannot be upgraded
 ---
-

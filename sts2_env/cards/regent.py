@@ -1404,8 +1404,7 @@ def make_glitterstream(upgraded: bool = False) -> CardInstance:
     from sts2_env.cards.factory import create_reference_card
 
     card = create_reference_card(CardId.GLITTERSTREAM, upgraded=upgraded, allow_generation=True)
-    card.effect_vars.pop("block_next_turn", None)
-    card.effect_vars["block_next"] = 6 if upgraded else 4
+    card.effect_vars["block_next"] = card.effect_vars["block_next_turn"]
     return card
 
 
