@@ -255,16 +255,9 @@ class CardInstance:
         return reference_has_custom_target_type(self.card_id)
 
     def is_playable_by_card_logic(self, owner_state: object, combat: object, owner: object) -> bool:
-        if self.card_id == CardId.CLASH:
-            return all(hand_card.card_type == CardType.ATTACK for hand_card in owner_state.hand)
-        if self.card_id == CardId.HIGH_FIVE:
-            osty = combat.get_osty(owner)
-            return osty is not None and osty.is_alive
-        if self.card_id == CardId.GRAND_FINALE:
-            return not owner_state.draw
-        if self.card_id == CardId.PACTS_END:
-            return len(owner_state.exhaust) >= self.effect_vars["cards"]
-        return True
+        from sts2_env.cards.registry import is_card_playable
+
+        return is_card_playable(self, owner_state, combat, owner)
 
     def allows_hand_card_play(
         self,

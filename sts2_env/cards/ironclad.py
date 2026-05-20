@@ -7,7 +7,7 @@ Each card has a registered effect function and a make_*() factory.
 from __future__ import annotations
 
 from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage
-from sts2_env.cards.registry import register_effect
+from sts2_env.cards.registry import register_effect, register_playability_hook
 from sts2_env.core.enums import (
     CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, CombatSide,
 )
@@ -1988,6 +1988,11 @@ def make_one_two_punch(upgraded: bool = False) -> CardInstance:
 @register_effect(CardId.PACTS_END)
 def pacts_end(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     _deal_damage_all_enemies(card, combat)
+
+
+@register_playability_hook(CardId.PACTS_END)
+def pacts_end_is_playable(card: CardInstance, owner_state, combat: CombatState, owner: Creature) -> bool:
+    return len(owner_state.exhaust) >= card.effect_vars["cards"]
 
 
 def make_pacts_end(upgraded: bool = False) -> CardInstance:

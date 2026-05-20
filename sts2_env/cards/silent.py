@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from sts2_env.cards.base import CardInstance, _get_next_id
-from sts2_env.cards.registry import register_effect
+from sts2_env.cards.registry import register_effect, register_playability_hook
 from sts2_env.core.enums import (
     CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, RoomType,
 )
@@ -739,12 +739,15 @@ def fan_of_knives(card: CardInstance, combat: CombatState, target: Creature | No
 
 @register_effect(CardId.GRAND_FINALE)
 def grand_finale(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    # Only playable when draw pile is empty
-    if len(combat.draw_pile) == 0:
-        owner = _owner(card, combat)
-        for enemy in combat.hittable_enemies:
-            dmg = calculate_damage(card.base_damage, owner, enemy, ValueProp.MOVE, combat)
-            apply_damage(enemy, dmg, ValueProp.MOVE, combat, owner)
+    owner = _owner(card, combat)
+    for enemy in combat.hittable_enemies:
+        dmg = calculate_damage(card.base_damage, owner, enemy, ValueProp.MOVE, combat)
+        apply_damage(enemy, dmg, ValueProp.MOVE, combat, owner)
+
+
+@register_playability_hook(CardId.GRAND_FINALE)
+def grand_finale_is_playable(card: CardInstance, owner_state, combat: CombatState, owner: Creature) -> bool:
+    return not owner_state.draw
 
 
 @register_effect(CardId.KNIFE_TRAP)

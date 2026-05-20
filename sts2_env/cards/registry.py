@@ -23,6 +23,10 @@ CardChosenHook = Callable[
     ["CardInstance", "CombatState"],
     None,
 ]
+CardPlayabilityHook = Callable[
+    ["CardInstance", object, "CombatState", "Creature"],
+    bool,
+]
 CardAfterCombatEndHook = Callable[
     ["CardInstance", "PlayerState"],
     bool,
@@ -55,6 +59,7 @@ CardRestSiteOptionsHook = Callable[
 _CARD_EFFECTS: dict[CardId, CardEffect] = {}
 _CARD_LATE_EFFECTS: dict[CardId, CardLateEffect] = {}
 _CARD_CHOSEN_HOOKS: dict[CardId, CardChosenHook] = {}
+_CARD_PLAYABILITY_HOOKS: dict[CardId, CardPlayabilityHook] = {}
 _CARD_AFTER_COMBAT_END_HOOKS: dict[CardId, CardAfterCombatEndHook] = {}
 _CARD_NEXT_EVENT_HOOKS: dict[CardId, CardNextEventHook] = {}
 _CARD_UNKNOWN_ROOM_TYPES_HOOKS: dict[CardId, CardUnknownRoomTypesHook] = {}
@@ -84,6 +89,13 @@ def register_late_effect(card_id: CardId):
 def register_chosen_hook(card_id: CardId):
     def decorator(func: CardChosenHook) -> CardChosenHook:
         _CARD_CHOSEN_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_playability_hook(card_id: CardId):
+    def decorator(func: CardPlayabilityHook) -> CardPlayabilityHook:
+        _CARD_PLAYABILITY_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -178,6 +190,18 @@ def fire_card_chosen(
     hook = _CARD_CHOSEN_HOOKS.get(card.card_id)
     if hook is not None:
         hook(card, combat)
+
+
+def is_card_playable(
+    card: "CardInstance",
+    owner_state: object,
+    combat: "CombatState",
+    owner: "Creature",
+) -> bool:
+    hook = _CARD_PLAYABILITY_HOOKS.get(card.card_id)
+    if hook is None:
+        return True
+    return hook(card, owner_state, combat, owner)
 
 
 def apply_card_after_combat_end(card: "CardInstance", owner: "PlayerState") -> bool:

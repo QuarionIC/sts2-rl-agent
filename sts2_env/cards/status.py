@@ -16,6 +16,7 @@ from sts2_env.cards.registry import (
     register_generated_map_hook,
     register_generated_map_late_hook,
     register_next_event_hook,
+    register_playability_hook,
     register_quest_complete_hook,
     register_rest_site_options_hook,
     register_unknown_room_types_hook,
@@ -616,6 +617,11 @@ def make_caltrops(upgraded: bool = False) -> CardInstance:
 def clash_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     _deal_damage_single(card, combat, target)
+
+
+@register_playability_hook(CardId.CLASH)
+def clash_is_playable(card: CardInstance, owner_state, combat: CombatState, owner: Creature) -> bool:
+    return all(hand_card.card_type == CardType.ATTACK for hand_card in owner_state.hand)
 
 
 def make_clash(upgraded: bool = False) -> CardInstance:

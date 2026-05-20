@@ -7,7 +7,7 @@ Rare (26), Ancient (2).
 from __future__ import annotations
 
 from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage, new_card_instance_id
-from sts2_env.cards.registry import register_effect, register_late_effect
+from sts2_env.cards.registry import register_effect, register_late_effect, register_playability_hook
 from sts2_env.core.enums import (
     CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, PowerType, PowerStackType,
 )
@@ -525,6 +525,12 @@ def high_five(card: CardInstance, combat: CombatState, target: Creature | None) 
     vuln = card.effect_vars.get("vulnerable", 2)
     for enemy in list(combat.hittable_enemies):
         combat.apply_power_to(enemy, PowerId.VULNERABLE, vuln)
+
+
+@register_playability_hook(CardId.HIGH_FIVE)
+def high_five_is_playable(card: CardInstance, owner_state, combat: CombatState, owner: Creature) -> bool:
+    osty = combat.get_osty(owner)
+    return osty is not None and osty.is_alive
 
 
 @register_effect(CardId.LEGION_OF_BONE)
