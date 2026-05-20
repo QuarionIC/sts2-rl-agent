@@ -11,13 +11,20 @@ Absence from this document's covered lists is not proof of a bug. It means the r
 
 ## Post-Agent Updates
 
-The detailed backlog sections below were captured as the pre-pass baseline. After the 10-agent parallel coverage pass and a follow-up event / relic pass on 2026-03-17, the current direct-coverage totals are:
+The detailed backlog sections below were captured as the pre-pass baseline. After the latest local coverage passes, the current direct-reference audit reports:
 
-| Surface | Total | Directly Covered | Gap | Coverage |
-| --- | ---: | ---: | ---: | ---: |
-| Cards | 578 | 242 | 336 | 41.9% |
-| Relics | 289 | 206 | 83 | 71.3% |
-| Events | 68 | 68 | 0 | 100.0% |
+| Surface | Total | Missing implementation references | Missing direct test references |
+| --- | ---: | ---: | ---: |
+| Cards | 576 | 0 | 0 |
+| Encounters | 87 | 0 | 0 |
+| Events | 66 | 0 | 0 |
+| Modifiers | 16 | 0 | 0 |
+| Monsters | 121 | 0 | 0 |
+| Potions | 63 | 0 | 0 |
+| Powers | 260 | 0 | 0 |
+| Relics | 289 | 0 | 0 |
+
+This table is a coverage gate, not a full behavior proof. It means every decompiled surface currently counted by `scripts/parity_reference_audit.py --direct-test-references --show-missing` has a Python implementation mention and a direct test mention. Exact parity still depends on the deeper behavior and bridge validation tracked in [PARITY_GAPS.md](./PARITY_GAPS.md).
 
 Latest local pass also added direct coverage for:
 
@@ -276,36 +283,11 @@ All currently implemented Act 3 events now have direct coverage.
 
 All currently implemented shared events now have direct coverage.
 
-### Remaining Relics (125)
+### Remaining Relics (0)
 
-```text
-BIG_HAT, BIG_MUSHROOM, BIIIG_HUG, BLESSED_ANTLER, BLOOD_SOAKED_ROSE,
-BONE_TEA, BOOK_REPAIR_KNIFE, BREAD, BRILLIANT_SCARF, CHANDELIER,
-CHOSEN_CHEESE, CIRCLET, CLOAK_CLASP, CROSSBOW, DAUGHTER_OF_THE_WIND,
-DELICATE_FROND, DEPRECATED_RELIC, DIAMOND_DIADEM, DISTINGUISHED_CAPE,
-DUSTY_TOME, ELECTRIC_SHRYMP, EMBER_TEA, EMOTION_CHIP, FAKE_ANCHOR,
-FAKE_BLOOD_VIAL, FAKE_HAPPY_FLOWER, FAKE_LEES_WAFFLE, FAKE_MANGO,
-FAKE_MERCHANTS_RUG, FAKE_ORICHALCUM, FAKE_SNECKO_EYE, FAKE_STRIKE_DUMMY,
-FAKE_VENERABLE_TEA_SET, FIDDLE, FORGOTTEN_SOUL, FRAGRANT_MUSHROOM, FUR_COAT,
-GAMBLING_CHIP, GHOST_SEED, GIRYA, GNARLED_HAMMER, GOLDEN_COMPASS,
-GOLDEN_PEARL, HELICAL_DART, HISTORY_COURSE, INTIMIDATING_HELMET, IRON_CLUB,
-IVORY_TILE, JEWELRY_BOX, JUZU_BRACELET, KUNAI, LEAFY_POULTICE, LEES_WAFFLE,
-LOOMING_FRUIT, LORDS_PARASOL, LOST_COFFER, LOST_WISP, LUNAR_PASTRY, MANGO,
-MEAT_CLEAVER, MEAT_ON_THE_BONE, METRONOME, MINI_REGENT, MR_STRUGGLES,
-MUSIC_BOX, MYSTIC_LIGHTER, NEOWS_TORMENT, NEW_LEAF, NINJA_SCROLL,
-NUTRITIOUS_OYSTER, ORANGE_DOUGH, PAELS_BLOOD, PAELS_FLESH, PAELS_HORN,
-PAELS_LEGION, PAELS_TEARS, PAELS_TOOTH, PAELS_WING, PAPER_KRANE, PEAR,
-PLANISPHERE, POLLINOUS_CORE, POMANDER, POWER_CELL, PRESERVED_FOG,
-PUMPKIN_CANDLE, RADIANT_PEARL, RAINBOW_RING, RAZOR_TOOTH, REGALITE,
-REPTILE_TRINKET, RINGING_TRIANGLE, ROYAL_POISON, RUINED_HELMET, SAI,
-SAND_CASTLE, SCREAMING_FLAGON, SEAL_OF_GOLD, SERE_TALON, SHOVEL, SHURIKEN,
-SIGNET_RING, SLING_OF_COURAGE, SMALL_CAPSULE, SNECKO_EYE, SNECKO_SKULL,
-SPIKED_GAUNTLETS, STONE_CALENDAR, STONE_CRACKER, STORYBOOK, STURDY_CLAMP,
-SWORD_OF_JADE, TANXS_WHISTLE, TEA_OF_DISCOURTESY, THROWING_AXE,
-TOASTY_MITTENS, TRI_BOOMERANG, UNDYING_SIGIL, UNSETTLING_LAMP,
-VERY_HOT_COCOA, VEXING_PUZZLEBOX, VITRUVIAN_MINION,
-WHISPERING_EARRING, WONGO_CUSTOMER_APPRECIATION_BADGE, YUMMY_COOKIE
-```
+All currently counted relic classes now have direct implementation and test references.
+
+`DeprecatedRelic` is intentionally excluded from the audit's default decompiled-reference count, matching the audit script's default `Deprecated` filter.
 
 ## Baseline Snapshot
 
@@ -379,9 +361,9 @@ But the proof surface is still sparse relative to the total implementation surfa
 - most relics still lack direct named tests
 - most events still lack focused tests
 
-## Current Explicit Card Coverage
+## Baseline Explicit Card Coverage
 
-The current directly parity-backed card set is:
+The original baseline directly parity-backed card set was:
 
 ```text
 ACROBATICS, AFTERLIFE, ALCHEMIZE, BEACON_OF_HOPE, BEAT_DOWN, BEGONE, BIG_BANG, BLACK_HOLE,
@@ -404,14 +386,14 @@ Notes:
 - `NIGHTMARE` is covered through `NightmarePower` snapshot behavior.
 - `COUNTDOWN_CARD` and `NECRO_MASTERY_CARD` are the registered card ids behind the user-facing names `Countdown` and `NecroMastery`.
 
-## Card Coverage Backlog By Module
+## Baseline Card Coverage Backlog By Module
 
-Module-level counts are derived from `sts2_env.cards.factory._factory_registry()`.
+Module-level counts in this baseline were derived from `sts2_env.cards.factory._factory_registry()`.
 
 ### `sts2_env.cards.ironclad`
 
-- Covered: `0 / 87`
-- Missing direct parity proof: `87 / 87`
+- Baseline covered: `0 / 87`
+- Baseline missing direct parity proof: `87 / 87`
 
 ```text
 AGGRESSION_CARD, ANGER, ARMAMENTS, ASHEN_STRIKE, BARRICADE_CARD, BASH,
@@ -434,8 +416,8 @@ UNMOVABLE, UNRELENTING, UPPERCUT, VICIOUS_CARD, WHIRLWIND
 
 ### `sts2_env.cards.silent`
 
-- Covered: `9 / 88`
-- Missing direct parity proof: `79 / 88`
+- Baseline covered: `9 / 88`
+- Baseline missing direct parity proof: `79 / 88`
 
 ```text
 ABRASIVE, ACCELERANT, ACCURACY_CARD, ADRENALINE, AFTERIMAGE_CARD,
@@ -457,8 +439,8 @@ UNTOUCHABLE, UP_MY_SLEEVE, WELL_LAID_PLANS, WRAITH_FORM
 
 ### `sts2_env.cards.defect`
 
-- Covered: `5 / 88`
-- Missing direct parity proof: `83 / 88`
+- Baseline covered: `5 / 88`
+- Baseline missing direct parity proof: `83 / 88`
 
 ```text
 ADAPTIVE_STRIKE, ALL_FOR_ONE, BALL_LIGHTNING, BARRAGE, BEAM_CELL,
@@ -479,8 +461,8 @@ TESLA_COIL, THUNDER_CARD, TRASH_TO_TREASURE, TURBO, UPROAR, VOLTAIC, ZAP
 
 ### `sts2_env.cards.colorless`
 
-- Covered: `11 / 64`
-- Missing direct parity proof: `53 / 64`
+- Baseline covered: `11 / 64`
+- Baseline missing direct parity proof: `53 / 64`
 
 ```text
 ANOINTED, AUTOMATION, BELIEVE_IN_YOU, BOLAS, CALAMITY_CARD,
@@ -497,8 +479,8 @@ ULTIMATE_DEFEND, ULTIMATE_STRIKE, VOLLEY
 
 ### `sts2_env.cards.regent`
 
-- Covered: `30 / 88`
-- Missing direct parity proof: `58 / 88`
+- Baseline covered: `30 / 88`
+- Baseline missing direct parity proof: `58 / 88`
 
 ```text
 ALIGNMENT, ARSENAL, ASTRAL_PULSE, BEAT_INTO_SHAPE, BOMBARDMENT, BUNDLE_OF_JOY,
@@ -516,8 +498,8 @@ SWORD_SAGE, TERRAFORMING, THE_SEALED_THRONE, TYRANNY_CARD, VENERATE
 
 ### `sts2_env.cards.necrobinder`
 
-- Covered: `28 / 88`
-- Missing direct parity proof: `60 / 88`
+- Baseline covered: `28 / 88`
+- Baseline missing direct parity proof: `60 / 88`
 
 ```text
 BANSHEES_CRY, BLIGHT_STRIKE, BURY, CALCIFY_CARD, CALL_OF_THE_VOID,
@@ -535,8 +517,8 @@ VEILPIERCER, WISP
 
 ### `sts2_env.cards.status`
 
-- Covered: `3 / 75`
-- Missing direct parity proof: `72 / 75`
+- Baseline covered: `3 / 75`
+- Baseline missing direct parity proof: `72 / 75`
 
 ```text
 APOTHEOSIS, APPARITION, ASCENDERS_BANE, BAD_LUCK, BECKON, BRIGHTEST_FLAME,
@@ -552,9 +534,9 @@ SOVEREIGN_BLADE, SPOILS_MAP, SPORE_MIND, SQUASH, STACK, SWEEPING_GAZE,
 TORIC_TOUGHNESS, TOXIC, VOID, WASTE_AWAY, WHISTLE, WOUND, WRITHE
 ```
 
-## Current Direct Event Coverage
+## Baseline Direct Event Coverage
 
-Focused event tests currently cover only the following event models:
+The original baseline focused event tests covered only the following event models:
 
 ```text
 BattlewornDummy, Bugslayer, JungleMazeAdventure, LuminousChoir, MorphicGrove,
@@ -562,12 +544,12 @@ PotionCourier, RanwidTheElder, RoundTeaParty, TrashHeap, Trial, UnrestSite,
 WhisperingHollow
 ```
 
-## Event Coverage Backlog By File
+## Baseline Event Coverage Backlog By File
 
 ### `sts2_env/events/act1.py`
 
-- Covered: `0 / 4`
-- Missing direct proof: `4 / 4`
+- Baseline covered: `0 / 4`
+- Baseline missing direct proof: `4 / 4`
 
 ```text
 BrainLeech, RoomFullOfCheese, TheLegendsWereTrue, TeaMaster
@@ -575,8 +557,8 @@ BrainLeech, RoomFullOfCheese, TheLegendsWereTrue, TeaMaster
 
 ### `sts2_env/events/act2.py`
 
-- Covered: `6 / 19`
-- Missing direct proof: `13 / 19`
+- Baseline covered: `6 / 19`
+- Baseline missing direct proof: `13 / 19`
 
 ```text
 CrystalSphere, DollRoom, EndlessConveyor, FakeMerchant, FieldOfManSizedHoles,
@@ -586,8 +568,8 @@ TheFutureOfPotions, WaterloggedScriptorium, WelcomeToWongos
 
 ### `sts2_env/events/act3.py`
 
-- Covered: `0 / 5`
-- Missing direct proof: `5 / 5`
+- Baseline covered: `0 / 5`
+- Baseline missing direct proof: `5 / 5`
 
 ```text
 TheArchitect, WarHistorianRepy, Neow, DeprecatedEvent, DeprecatedAncientEvent
@@ -595,8 +577,8 @@ TheArchitect, WarHistorianRepy, Neow, DeprecatedEvent, DeprecatedAncientEvent
 
 ### `sts2_env/events/shared.py`
 
-- Covered: `6 / 40`
-- Missing direct proof: `34 / 40`
+- Baseline covered: `6 / 40`
+- Baseline missing direct proof: `34 / 40`
 
 ```text
 AbyssalBaths, Amalgamator, AromaOfChaos, ByrdonisNest, ColorfulPhilosophers,
@@ -610,128 +592,15 @@ ZenWeaver
 
 ## Current Direct Relic Coverage
 
-The following relic ids are directly named by focused tests:
+`scripts/parity_reference_audit.py --direct-test-references --show-missing` currently reports all 289 counted relic classes with implementation and direct-test references.
 
-```text
-AMETHYST_AUBERGINE, ANCHOR, ARCHAIC_TOOTH, ASTROLABE, BEAUTIFUL_BRACELET,
-BING_BONG, BLACK_STAR, BONE_FLUTE, BOOKMARK, BURNING_BLOOD, BYRDPIP,
-CALLING_BELL, CAULDRON, CHARONS_ASHES, CHOICES_PARADOX, CLAWS,
-DARKSTONE_PERIAPT, DINGY_RUG, DOLLYS_MIRROR, DRAGON_FRUIT, DREAM_CATCHER,
-DRIFTWOOD, ECTOPLASM, FRESNEL_LENS, GLASS_EYE, GLITTER, ICE_CREAM,
-JEWELED_MASK, KIFUDA, LANTERN, LASTING_CANDY, LAVA_LAMP, LAVA_ROCK,
-LEAD_PAPERWEIGHT, LUCKY_FYSH, MASSIVE_SCROLL, MEAL_TICKET, MEMBERSHIP_CARD,
-MINIATURE_TENT, MOLTEN_EGG, NUTRITIOUS_SOUP, OLD_COIN, ORRERY, PAELS_CLAW,
-PAELS_EYE, PAELS_GROWTH, PANDORAS_BOX, PHILOSOPHERS_STONE, PRAYER_WHEEL,
-PRECISE_SCISSORS, PRISMATIC_GEM, PUNCH_DAGGER, REGAL_PILLOW,
-RING_OF_THE_SNAKE, ROYAL_STAMP, RUNIC_PYRAMID, SCROLL_BOXES, SEA_GLASS,
-SILVER_CRUCIBLE, SOZU, STONE_HUMIDIFIER, SWORD_OF_STONE, THE_COURIER,
-TINY_MAILBOX, TOOLBOX, TOY_BOX, WAR_HAMMER, WAR_PAINT, WHETSTONE,
-WHITE_BEAST_STATUE, WHITE_STAR, WING_CHARM, WONGOS_MYSTERY_TICKET
-```
+The older uncovered-relic buckets have been removed from this live backlog because they became stale after the focused relic parity suites were added. Relic exactness should still be judged by the behavior-specific tests and by the remaining exact-parity blockers in [PARITY_GAPS.md](./PARITY_GAPS.md), not by direct name coverage alone.
 
-## Highest-Priority Uncovered Relic Buckets
+## Recommended Order For Closing The Remaining Risk
 
-These are the uncovered relic classes most likely to hide exact-parity mismatches because they mutate combat math, card costs, turn sequencing, death handling, or cross-phase rewards.
-
-### Combat-start / turn-sequencing / reactive damage
-
-```text
-AKABEKO, BAG_OF_MARBLES, BAG_OF_PREPARATION, BRONZE_SCALES, CAPTAINS_WHEEL,
-GREMLIN_HORN, MERCURY_HOURGLASS, ORICHALCUM, SELF_FORMING_CLAY,
-STONE_CALENDAR, THE_BOOT, TUNGSTEN_ROD, UNCEASING_TOP
-```
-
-### Cost modification / X-cost / card mutation
-
-```text
-CHEMICAL_X, FROZEN_EGG, MUMMIFIED_HAND, SNECKO_EYE, STRIKE_DUMMY,
-SPIKED_GAUNTLETS, TOXIC_EGG, VELVET_CHOKER
-```
-
-### Character-specific mechanics
-
-```text
-CRACKED_CORE, DATA_DISK, EMOTION_CHIP, GOLD_PLATED_CABLES, POLLINOUS_CORE,
-RUNIC_CAPACITOR, SYMBIOTIC_VIRUS
-```
-
-### Death prevention / healing / persistence
-
-```text
-BLACK_BLOOD, BLOOD_VIAL, LIZARD_TAIL, MEAT_ON_THE_BONE, UNDYING_SIGIL
-```
-
-### Reward / shop / event / Neow-style hooks
-
-```text
-ALCHEMICAL_COFFER, ARCANE_SCROLL, BOOMING_CONCH, CURSED_PEARL, GOLDEN_PEARL,
-LOST_COFFER, NEOWS_TORMENT, NEW_LEAF, PRECARIOUS_SHEARS, VEXING_PUZZLEBOX
-```
-
-## Full Relic Coverage Backlog
-
-Uncovered relic ids:
-
-```text
-AKABEKO, ALCHEMICAL_COFFER, ARCANE_SCROLL, ART_OF_WAR, BAG_OF_MARBLES,
-BAG_OF_PREPARATION, BEATING_REMNANT, BELLOWS, BELT_BUCKLE, BIG_HAT,
-BIG_MUSHROOM, BIIIG_HUG, BLACK_BLOOD, BLESSED_ANTLER, BLOOD_SOAKED_ROSE,
-BLOOD_VIAL, BONE_TEA, BOOK_OF_FIVE_RINGS, BOOK_REPAIR_KNIFE, BOOMING_CONCH,
-BOUND_PHYLACTERY, BOWLER_HAT, BREAD, BRILLIANT_SCARF, BRIMSTONE,
-BRONZE_SCALES, BURNING_STICKS, CANDELABRA, CAPTAINS_WHEEL,
-CENTENNIAL_PUZZLE, CHANDELIER, CHEMICAL_X, CHOSEN_CHEESE, CIRCLET,
-CLOAK_CLASP, CRACKED_CORE, CROSSBOW, CURSED_PEARL, DATA_DISK,
-DAUGHTER_OF_THE_WIND, DELICATE_FROND, DEMON_TONGUE, DEPRECATED_RELIC,
-DIAMOND_DIADEM, DISTINGUISHED_CAPE, DIVINE_DESTINY, DIVINE_RIGHT, DUSTY_TOME,
-ELECTRIC_SHRYMP, EMBER_TEA, EMOTION_CHIP, EMPTY_CAGE, ETERNAL_FEATHER,
-FAKE_ANCHOR, FAKE_BLOOD_VIAL, FAKE_HAPPY_FLOWER, FAKE_LEES_WAFFLE,
-FAKE_MANGO, FAKE_MERCHANTS_RUG, FAKE_ORICHALCUM, FAKE_SNECKO_EYE,
-FAKE_STRIKE_DUMMY, FAKE_VENERABLE_TEA_SET, FENCING_MANUAL, FESTIVE_POPPER,
-FIDDLE, FORGOTTEN_SOUL, FRAGRANT_MUSHROOM, FROZEN_EGG, FUNERARY_MASK,
-FUR_COAT, GALACTIC_DUST, GAMBLING_CHIP, GAME_PIECE, GHOST_SEED, GIRYA,
-GNARLED_HAMMER, GOLDEN_COMPASS, GOLDEN_PEARL, GOLD_PLATED_CABLES, GORGET,
-GREMLIN_HORN, HAND_DRILL, HAPPY_FLOWER, HELICAL_DART, HISTORY_COURSE,
-HORN_CLEAT, INFUSED_CORE, INTIMIDATING_HELMET, IRON_CLUB, IVORY_TILE,
-JEWELRY_BOX, JOSS_PAPER, JUZU_BRACELET, KUNAI, KUSARIGAMA, LARGE_CAPSULE,
-LEAFY_POULTICE, LEES_WAFFLE, LETTER_OPENER, LIZARD_TAIL, LOOMING_FRUIT,
-LORDS_PARASOL, LOST_COFFER, LOST_WISP, LUNAR_PASTRY, MANGO, MAW_BANK,
-MEAT_CLEAVER, MEAT_ON_THE_BONE, MERCURY_HOURGLASS, METRONOME,
-MINIATURE_CANNON, MINI_REGENT, MR_STRUGGLES, MUMMIFIED_HAND, MUSIC_BOX,
-MYSTIC_LIGHTER, NEOWS_TORMENT, NEW_LEAF, NINJA_SCROLL, NUNCHAKU,
-NUTRITIOUS_OYSTER, ODDLY_SMOOTH_STONE, ORANGE_DOUGH, ORICHALCUM,
-ORNAMENTAL_FAN, PAELS_BLOOD, PAELS_FLESH, PAELS_HORN, PAELS_LEGION,
-PAELS_TEARS, PAELS_TOOTH, PAELS_WING, PANTOGRAPH, PAPER_KRANE, PAPER_PHROG,
-PARRYING_SHIELD, PEAR, PENDULUM, PEN_NIB, PERMAFROST, PETRIFIED_TOAD,
-PHYLACTERY_UNBOUND, PLANISPHERE, POCKETWATCH, POLLINOUS_CORE, POMANDER,
-POTION_BELT, POWER_CELL, PRECARIOUS_SHEARS, PRESERVED_FOG, PUMPKIN_CANDLE,
-RADIANT_PEARL, RAINBOW_RING, RAZOR_TOOTH, RED_MASK, RED_SKULL, REGALITE,
-REPTILE_TRINKET, RINGING_TRIANGLE, RING_OF_THE_DRAKE, RIPPLE_BASIN,
-ROYAL_POISON, RUINED_HELMET, RUNIC_CAPACITOR, SAI, SAND_CASTLE,
-SCREAMING_FLAGON, SEAL_OF_GOLD, SELF_FORMING_CLAY, SERE_TALON, SHOVEL,
-SHURIKEN, SIGNET_RING, SLING_OF_COURAGE, SMALL_CAPSULE, SNECKO_EYE,
-SNECKO_SKULL, SPARKLING_ROUGE, SPIKED_GAUNTLETS, STONE_CALENDAR,
-STONE_CRACKER, STORYBOOK, STRAWBERRY, STRIKE_DUMMY, STURDY_CLAMP,
-SWORD_OF_JADE, SYMBIOTIC_VIRUS, TANXS_WHISTLE, TEA_OF_DISCOURTESY, THE_ABACUS,
-THE_BOOT, THROWING_AXE, TINGSHA, TOASTY_MITTENS, TOUCH_OF_OROBAS,
-TOUGH_BANDAGES, TOXIC_EGG, TRI_BOOMERANG, TUNGSTEN_ROD, TUNING_FORK,
-TWISTED_FUNNEL, UNCEASING_TOP, UNDYING_SIGIL, UNSETTLING_LAMP, VAJRA,
-VAMBRACE, VELVET_CHOKER, VENERABLE_TEA_SET, VERY_HOT_COCOA, VEXING_PUZZLEBOX,
-VITRUVIAN_MINION, WHISPERING_EARRING, WONGO_CUSTOMER_APPRECIATION_BADGE,
-YUMMY_COOKIE
-```
-
-## Recommended Order For Closing The Backlog
-
-1. Add a dedicated Ironclad parity suite.
-   - Ironclad is currently the largest unproven single-character combat surface.
-2. Expand Silent and Defect to cover staple powers, energy manipulation, discard/draw, orb scaling, and X-cost behavior.
-3. Add status / curse / event / quest card tests.
-   - This is where many hook-driven semantics live.
-4. Add direct tests for combat-sensitive relics.
-   - Prioritize combat-start, cost mutation, thorns / reactive damage, death prevention, and character-mechanic relics.
-5. Expand event coverage.
-   - Shared events and Act 3 are especially thin.
-6. After the Python-side proof surface is wider, re-run bridge replay and live smoke testing.
+1. Keep using the direct-reference audit as the coverage gate before claiming a surface has no named gaps.
+2. Expand behavior-specific tests when a decompiled hook has nontrivial timing, owner-scope, RNG, reward, shop, or bridge semantics.
+3. After the Python-side proof surface stays green, re-run bridge replay and live smoke testing.
 
 ## Interpretation Guardrails
 
