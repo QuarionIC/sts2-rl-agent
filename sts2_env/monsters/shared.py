@@ -43,6 +43,10 @@ if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
 
 
+NOOP_MONSTER_HP = 9999
+ATTACK_TEST_MONSTER_HP = 999
+
+
 # ---- Helpers ----
 
 def _deal_damage_to_player(combat: CombatState, creature: Creature, base_dmg: int, hits: int = 1) -> None:
@@ -70,7 +74,7 @@ def _gain_block(creature: Creature, amount: int) -> None:
 # No-op monster; exists as a structural element (e.g. for encounters).
 
 def create_architect(rng: Rng) -> tuple[Creature, MonsterAI]:
-    creature = Creature(max_hp=9999, monster_id="ARCHITECT")
+    creature = Creature(max_hp=NOOP_MONSTER_HP, monster_id="ARCHITECT")
 
     def nothing(combat: CombatState) -> None:
         pass
@@ -85,7 +89,7 @@ def create_architect(rng: Rng) -> tuple[Creature, MonsterAI]:
 # Pet companion; does nothing in combat.
 
 def create_byrdpip(rng: Rng) -> tuple[Creature, MonsterAI]:
-    creature = Creature(max_hp=9999, monster_id="BYRDPIP")
+    creature = Creature(max_hp=NOOP_MONSTER_HP, monster_id="BYRDPIP")
 
     def nothing(combat: CombatState) -> None:
         pass
@@ -100,7 +104,7 @@ def create_byrdpip(rng: Rng) -> tuple[Creature, MonsterAI]:
 # Pet companion; does nothing in combat.
 
 def create_paels_legion(rng: Rng) -> tuple[Creature, MonsterAI]:
-    creature = Creature(max_hp=9999, monster_id="PAELS_LEGION")
+    creature = Creature(max_hp=NOOP_MONSTER_HP, monster_id="PAELS_LEGION")
 
     def nothing(combat: CombatState) -> None:
         pass
@@ -453,7 +457,7 @@ def create_battle_friend_v3(rng: Rng) -> tuple[Creature, MonsterAI]:
 # No-op test target.
 
 def create_big_dummy(rng: Rng) -> tuple[Creature, MonsterAI]:
-    creature = Creature(max_hp=9999, monster_id="BIG_DUMMY")
+    creature = Creature(max_hp=NOOP_MONSTER_HP, monster_id="BIG_DUMMY")
 
     def nothing(combat: CombatState) -> None:
         pass
@@ -498,7 +502,7 @@ def create_ten_hp_monster(rng: Rng) -> tuple[Creature, MonsterAI]:
 # Repeats POKE (1 damage single attack) every turn.
 
 def create_single_attack_move_monster(rng: Rng) -> tuple[Creature, MonsterAI]:
-    creature = Creature(max_hp=999, monster_id="SINGLE_ATTACK_MOVE_MONSTER")
+    creature = Creature(max_hp=ATTACK_TEST_MONSTER_HP, monster_id="SINGLE_ATTACK_MOVE_MONSTER")
     poke_dmg = 1
 
     def poke(combat: CombatState) -> None:
@@ -514,7 +518,7 @@ def create_single_attack_move_monster(rng: Rng) -> tuple[Creature, MonsterAI]:
 # Repeats POKE (1 damage x 5 hits) every turn.
 
 def create_multi_attack_move_monster(rng: Rng) -> tuple[Creature, MonsterAI]:
-    creature = Creature(max_hp=999, monster_id="MULTI_ATTACK_MOVE_MONSTER")
+    creature = Creature(max_hp=ATTACK_TEST_MONSTER_HP, monster_id="MULTI_ATTACK_MOVE_MONSTER")
     poke_dmg = 1
     poke_hits = 5
 

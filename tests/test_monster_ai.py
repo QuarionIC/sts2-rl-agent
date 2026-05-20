@@ -121,6 +121,8 @@ from sts2_env.monsters.act2 import (
     create_wriggler,
 )
 from sts2_env.monsters.shared import (
+    ATTACK_TEST_MONSTER_HP,
+    NOOP_MONSTER_HP,
     create_battle_friend_v2,
     create_battle_friend_v3,
     create_big_dummy,
@@ -238,7 +240,7 @@ def _add_test_ally(combat: CombatState, player_id: int = 2, character_id: str = 
 CS_MONSTER_FACTORY_PARITY_CASES = [
     ("BattleFriendV2", create_battle_friend_v2, "BATTLE_FRIEND_V2", "NOTHING_MOVE", 150, 150),
     ("BattleFriendV3", create_battle_friend_v3, "BATTLE_FRIEND_V3", "NOTHING_MOVE", 300, 300),
-    ("BigDummy", create_big_dummy, "BIG_DUMMY", "NOTHING", 9999, 9999),
+    ("BigDummy", create_big_dummy, "BIG_DUMMY", "NOTHING", NOOP_MONSTER_HP, NOOP_MONSTER_HP),
     ("DecimillipedeSegmentBack", create_decimillipede_segment_back, "DECIMILLIPEDE_SEGMENT_BACK", "WRITHE_MOVE", 42, 48),
     ("DecimillipedeSegmentFront", create_decimillipede_segment_front, "DECIMILLIPEDE_SEGMENT_FRONT", "WRITHE_MOVE", 42, 48),
     (
@@ -254,9 +256,9 @@ CS_MONSTER_FACTORY_PARITY_CASES = [
     ("KinFollower", create_kin_follower, "KIN_FOLLOWER", "QUICK_SLASH_MOVE", 58, 59),
     ("KinPriest", create_kin_priest, "KIN_PRIEST", "ORB_OF_FRAILTY_MOVE", 190, 190),
     ("LeafSlimeM", create_leaf_slime_m, "LEAF_SLIME_M", "STICKY_SHOT", 32, 35),
-    ("MultiAttackMoveMonster", create_multi_attack_move_monster, "MULTI_ATTACK_MOVE_MONSTER", "POKE", 999, 999),
+    ("MultiAttackMoveMonster", create_multi_attack_move_monster, "MULTI_ATTACK_MOVE_MONSTER", "POKE", ATTACK_TEST_MONSTER_HP, ATTACK_TEST_MONSTER_HP),
     ("OneHpMonster", create_one_hp_monster, "ONE_HP_MONSTER", "NOTHING", 1, 1),
-    ("SingleAttackMoveMonster", create_single_attack_move_monster, "SINGLE_ATTACK_MOVE_MONSTER", "POKE", 999, 999),
+    ("SingleAttackMoveMonster", create_single_attack_move_monster, "SINGLE_ATTACK_MOVE_MONSTER", "POKE", ATTACK_TEST_MONSTER_HP, ATTACK_TEST_MONSTER_HP),
     ("TenHpMonster", create_ten_hp_monster, "TEN_HP_MONSTER", "NOTHING", 10, 10),
 ]
 
