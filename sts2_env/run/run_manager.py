@@ -105,6 +105,8 @@ _CHARACTER_CONFIG: dict[str, dict[str, Any]] = {
     },
 }
 
+RUN_MANAGER_RNG_SEED_OFFSET = 9999
+
 
 def _get_starter_deck(character_id: str) -> list[CardInstance]:
     """Import and call the correct starter deck factory for the character."""
@@ -219,7 +221,7 @@ class RunManager:
         self._ascension_level = ascension_level
 
         # Master RNG (for encounter selection, gold rolls, etc.)
-        self._rng = Rng(seed + 9999)
+        self._rng = Rng(seed + RUN_MANAGER_RNG_SEED_OFFSET)
 
         # Build RunState
         config = _CHARACTER_CONFIG.get(character_id, _CHARACTER_CONFIG["Ironclad"])
