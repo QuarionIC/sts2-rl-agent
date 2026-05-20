@@ -176,6 +176,25 @@ VOLTAIC_CALC_BASE_KEY = "calc_base"
 VOLTAIC_CALC_BASE = 0
 VOLTAIC_CALC_EXTRA_KEY = "calc_extra"
 VOLTAIC_CALC_EXTRA = 1
+MULTI_CAST_UPGRADED_EXTRA_EVOKE = 1
+QUADCAST_COST = 1
+QUADCAST_UPGRADED_COST = 0
+QUADCAST_REPEAT = 4
+SHATTER_DAMAGE = 11
+SHATTER_UPGRADED_DAMAGE = 15
+SIGNAL_BOOST_COST = 1
+SIGNAL_BOOST_UPGRADED_COST = 0
+SIGNAL_BOOST_POWER_KEY = "signal_boost_power"
+SIGNAL_BOOST_POWER = 1
+SMOKESTACK_POWER_KEY = "smokestack_power"
+SMOKESTACK_POWER = 5
+SMOKESTACK_UPGRADED_POWER = 7
+SUBROUTINE_COST = 1
+SUBROUTINE_UPGRADED_COST = 0
+SUBROUTINE_POWER = 1
+SUPERCRITICAL_ENERGY_KEY = "energy"
+SUPERCRITICAL_ENERGY = 4
+SUPERCRITICAL_UPGRADED_ENERGY = 6
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -800,7 +819,7 @@ def skim(card: CardInstance, combat: CombatState, target: Creature | None) -> No
 
 @register_effect(CardId.SMOKESTACK)
 def smokestack(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.SMOKESTACK, card.effect_vars.get("smokestack_power", 5))
+    combat.apply_power_to(_owner(card, combat), PowerId.SMOKESTACK, card.effect_vars.get(SMOKESTACK_POWER_KEY, SMOKESTACK_POWER))
 
 
 @register_effect(CardId.STORM_CARD)
@@ -810,7 +829,7 @@ def storm(card: CardInstance, combat: CombatState, target: Creature | None) -> N
 
 @register_effect(CardId.SUBROUTINE)
 def subroutine(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.SUBROUTINE, 1)
+    combat.apply_power_to(_owner(card, combat), PowerId.SUBROUTINE, SUBROUTINE_POWER)
 
 
 @register_effect(CardId.SUNDER)
@@ -1104,7 +1123,7 @@ def shatter(card: CardInstance, combat: CombatState, target: Creature | None) ->
 
 @register_effect(CardId.SIGNAL_BOOST)
 def signal_boost(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.SIGNAL_BOOST, card.effect_vars.get("signal_boost_power", 1))
+    combat.apply_power_to(_owner(card, combat), PowerId.SIGNAL_BOOST, card.effect_vars.get(SIGNAL_BOOST_POWER_KEY, SIGNAL_BOOST_POWER))
 
 
 @register_effect(CardId.SPINNER_CARD)
@@ -1116,7 +1135,7 @@ def spinner_card(card: CardInstance, combat: CombatState, target: Creature | Non
 
 @register_effect(CardId.SUPERCRITICAL)
 def supercritical(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.gain_energy(_owner(card, combat), card.effect_vars.get("energy", 4))
+    combat.gain_energy(_owner(card, combat), card.effect_vars.get(SUPERCRITICAL_ENERGY_KEY, SUPERCRITICAL_ENERGY))
 
 
 @register_effect(CardId.TRASH_TO_TREASURE)
@@ -1156,8 +1175,8 @@ def biased_cognition(card: CardInstance, combat: CombatState, target: Creature |
 
 @register_effect(CardId.QUADCAST)
 def quadcast(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    for index in range(4):
-        if index == 3:
+    for index in range(QUADCAST_REPEAT):
+        if index == QUADCAST_REPEAT - 1:
             _evoke_front(combat)
         else:
             _passive_front(combat)
@@ -1684,11 +1703,15 @@ def make_skim(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_smokestack() -> CardInstance:
+def make_smokestack(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SMOKESTACK, cost=1, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        effect_vars={"smokestack_power": 5}, instance_id=_get_next_id(),
+        effect_vars={
+            SMOKESTACK_POWER_KEY: SMOKESTACK_UPGRADED_POWER if upgraded else SMOKESTACK_POWER
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1702,10 +1725,13 @@ def make_storm(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_subroutine() -> CardInstance:
+def make_subroutine(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.SUBROUTINE, cost=1, card_type=CardType.POWER,
+        card_id=CardId.SUBROUTINE,
+        cost=SUBROUTINE_UPGRADED_COST if upgraded else SUBROUTINE_COST,
+        card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
@@ -1961,11 +1987,12 @@ def make_modded(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_multi_cast() -> CardInstance:
+def make_multi_cast(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.MULTI_CAST, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
         has_energy_cost_x=True,
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
@@ -1989,20 +2016,26 @@ def make_reboot() -> CardInstance:
     )
 
 
-def make_shatter() -> CardInstance:
+def make_shatter(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SHATTER, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ALL_ENEMIES, rarity=CardRarity.RARE,
-        base_damage=11, instance_id=_get_next_id(),
+        base_damage=SHATTER_UPGRADED_DAMAGE if upgraded else SHATTER_DAMAGE,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_signal_boost() -> CardInstance:
+def make_signal_boost(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.SIGNAL_BOOST, cost=1, card_type=CardType.SKILL,
+        card_id=CardId.SIGNAL_BOOST,
+        cost=SIGNAL_BOOST_UPGRADED_COST if upgraded else SIGNAL_BOOST_COST,
+        card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
         keywords=frozenset({"exhaust"}),
-        effect_vars={"signal_boost_power": 1}, instance_id=_get_next_id(),
+        effect_vars={SIGNAL_BOOST_POWER_KEY: SIGNAL_BOOST_POWER},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -2014,12 +2047,18 @@ def make_spinner(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_supercritical() -> CardInstance:
+def make_supercritical(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SUPERCRITICAL, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
         keywords=frozenset({"exhaust"}),
-        effect_vars={"energy": 4}, instance_id=_get_next_id(),
+        effect_vars={
+            SUPERCRITICAL_ENERGY_KEY: (
+                SUPERCRITICAL_UPGRADED_ENERGY if upgraded else SUPERCRITICAL_ENERGY
+            )
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -2060,10 +2099,13 @@ def make_biased_cognition(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_quadcast() -> CardInstance:
+def make_quadcast(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.QUADCAST, cost=1, card_type=CardType.SKILL,
+        card_id=CardId.QUADCAST,
+        cost=QUADCAST_UPGRADED_COST if upgraded else QUADCAST_COST,
+        card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.ANCIENT,
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 

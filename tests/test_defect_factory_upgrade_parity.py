@@ -12,6 +12,7 @@ from sts2_env.cards.defect import (
     HYPERBEAM_FOCUS,
     HYPERBEAM_UPGRADED_DAMAGE,
     MACHINE_LEARNING_CARDS,
+    MULTI_CAST_UPGRADED_EXTRA_EVOKE,
     METEOR_STRIKE_PLASMA_ORBS,
     METEOR_STRIKE_UPGRADED_DAMAGE,
     MODDED_COST_INCREASE,
@@ -19,8 +20,15 @@ from sts2_env.cards.defect import (
     MODDED_UPGRADED_CARDS,
     OVERCLOCK_UPGRADED_CARDS,
     SHADOW_SHIELD_UPGRADED_BLOCK,
+    SHATTER_UPGRADED_DAMAGE,
+    SIGNAL_BOOST_POWER,
+    SIGNAL_BOOST_UPGRADED_COST,
     SKIM_UPGRADED_CARDS,
+    SMOKESTACK_UPGRADED_POWER,
     STORM_UPGRADED_POWER,
+    SUBROUTINE_POWER,
+    SUBROUTINE_UPGRADED_COST,
+    SUPERCRITICAL_UPGRADED_ENERGY,
     SYNTHESIS_FREE_POWER,
     SYNTHESIS_UPGRADED_DAMAGE,
     TESLA_COIL_UPGRADED_DAMAGE,
@@ -60,10 +68,17 @@ from sts2_env.cards.defect import (
     make_meteor_strike,
     make_modded,
     make_momentum_strike,
+    make_multi_cast,
     make_overclock,
+    make_quadcast,
     make_shadow_shield,
+    make_shatter,
+    make_signal_boost,
     make_skim,
+    make_smokestack,
     make_storm,
+    make_subroutine,
+    make_supercritical,
     make_synthesis,
     make_sweeping_beam,
     make_tesla_coil,
@@ -582,6 +597,21 @@ def test_modded_factory_upgrade_draws_two_and_keeps_slot_and_cost_increase():
     assert card.cost == MODDED_COST_INCREASE
 
 
+def test_multi_cast_factory_upgrade_adds_one_extra_evoke():
+    combat = _make_combat()
+    enemy = combat.enemies[FIRST_ENEMY_INDEX]
+    enemy.current_hp = enemy.max_hp = TEST_PLAYER_HP
+    combat.channel_orb(combat.player, "LIGHTNING")
+    combat.hand = [make_multi_cast(upgraded=True)]
+    combat.energy = TWO_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    expected_evokes = TWO_ENERGY + MULTI_CAST_UPGRADED_EXTRA_EVOKE
+    assert enemy.current_hp == TEST_PLAYER_HP - (8 * expected_evokes)
+    assert combat.orb_queue.orbs == []
+
+
 def test_momentum_strike_factory_upgrade_increases_damage_and_sets_cost_zero():
     combat = _make_combat()
     enemy = combat.enemies[FIRST_ENEMY_INDEX]
@@ -610,6 +640,22 @@ def test_overclock_factory_upgrade_draws_three_and_adds_burn_to_discard():
     burns = [card for card in combat.discard_pile if card.card_id == CardId.BURN]
     assert len(burns) == 1
     assert burns[0].owner is combat.player
+
+
+def test_quadcast_factory_upgrade_costs_zero_and_keeps_four_front_evokes():
+    combat = _make_combat()
+    enemy = combat.enemies[FIRST_ENEMY_INDEX]
+    enemy.current_hp = enemy.max_hp = TEST_PLAYER_HP
+    card = make_quadcast(upgraded=True)
+    combat.channel_orb(combat.player, "LIGHTNING")
+    combat.hand = [card]
+    combat.energy = ZERO_COST
+
+    assert card.cost == ZERO_COST
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert enemy.current_hp == TEST_PLAYER_HP - 32
+    assert combat.orb_queue.orbs == []
 
 
 def test_skim_factory_upgrade_draws_four_cards():
@@ -647,6 +693,35 @@ def test_shadow_shield_factory_upgrade_increases_block_and_keeps_dark_channel():
     assert [orb.orb_type for orb in combat.orb_queue.orbs] == [OrbType.DARK]
 
 
+def test_shatter_factory_upgrade_increases_all_enemy_damage():
+    combat = _make_combat(extra_enemies=1)
+    enemies = list(combat.enemies)
+    for enemy in enemies:
+        enemy.current_hp = enemy.max_hp = TEST_PLAYER_HP
+    combat.hand = [make_shatter(upgraded=True)]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert [enemy.current_hp for enemy in enemies] == [
+        TEST_PLAYER_HP - SHATTER_UPGRADED_DAMAGE
+        for _ in enemies
+    ]
+
+
+def test_signal_boost_factory_upgrade_costs_zero_and_keeps_power_amount():
+    combat = _make_combat()
+    card = make_signal_boost(upgraded=True)
+    combat.hand = [card]
+    combat.energy = ZERO_COST
+
+    assert card.cost == SIGNAL_BOOST_UPGRADED_COST
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.get_power_amount(PowerId.SIGNAL_BOOST) == SIGNAL_BOOST_POWER
+    assert card in combat.exhaust_pile
+
+
 def test_synthesis_factory_upgrade_increases_damage_and_keeps_free_power():
     combat = _make_combat()
     enemy = combat.enemies[FIRST_ENEMY_INDEX]
@@ -659,6 +734,40 @@ def test_synthesis_factory_upgrade_increases_damage_and_keeps_free_power():
 
     assert enemy.current_hp == starting_hp - SYNTHESIS_UPGRADED_DAMAGE
     assert combat.player.get_power_amount(PowerId.FREE_POWER) == SYNTHESIS_FREE_POWER
+
+
+def test_smokestack_factory_upgrade_increases_power_amount():
+    combat = _make_combat()
+    combat.hand = [make_smokestack(upgraded=True)]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.get_power_amount(PowerId.SMOKESTACK) == SMOKESTACK_UPGRADED_POWER
+
+
+def test_subroutine_factory_upgrade_costs_zero_and_keeps_power_amount():
+    combat = _make_combat()
+    card = make_subroutine(upgraded=True)
+    combat.hand = [card]
+    combat.energy = ZERO_COST
+
+    assert card.cost == SUBROUTINE_UPGRADED_COST
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.get_power_amount(PowerId.SUBROUTINE) == SUBROUTINE_POWER
+
+
+def test_supercritical_factory_upgrade_gains_six_energy_and_exhausts():
+    combat = _make_combat()
+    card = make_supercritical(upgraded=True)
+    combat.hand = [card]
+    combat.energy = ZERO_COST
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.energy == SUPERCRITICAL_UPGRADED_ENERGY
+    assert card in combat.exhaust_pile
 
 
 def test_sweeping_beam_factory_upgrade_increases_all_enemy_damage_and_draws():
