@@ -379,7 +379,7 @@ class RunManager:
         if self._phase == self.PHASE_BOSS_RELIC and action_type == "pick_relic":
             return self._do_boss_relic_pick(action)
         if self._phase == self.PHASE_SHOP and action_type in (
-            "buy_card", "buy_relic", "buy_potion", "remove_card", "leave_shop",
+            "buy_card", "buy_relic", "buy_potion", "remove_card", "leave_shop", "use_potion",
         ):
             return self._do_shop_action(action)
         if self._phase == self.PHASE_REST_SITE and action_type in ("rest_option",):
@@ -1023,6 +1023,14 @@ class RunManager:
                     "rarity": entry.potion_rarity.name,
                 })
 
+        for potion in self._run_state.player.held_potions():
+            if potion.potion_id == "FoulPotion":
+                actions.append({
+                    "action": "use_potion",
+                    "slot_index": potion.slot_index,
+                    "potion_id": potion.potion_id,
+                })
+
         if (
             not inv.removal_used
             and gold >= inv.removal_cost
@@ -1544,6 +1552,20 @@ class RunManager:
                         "description": f"Bought potion ({entry.potion_rarity.name}).",
                     }
             return {"phase": self.phase, "description": "Cannot afford potion."}
+
+        if action_type == "use_potion":
+            slot_index = action.get("slot_index", -1)
+            try:
+                slot = int(slot_index)
+            except (TypeError, ValueError):
+                slot = -1
+            if 0 <= slot < len(player.potions):
+                potion = player.potions[slot]
+                if potion is not None and potion.potion_id == "FoulPotion":
+                    player.remove_potion(slot)
+                    player.gain_gold(100)
+                    return {"phase": self.phase, "description": "Used Foul Potion for 100 gold."}
+            return {"phase": self.phase, "description": "Cannot use potion."}
 
         if action_type == "remove_card":
             removable = [card for card in player.deck if card.rarity.name != "QUEST" and card.is_removable]

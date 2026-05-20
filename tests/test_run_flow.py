@@ -367,6 +367,22 @@ class TestConcreteRunObjects:
         mgr._do_shop_action({"action": "buy_potion", "index": inv.potions.index(potion_entry)})
         assert len(mgr.run_state.player.held_potions()) == potions_before + 1
 
+    def test_shop_foul_potion_use_gains_gold_and_consumes_potion(self):
+        from sts2_env.potions.base import create_potion
+
+        mgr = RunManager(seed=65, character_id="Ironclad")
+        assert mgr.run_state.player.add_potion(create_potion("FoulPotion"))
+        mgr.run_state.player.gold = 12
+        mgr._enter_shop()
+
+        actions = mgr.get_available_actions()
+        use_action = next(action for action in actions if action["action"] == "use_potion")
+        result = mgr.take_action(use_action)
+
+        assert result["phase"] == RunManager.PHASE_SHOP
+        assert mgr.run_state.player.gold == 112
+        assert mgr.run_state.player.held_potions() == []
+
     def test_boss_relic_options_are_real_ids(self):
         mgr = RunManager(seed=73, character_id="Ironclad")
         mgr._enter_boss_relic()
