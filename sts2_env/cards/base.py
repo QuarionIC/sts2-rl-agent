@@ -470,6 +470,11 @@ class CardInstance:
 
         return modify_card_next_event(self, run_state, event)
 
+    def modify_unknown_map_point_room_types(self, run_state: object, room_types: set[object]) -> set[object]:
+        from sts2_env.cards.registry import modify_card_unknown_room_types
+
+        return modify_card_unknown_room_types(self, run_state, room_types)
+
     def modify_rest_site_options(
         self,
         owner: object,

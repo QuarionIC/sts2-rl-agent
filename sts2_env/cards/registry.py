@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from sts2_env.cards.base import CardInstance
     from sts2_env.core.combat import CombatState
     from sts2_env.core.creature import Creature
+    from sts2_env.core.enums import RoomType
     from sts2_env.run.events import EventModel
     from sts2_env.run.rest_site import RestSiteOption
     from sts2_env.run.run_state import PlayerState, RunState
@@ -29,6 +30,10 @@ CardNextEventHook = Callable[
     ["CardInstance", "RunState", "EventModel | None"],
     "EventModel | None",
 ]
+CardUnknownRoomTypesHook = Callable[
+    ["CardInstance", "RunState", set["RoomType"]],
+    set["RoomType"],
+]
 CardRestSiteOptionsHook = Callable[
     ["CardInstance", "PlayerState", list["RestSiteOption"], "RunState | None"],
     list["RestSiteOption"],
@@ -39,6 +44,7 @@ _CARD_LATE_EFFECTS: dict[CardId, CardLateEffect] = {}
 _CARD_CHOSEN_HOOKS: dict[CardId, CardChosenHook] = {}
 _CARD_AFTER_COMBAT_END_HOOKS: dict[CardId, CardAfterCombatEndHook] = {}
 _CARD_NEXT_EVENT_HOOKS: dict[CardId, CardNextEventHook] = {}
+_CARD_UNKNOWN_ROOM_TYPES_HOOKS: dict[CardId, CardUnknownRoomTypesHook] = {}
 _CARD_REST_SITE_OPTIONS_HOOKS: dict[CardId, CardRestSiteOptionsHook] = {}
 
 
@@ -75,6 +81,13 @@ def register_after_combat_end_hook(card_id: CardId):
 def register_next_event_hook(card_id: CardId):
     def decorator(func: CardNextEventHook) -> CardNextEventHook:
         _CARD_NEXT_EVENT_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_unknown_room_types_hook(card_id: CardId):
+    def decorator(func: CardUnknownRoomTypesHook) -> CardUnknownRoomTypesHook:
+        _CARD_UNKNOWN_ROOM_TYPES_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -138,6 +151,17 @@ def modify_card_next_event(
     if hook is None:
         return event
     return hook(card, run_state, event)
+
+
+def modify_card_unknown_room_types(
+    card: "CardInstance",
+    run_state: "RunState",
+    room_types: set["RoomType"],
+) -> set["RoomType"]:
+    hook = _CARD_UNKNOWN_ROOM_TYPES_HOOKS.get(card.card_id)
+    if hook is None:
+        return room_types
+    return hook(card, run_state, room_types)
 
 
 def modify_card_rest_site_options(

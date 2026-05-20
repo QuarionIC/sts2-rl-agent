@@ -548,6 +548,19 @@ def test_lantern_key_card_hook_replaces_next_act3_event():
     assert isinstance(event, WarHistorianRepy)
 
 
+def test_lantern_key_card_hook_filters_act3_unknown_room_types():
+    run_state = RunState(seed=811, character_id="Ironclad")
+    run_state.initialize_run()
+    lantern_key = create_card(CardId.LANTERN_KEY)
+    room_types = {RoomType.EVENT, RoomType.MONSTER, RoomType.SHOP}
+
+    run_state.current_act_index = 1
+    assert lantern_key.modify_unknown_map_point_room_types(run_state, room_types) is room_types
+
+    run_state.current_act_index = 2
+    assert lantern_key.modify_unknown_map_point_room_types(run_state, room_types) == {RoomType.EVENT}
+
+
 def test_war_historian_repy_removes_lantern_key_on_both_paths():
     run_state = RunState(seed=808, character_id="Ironclad")
     run_state.initialize_run()

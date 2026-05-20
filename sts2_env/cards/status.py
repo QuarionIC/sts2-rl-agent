@@ -14,9 +14,10 @@ from sts2_env.cards.registry import (
     register_effect,
     register_next_event_hook,
     register_rest_site_options_hook,
+    register_unknown_room_types_hook,
 )
 from sts2_env.core.enums import (
-    CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId,
+    CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, RoomType,
 )
 from sts2_env.core.damage import calculate_damage, apply_damage, calculate_block
 from sts2_env.core.hooks import fire_after_block_gained
@@ -1587,6 +1588,13 @@ def lantern_key_next_event(card: CardInstance, run_state, event):
     from sts2_env.events.act3 import WarHistorianRepy
 
     return WarHistorianRepy()
+
+
+@register_unknown_room_types_hook(CardId.LANTERN_KEY)
+def lantern_key_unknown_room_types(card: CardInstance, run_state, room_types):
+    if run_state.current_act_index != 2:
+        return room_types
+    return {RoomType.EVENT}
 
 
 @register_effect(CardId.SPOILS_MAP)

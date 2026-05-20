@@ -1551,12 +1551,10 @@ class RunState:
             MapPointType.ANCIENT: RoomType.EVENT,
         }
         if point_type == MapPointType.UNKNOWN:
-            if (
-                self.current_act_index == 2
-                and any(card.card_id == CardId.LANTERN_KEY for player in self.players for card in player.deck)
-            ):
-                return RoomType.EVENT
             room_types = {RoomType.EVENT, RoomType.MONSTER, RoomType.ELITE, RoomType.TREASURE, RoomType.SHOP}
+            for player in self.players:
+                for card in player.deck:
+                    room_types = card.modify_unknown_map_point_room_types(self, room_types)
             for player in self.players:
                 for relic in player.get_relic_objects():
                     room_types = relic.modify_unknown_map_point_room_types(player, room_types)
