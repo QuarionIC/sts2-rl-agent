@@ -159,7 +159,7 @@ class CookOption(RestSiteOption):
         if removed == 2:
             player.gain_max_hp(9)
             return "Cooked: removed 2 cards, gained 9 Max HP"
-        candidates = [card for card in player.deck if card.is_removable and card.rarity.name not in ("STATUS", "CURSE", "QUEST")]
+        candidates = player.removable_deck_cards()
         if len(candidates) >= 2:
             if player.request_deck_choice(
                 prompt="Choose 2 cards to cook away",

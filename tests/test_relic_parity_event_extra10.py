@@ -5,7 +5,7 @@ import sts2_env.powers  # noqa: F401
 from sts2_env.cards.ironclad import create_ironclad_starter_deck, make_inflame
 from sts2_env.cards.ironclad_basic import make_strike_ironclad
 from sts2_env.cards.silent import make_backstab
-from sts2_env.cards.status import make_luminesce, make_wound
+from sts2_env.cards.status import make_clumsy, make_luminesce, make_wound
 from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import CardId, CombatSide, PowerId
 from sts2_env.core.hooks import fire_after_card_played, fire_before_turn_end, should_flush
@@ -176,6 +176,22 @@ class TestRelicParityEventExtra10:
         cook = next(option for option in options if option.option_id == "COOK")
 
         assert cook.enabled is True
+
+    def test_meat_cleaver_cook_can_remove_status_and_curse_cards(self):
+        run_state = RunState(seed=906, character_id="Ironclad")
+        run_state.enable_deck_choice_requests = True
+        run_state.player.deck = [make_wound(), make_clumsy()]
+        assert run_state.player.obtain_relic("MEAT_CLEAVER")
+        cook = next(option for option in generate_rest_site_options(run_state.player) if option.option_id == "COOK")
+
+        result = cook.execute(run_state.player)
+
+        assert result == "Choose 2 cards to remove"
+        assert run_state.pending_choice is not None
+        assert [option.card.card_id for option in run_state.pending_choice.options] == [
+            make_wound().card_id,
+            make_clumsy().card_id,
+        ]
 
     def test_fiddle_adds_two_to_opening_hand_draw(self):
         combat = _make_combat(["Fiddle"])
