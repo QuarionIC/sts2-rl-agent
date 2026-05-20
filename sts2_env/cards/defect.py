@@ -29,6 +29,28 @@ CLAW_UPGRADED_DAMAGE = 4
 CLAW_INCREASE_KEY = "increase"
 CLAW_INCREASE = 2
 CLAW_UPGRADED_INCREASE = 3
+BOOST_AWAY_BLOCK = 6
+BOOST_AWAY_UPGRADED_BLOCK = 9
+BOOT_SEQUENCE_BLOCK = 10
+BOOT_SEQUENCE_UPGRADED_BLOCK = 13
+BULK_UP_STRENGTH_KEY = "strength"
+BULK_UP_DEXTERITY_KEY = "dexterity"
+BULK_UP_ORB_SLOTS_KEY = "orb_slots"
+BULK_UP_POWER = 2
+BULK_UP_UPGRADED_POWER = 3
+BULK_UP_ORB_SLOTS = 1
+CHAOS_REPEAT_KEY = "repeat"
+CHAOS_REPEAT = 1
+CHAOS_UPGRADED_REPEAT = 2
+ADAPTIVE_STRIKE_DAMAGE = 18
+ADAPTIVE_STRIKE_UPGRADED_DAMAGE = 23
+ALL_FOR_ONE_DAMAGE = 10
+ALL_FOR_ONE_UPGRADED_DAMAGE = 14
+BIASED_COGNITION_FOCUS_KEY = "focus_power"
+BIASED_COGNITION_POWER_KEY = "biased_cognition_power"
+BIASED_COGNITION_FOCUS = 4
+BIASED_COGNITION_UPGRADED_FOCUS = 5
+BIASED_COGNITION_POWER = 1
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -405,9 +427,18 @@ def boot_sequence(card: CardInstance, combat: CombatState, target: Creature | No
 
 @register_effect(CardId.BULK_UP)
 def bulk_up(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.STRENGTH, card.effect_vars.get("strength", 2))
-    combat.apply_power_to(_owner(card, combat), PowerId.DEXTERITY, card.effect_vars.get("dexterity", 2))
-    _remove_orb_slot(combat, card.effect_vars.get("orb_slots", 1))
+    owner = _owner(card, combat)
+    combat.apply_power_to(
+        owner,
+        PowerId.STRENGTH,
+        card.effect_vars.get(BULK_UP_STRENGTH_KEY, BULK_UP_POWER),
+    )
+    combat.apply_power_to(
+        owner,
+        PowerId.DEXTERITY,
+        card.effect_vars.get(BULK_UP_DEXTERITY_KEY, BULK_UP_POWER),
+    )
+    _remove_orb_slot(combat, card.effect_vars.get(BULK_UP_ORB_SLOTS_KEY, BULK_UP_ORB_SLOTS))
 
 
 @register_effect(CardId.CAPACITOR)
@@ -419,7 +450,7 @@ def capacitor(card: CardInstance, combat: CombatState, target: Creature | None) 
 @register_effect(CardId.CHAOS)
 def chaos(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     orb_types = [OrbType.LIGHTNING, OrbType.FROST, OrbType.DARK, OrbType.PLASMA, OrbType.GLASS]
-    repeat = card.effect_vars.get("repeat", 1)
+    repeat = card.effect_vars.get(CHAOS_REPEAT_KEY, CHAOS_REPEAT)
     for _ in range(max(0, repeat)):
         chosen = combat.combat_orbs_rng.choice(orb_types)
         _channel_orb(combat, chosen)
@@ -943,8 +974,16 @@ def voltaic(card: CardInstance, combat: CombatState, target: Creature | None) ->
 
 @register_effect(CardId.BIASED_COGNITION_CARD)
 def biased_cognition(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.FOCUS, card.effect_vars.get("focus_power", 4))
-    combat.apply_power_to(_owner(card, combat), PowerId.BIASED_COGNITION, card.effect_vars.get("biased_cognition_power", 1))
+    combat.apply_power_to(
+        _owner(card, combat),
+        PowerId.FOCUS,
+        card.effect_vars.get(BIASED_COGNITION_FOCUS_KEY, BIASED_COGNITION_FOCUS),
+    )
+    combat.apply_power_to(
+        _owner(card, combat),
+        PowerId.BIASED_COGNITION,
+        card.effect_vars.get(BIASED_COGNITION_POWER_KEY, BIASED_COGNITION_POWER),
+    )
 
 
 @register_effect(CardId.QUADCAST)
@@ -1024,11 +1063,13 @@ def make_beam_cell(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_boost_away() -> CardInstance:
+def make_boost_away(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.BOOST_AWAY, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.COMMON,
-        base_block=6, instance_id=_get_next_id(),
+        base_block=BOOST_AWAY_UPGRADED_BLOCK if upgraded else BOOST_AWAY_BLOCK,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1171,20 +1212,27 @@ def make_uproar() -> CardInstance:
     )
 
 
-def make_boot_sequence() -> CardInstance:
+def make_boot_sequence(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.BOOT_SEQUENCE, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        base_block=10, keywords=frozenset({"innate", "exhaust"}),
+        base_block=BOOT_SEQUENCE_UPGRADED_BLOCK if upgraded else BOOT_SEQUENCE_BLOCK,
+        keywords=frozenset({"innate", "exhaust"}),
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
 
-def make_bulk_up() -> CardInstance:
+def make_bulk_up(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.BULK_UP, cost=2, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        effect_vars={"strength": 2, "dexterity": 2, "orb_slots": 1},
+        effect_vars={
+            BULK_UP_STRENGTH_KEY: BULK_UP_UPGRADED_POWER if upgraded else BULK_UP_POWER,
+            BULK_UP_DEXTERITY_KEY: BULK_UP_UPGRADED_POWER if upgraded else BULK_UP_POWER,
+            BULK_UP_ORB_SLOTS_KEY: BULK_UP_ORB_SLOTS,
+        },
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
@@ -1198,20 +1246,23 @@ def make_capacitor(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_chaos() -> CardInstance:
+def make_chaos(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.CHAOS, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        effect_vars={"repeat": 1},
+        effect_vars={CHAOS_REPEAT_KEY: CHAOS_UPGRADED_REPEAT if upgraded else CHAOS_REPEAT},
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
 
-def make_chill() -> CardInstance:
+def make_chill(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.CHILL, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        keywords=frozenset({"exhaust"}), instance_id=_get_next_id(),
+        keywords=frozenset() if upgraded else frozenset({"exhaust"}),
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1476,19 +1527,23 @@ def make_white_noise() -> CardInstance:
     )
 
 
-def make_adaptive_strike() -> CardInstance:
+def make_adaptive_strike(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.ADAPTIVE_STRIKE, cost=2, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.RARE,
-        base_damage=18, instance_id=_get_next_id(),
+        base_damage=ADAPTIVE_STRIKE_UPGRADED_DAMAGE if upgraded else ADAPTIVE_STRIKE_DAMAGE,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_all_for_one() -> CardInstance:
+def make_all_for_one(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.ALL_FOR_ONE, cost=2, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.RARE,
-        base_damage=10, instance_id=_get_next_id(),
+        base_damage=ALL_FOR_ONE_UPGRADED_DAMAGE if upgraded else ALL_FOR_ONE_DAMAGE,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1701,11 +1756,18 @@ def make_voltaic() -> CardInstance:
     )
 
 
-def make_biased_cognition() -> CardInstance:
+def make_biased_cognition(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.BIASED_COGNITION_CARD, cost=1, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.ANCIENT,
-        effect_vars={"focus_power": 4, "biased_cognition_power": 1}, instance_id=_get_next_id(),
+        effect_vars={
+            BIASED_COGNITION_FOCUS_KEY: (
+                BIASED_COGNITION_UPGRADED_FOCUS if upgraded else BIASED_COGNITION_FOCUS
+            ),
+            BIASED_COGNITION_POWER_KEY: BIASED_COGNITION_POWER,
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
