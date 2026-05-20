@@ -2,10 +2,11 @@
 
 from scripts.audit_card_dynamic_vars import collect_card_dynamic_var_mismatches
 from scripts.audit_card_static_metadata import collect_static_metadata_mismatches
+from sts2_env.cards.base import CardInstance
 from sts2_env.cards.factory import create_card
 from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
 from sts2_env.core.card_pools import CardPoolId
-from sts2_env.core.enums import CardId, OrbEvokeType
+from sts2_env.core.enums import CardId, CardTag, CardType, OrbEvokeType, TargetType
 
 
 def test_card_static_metadata_matches_decompiled_models() -> None:
@@ -44,3 +45,10 @@ def test_custom_playability_matches_decompiled_card_properties() -> None:
     expected_card_ids = {card_id for card_id, reference in references.items() if reference.has_custom_playability}
     actual_card_ids = {card_id for card_id in references if create_card(card_id).has_custom_playability}
     assert actual_card_ids == expected_card_ids
+
+
+def test_card_instances_inherit_decompiled_canonical_tags() -> None:
+    fetch = CardInstance(CardId.FETCH, 1, CardType.ATTACK, TargetType.ANY_ENEMY)
+    sic_em = CardInstance(CardId.SIC_EM, 1, CardType.SKILL, TargetType.ANY_ENEMY)
+    assert CardTag.OSTY_ATTACK in fetch.tags
+    assert CardTag.OSTY_ATTACK in sic_em.tags

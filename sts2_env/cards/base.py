@@ -12,73 +12,6 @@ from sts2_env.core.card_pools import (
 from sts2_env.core.enums import CardId, CardTag, CardType, TargetType, CardRarity, OrbEvokeType
 
 
-_STRIKE_TAG_CARD_IDS = {
-    CardId.ADAPTIVE_STRIKE,
-    CardId.ASHEN_STRIKE,
-    CardId.BLIGHT_STRIKE,
-    CardId.FOCUSED_STRIKE_CARD,
-    CardId.LEADING_STRIKE,
-    CardId.METEOR_STRIKE,
-    CardId.MINION_STRIKE,
-    CardId.MOMENTUM_STRIKE,
-    CardId.PERFECTED_STRIKE,
-    CardId.POMMEL_STRIKE,
-    CardId.SCULPTING_STRIKE,
-    CardId.SEEKER_STRIKE,
-    CardId.SETUP_STRIKE_CARD,
-    CardId.SHINING_STRIKE,
-    CardId.SOLAR_STRIKE,
-    CardId.STRIKE_DEFECT,
-    CardId.STRIKE_IRONCLAD,
-    CardId.STRIKE_NECROBINDER,
-    CardId.STRIKE_REGENT,
-    CardId.STRIKE_SILENT,
-    CardId.TWIN_STRIKE,
-    CardId.ULTIMATE_STRIKE,
-}
-
-_DEFEND_TAG_CARD_IDS = {
-    CardId.DEFEND_DEFECT,
-    CardId.DEFEND_IRONCLAD,
-    CardId.DEFEND_NECROBINDER,
-    CardId.DEFEND_REGENT,
-    CardId.DEFEND_SILENT,
-    CardId.ULTIMATE_DEFEND,
-}
-
-_OSTY_ATTACK_TAG_CARD_IDS = {
-    CardId.BONE_SHARDS,
-    CardId.FLATTEN,
-    CardId.HIGH_FIVE,
-    CardId.POKE,
-    CardId.PROTECTOR,
-    CardId.RATTLE,
-    CardId.RIGHT_HAND_HAND,
-    CardId.SNAP,
-    CardId.SQUEEZE,
-    CardId.SWEEPING_GAZE,
-    CardId.UNLEASH,
-}
-
-_MINION_TAG_CARD_IDS = {
-    CardId.MINION_DIVE_BOMB,
-    CardId.MINION_SACRIFICE,
-    CardId.MINION_STRIKE,
-}
-
-_SHIV_TAG_CARD_IDS = {
-    CardId.SHIV,
-}
-
-_CANONICAL_TAGS_BY_CARD_ID = {
-    **{card_id: {CardTag.STRIKE} for card_id in _STRIKE_TAG_CARD_IDS},
-    **{card_id: {CardTag.DEFEND} for card_id in _DEFEND_TAG_CARD_IDS},
-    **{card_id: {CardTag.OSTY_ATTACK} for card_id in _OSTY_ATTACK_TAG_CARD_IDS},
-    **{card_id: {CardTag.MINION} for card_id in _MINION_TAG_CARD_IDS},
-    **{card_id: {CardTag.SHIV} for card_id in _SHIV_TAG_CARD_IDS},
-}
-_CANONICAL_TAGS_BY_CARD_ID[CardId.MINION_STRIKE] = {CardTag.MINION, CardTag.STRIKE}
-
 _TAG_ALIASES = {
     "strike": CardTag.STRIKE,
     "defend": CardTag.DEFEND,
@@ -194,6 +127,13 @@ def reference_has_custom_playability(card_id: CardId) -> bool:
     return metadata.has_custom_playability if metadata is not None else False
 
 
+def reference_canonical_tags(card_id: CardId) -> frozenset[CardTag]:
+    from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+
+    metadata = reference_metadata_by_card_id().get(card_id)
+    return metadata.tags if metadata is not None else frozenset()
+
+
 @dataclass
 class CardInstance:
     """A single card instance in combat."""
@@ -233,7 +173,7 @@ class CardInstance:
             _TAG_ALIASES.get(tag, tag)
             for tag in self.tags
         }
-        tags.update(_CANONICAL_TAGS_BY_CARD_ID.get(self.card_id, set()))
+        tags.update(reference_canonical_tags(self.card_id))
         self.tags = frozenset(tags)
         self.has_turn_end_in_hand_effect = reference_has_turn_end_in_hand_effect(self.card_id)
 
