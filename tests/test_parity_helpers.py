@@ -1217,6 +1217,26 @@ class TestDeathPowerRetention:
         assert combat.kill_creature(enemy)
         assert melancholy.cost == 2
 
+    def test_melancholy_cost_does_not_drop_when_death_is_prevented(self):
+        combat = CombatState(
+            player_hp=80,
+            player_max_hp=80,
+            deck=create_necrobinder_starter_deck(),
+            rng_seed=107,
+            character_id="Necrobinder",
+            relics=["LizardTail"],
+        )
+        enemy, enemy_ai = create_shrinker_beetle(Rng(107))
+        melancholy = make_melancholy()
+        combat.add_enemy(enemy, enemy_ai)
+        combat.start_combat()
+        combat.hand = [melancholy]
+        combat.player.current_hp = 1
+
+        assert melancholy.cost == 3
+        assert combat.kill_creature(combat.player)
+        assert melancholy.cost == 3
+
     def test_applier_death_removes_linked_powers(self):
         combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
         applier = combat.enemies[0]

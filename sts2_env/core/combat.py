@@ -3055,13 +3055,11 @@ class CombatState:
         return True
 
     def _fire_card_after_death(self, creature: Creature, was_removal_prevented: bool) -> None:
-        if was_removal_prevented:
-            return
+        from sts2_env.cards.registry import fire_card_after_death
+
         for state in self.combat_player_states:
-            for pile in state.all_piles:
-                for card in list(pile):
-                    if card.card_id == CardId.MELANCHOLY:
-                        card.set_combat_cost(max(0, card.cost - card.effect_vars.get("energy", 1)))
+            for card in self.unique_cards_in_piles(state.all_piles):
+                fire_card_after_death(card, creature, was_removal_prevented, self)
 
     def _sync_monster_death_move_responses(self, creature: Creature) -> None:
         if creature.monster_id != _TORCH_HEAD_AMALGAM_ID:

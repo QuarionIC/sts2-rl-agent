@@ -11,6 +11,7 @@ from sts2_env.cards.registry import (
     register_after_card_entered_combat_hook,
     register_after_card_played_hook,
     register_after_attack_hook,
+    register_after_death_hook,
     register_effect,
     register_late_effect,
     register_playability_hook,
@@ -584,6 +585,18 @@ def lethality_card(card: CardInstance, combat: CombatState, target: Creature | N
 @register_effect(CardId.MELANCHOLY)
 def melancholy(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     _gain_block(card, combat)
+
+
+@register_after_death_hook(CardId.MELANCHOLY)
+def melancholy_after_death(
+    card: CardInstance,
+    creature: Creature,
+    was_removal_prevented: bool,
+    combat: CombatState,
+) -> None:
+    if was_removal_prevented:
+        return
+    card.set_combat_cost(max(0, card.cost - card.effect_vars.get("energy", 1)))
 
 
 @register_effect(CardId.NO_ESCAPE)
