@@ -3366,7 +3366,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** OstyAttack
-- **Vars:** None
+- **Vars:** {OstyDamage: 12}
 - **Effect:** Deal Damage to target enemy
 - **Upgrade:** Damage+4; OstyDamage+4
 ### GraveWarden
@@ -3402,7 +3402,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Energy: 2}
+- **Vars:** {Summon: 2, Energy: 2}
 - **Effect:** Apply SummonNextTurn to self; Apply EnergyNextTurn to self
 - **Upgrade:** Summon+1; Energy+1
 ### NegativePulse
@@ -3426,7 +3426,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** OstyAttack
-- **Vars:** None
+- **Vars:** {OstyDamage: 6}
 - **Effect:** Deal Damage to target enemy
 - **Upgrade:** Damage+3; OstyDamage+3
 ### PullAggro
@@ -3498,7 +3498,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** OstyAttack
-- **Vars:** None
+- **Vars:** {OstyDamage: 7}
 - **Effect:** Deal Damage to target enemy; Select card(s) from hand
 - **Upgrade:** Damage+3; OstyDamage+3
 ### Sow
@@ -3727,7 +3727,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** OstyAttack
-- **Vars:** {Cards: 1}
+- **Vars:** {OstyDamage: 3, Cards: 1}
 - **Effect:** Deal Damage to target enemy; Draw card(s)
 - **Upgrade:** Damage+3; OstyDamage+3
 ### Friendship
@@ -3884,7 +3884,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** OstyAttack
-- **Vars:** {Energy: 2}
+- **Vars:** {OstyDamage: 4, Energy: 2}
 - **Effect:** Deal Damage to target enemy
 - **Upgrade:** Damage+2; OstyDamage+2
 ### Severance
@@ -3920,7 +3920,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** OstyAttack
-- **Vars:** {SicEmPower: 2}
+- **Vars:** {OstyDamage: 5, SicEmPower: 2}
 - **Effect:** Deal Damage to target enemy; Apply SicEm to target
 - **Upgrade:** Damage+1; SicEmPower+1; OstyDamage+1
 ### SleightOfFlesh
