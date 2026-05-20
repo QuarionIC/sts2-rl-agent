@@ -30,6 +30,27 @@ class RestSiteOption:
         raise NotImplementedError
 
 
+def _rest_site_heal_amount(player: PlayerState) -> int:
+    amount = math.floor(player.max_hp * 0.3)
+    run_state = getattr(player, "run_state", None)
+    if run_state is not None:
+        for relic in player.get_relic_objects():
+            amount = relic.modify_rest_site_heal_amount(player, amount, run_state)
+        for modifier in run_state.modifiers:
+            amount = modifier.modify_rest_site_heal_amount(player, amount, run_state)
+    return amount
+
+
+def _after_rest_site_heal(player: PlayerState, healed: int) -> None:
+    run_state = getattr(player, "run_state", None)
+    if run_state is None:
+        return
+    for relic in player.get_relic_objects():
+        relic.after_rest_site_heal(player, healed, run_state)
+    for modifier in run_state.modifiers:
+        modifier.after_rest_site_heal(player, healed, run_state)
+
+
 class HealOption(RestSiteOption):
     """Heal floor(maxHp * 0.3) HP."""
 
@@ -37,23 +58,16 @@ class HealOption(RestSiteOption):
         super().__init__(option_id="HEAL", label="Rest", description="Heal 30% of max HP")
 
     def execute(self, player: PlayerState, **kwargs: Any) -> str:
-        amount = math.floor(player.max_hp * 0.3)
+        amount = _rest_site_heal_amount(player)
         run_state = getattr(player, "run_state", None)
         rewards: list[Reward] = []
         if run_state is not None:
-            for relic in player.get_relic_objects():
-                amount = relic.modify_rest_site_heal_amount(player, amount, run_state)
-            for modifier in run_state.modifiers:
-                amount = modifier.modify_rest_site_heal_amount(player, amount, run_state)
             for relic in player.get_relic_objects():
                 rewards = list(relic.modify_rest_site_heal_rewards(player, rewards, run_state))
         healed = player.heal(amount)
         if run_state is not None:
             run_state.pending_rewards.extend(rewards)
-            for relic in player.get_relic_objects():
-                relic.after_rest_site_heal(player, healed, run_state)
-            for modifier in run_state.modifiers:
-                modifier.after_rest_site_heal(player, healed, run_state)
+            _after_rest_site_heal(player, healed)
         return f"Healed {healed} HP"
 
 
@@ -204,7 +218,28 @@ class MendOption(RestSiteOption):
         )
 
     def execute(self, player: PlayerState, **kwargs: Any) -> str:
-        return "Mended ally"
+        run_state = getattr(player, "run_state", None)
+        if run_state is None:
+            return "No ally mended"
+        target_player_id = kwargs.get("target_player_id")
+        target = None
+        if target_player_id is not None:
+            try:
+                candidate = run_state.get_player(int(target_player_id))
+            except (KeyError, TypeError, ValueError):
+                candidate = None
+            if candidate is not player:
+                target = candidate
+            else:
+                return "No ally mended"
+        else:
+            return "No ally mended"
+        if target is None:
+            return "No ally mended"
+
+        healed = target.heal(_rest_site_heal_amount(target))
+        _after_rest_site_heal(target, healed)
+        return f"Mended {healed} HP"
 
 
 def generate_rest_site_options(
@@ -226,6 +261,9 @@ def generate_rest_site_options(
     options.append(SmithOption(has_upgradable=has_upgradable))
 
     run_state = getattr(player, "run_state", None)
+    if run_state is not None and len(run_state.players) > 1:
+        options.append(MendOption())
+
     for card in player.deck:
         options = list(card.modify_rest_site_options(player, options, run_state))
 

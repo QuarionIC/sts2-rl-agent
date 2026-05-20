@@ -1037,17 +1037,31 @@ class RunManager:
         return actions
 
     def _actions_rest_site(self) -> list[dict]:
-        return [
-            {
+        actions: list[dict] = []
+        for opt in self._rest_options:
+            if not opt.enabled:
+                continue
+            if opt.option_id == "MEND":
+                for target in self._run_state.players:
+                    if target is self._run_state.player:
+                        continue
+                    actions.append({
+                        "action": "rest_option",
+                        "option_id": opt.option_id,
+                        "target_player_id": target.player_id,
+                        "label": opt.label,
+                        "enabled": opt.enabled,
+                        "description": opt.description,
+                    })
+                continue
+            actions.append({
                 "action": "rest_option",
                 "option_id": opt.option_id,
                 "label": opt.label,
                 "enabled": opt.enabled,
                 "description": opt.description,
-            }
-            for opt in self._rest_options
-            if opt.enabled
-        ]
+            })
+        return actions
 
     def _actions_event(self) -> list[dict]:
         if self._event_model is not None and self._event_model.pending_choice is not None:
@@ -1582,7 +1596,7 @@ class RunManager:
 
         description = "Rested."
         if chosen is not None:
-            result_str = chosen.execute(player)
+            result_str = chosen.execute(player, **action)
             description = result_str
 
         disable_remaining = True

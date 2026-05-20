@@ -2,7 +2,7 @@
 
 from sts2_env.core.enums import RoomType
 from sts2_env.run.run_manager import RunManager
-from sts2_env.run.run_state import RunState
+from sts2_env.run.run_state import PlayerState, RunState
 from sts2_env.run.rest_site import generate_rest_site_options
 
 
@@ -102,3 +102,70 @@ def test_rest_site_relic_options_come_from_hooks_without_relic_id_list():
     options = generate_rest_site_options(run_state.player)
 
     assert any(option.option_id == "DIG" for option in options)
+
+
+def test_multiplayer_rest_site_includes_mend_option():
+    run_state = RunState(seed=209, character_id="Ironclad")
+    run_state.add_player(PlayerState(player_id=2, character_id="Silent"))
+
+    options = generate_rest_site_options(run_state.player)
+
+    assert any(option.option_id == "MEND" for option in options)
+
+
+def test_mend_option_heals_selected_ally():
+    mgr = RunManager(seed=210, character_id="Ironclad")
+    ally = mgr.run_state.add_player(PlayerState(player_id=2, character_id="Silent", max_hp=60, current_hp=30))
+    mgr._enter_rest_site()
+
+    result = mgr._do_rest_site({"option_id": "MEND", "target_player_id": 2})
+
+    assert result["description"] == "Mended 18 HP"
+    assert ally.current_hp == 48
+
+
+def test_mend_rest_action_exposes_target_player_id():
+    mgr = RunManager(seed=212, character_id="Ironclad")
+    mgr.run_state.add_player(PlayerState(player_id=2, character_id="Silent", max_hp=60, current_hp=30))
+    mgr._enter_rest_site()
+
+    actions = mgr.get_available_actions()
+
+    assert any(
+        action["option_id"] == "MEND" and action["target_player_id"] == 2
+        for action in actions
+    )
+
+
+def test_mend_option_rejects_self_target():
+    mgr = RunManager(seed=213, character_id="Ironclad")
+    ally = mgr.run_state.add_player(PlayerState(player_id=2, character_id="Silent", max_hp=60, current_hp=30))
+    mgr._enter_rest_site()
+
+    result = mgr._do_rest_site({"option_id": "MEND", "target_player_id": 1})
+
+    assert result["description"] == "No ally mended"
+    assert ally.current_hp == 30
+
+
+def test_mend_option_requires_target_player_id():
+    mgr = RunManager(seed=214, character_id="Ironclad")
+    ally = mgr.run_state.add_player(PlayerState(player_id=2, character_id="Silent", max_hp=60, current_hp=30))
+    mgr._enter_rest_site()
+
+    result = mgr._do_rest_site({"option_id": "MEND"})
+
+    assert result["description"] == "No ally mended"
+    assert ally.current_hp == 30
+
+
+def test_mend_does_not_trigger_rest_heal_rewards():
+    mgr = RunManager(seed=211, character_id="Ironclad")
+    assert mgr.run_state.player.obtain_relic("DREAM_CATCHER")
+    mgr.run_state.add_player(PlayerState(player_id=2, character_id="Silent", max_hp=60, current_hp=30))
+    mgr._enter_rest_site()
+
+    result = mgr._do_rest_site({"option_id": "MEND", "target_player_id": 2})
+
+    assert result["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert mgr.run_state.pending_rewards == []
