@@ -1108,40 +1108,6 @@ def create_knowledge_demon(rng: Rng) -> tuple[Creature, MonsterAI]:
     )
     disintegration_damage_values = (6, 7, 8)
 
-    def apply_knowledge_curse(combat: CombatState, target: Creature, card) -> None:
-        if card.card_id == CardId.DISINTEGRATION:
-            combat.apply_power_to(
-                target,
-                PowerId.DISINTEGRATION,
-                card.effect_vars.get("disintegration_power", 6),
-                applier=creature,
-                source=card,
-            )
-        elif card.card_id == CardId.MIND_ROT:
-            combat.apply_power_to(
-                target,
-                PowerId.MIND_ROT,
-                card.effect_vars.get("mind_rot_power", 1),
-                applier=creature,
-                source=card,
-            )
-        elif card.card_id == CardId.SLOTH_STATUS:
-            combat.apply_power_to(
-                target,
-                PowerId.SLOTH,
-                card.effect_vars.get("sloth_power", 3),
-                applier=creature,
-                source=card,
-            )
-        elif card.card_id == CardId.WASTE_AWAY:
-            combat.apply_power_to(
-                target,
-                PowerId.WASTE_AWAY,
-                card.effect_vars.get("waste_away_power", 1),
-                applier=creature,
-                source=card,
-            )
-
     def request_knowledge_choice(combat: CombatState, targets: list[Creature], index: int) -> None:
         if index >= len(targets):
             _state["curse_counter"] += 1
@@ -1156,7 +1122,7 @@ def create_knowledge_demon(rng: Rng) -> tuple[Creature, MonsterAI]:
 
         def resolver(selected) -> None:
             if selected is not None:
-                apply_knowledge_curse(combat, target, selected)
+                selected.on_chosen(combat)
             request_knowledge_choice(combat, targets, index + 1)
 
         combat.request_card_choice(

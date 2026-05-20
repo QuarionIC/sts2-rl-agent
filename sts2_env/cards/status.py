@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage, new_card_instance_id
 from sts2_env.cards.factory import create_character_cards
-from sts2_env.cards.registry import register_effect, register_rest_site_options_hook
+from sts2_env.cards.registry import register_chosen_hook, register_effect, register_rest_site_options_hook
 from sts2_env.core.enums import (
     CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId,
 )
@@ -1316,9 +1316,20 @@ def toxic_effect(card: CardInstance, combat: CombatState, target: Creature | Non
 
 @register_effect(CardId.DISINTEGRATION)
 def disintegration_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    """When chosen by Knowledge Demon, applies DisintegrationPower(6).
-    The OnChosen trigger is handled outside the play-effect path."""
+    """Unplayable Knowledge Demon status card."""
     pass
+
+
+@register_chosen_hook(CardId.DISINTEGRATION)
+def disintegration_chosen(card: CardInstance, combat: CombatState) -> None:
+    owner = _owner(card, combat)
+    combat.apply_power_to(
+        owner,
+        PowerId.DISINTEGRATION,
+        card.effect_vars["disintegration_power"],
+        applier=owner,
+        source=card,
+    )
 
 
 @register_effect(CardId.INFECTION)
@@ -1330,23 +1341,56 @@ def infection_effect(card: CardInstance, combat: CombatState, target: Creature |
 
 @register_effect(CardId.MIND_ROT)
 def mind_rot_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    """When chosen by Knowledge Demon, applies MindRotPower(1).
-    The OnChosen trigger is handled outside the play-effect path."""
+    """Unplayable Knowledge Demon status card."""
     pass
+
+
+@register_chosen_hook(CardId.MIND_ROT)
+def mind_rot_chosen(card: CardInstance, combat: CombatState) -> None:
+    owner = _owner(card, combat)
+    combat.apply_power_to(
+        owner,
+        PowerId.MIND_ROT,
+        card.effect_vars["mind_rot_power"],
+        applier=owner,
+        source=card,
+    )
 
 
 @register_effect(CardId.SLOTH_STATUS)
 def sloth_status_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    """When chosen by Knowledge Demon, applies SlothPower(3).
-    The OnChosen trigger is handled outside the play-effect path."""
+    """Unplayable Knowledge Demon status card."""
     pass
+
+
+@register_chosen_hook(CardId.SLOTH_STATUS)
+def sloth_status_chosen(card: CardInstance, combat: CombatState) -> None:
+    owner = _owner(card, combat)
+    combat.apply_power_to(
+        owner,
+        PowerId.SLOTH,
+        card.effect_vars["sloth_power"],
+        applier=owner,
+        source=card,
+    )
 
 
 @register_effect(CardId.WASTE_AWAY)
 def waste_away_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    """When chosen by Knowledge Demon, applies WasteAwayPower(1).
-    The OnChosen trigger is handled outside the play-effect path."""
+    """Unplayable Knowledge Demon status card."""
     pass
+
+
+@register_chosen_hook(CardId.WASTE_AWAY)
+def waste_away_chosen(card: CardInstance, combat: CombatState) -> None:
+    owner = _owner(card, combat)
+    combat.apply_power_to(
+        owner,
+        PowerId.WASTE_AWAY,
+        card.effect_vars["waste_away_power"],
+        applier=owner,
+        source=card,
+    )
 
 
 # ---------------------------------------------------------------------------

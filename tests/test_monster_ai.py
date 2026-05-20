@@ -5,6 +5,7 @@ import pytest
 from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck, make_battle_trance, make_thunderclap
 from sts2_env.cards.ironclad_basic import make_strike_ironclad
+from sts2_env.cards.status import make_disintegration
 from sts2_env.core.combat import CombatState
 from sts2_env.core.damage import apply_damage
 from sts2_env.core.enums import CardId, CombatSide, PowerId, RoomType, ValueProp
@@ -528,9 +529,55 @@ class TestFixedRotation:
 
         assert combat.pending_choice is None
         assert combat.primary_player.get_power_amount(PowerId.MIND_ROT) == 1
+        assert combat.primary_player.powers[PowerId.MIND_ROT].applier is combat.primary_player
         assert combat.current_side == CombatSide.PLAYER
         assert combat.round_number == 2
         assert ai.current_move.state_id == "SLAP_MOVE"
+
+    def test_knowledge_demon_selected_status_uses_card_chosen_hook(self):
+        combat = CombatState(
+            player_hp=250,
+            player_max_hp=250,
+            deck=create_ironclad_starter_deck(),
+            rng_seed=13,
+            character_id="Ironclad",
+        )
+        creature, ai = create_knowledge_demon(Rng(13))
+        combat.add_enemy(creature, ai)
+        combat.start_combat()
+
+        combat.end_player_turn()
+
+        selected = combat.pending_choice.options[0].card
+        assert selected.card_id == CardId.DISINTEGRATION
+        assert combat.resolve_pending_choice(0)
+
+        power = combat.primary_player.powers[PowerId.DISINTEGRATION]
+        assert power.amount == 6
+        assert power.applier is combat.primary_player
+
+    def test_knowledge_demon_status_chosen_hook_records_player_as_applier(self):
+        combat = CombatState(
+            player_hp=250,
+            player_max_hp=250,
+            deck=create_ironclad_starter_deck(),
+            rng_seed=14,
+            character_id="Ironclad",
+        )
+        card = make_disintegration()
+        card.owner = combat.primary_player
+        card.effect_vars["disintegration_power"] = 8
+
+        card.on_chosen(combat)
+
+        power = combat.primary_player.powers[PowerId.DISINTEGRATION]
+        assert power.amount == 8
+        assert power.applier is combat.primary_player
+        assert combat.was_power_applied_this_turn(
+            PowerId.DISINTEGRATION,
+            applier=combat.primary_player,
+            target=combat.primary_player,
+        )
 
     def test_knowledge_demon_curse_sets_and_disintegration_scaling_match_original_cycle(self):
         combat = CombatState(

@@ -455,6 +455,11 @@ class CardInstance:
         """Card lifecycle hook fired after a forge increases this card's damage."""
         return
 
+    def on_chosen(self, combat: object) -> None:
+        from sts2_env.cards.registry import fire_card_chosen
+
+        fire_card_chosen(self, combat)
+
     def modify_rest_site_options(
         self,
         owner: object,
