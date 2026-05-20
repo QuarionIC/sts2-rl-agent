@@ -528,6 +528,17 @@ class TestStatusParityExtra:
         assert blocked.current_hp == 100
         assert hittable.current_hp == 96
 
+    def test_shiv_fan_of_knives_does_not_require_target_selection(self):
+        combat = _make_combat(extra_enemies=1)
+        for enemy in combat.enemies:
+            enemy.current_hp = enemy.max_hp = 100
+        combat.apply_power_to(combat.player, PowerId.FAN_OF_KNIVES, 1)
+        combat.hand = [make_shiv()]
+        combat.energy = 0
+
+        assert combat.play_card(0)
+        assert [enemy.current_hp for enemy in combat.enemies] == [96, 96]
+
     def test_sovereign_blade_seeking_edge_hits_only_hittable_enemies(self):
         combat = _make_combat(extra_enemies=1)
         blocked, hittable = combat.enemies
@@ -542,3 +553,15 @@ class TestStatusParityExtra:
         assert combat.play_card(0, 0)
         assert blocked.current_hp == 100
         assert hittable.current_hp == 90
+
+    def test_sovereign_blade_seeking_edge_does_not_require_target_selection(self):
+        combat = _make_combat(extra_enemies=1)
+        for enemy in combat.enemies:
+            enemy.current_hp = enemy.max_hp = 100
+        combat.apply_power_to(combat.player, PowerId.SEEKING_EDGE, 1)
+        blade = make_sovereign_blade()
+        combat.hand = [blade]
+        combat.energy = blade.cost
+
+        assert combat.play_card(0)
+        assert [enemy.current_hp for enemy in combat.enemies] == [90, 90]

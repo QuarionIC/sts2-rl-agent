@@ -905,10 +905,11 @@ class RunManager:
                     "card_id": card.card_id.name,
                     "cost": card.cost,
                 }
-                if card.target_type.name in {"ANY_ENEMY", "ANY_ALLY"}:
+                target_type = card.target_type_for(selected_state.creature)
+                if target_type.name in {"ANY_ENEMY", "ANY_ALLY"}:
                     targets = (
                         combat.enemies
-                        if card.target_type.name == "ANY_ENEMY"
+                        if target_type.name == "ANY_ENEMY"
                         else combat.get_player_allies_of(selected_state.creature)
                     )
                     for j, creature in enumerate(targets):

@@ -1188,7 +1188,8 @@ class CombatState:
             return False
         if any(not hand_card.allows_hand_card_play(card, owner_state, self, owner) for hand_card in owner_state.hand):
             return False
-        if card.target_type == TargetType.ANY_ALLY and not self.get_player_allies_of(owner):
+        target_type = card.target_type_for(owner)
+        if target_type == TargetType.ANY_ALLY and not self.get_player_allies_of(owner):
             return False
         if self.modified_star_cost(owner, card) > owner_state.stars:
             return False
@@ -1302,8 +1303,9 @@ class CombatState:
         if not self.can_play_card(card):
             return False
 
+        target_type = card.target_type_for(owner)
         target = self._resolve_target(card, target_index)
-        if card.target_type == TargetType.ANY_ENEMY and target is None:
+        if target_type == TargetType.ANY_ENEMY and target is None:
             return False
 
         owner_state.hand.pop(hand_index)
@@ -1959,23 +1961,24 @@ class CombatState:
 
     def _resolve_target(self, card: CardInstance, target_index: int | None) -> Creature | None:
         owner = getattr(card, "owner", None) or self.player
-        if card.target_type in (TargetType.SELF, TargetType.NONE):
+        target_type = card.target_type_for(owner)
+        if target_type in (TargetType.SELF, TargetType.NONE):
             return owner
-        if card.target_type == TargetType.ALL_ENEMIES:
+        if target_type == TargetType.ALL_ENEMIES:
             return None
-        if card.target_type == TargetType.ALL_ALLIES:
+        if target_type == TargetType.ALL_ALLIES:
             return None
-        if card.target_type == TargetType.RANDOM_ENEMY:
+        if target_type == TargetType.RANDOM_ENEMY:
             alive = self.hittable_enemies
             return self.combat_targets_rng.choice(alive) if alive else None
-        if card.target_type == TargetType.ANY_ENEMY:
+        if target_type == TargetType.ANY_ENEMY:
             if target_index is not None and 0 <= target_index < len(self.enemies):
                 enemy = self.enemies[target_index]
                 if self.can_hit_creature(enemy):
                     return enemy
             alive = self.hittable_enemies
             return alive[0] if alive else None
-        if card.target_type == TargetType.ANY_ALLY:
+        if target_type == TargetType.ANY_ALLY:
             allies = self.get_player_allies_of(owner)
             if target_index is not None and 0 <= target_index < len(allies):
                 return allies[target_index]
@@ -3447,11 +3450,12 @@ class CombatState:
 
         owner = getattr(card, "owner", None) or self.player
         self._remove_card_from_piles(card)
+        target_type = card.target_type_for(owner)
         resolved_target = target if target is not None else self._resolve_target(card, None)
-        if card.target_type == TargetType.ANY_ENEMY and resolved_target is None:
+        if target_type == TargetType.ANY_ENEMY and resolved_target is None:
             self._zones_for_creature(owner)["discard"].append(card)
             return False
-        if card.target_type == TargetType.ANY_ALLY and resolved_target is None:
+        if target_type == TargetType.ANY_ALLY and resolved_target is None:
             self._zones_for_creature(owner)["discard"].append(card)
             return False
         self._execute_card_play(card, resolved_target, spend_energy=False, force_exhaust=force_exhaust)

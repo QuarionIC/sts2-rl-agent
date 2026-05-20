@@ -9,7 +9,7 @@ from sts2_env.core.card_pools import (
     SHARED_CARD_POOLS_BY_ID,
     CardPoolId,
 )
-from sts2_env.core.enums import CardId, CardTag, CardType, TargetType, CardRarity, OrbEvokeType
+from sts2_env.core.enums import CardId, CardTag, CardType, TargetType, CardRarity, OrbEvokeType, PowerId
 
 
 _TAG_ALIASES = {
@@ -250,6 +250,13 @@ class CardInstance:
         if self.card_id == CardId.NORMALITY:
             return combat.count_card_play_starts_this_turn(owner) < self.effect_vars["calc_base"]
         return True
+
+    def target_type_for(self, owner: object) -> TargetType:
+        if self.card_id == CardId.SHIV and owner.get_power_amount(PowerId.FAN_OF_KNIVES) > 0:
+            return TargetType.ALL_ENEMIES
+        if self.card_id == CardId.SOVEREIGN_BLADE and owner.has_power(PowerId.SEEKING_EDGE):
+            return TargetType.ALL_ENEMIES
+        return self.target_type
 
     @property
     def is_status(self) -> bool:

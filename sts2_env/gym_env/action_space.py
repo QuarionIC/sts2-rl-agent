@@ -87,13 +87,14 @@ def get_action_mask(combat: CombatState, owner: Creature | None = None) -> np.nd
         if not combat.can_play_card(card):
             continue
 
-        if card.target_type in (TargetType.SELF, TargetType.NONE, TargetType.ALL_ENEMIES, TargetType.ALL_ALLIES):
+        target_type = card.target_type_for(acting_owner)
+        if target_type in (TargetType.SELF, TargetType.NONE, TargetType.ALL_ENEMIES, TargetType.ALL_ALLIES):
             mask[1 + i] = 1
-        elif card.target_type in (TargetType.ANY_ENEMY, TargetType.RANDOM_ENEMY):
+        elif target_type in (TargetType.ANY_ENEMY, TargetType.RANDOM_ENEMY):
             for j in range(min(len(combat.enemies), MAX_ENEMIES)):
                 if combat.enemies[j].is_alive:
                     mask[1 + MAX_HAND_SIZE + i * MAX_ENEMIES + j] = 1
-        elif card.target_type == TargetType.ANY_ALLY:
+        elif target_type == TargetType.ANY_ALLY:
             allies = combat.get_player_allies_of(acting_owner)
             for j in range(min(len(allies), MAX_ENEMIES)):
                 mask[1 + MAX_HAND_SIZE + i * MAX_ENEMIES + j] = 1

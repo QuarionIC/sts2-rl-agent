@@ -3567,12 +3567,13 @@ class WhisperingEarring(RelicInstance):
         return energy + self.ENERGY
 
     def _target_for_autoplay(self, owner: Creature, card: CardInstance, combat: CombatState) -> Creature | None:
-        if card.target_type == TargetType.ANY_ENEMY:
+        target_type = card.target_type_for(owner)
+        if target_type == TargetType.ANY_ENEMY:
             return combat.hittable_enemies[0] if combat.hittable_enemies else None
-        if card.target_type == TargetType.ANY_ALLY:
+        if target_type == TargetType.ANY_ALLY:
             allies = combat.get_player_allies_of(owner)
             return combat.combat_targets_rng.choice(allies) if allies else None
-        if card.target_type == TargetType.SELF:
+        if target_type == TargetType.SELF:
             return owner
         return None
 
@@ -3608,9 +3609,10 @@ class WhisperingEarring(RelicInstance):
                 if playable is None:
                     return
                 target = self._target_for_autoplay(owner, playable, combat)
-                if playable.target_type == TargetType.ANY_ENEMY and target is None:
+                target_type = playable.target_type_for(owner)
+                if target_type == TargetType.ANY_ENEMY and target is None:
                     return
-                if playable.target_type == TargetType.ANY_ALLY and target is None:
+                if target_type == TargetType.ANY_ALLY and target is None:
                     return
                 combat._remove_card_from_piles(playable)
                 combat._execute_card_play(playable, target, spend_energy=True, is_auto_play=True)
