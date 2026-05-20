@@ -73,6 +73,7 @@ SNECKO_OIL_DRAW_COUNT = 7
 SNECKO_OIL_MIN_COST = 0
 SNECKO_OIL_MAX_COST = 3
 SOLDIERS_STEW_REPLAY_GAIN = 1
+BOTTLED_POTENTIAL_DRAW_COUNT = 5
 
 
 def _source_card_order(card) -> tuple[int, str]:
@@ -465,11 +466,18 @@ def _beetle_juice(combat: CombatState, user: Creature, target: Creature | None) 
 
 def _bottled_potential(combat: CombatState, user: Creature, target: Creature | None) -> None:
     """Put hand into draw pile, shuffle, then draw 5."""
-    cards_in_hand = list(combat.hand)
-    combat.hand.clear()
-    combat.draw_pile.extend(cards_in_hand)
-    combat.shuffle_rng.shuffle(combat.draw_pile)
-    combat._draw_cards(5)  # noqa: SLF001
+    t = target if target is not None else user
+    user_state = combat.combat_player_state_for(user)
+    if user_state is None:
+        return
+    cards_in_hand = list(user_state.hand)
+    user_state.hand.clear()
+    user_state.draw.extend(cards_in_hand)
+    target_state = combat.combat_player_state_for(t)
+    if target_state is None:
+        return
+    combat.shuffle_rng.shuffle(target_state.draw)
+    combat.draw_cards(t, BOTTLED_POTENTIAL_DRAW_COUNT)
 
 
 def _cosmic_concoction(combat: CombatState, user: Creature, target: Creature | None) -> None:

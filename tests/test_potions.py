@@ -100,6 +100,7 @@ RADIANT_TINCTURE_ENERGY_GAIN = 1
 RADIANT_TINCTURE_RADIANCE = 3
 SNECKO_OIL_DRAW_COUNT = 7
 SOLDIERS_STEW_REPLAY_GAIN = 1
+BOTTLED_POTENTIAL_DRAW_COUNT = 5
 
 
 class TestPotionRegistry:
@@ -754,6 +755,29 @@ class TestPotionInstance:
         assert len(combat.hand) == 5
         assert {id(card) for card in combat.hand} == {id(card) for card in hand_cards + draw_cards}
         assert combat.draw_pile == []
+
+    def test_bottled_potential_moves_owner_hand_but_draws_target_player_like_reference(self):
+        combat = _make_silent_combat()
+        ally = combat.add_ally_player(PlayerState(player_id=2, character_id="Silent", max_hp=70, current_hp=70))
+        ally_state = combat.combat_player_state_for(ally)
+        assert ally_state is not None
+        owner_hand = [make_strike_silent(), make_strike_silent()]
+        owner_draw = make_neutralize()
+        target_draw_cards = [make_defend_silent() for _ in range(BOTTLED_POTENTIAL_DRAW_COUNT)]
+        combat.hand = list(owner_hand)
+        combat.draw_pile = [owner_draw]
+        ally_state.hand = []
+        ally_state.draw = list(target_draw_cards)
+        ally_state.zone_map["hand"] = ally_state.hand
+        ally_state.zone_map["draw"] = ally_state.draw
+        combat.potions = [create_potion("BottledPotential"), None, None]
+
+        assert combat.use_potion(0, target_index=FIRST_ALLY_PLAYER_TARGET_INDEX)
+
+        assert combat.hand == []
+        assert {id(card) for card in combat.draw_pile} == {id(card) for card in owner_hand + [owner_draw]}
+        assert {id(card) for card in ally_state.hand} == {id(card) for card in target_draw_cards}
+        assert ally_state.draw == []
 
     def test_bone_brew_summons_osty_with_source_value(self):
         combat = _make_combat_for_character("Necrobinder", create_necrobinder_starter_deck())
