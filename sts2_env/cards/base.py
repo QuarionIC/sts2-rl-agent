@@ -134,6 +134,20 @@ def reference_has_custom_should_play(card_id: CardId) -> bool:
     return metadata.has_custom_should_play if metadata is not None else False
 
 
+def reference_has_custom_card_type(card_id: CardId) -> bool:
+    from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+
+    metadata = reference_metadata_by_card_id().get(card_id)
+    return metadata.has_custom_card_type if metadata is not None else False
+
+
+def reference_has_custom_target_type(card_id: CardId) -> bool:
+    from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+
+    metadata = reference_metadata_by_card_id().get(card_id)
+    return metadata.has_custom_target_type if metadata is not None else False
+
+
 def reference_canonical_tags(card_id: CardId) -> frozenset[CardTag]:
     from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
 
@@ -232,6 +246,14 @@ class CardInstance:
     def has_custom_should_play(self) -> bool:
         return reference_has_custom_should_play(self.card_id)
 
+    @property
+    def has_custom_card_type(self) -> bool:
+        return reference_has_custom_card_type(self.card_id)
+
+    @property
+    def has_custom_target_type(self) -> bool:
+        return reference_has_custom_target_type(self.card_id)
+
     def is_playable_by_card_logic(self, owner_state: object, combat: object, owner: object) -> bool:
         if self.card_id == CardId.CLASH:
             return all(hand_card.card_type == CardType.ATTACK for hand_card in owner_state.hand)
@@ -252,6 +274,8 @@ class CardInstance:
         return True
 
     def target_type_for(self, owner: object) -> TargetType:
+        if self.card_id == CardId.MAD_SCIENCE and self.card_type != CardType.ATTACK:
+            return TargetType.SELF
         if self.card_id == CardId.SHIV and owner.get_power_amount(PowerId.FAN_OF_KNIVES) > 0:
             return TargetType.ALL_ENEMIES
         if self.card_id == CardId.SOVEREIGN_BLADE and owner.has_power(PowerId.SEEKING_EDGE):

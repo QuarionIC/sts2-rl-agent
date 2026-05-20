@@ -272,7 +272,6 @@ class TestStatusParityExtra:
         combat = _make_combat()
         card = make_mad_science()
         card.card_type = CardType.SKILL
-        card.target_type = TargetType.SELF
         card.base_damage = None
         card.base_block = 8
         card.effect_vars["rider"] = 6
@@ -285,6 +284,19 @@ class TestStatusParityExtra:
         generated = next(hand_card for hand_card in combat.hand if hand_card is not card)
         assert generated.card_id is not CardId.STRIKE_IRONCLAD
         assert generated.cost == 0
+
+    def test_mad_science_power_type_does_not_require_target_selection(self):
+        combat = _make_combat()
+        card = make_mad_science()
+        card.card_type = CardType.POWER
+        card.base_damage = None
+        card.effect_vars["rider"] = 7
+        combat.hand = [card]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == 2
+        assert combat.player.get_power_amount(PowerId.DEXTERITY) == 2
 
     def test_distraction_uses_combat_generation_pool(self):
         combat = _make_combat()

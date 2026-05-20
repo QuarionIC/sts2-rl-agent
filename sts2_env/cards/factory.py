@@ -158,6 +158,8 @@ class CardMetadata:
     should_show_in_card_library: bool
     has_custom_playability: bool
     has_custom_should_play: bool
+    has_custom_card_type: bool
+    has_custom_target_type: bool
     multiplayer_constraint: str
 
 
@@ -495,6 +497,8 @@ def card_metadata(card_id: CardId) -> CardMetadata:
         should_show_in_card_library=card.should_show_in_card_library,
         has_custom_playability=card.has_custom_playability,
         has_custom_should_play=card.has_custom_should_play,
+        has_custom_card_type=card.has_custom_card_type,
+        has_custom_target_type=card.has_custom_target_type,
         multiplayer_constraint=(
             _static_metadata_override(card_id).multiplayer_constraint
             if _static_metadata_override(card_id) is not None

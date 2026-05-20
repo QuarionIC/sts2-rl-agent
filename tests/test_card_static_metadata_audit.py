@@ -54,6 +54,20 @@ def test_custom_should_play_matches_decompiled_card_properties() -> None:
     assert actual_card_ids == expected_card_ids
 
 
+def test_custom_card_type_matches_decompiled_card_properties() -> None:
+    references = reference_metadata_by_card_id()
+    expected_card_ids = {card_id for card_id, reference in references.items() if reference.has_custom_card_type}
+    actual_card_ids = {card_id for card_id in references if create_card(card_id).has_custom_card_type}
+    assert actual_card_ids == expected_card_ids
+
+
+def test_custom_target_type_matches_decompiled_card_properties() -> None:
+    references = reference_metadata_by_card_id()
+    expected_card_ids = {card_id for card_id, reference in references.items() if reference.has_custom_target_type}
+    actual_card_ids = {card_id for card_id in references if create_card(card_id).has_custom_target_type}
+    assert actual_card_ids == expected_card_ids
+
+
 def test_card_instances_inherit_decompiled_canonical_tags() -> None:
     fetch = CardInstance(CardId.FETCH, 1, CardType.ATTACK, TargetType.ANY_ENEMY)
     sic_em = CardInstance(CardId.SIC_EM, 1, CardType.SKILL, TargetType.ANY_ENEMY)
