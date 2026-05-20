@@ -15,9 +15,21 @@ The detailed backlog sections below were captured as the pre-pass baseline. Afte
 
 | Surface | Total | Directly Covered | Gap | Coverage |
 | --- | ---: | ---: | ---: | ---: |
-| Cards | 578 | 231 | 347 | 40.0% |
+| Cards | 578 | 234 | 344 | 40.5% |
 | Relics | 289 | 206 | 83 | 71.3% |
 | Events | 68 | 68 | 0 | 100.0% |
+
+Latest local pass also added direct coverage for:
+
+- Cards: `DEATHS_DOOR`, `NEUROSURGE`, `SENTRY_MODE`
+
+This pass also exposed and fixed the following logic mismatches:
+
+- `DeathsDoor`: reference-backed cards now expose the `Repeat` value through the effect field used by the Python implementation, so the repeat count is no longer an implicit fallback.
+- `Neurosurge`: `NeurosurgePower` now maps into the effect field used by the Python implementation, so upgraded cards keep the original 3-power amount while only increasing energy.
+- `SentryMode`: `SentryModePower` now maps into the effect field used by the Python implementation, so upgraded cards keep the original 1-power amount while only reducing cost.
+
+The same pass added `scripts/audit_card_effect_vars.py`, which checks that card effects do not read `effect_vars` keys absent from the base or upgraded factory output.
 
 Latest local pass also added direct coverage for:
 
@@ -291,16 +303,16 @@ STRIKE_REGENT, SUPERMASSIVE, SWORD_SAGE, TERRAFORMING, THE_SEALED_THRONE,
 TYRANNY_CARD, VENERATE
 ```
 
-#### `sts2_env.cards.necrobinder` (58)
+#### `sts2_env.cards.necrobinder` (55)
 
 ```text
 BANSHEES_CRY, BLIGHT_STRIKE, BURY, CALCIFY_CARD, CALL_OF_THE_VOID,
-DEATHBRINGER, DEATHS_DOOR, DEBILITATE_CARD, DEFEND_NECROBINDER, DEFILE, DEFY,
+DEATHBRINGER, DEBILITATE_CARD, DEFEND_NECROBINDER, DEFILE, DEFY,
 DELAY, DEMESNE, DEVOUR_LIFE_CARD, ENFEEBLING_TOUCH, ERADICATE, FEAR, FETCH,
 FLATTEN, FORBIDDEN_GRIMOIRE, FRIENDSHIP, GRAVEBLAST, HANG, HAUNT, INVOKE,
-LETHALITY_CARD, MELANCHOLY, MISERY, NEGATIVE_PULSE, NEUROSURGE, NO_ESCAPE,
+LETHALITY_CARD, MELANCHOLY, MISERY, NEGATIVE_PULSE, NO_ESCAPE,
 OBLIVION, PAGESTORM, PARSE, POKE, PULL_FROM_BELOW, PUTREFY, REAP,
-REAPER_FORM, REAVE, RIGHT_HAND_HAND, SCOURGE, SCULPTING_STRIKE, SENTRY_MODE,
+REAPER_FORM, REAVE, RIGHT_HAND_HAND, SCOURGE, SCULPTING_STRIKE,
 SHARED_FATE, SHROUD, SIC_EM, SLEIGHT_OF_FLESH, SNAP, SOW, SPIRIT_OF_ASH,
 SQUEEZE, STRIKE_NECROBINDER, THE_SCYTHE, TIMES_UP, UNLEASH, VEILPIERCER, WISP
 ```
@@ -579,18 +591,18 @@ SWORD_SAGE, TERRAFORMING, THE_SEALED_THRONE, TYRANNY_CARD, VENERATE
 
 ### `sts2_env.cards.necrobinder`
 
-- Covered: `25 / 88`
-- Missing direct parity proof: `63 / 88`
+- Covered: `28 / 88`
+- Missing direct parity proof: `60 / 88`
 
 ```text
 BANSHEES_CRY, BLIGHT_STRIKE, BURY, CALCIFY_CARD, CALL_OF_THE_VOID,
-DEATHBRINGER, DEATHS_DOOR, DEBILITATE_CARD, DEFEND_NECROBINDER, DEFILE, DEFY,
+DEATHBRINGER, DEBILITATE_CARD, DEFEND_NECROBINDER, DEFILE, DEFY,
 DELAY, DEMESNE, DEVOUR_LIFE_CARD, DRAIN_POWER, END_OF_DAYS,
 ENFEEBLING_TOUCH, ERADICATE, FEAR, FETCH, FLATTEN, FORBIDDEN_GRIMOIRE,
 FRIENDSHIP, GLIMPSE_BEYOND, GRAVEBLAST, HANG, HAUNT, INVOKE, LETHALITY_CARD,
-MELANCHOLY, MISERY, NEGATIVE_PULSE, NEUROSURGE, NO_ESCAPE, OBLIVION,
+MELANCHOLY, MISERY, NEGATIVE_PULSE, NO_ESCAPE, OBLIVION,
 PAGESTORM, PARSE, POKE, PULL_FROM_BELOW, PUTREFY, REAP, REAPER_FORM, REAVE,
-RIGHT_HAND_HAND, SCOURGE, SCULPTING_STRIKE, SENTRY_MODE, SEVERANCE,
+RIGHT_HAND_HAND, SCOURGE, SCULPTING_STRIKE, SEVERANCE,
 SHARED_FATE, SHROUD, SIC_EM, SLEIGHT_OF_FLESH, SNAP, SOUL_STORM, SOW,
 SPIRIT_OF_ASH, SQUEEZE, STRIKE_NECROBINDER, THE_SCYTHE, TIMES_UP, UNLEASH,
 VEILPIERCER, WISP

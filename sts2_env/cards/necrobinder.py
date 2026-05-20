@@ -17,6 +17,9 @@ from sts2_env.core.creature import Creature, get_power_class
 from sts2_env.core.combat import CombatState
 
 
+DEATHS_DOOR_REPEAT = 2
+
+
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
     return (
         getattr(card, "owner", None)
@@ -427,7 +430,7 @@ def deaths_door(card: CardInstance, combat: CombatState, target: Creature | None
     repeats = 1
     owner = _owner(card, combat)
     if combat.was_power_applied_this_turn(PowerId.DOOM, applier=owner):
-        repeats += card.effect_vars.get("repeat", 2)
+        repeats += card.effect_vars.get("repeat", DEATHS_DOOR_REPEAT)
     for _ in range(repeats):
         if combat.is_over:
             return
@@ -1338,6 +1341,14 @@ def make_severance(upgraded: bool = False) -> CardInstance:
         upgraded=upgraded, base_damage=18 if upgraded else 13,
         instance_id=_get_next_id(),
     )
+
+
+def make_deaths_door(upgraded: bool = False) -> CardInstance:
+    from sts2_env.cards.factory import create_reference_card
+
+    card = create_reference_card(CardId.DEATHS_DOOR, upgraded=upgraded, allow_generation=True)
+    card.effect_vars["repeat"] = DEATHS_DOOR_REPEAT
+    return card
 
 
 def make_spur(upgraded: bool = False) -> CardInstance:

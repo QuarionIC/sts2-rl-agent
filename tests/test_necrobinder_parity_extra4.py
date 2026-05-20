@@ -71,6 +71,12 @@ DEBILITATE_UPGRADED_DAMAGE = 9
 DEBILITATE_UPGRADED_POWER_AMOUNT = 4
 PARSE_DRAW_COUNT = 3
 PARSE_UPGRADED_DRAW_COUNT = 4
+DEATHS_DOOR_REPEAT = 2
+DEATHS_DOOR_BLOCK_GAIN = 6
+NEUROSURGE_POWER_AMOUNT = 3
+NEUROSURGE_UPGRADED_ENERGY = 4
+SENTRY_MODE_POWER_AMOUNT = 1
+SENTRY_MODE_UPGRADED_COST = 1
 
 
 class _CannotHitPower(PowerInstance):
@@ -437,7 +443,12 @@ class TestNecrobinderParityExtra4:
         combat.energy = 1
 
         assert combat.play_card(0)
-        assert combat.player.block == 18
+        assert combat.player.block == DEATHS_DOOR_BLOCK_GAIN * (1 + DEATHS_DOOR_REPEAT)
+
+    def test_deaths_door_factory_exposes_reference_repeat_value(self):
+        card = make_deaths_door()
+
+        assert card.effect_vars["repeat"] == DEATHS_DOOR_REPEAT
 
     def test_deaths_door_does_not_repeat_for_non_owner_doom_applier(self):
         combat = _make_combat()
@@ -447,7 +458,7 @@ class TestNecrobinderParityExtra4:
         combat.energy = 1
 
         assert combat.play_card(0)
-        assert combat.player.block == 6
+        assert combat.player.block == DEATHS_DOOR_BLOCK_GAIN
 
     def test_deaths_door_stops_repeated_block_after_combat_ends(self):
         combat = _make_combat()
@@ -460,7 +471,7 @@ class TestNecrobinderParityExtra4:
 
         assert combat.play_card(0)
         assert combat.is_over
-        assert combat.player.block == 6
+        assert combat.player.block == DEATHS_DOOR_BLOCK_GAIN
 
     def test_enfeebling_touch_applies_temporary_strength_loss_then_restores(self):
         combat = _make_combat()
@@ -581,7 +592,19 @@ class TestNecrobinderParityExtra4:
         assert combat.play_card(0)
 
         assert combat.energy == 2
-        assert combat.player.get_power_amount(PowerId.NEUROSURGE) == 3
+        assert combat.player.get_power_amount(PowerId.NEUROSURGE) == NEUROSURGE_POWER_AMOUNT
+
+    def test_neurosurge_upgrade_keeps_power_amount_and_increases_energy(self):
+        """Matches Neurosurge.cs: upgrade changes Energy only, not NeurosurgePower."""
+        combat = _make_combat()
+        combat.hand = [make_neurosurge(upgraded=True)]
+        combat.draw_pile = []
+        combat.energy = 0
+
+        assert combat.play_card(0)
+
+        assert combat.energy == NEUROSURGE_UPGRADED_ENERGY
+        assert combat.player.get_power_amount(PowerId.NEUROSURGE) == NEUROSURGE_POWER_AMOUNT
 
     def test_reaper_form_doom_uses_owner_applier_for_shroud(self):
         combat = _make_combat()
@@ -759,10 +782,22 @@ class TestNecrobinderParityExtra4:
         combat.energy = 2
 
         assert combat.play_card(0)
-        assert combat.player.get_power_amount(PowerId.SENTRY_MODE) == 1
+        assert combat.player.get_power_amount(PowerId.SENTRY_MODE) == SENTRY_MODE_POWER_AMOUNT
 
         combat.end_player_turn()
         assert any(card.card_id == CardId.SWEEPING_GAZE for card in combat.hand)
+
+    def test_sentry_mode_plus_costs_one_and_keeps_power_amount(self):
+        """Matches SentryMode.cs: upgrade changes cost only."""
+        combat = _make_combat()
+        combat.hand = [make_sentry_mode(upgraded=True)]
+        combat.energy = 1
+
+        assert combat.hand[0].cost == SENTRY_MODE_UPGRADED_COST
+        assert combat.play_card(0)
+
+        assert combat.energy == 0
+        assert combat.player.get_power_amount(PowerId.SENTRY_MODE) == SENTRY_MODE_POWER_AMOUNT
 
     def test_unleash_uses_osty_current_hp_in_damage_formula(self):
         combat = _make_combat()
