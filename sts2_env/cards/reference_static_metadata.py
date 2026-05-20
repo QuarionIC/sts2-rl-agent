@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from dataclasses import replace
 from functools import lru_cache
 from pathlib import Path
 
@@ -23,6 +24,11 @@ BASE_CONSTRUCTOR_RE = re.compile(
 ENERGY_X_RE = re.compile(r"override\s+bool\s+HasEnergyCostX\s*=>\s*true\s*;")
 STAR_X_RE = re.compile(r"override\s+bool\s+HasStarCostX\s*=>\s*true\s*;")
 STAR_COST_RE = re.compile(r"override\s+int\s+CanonicalStarCost\s*=>\s*(?P<star_cost>-?\d+)\s*;")
+ENERGY_COST_UPGRADE_RE = re.compile(
+    r"base\.EnergyCost\.UpgradeBy\((?P<delta>-?\d+(?:\.0+)?m?)\)"
+)
+ADD_KEYWORD_RE = re.compile(r"AddKeyword\(CardKeyword\.(?P<keyword>[A-Za-z]+)\)")
+REMOVE_KEYWORD_RE = re.compile(r"RemoveKeyword\(CardKeyword\.(?P<keyword>[A-Za-z]+)\)")
 CARD_KEYWORD_RE = re.compile(r"CardKeyword\.(?P<keyword>[A-Za-z]+)")
 CARD_TAG_RE = re.compile(r"CardTag\.(?P<tag>[A-Za-z]+)")
 CAMEL_WORD_BOUNDARY_RE = re.compile(r"(.)([A-Z][a-z]+)")
@@ -197,6 +203,24 @@ def reference_metadata_from_source(path: Path) -> ReferenceCardStaticMetadata:
         has_energy_cost_x=ENERGY_X_RE.search(source) is not None,
         star_cost=int(star_cost_match.group("star_cost")) if star_cost_match is not None else 0,
         has_star_cost_x=STAR_X_RE.search(source) is not None,
+    )
+
+
+def upgraded_reference_metadata_from_source(path: Path) -> ReferenceCardStaticMetadata:
+    metadata = reference_metadata_from_source(path)
+    source = path.read_text()
+    cost = metadata.cost + _energy_cost_upgrade_delta(source)
+    keywords = set(metadata.keywords)
+    body = _on_upgrade_body(source)
+    keywords.update(snake_case(keyword) for keyword in ADD_KEYWORD_RE.findall(body))
+    keywords.difference_update(snake_case(keyword) for keyword in REMOVE_KEYWORD_RE.findall(body))
+    return replace(metadata, cost=cost, keywords=frozenset(keywords))
+
+
+def _energy_cost_upgrade_delta(source: str) -> int:
+    return sum(
+        _integer_literal(match.group("delta"))
+        for match in ENERGY_COST_UPGRADE_RE.finditer(_on_upgrade_body(source))
     )
 
 
@@ -417,6 +441,17 @@ def reference_metadata_by_card_id() -> dict[CardId, ReferenceCardStaticMetadata]
         metadata.card_id: metadata
         for metadata in (
             reference_metadata_from_source(path)
+            for path in sorted((REPO_ROOT / REFERENCE_CARD_DIR).glob("*.cs"))
+        )
+    }
+
+
+@lru_cache(maxsize=1)
+def upgraded_reference_metadata_by_card_id() -> dict[CardId, ReferenceCardStaticMetadata]:
+    return {
+        metadata.card_id: metadata
+        for metadata in (
+            upgraded_reference_metadata_from_source(path)
             for path in sorted((REPO_ROOT / REFERENCE_CARD_DIR).glob("*.cs"))
         )
     }

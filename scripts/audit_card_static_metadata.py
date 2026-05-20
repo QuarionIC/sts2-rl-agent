@@ -9,7 +9,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sts2_env.cards.factory import create_card
-from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+from sts2_env.cards.reference_static_metadata import (
+    ReferenceCardStaticMetadata,
+    reference_metadata_by_card_id,
+    upgraded_reference_metadata_by_card_id,
+)
 from sts2_env.core.enums import CardId
 
 
@@ -18,10 +22,24 @@ RUNTIME_ONLY_CARD_IDS = frozenset({CardId.GENERIC})
 
 def collect_static_metadata_mismatches() -> list[str]:
     mismatches: list[str] = []
-    for reference in reference_metadata_by_card_id().values():
+    references_by_upgrade_state = {
+        False: reference_metadata_by_card_id(),
+        True: upgraded_reference_metadata_by_card_id(),
+    }
+    for upgraded, references in references_by_upgrade_state.items():
+        mismatches.extend(_collect_mismatches_for_upgrade_state(upgraded, references))
+    return mismatches
+
+
+def _collect_mismatches_for_upgrade_state(
+    upgraded: bool,
+    references: dict[CardId, ReferenceCardStaticMetadata],
+) -> list[str]:
+    mismatches: list[str] = []
+    for reference in references.values():
         if reference.card_id in RUNTIME_ONLY_CARD_IDS:
             continue
-        card = create_card(reference.card_id)
+        card = create_card(reference.card_id, upgraded=upgraded)
         expected = {
             "cost": reference.cost,
             "card_type": reference.card_type,
@@ -48,7 +66,7 @@ def collect_static_metadata_mismatches() -> list[str]:
             actual_value = actual[field_name]
             if actual_value != expected_value:
                 mismatches.append(
-                    f"{reference.card_id.name}.{field_name}: "
+                    f"{reference.card_id.name}.upgraded={upgraded}.{field_name}: "
                     f"{actual_value!r} != {expected_value!r}"
                 )
     return mismatches
