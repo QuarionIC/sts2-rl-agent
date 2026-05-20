@@ -23,11 +23,20 @@ from sts2_env.cards.defect import (
     make_fusion,
     make_glacier,
     make_glasswork,
+    make_go_for_the_eyes,
+    make_gunk_up,
+    make_hotfix,
+    make_leap,
+    make_lightning_rod,
+    make_momentum_strike,
+    make_sweeping_beam,
+    make_turbo,
+    make_uproar,
 )
 from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import CardId, OrbType, PowerId
 from sts2_env.core.rng import Rng
-from sts2_env.monsters.act1_weak import create_shrinker_beetle
+from sts2_env.monsters.act1_weak import create_shrinker_beetle, create_twig_slime_s
 from sts2_env.run.run_state import PlayerState
 
 
@@ -66,11 +75,26 @@ COOLANT_UPGRADED_POWER = 3
 CREATIVE_AI_UPGRADED_COST = 2
 CREATIVE_AI_POWER = 1
 DEFRAGMENT_UPGRADED_FOCUS = 2
+GO_FOR_THE_EYES_UPGRADED_DAMAGE = 4
+GO_FOR_THE_EYES_UPGRADED_WEAK = 2
+GUNK_UP_UPGRADED_DAMAGE = 5
+GUNK_UP_HITS = 3
+HOTFIX_UPGRADED_FOCUS = 3
+LEAP_UPGRADED_BLOCK = 12
+LIGHTNING_ROD_UPGRADED_BLOCK = 7
+LIGHTNING_ROD_POWER = 2
+MOMENTUM_STRIKE_UPGRADED_DAMAGE = 13
+MOMENTUM_STRIKE_DAMAGE = 10
+SWEEPING_BEAM_UPGRADED_DAMAGE = 9
+SWEEPING_BEAM_DRAW_COUNT = 1
+TURBO_UPGRADED_ENERGY = 3
+UPROAR_UPGRADED_DAMAGE = 7
+UPROAR_HITS = 2
 ALLY_PLAYER_ID = 2
 ALLY_PLAYER_HP = 70
 
 
-def _make_combat(*, extra_enemies: int = 0) -> CombatState:
+def _make_combat(monster_factory=create_shrinker_beetle, *, extra_enemies: int = 0) -> CombatState:
     combat = CombatState(
         player_hp=TEST_PLAYER_HP,
         player_max_hp=TEST_PLAYER_HP,
@@ -78,7 +102,7 @@ def _make_combat(*, extra_enemies: int = 0) -> CombatState:
         rng_seed=TEST_RNG_SEED,
         character_id=DEFECT_CHARACTER_ID,
     )
-    creature, ai = create_shrinker_beetle(Rng(TEST_RNG_SEED))
+    creature, ai = monster_factory(Rng(TEST_RNG_SEED))
     combat.add_enemy(creature, ai)
     for index in range(extra_enemies):
         extra_rng = Rng(EXTRA_ENEMY_RNG_SEED + index)
@@ -353,3 +377,128 @@ def test_defragment_factory_upgrade_increases_focus_amount():
     assert combat.play_card(HAND_CARD_INDEX)
 
     assert combat.player.get_power_amount(PowerId.FOCUS) == DEFRAGMENT_UPGRADED_FOCUS
+
+
+def test_go_for_the_eyes_factory_upgrade_increases_damage_and_weak():
+    combat = _make_combat(monster_factory=create_twig_slime_s)
+    enemy = combat.enemies[FIRST_ENEMY_INDEX]
+    starting_hp = enemy.current_hp
+    combat.hand = [make_go_for_the_eyes(upgraded=True)]
+    combat.energy = ZERO_COST
+
+    assert combat.play_card(HAND_CARD_INDEX, FIRST_ENEMY_INDEX)
+
+    assert enemy.current_hp == starting_hp - GO_FOR_THE_EYES_UPGRADED_DAMAGE
+    assert enemy.get_power_amount(PowerId.WEAK) == GO_FOR_THE_EYES_UPGRADED_WEAK
+
+
+def test_gunk_up_factory_upgrade_increases_each_hit_damage_and_keeps_slimed():
+    combat = _make_combat()
+    enemy = combat.enemies[FIRST_ENEMY_INDEX]
+    starting_hp = enemy.current_hp
+    combat.hand = [make_gunk_up(upgraded=True)]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX, FIRST_ENEMY_INDEX)
+
+    slimed = [card for card in combat.discard_pile if card.card_id == CardId.SLIMED]
+    assert enemy.current_hp == starting_hp - (GUNK_UP_UPGRADED_DAMAGE * GUNK_UP_HITS)
+    assert len(slimed) == 1
+    assert slimed[0].owner is combat.player
+
+
+def test_hotfix_factory_upgrade_increases_temporary_focus():
+    combat = _make_combat()
+    combat.hand = [make_hotfix(upgraded=True)]
+    combat.energy = ZERO_COST
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.get_power_amount(PowerId.FOCUS) == HOTFIX_UPGRADED_FOCUS
+    assert combat.player.get_power_amount(PowerId.HOTFIX) == HOTFIX_UPGRADED_FOCUS
+
+
+def test_leap_factory_upgrade_increases_block():
+    combat = _make_combat()
+    combat.hand = [make_leap(upgraded=True)]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.block == LEAP_UPGRADED_BLOCK
+
+
+def test_lightning_rod_factory_upgrade_increases_block_only():
+    combat = _make_combat()
+    combat.hand = [make_lightning_rod(upgraded=True)]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.block == LIGHTNING_ROD_UPGRADED_BLOCK
+    assert combat.player.get_power_amount(PowerId.LIGHTNING_ROD) == LIGHTNING_ROD_POWER
+
+
+def test_momentum_strike_factory_upgrade_increases_damage_and_sets_cost_zero():
+    combat = _make_combat()
+    enemy = combat.enemies[FIRST_ENEMY_INDEX]
+    starting_hp = enemy.current_hp
+    card = make_momentum_strike(upgraded=True)
+    combat.hand = [card]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX, FIRST_ENEMY_INDEX)
+
+    assert enemy.current_hp == starting_hp - MOMENTUM_STRIKE_UPGRADED_DAMAGE
+    assert card.cost == ZERO_COST
+
+
+def test_sweeping_beam_factory_upgrade_increases_all_enemy_damage_and_draws():
+    combat = _make_combat(extra_enemies=1)
+    enemies = list(combat.enemies)
+    starting_hp = [enemy.current_hp for enemy in enemies]
+    drawn = make_boot_sequence()
+    combat.hand = [make_sweeping_beam(upgraded=True)]
+    combat.draw_pile = [drawn]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert [enemy.current_hp for enemy in enemies] == [
+        hp - SWEEPING_BEAM_UPGRADED_DAMAGE
+        for hp in starting_hp
+    ]
+    assert combat.hand == [drawn]
+    assert len(combat.hand) == SWEEPING_BEAM_DRAW_COUNT
+
+
+def test_turbo_factory_upgrade_gains_three_energy_and_keeps_void_discard():
+    combat = _make_combat()
+    combat.hand = [make_turbo(upgraded=True)]
+    combat.energy = ZERO_COST
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    voids = [card for card in combat.discard_pile if card.card_id == CardId.VOID]
+    assert combat.energy == TURBO_UPGRADED_ENERGY
+    assert len(voids) == 1
+    assert voids[0].owner is combat.player
+
+
+def test_uproar_factory_upgrade_increases_each_hit_damage_and_autoplays_attack():
+    combat = _make_combat()
+    enemy = combat.enemies[FIRST_ENEMY_INDEX]
+    starting_hp = enemy.current_hp
+    autoplayed = make_momentum_strike()
+    combat.hand = [make_uproar(upgraded=True)]
+    combat.draw_pile = [autoplayed]
+    combat.energy = TWO_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX, FIRST_ENEMY_INDEX)
+
+    assert enemy.current_hp == (
+        starting_hp
+        - (UPROAR_UPGRADED_DAMAGE * UPROAR_HITS)
+        - MOMENTUM_STRIKE_DAMAGE
+    )
+    assert autoplayed in combat.discard_pile

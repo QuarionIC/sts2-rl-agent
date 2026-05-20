@@ -82,6 +82,36 @@ CREATIVE_AI_UPGRADED_COST = 2
 DEFRAGMENT_FOCUS_KEY = "focus_power"
 DEFRAGMENT_FOCUS = 1
 DEFRAGMENT_UPGRADED_FOCUS = 2
+GO_FOR_THE_EYES_DAMAGE = 3
+GO_FOR_THE_EYES_UPGRADED_DAMAGE = 4
+GO_FOR_THE_EYES_WEAK_KEY = "weak"
+GO_FOR_THE_EYES_WEAK = 1
+GO_FOR_THE_EYES_UPGRADED_WEAK = 2
+GUNK_UP_DAMAGE = 4
+GUNK_UP_UPGRADED_DAMAGE = 5
+GUNK_UP_HITS_KEY = "hits"
+GUNK_UP_HITS = 3
+HOTFIX_FOCUS_KEY = "focus_power"
+HOTFIX_FOCUS = 2
+HOTFIX_UPGRADED_FOCUS = 3
+LEAP_BLOCK = 9
+LEAP_UPGRADED_BLOCK = 12
+LIGHTNING_ROD_BLOCK = 4
+LIGHTNING_ROD_UPGRADED_BLOCK = 7
+LIGHTNING_ROD_POWER_KEY = "lightning_rod_power"
+LIGHTNING_ROD_POWER = 2
+MOMENTUM_STRIKE_DAMAGE = 10
+MOMENTUM_STRIKE_UPGRADED_DAMAGE = 13
+SWEEPING_BEAM_DAMAGE = 6
+SWEEPING_BEAM_UPGRADED_DAMAGE = 9
+SWEEPING_BEAM_CARDS_KEY = "cards"
+SWEEPING_BEAM_CARDS = 1
+TURBO_ENERGY_KEY = "energy"
+TURBO_ENERGY = 2
+TURBO_UPGRADED_ENERGY = 3
+UPROAR_DAMAGE = 5
+UPROAR_UPGRADED_DAMAGE = 7
+UPROAR_HITS = 2
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -363,14 +393,14 @@ def go_for_the_eyes(card: CardInstance, combat: CombatState, target: Creature | 
     dmg = calculate_damage(card.base_damage, _owner(card, combat), target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, _owner(card, combat))
     if _target_intends_to_attack(combat, target):
-        combat.apply_power_to(target, PowerId.WEAK, card.effect_vars.get("weak", 1))
+        combat.apply_power_to(target, PowerId.WEAK, card.effect_vars.get(GO_FOR_THE_EYES_WEAK_KEY, GO_FOR_THE_EYES_WEAK))
 
 
 @register_effect(CardId.GUNK_UP)
 def gunk_up(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     owner = _owner(card, combat)
-    for _ in range(card.effect_vars.get("hits", 3)):
+    for _ in range(card.effect_vars.get(GUNK_UP_HITS_KEY, GUNK_UP_HITS)):
         if owner.is_dead or target.is_dead:
             break
         dmg = calculate_damage(card.base_damage, owner, target, ValueProp.MOVE, combat)
@@ -394,7 +424,7 @@ def hologram(card: CardInstance, combat: CombatState, target: Creature | None) -
 
 @register_effect(CardId.HOTFIX)
 def hotfix(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.HOTFIX, card.effect_vars.get("focus_power", 2))
+    combat.apply_power_to(_owner(card, combat), PowerId.HOTFIX, card.effect_vars.get(HOTFIX_FOCUS_KEY, HOTFIX_FOCUS))
 
 
 @register_effect(CardId.LEAP)
@@ -407,7 +437,11 @@ def leap(card: CardInstance, combat: CombatState, target: Creature | None) -> No
 def lightning_rod(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     blk = calculate_block(card.base_block, _owner(card, combat), ValueProp.MOVE, combat, card_source=card)
     _gain_resolved_block(_owner(card, combat), blk, combat)
-    combat.apply_power_to(_owner(card, combat), PowerId.LIGHTNING_ROD, card.effect_vars.get("lightning_rod_power", 2))
+    combat.apply_power_to(
+        _owner(card, combat),
+        PowerId.LIGHTNING_ROD,
+        card.effect_vars.get(LIGHTNING_ROD_POWER_KEY, LIGHTNING_ROD_POWER),
+    )
 
 
 @register_effect(CardId.MOMENTUM_STRIKE)
@@ -423,13 +457,13 @@ def sweeping_beam(card: CardInstance, combat: CombatState, target: Creature | No
     for enemy in combat.hittable_enemies:
         dmg = calculate_damage(card.base_damage, _owner(card, combat), enemy, ValueProp.MOVE, combat)
         apply_damage(enemy, dmg, ValueProp.MOVE, combat, _owner(card, combat))
-    combat._draw_cards(card.effect_vars.get("cards", 1))
+    combat._draw_cards(card.effect_vars.get(SWEEPING_BEAM_CARDS_KEY, SWEEPING_BEAM_CARDS))
 
 
 @register_effect(CardId.TURBO)
 def turbo(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     owner = _owner(card, combat)
-    combat.gain_energy(owner, card.effect_vars.get("energy", 2))
+    combat.gain_energy(owner, card.effect_vars.get(TURBO_ENERGY_KEY, TURBO_ENERGY))
     combat.add_generated_card_to_creature_discard(owner, _make_void())
 
 
@@ -437,7 +471,7 @@ def turbo(card: CardInstance, combat: CombatState, target: Creature | None) -> N
 def uproar(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     owner = _owner(card, combat)
-    for _ in range(2):
+    for _ in range(UPROAR_HITS):
         if owner.is_dead or target.is_dead:
             break
         dmg = calculate_damage(card.base_damage, owner, target, ValueProp.MOVE, combat)
@@ -1194,19 +1228,29 @@ def make_focused_strike(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_go_for_the_eyes() -> CardInstance:
+def make_go_for_the_eyes(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.GO_FOR_THE_EYES, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=3, effect_vars={"weak": 1}, instance_id=_get_next_id(),
+        base_damage=GO_FOR_THE_EYES_UPGRADED_DAMAGE if upgraded else GO_FOR_THE_EYES_DAMAGE,
+        effect_vars={
+            GO_FOR_THE_EYES_WEAK_KEY: (
+                GO_FOR_THE_EYES_UPGRADED_WEAK if upgraded else GO_FOR_THE_EYES_WEAK
+            ),
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_gunk_up() -> CardInstance:
+def make_gunk_up(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.GUNK_UP, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=4, effect_vars={"hits": 3}, instance_id=_get_next_id(),
+        base_damage=GUNK_UP_UPGRADED_DAMAGE if upgraded else GUNK_UP_DAMAGE,
+        effect_vars={GUNK_UP_HITS_KEY: GUNK_UP_HITS},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1218,59 +1262,75 @@ def make_hologram() -> CardInstance:
     )
 
 
-def make_hotfix() -> CardInstance:
+def make_hotfix(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.HOTFIX, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.COMMON,
-        effect_vars={"focus_power": 2}, instance_id=_get_next_id(),
+        effect_vars={HOTFIX_FOCUS_KEY: HOTFIX_UPGRADED_FOCUS if upgraded else HOTFIX_FOCUS},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_leap() -> CardInstance:
+def make_leap(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.LEAP, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.COMMON,
-        base_block=9, instance_id=_get_next_id(),
+        base_block=LEAP_UPGRADED_BLOCK if upgraded else LEAP_BLOCK,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_lightning_rod() -> CardInstance:
+def make_lightning_rod(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.LIGHTNING_ROD, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.COMMON,
-        base_block=4, effect_vars={"lightning_rod_power": 2}, instance_id=_get_next_id(),
+        base_block=LIGHTNING_ROD_UPGRADED_BLOCK if upgraded else LIGHTNING_ROD_BLOCK,
+        effect_vars={LIGHTNING_ROD_POWER_KEY: LIGHTNING_ROD_POWER},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_momentum_strike() -> CardInstance:
+def make_momentum_strike(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.MOMENTUM_STRIKE, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=10, instance_id=_get_next_id(),
+        base_damage=MOMENTUM_STRIKE_UPGRADED_DAMAGE if upgraded else MOMENTUM_STRIKE_DAMAGE,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_sweeping_beam() -> CardInstance:
+def make_sweeping_beam(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SWEEPING_BEAM, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ALL_ENEMIES, rarity=CardRarity.COMMON,
-        base_damage=6, effect_vars={"cards": 1}, instance_id=_get_next_id(),
+        base_damage=SWEEPING_BEAM_UPGRADED_DAMAGE if upgraded else SWEEPING_BEAM_DAMAGE,
+        effect_vars={SWEEPING_BEAM_CARDS_KEY: SWEEPING_BEAM_CARDS},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_turbo() -> CardInstance:
+def make_turbo(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.TURBO, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.COMMON,
-        effect_vars={"energy": 2}, instance_id=_get_next_id(),
+        effect_vars={TURBO_ENERGY_KEY: TURBO_UPGRADED_ENERGY if upgraded else TURBO_ENERGY},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_uproar() -> CardInstance:
+def make_uproar(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.UPROAR, cost=2, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=5, instance_id=_get_next_id(),
+        base_damage=UPROAR_UPGRADED_DAMAGE if upgraded else UPROAR_DAMAGE,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
