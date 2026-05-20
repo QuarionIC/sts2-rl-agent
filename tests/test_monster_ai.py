@@ -1300,38 +1300,46 @@ class TestFixedRotation:
         assert creature.powers[PowerId.SWIPE].amount == 1
 
     def test_act2_tunneler_uses_original_burrow_cycle_and_unburrow_stun(self):
-        combat = _make_combat(22)
-        creature, ai = create_tunneler(Rng(22))
+        setup_rng_seed = 22
+        unburrow_rng_seed = 23
+        unburrow_damage = 40
+        stunned_move_id = "STUNNED"
+        bite_move_id = "BITE_MOVE"
+        burrow_move_id = "BURROW_MOVE"
+        below_move_id = "BELOW_MOVE_1"
+        dizzy_move_id = "DIZZY_MOVE"
+        combat = _make_combat(setup_rng_seed)
+        creature, ai = create_tunneler(Rng(setup_rng_seed))
         combat.add_enemy(creature, ai)
 
         assert creature.max_hp == 87
-        assert ai.current_move.state_id == "BITE_MOVE"
-        assert {"BURROW_MOVE", "BELOW_MOVE_1", "DIZZY_MOVE"}.issubset(ai.states)
-        assert _run_ai(ai, Rng(22), 4) == ["BITE_MOVE", "BURROW_MOVE", "BELOW_MOVE_1", "BELOW_MOVE_1"]
+        assert ai.current_move.state_id == bite_move_id
+        assert {burrow_move_id, below_move_id, dizzy_move_id}.issubset(ai.states)
+        assert _run_ai(ai, Rng(setup_rng_seed), 4) == [bite_move_id, burrow_move_id, below_move_id, below_move_id]
 
-        creature, ai = create_tunneler(Rng(23))
+        creature, ai = create_tunneler(Rng(unburrow_rng_seed))
         combat.add_enemy(creature, ai)
         ai.on_move_performed()
-        ai.roll_move(Rng(23))
-        assert ai.current_move.state_id == "BURROW_MOVE"
+        ai.roll_move(Rng(unburrow_rng_seed))
+        assert ai.current_move.state_id == burrow_move_id
 
         ai.current_move.perform(combat)
         assert creature.get_power_amount(PowerId.BURROWED) == 1
         assert creature.block == 32
 
         ai.on_move_performed()
-        ai.roll_move(Rng(23))
-        assert ai.current_move.state_id == "BELOW_MOVE_1"
+        ai.roll_move(Rng(unburrow_rng_seed))
+        assert ai.current_move.state_id == below_move_id
 
-        apply_damage(creature, 40, ValueProp.MOVE, combat, combat.player)
+        apply_damage(creature, unburrow_damage, ValueProp.MOVE, combat, combat.player)
         assert creature.get_power_amount(PowerId.BURROWED) == 0
         assert creature.block == 0
-        assert ai.current_move.state_id == "DIZZY_MOVE"
+        assert ai.current_move.state_id == stunned_move_id
 
         ai.current_move.perform(combat)
         ai.on_move_performed()
-        ai.roll_move(Rng(23))
-        assert ai.current_move.state_id == "BITE_MOVE"
+        ai.roll_move(Rng(unburrow_rng_seed))
+        assert ai.current_move.state_id == bite_move_id
 
     def test_act2_monster_block_moves_trigger_after_block_gained_hooks(self):
         cases = [

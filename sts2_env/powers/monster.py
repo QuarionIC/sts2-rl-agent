@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 
 _TERROR_EEL_ID = "TERROR_EEL"
 _TERROR_EEL_TERROR_MOVE_ID = "TERROR_MOVE"
+_TUNNELER_BITE_MOVE_ID = "BITE_MOVE"
 
 
 def _gain_unpowered_block(owner: Creature, amount: int, combat: CombatState) -> int:
@@ -1072,8 +1073,7 @@ class BurrowedPower(PowerInstance):
 
     def on_block_broken(self, owner: Creature, combat: CombatState) -> None:
         """Called when the owner's block drops to 0."""
-        if not combat.set_enemy_state(owner, "DIZZY_MOVE"):
-            combat.stun_enemy(owner)
+        combat.stun_enemy(owner, _TUNNELER_BITE_MOVE_ID)
         combat._remove_power(owner, self.power_id)
 
     def on_removed(self, owner: Creature, combat: CombatState) -> None:
