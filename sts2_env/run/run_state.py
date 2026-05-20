@@ -23,7 +23,7 @@ from sts2_env.core.rng import Rng, deterministic_hash_code
 from sts2_env.core.enums import MapPointType, RoomType
 from sts2_env.characters.all import get_character
 from sts2_env.map.map_point import MapCoord, MapPoint
-from sts2_env.map.generator import ActMap, generate_act_map, generate_spoils_act_map
+from sts2_env.map.generator import ActMap, generate_act_map
 from sts2_env.map.acts import ActConfig, get_act_config, ALL_ACTS
 from sts2_env.potions.base import PotionInstance
 from sts2_env.relics.base import RelicRarity
@@ -1452,30 +1452,16 @@ class RunState:
     def generate_map(self) -> None:
         """Generate the map for the current act."""
         act = self.current_act
-        spoils_cards = [
-            card
-            for player in self.players
-            for card in player.deck
-            if (
-                card.card_id == CardId.SPOILS_MAP
-                and card.effect_vars.get("spoils_act_index", 1) == self.current_act_index
-            )
-        ]
-        if spoils_cards:
-            act_map = generate_spoils_act_map(
-                num_rooms=act.num_rooms,
-                rng=Rng(self.rng.seed, "spoils_map"),
-                ascension_level=self.ascension_level,
-                act_index=self.current_act_index,
-            )
-        else:
-            map_rng = self.rng.get_map_rng(self.current_act_index)
-            act_map = generate_act_map(
-                num_rooms=act.num_rooms,
-                rng=map_rng,
-                ascension_level=self.ascension_level,
-                act_index=self.current_act_index,
-            )
+        map_rng = self.rng.get_map_rng(self.current_act_index)
+        act_map = generate_act_map(
+            num_rooms=act.num_rooms,
+            rng=map_rng,
+            ascension_level=self.ascension_level,
+            act_index=self.current_act_index,
+        )
+        for player in self.players:
+            for card in player.deck:
+                act_map = card.modify_generated_map(self, act_map, self.current_act_index)
         for player in self.players:
             for relic in player.get_relic_objects():
                 act_map = relic.modify_generated_map(player, self, act_map, self.current_act_index)
@@ -1483,14 +1469,14 @@ class RunState:
             for modifier in self.modifiers:
                 act_map = modifier.modify_generated_map(player, self, act_map, self.current_act_index)
         for player in self.players:
+            for card in player.deck:
+                act_map = card.modify_generated_map_late(self, act_map, self.current_act_index)
+        for player in self.players:
             for relic in player.get_relic_objects():
                 act_map = relic.modify_generated_map_late(player, self, act_map, self.current_act_index)
-        treasure = next((point for point in act_map.room_points() if point.point_type == MapPointType.TREASURE), None)
-        if treasure is not None:
-            for card in spoils_cards:
-                card.effect_vars["spoils_col"] = treasure.col
-                card.effect_vars["spoils_row"] = treasure.row
-                treasure.add_quest(card)
+        for player in self.players:
+            for card in player.deck:
+                card.after_map_generated(self, act_map, self.current_act_index)
         self.map = act_map
 
     def enter_act(self, act_index: int) -> None:

@@ -10,14 +10,17 @@ from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage
 from sts2_env.cards.factory import create_character_cards
 from sts2_env.cards.registry import (
     register_after_combat_end_hook,
+    register_after_map_generated_hook,
     register_chosen_hook,
     register_effect,
+    register_generated_map_hook,
+    register_generated_map_late_hook,
     register_next_event_hook,
     register_rest_site_options_hook,
     register_unknown_room_types_hook,
 )
 from sts2_env.core.enums import (
-    CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, RoomType,
+    CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, RoomType, MapPointType,
 )
 from sts2_env.core.damage import calculate_damage, apply_damage, calculate_block
 from sts2_env.core.hooks import fire_after_block_gained
@@ -1602,3 +1605,50 @@ def spoils_map_effect(card: CardInstance, combat: CombatState, target: Creature 
     """Unplayable quest card. Modifies Act 2 map to add treasure room (600 gold).
     Handled outside the play-effect path."""
     pass
+
+
+@register_generated_map_hook(CardId.SPOILS_MAP)
+def spoils_map_generated_map(card: CardInstance, run_state, act_map, act_index: int):
+    if act_index != card.effect_vars["spoils_act_index"]:
+        return act_map
+
+    from sts2_env.core.rng import Rng
+    from sts2_env.map.generator import generate_spoils_act_map
+
+    act = run_state.acts[act_index]
+    return generate_spoils_act_map(
+        num_rooms=act.num_rooms,
+        rng=Rng(run_state.rng.seed, "spoils_map"),
+        ascension_level=run_state.ascension_level,
+        act_index=act_index,
+    )
+
+
+@register_generated_map_late_hook(CardId.SPOILS_MAP)
+def spoils_map_generated_map_late(card: CardInstance, run_state, act_map, act_index: int):
+    if act_index != card.effect_vars["spoils_act_index"]:
+        return act_map
+    treasure = next(
+        (point for point in act_map.room_points() if point.point_type == MapPointType.TREASURE),
+        None,
+    )
+    if treasure is not None:
+        card.effect_vars["spoils_col"] = treasure.col
+        card.effect_vars["spoils_row"] = treasure.row
+    return act_map
+
+
+@register_after_map_generated_hook(CardId.SPOILS_MAP)
+def spoils_map_after_map_generated(card: CardInstance, run_state, act_map, act_index: int) -> None:
+    if act_index != card.effect_vars["spoils_act_index"]:
+        return
+    col = card.effect_vars.get("spoils_col")
+    row = card.effect_vars.get("spoils_row")
+    if col is None or row is None:
+        return
+
+    from sts2_env.map.map_point import MapCoord
+
+    point = act_map.get_point(MapCoord(col, row))
+    if point is not None:
+        point.add_quest(card)

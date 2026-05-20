@@ -475,6 +475,21 @@ class CardInstance:
 
         return modify_card_unknown_room_types(self, run_state, room_types)
 
+    def modify_generated_map(self, run_state: object, act_map: object, act_index: int) -> object:
+        from sts2_env.cards.registry import modify_card_generated_map
+
+        return modify_card_generated_map(self, run_state, act_map, act_index)
+
+    def modify_generated_map_late(self, run_state: object, act_map: object, act_index: int) -> object:
+        from sts2_env.cards.registry import modify_card_generated_map_late
+
+        return modify_card_generated_map_late(self, run_state, act_map, act_index)
+
+    def after_map_generated(self, run_state: object, act_map: object, act_index: int) -> None:
+        from sts2_env.cards.registry import fire_card_after_map_generated
+
+        fire_card_after_map_generated(self, run_state, act_map, act_index)
+
     def modify_rest_site_options(
         self,
         owner: object,

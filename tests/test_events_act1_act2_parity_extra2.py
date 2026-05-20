@@ -17,6 +17,7 @@ from sts2_env.potions.base import create_potion
 from sts2_env.run.reward_objects import CardReward, RelicReward
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.run_state import PlayerState, RunState
+from sts2_env.map.generator import generate_act_map
 
 
 def _make_run_state(seed: int = 401) -> RunState:
@@ -58,6 +59,26 @@ def test_spoils_map_generates_act2_center_treasure_quest():
     assert spoils in treasure.quests
     assert spoils.effect_vars["spoils_col"] == treasure.col
     assert spoils.effect_vars["spoils_row"] == treasure.row
+
+
+def test_spoils_map_card_hook_replaces_only_configured_act_map():
+    run_state = _make_run_state(443)
+    spoils = create_card(CardId.SPOILS_MAP)
+    standard_map = generate_act_map(
+        num_rooms=run_state.current_act.num_rooms,
+        rng=run_state.rng.get_map_rng(run_state.current_act_index),
+        ascension_level=run_state.ascension_level,
+        act_index=run_state.current_act_index,
+    )
+
+    assert spoils.modify_generated_map(run_state, standard_map, 0) is standard_map
+
+    act2_map = spoils.modify_generated_map(run_state, standard_map, 1)
+    treasure_points = [point for point in act2_map.room_points() if point.point_type == MapPointType.TREASURE]
+
+    assert act2_map is not standard_map
+    assert len(treasure_points) == 1
+    assert treasure_points[0].col == 3
 
 
 def test_spoils_map_treasure_completion_grants_gold_and_removes_card():

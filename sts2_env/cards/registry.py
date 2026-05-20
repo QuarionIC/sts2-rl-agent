@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
     from sts2_env.core.creature import Creature
     from sts2_env.core.enums import RoomType
+    from sts2_env.map.generator import ActMap
     from sts2_env.run.events import EventModel
     from sts2_env.run.rest_site import RestSiteOption
     from sts2_env.run.run_state import PlayerState, RunState
@@ -34,6 +35,14 @@ CardUnknownRoomTypesHook = Callable[
     ["CardInstance", "RunState", set["RoomType"]],
     set["RoomType"],
 ]
+CardGeneratedMapHook = Callable[
+    ["CardInstance", "RunState", "ActMap", int],
+    "ActMap",
+]
+CardAfterMapGeneratedHook = Callable[
+    ["CardInstance", "RunState", "ActMap", int],
+    None,
+]
 CardRestSiteOptionsHook = Callable[
     ["CardInstance", "PlayerState", list["RestSiteOption"], "RunState | None"],
     list["RestSiteOption"],
@@ -45,6 +54,9 @@ _CARD_CHOSEN_HOOKS: dict[CardId, CardChosenHook] = {}
 _CARD_AFTER_COMBAT_END_HOOKS: dict[CardId, CardAfterCombatEndHook] = {}
 _CARD_NEXT_EVENT_HOOKS: dict[CardId, CardNextEventHook] = {}
 _CARD_UNKNOWN_ROOM_TYPES_HOOKS: dict[CardId, CardUnknownRoomTypesHook] = {}
+_CARD_GENERATED_MAP_HOOKS: dict[CardId, CardGeneratedMapHook] = {}
+_CARD_GENERATED_MAP_LATE_HOOKS: dict[CardId, CardGeneratedMapHook] = {}
+_CARD_AFTER_MAP_GENERATED_HOOKS: dict[CardId, CardAfterMapGeneratedHook] = {}
 _CARD_REST_SITE_OPTIONS_HOOKS: dict[CardId, CardRestSiteOptionsHook] = {}
 
 
@@ -88,6 +100,27 @@ def register_next_event_hook(card_id: CardId):
 def register_unknown_room_types_hook(card_id: CardId):
     def decorator(func: CardUnknownRoomTypesHook) -> CardUnknownRoomTypesHook:
         _CARD_UNKNOWN_ROOM_TYPES_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_generated_map_hook(card_id: CardId):
+    def decorator(func: CardGeneratedMapHook) -> CardGeneratedMapHook:
+        _CARD_GENERATED_MAP_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_generated_map_late_hook(card_id: CardId):
+    def decorator(func: CardGeneratedMapHook) -> CardGeneratedMapHook:
+        _CARD_GENERATED_MAP_LATE_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_after_map_generated_hook(card_id: CardId):
+    def decorator(func: CardAfterMapGeneratedHook) -> CardAfterMapGeneratedHook:
+        _CARD_AFTER_MAP_GENERATED_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -162,6 +195,41 @@ def modify_card_unknown_room_types(
     if hook is None:
         return room_types
     return hook(card, run_state, room_types)
+
+
+def modify_card_generated_map(
+    card: "CardInstance",
+    run_state: "RunState",
+    act_map: "ActMap",
+    act_index: int,
+) -> "ActMap":
+    hook = _CARD_GENERATED_MAP_HOOKS.get(card.card_id)
+    if hook is None:
+        return act_map
+    return hook(card, run_state, act_map, act_index)
+
+
+def modify_card_generated_map_late(
+    card: "CardInstance",
+    run_state: "RunState",
+    act_map: "ActMap",
+    act_index: int,
+) -> "ActMap":
+    hook = _CARD_GENERATED_MAP_LATE_HOOKS.get(card.card_id)
+    if hook is None:
+        return act_map
+    return hook(card, run_state, act_map, act_index)
+
+
+def fire_card_after_map_generated(
+    card: "CardInstance",
+    run_state: "RunState",
+    act_map: "ActMap",
+    act_index: int,
+) -> None:
+    hook = _CARD_AFTER_MAP_GENERATED_HOOKS.get(card.card_id)
+    if hook is not None:
+        hook(card, run_state, act_map, act_index)
 
 
 def modify_card_rest_site_options(
