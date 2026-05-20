@@ -95,6 +95,10 @@ CardCardPlayHook = Callable[
     ["CardInstance", "CardInstance", "Creature", "CombatState"],
     None,
 ]
+CardAfterAttackHook = Callable[
+    ["CardInstance", object, "CombatState"],
+    None,
+]
 
 _CARD_EFFECTS: dict[CardId, CardEffect] = {}
 _CARD_LATE_EFFECTS: dict[CardId, CardLateEffect] = {}
@@ -119,6 +123,7 @@ _CARD_AFTER_CARD_GENERATED_FOR_COMBAT_HOOKS: dict[CardId, CardAfterCardGenerated
 _CARD_AFTER_CARD_ENTERED_COMBAT_HOOKS: dict[CardId, CardAfterCardEnteredCombatHook] = {}
 _CARD_BEFORE_CARD_PLAYED_HOOKS: dict[CardId, CardCardPlayHook] = {}
 _CARD_AFTER_CARD_PLAYED_HOOKS: dict[CardId, CardCardPlayHook] = {}
+_CARD_AFTER_ATTACK_HOOKS: dict[CardId, CardAfterAttackHook] = {}
 
 
 def register_effect(card_id: CardId):
@@ -282,6 +287,13 @@ def register_before_card_played_hook(card_id: CardId):
 def register_after_card_played_hook(card_id: CardId):
     def decorator(func: CardCardPlayHook) -> CardCardPlayHook:
         _CARD_AFTER_CARD_PLAYED_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_after_attack_hook(card_id: CardId):
+    def decorator(func: CardAfterAttackHook) -> CardAfterAttackHook:
+        _CARD_AFTER_ATTACK_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -532,3 +544,13 @@ def fire_card_after_card_played(
     hook = _CARD_AFTER_CARD_PLAYED_HOOKS.get(listener_card.card_id)
     if hook is not None:
         hook(listener_card, played_card, owner, combat)
+
+
+def fire_card_after_attack(
+    listener_card: "CardInstance",
+    attack: object,
+    combat: "CombatState",
+) -> None:
+    hook = _CARD_AFTER_ATTACK_HOOKS.get(listener_card.card_id)
+    if hook is not None:
+        hook(listener_card, attack, combat)

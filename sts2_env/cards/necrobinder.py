@@ -10,6 +10,7 @@ from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage
 from sts2_env.cards.registry import (
     register_after_card_entered_combat_hook,
     register_after_card_played_hook,
+    register_after_attack_hook,
     register_effect,
     register_late_effect,
     register_playability_hook,
@@ -202,6 +203,32 @@ def flatten(card: CardInstance, combat: CombatState, target: Creature | None) ->
     """OstyAttack."""
     assert target is not None
     _deal_osty_damage_single(card, combat, target, 12)
+
+
+@register_after_card_entered_combat_hook(CardId.FLATTEN)
+def flatten_after_card_entered_combat(
+    card: CardInstance,
+    entered_card: CardInstance,
+    owner: Creature,
+    combat: CombatState,
+) -> None:
+    if entered_card is not card:
+        return
+    if any(
+        getattr(dealer, "is_osty", False)
+        and getattr(dealer, "pet_owner", None) is owner
+        and props.is_powered_attack()
+        for dealer, _, props in combat._damage_events_this_turn
+    ):
+        card.set_temporary_cost_for_turn(0)
+
+
+@register_after_attack_hook(CardId.FLATTEN)
+def flatten_after_attack(card: CardInstance, attack, combat: CombatState) -> None:
+    owner = _owner(card, combat)
+    attacker = getattr(attack, "attacker", None)
+    if getattr(attacker, "is_osty", False) and getattr(attacker, "pet_owner", None) is owner:
+        card.set_temporary_cost_for_turn(0)
 
 
 @register_effect(CardId.GRAVE_WARDEN)

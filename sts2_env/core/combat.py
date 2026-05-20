@@ -1006,15 +1006,6 @@ class CombatState:
         if state is not None:
             for listener_card in self.unique_cards_in_piles(state.all_piles):
                 fire_card_after_card_entered_combat(listener_card, card, owner, self)
-        if card.card_id == CardId.FLATTEN:
-            if any(
-                getattr(dealer, "is_osty", False)
-                and getattr(dealer, "pet_owner", None) is owner
-                and props.is_powered_attack()
-                for dealer, _, props in self._damage_events_this_turn
-            ):
-                card.set_temporary_cost_for_turn(0)
-            return
 
     def _apply_card_after_card_generated_for_combat(
         self,
@@ -1121,23 +1112,6 @@ class CombatState:
             return
         for card in self.unique_cards_in_piles(state.all_piles):
             fire_card_after_card_played(card, played_card, owner, self)
-
-    def _apply_flatten_after_osty_attack(self, dealer: Creature | None, props: ValueProp) -> None:
-        if dealer is None or not getattr(dealer, "is_osty", False) or not props.is_powered_attack():
-            return
-        owner = getattr(dealer, "pet_owner", None)
-        state = self.combat_player_state_for(owner)
-        if state is None:
-            return
-        seen_ids: set[int] = set()
-        for pile in state.all_piles:
-            for card in pile:
-                instance_id = getattr(card, "instance_id", 0) or id(card)
-                if instance_id in seen_ids:
-                    continue
-                seen_ids.add(instance_id)
-                if card.card_id == CardId.FLATTEN:
-                    card.set_temporary_cost_for_turn(0)
 
     def can_play_card(self, card: CardInstance) -> bool:
         """Check whether a card can be played right now."""
@@ -2276,7 +2250,6 @@ class CombatState:
     ) -> None:
         self._damage_events_this_turn.append((dealer, target, props))
         self._damage_events_combat.append((dealer, target, props, unblocked_damage))
-        self._apply_flatten_after_osty_attack(dealer, props)
 
     def count_powered_hits_this_turn(self, dealer: Creature, target: Creature) -> int:
         return sum(

@@ -221,10 +221,15 @@ def fire_before_attack(attack: object, combat: CombatState) -> None:
 
 
 def fire_after_attack(attack: object, combat: CombatState) -> None:
+    from sts2_env.cards.registry import fire_card_after_attack
+
     for owner, power in _iter_power_listeners(combat):
         power.after_attack(owner, attack, combat)
     for owner, relic in _iter_relic_listeners(combat):
         relic.after_attack(owner, attack, combat)
+    for state in getattr(combat, "combat_player_states", ()):
+        for card in combat.unique_cards_in_piles(state.all_piles):
+            fire_card_after_attack(card, attack, combat)
 
 
 # ─── Block Modification ────────────────────────────────────────────────
