@@ -1,4 +1,4 @@
-"""Additional focused parity tests for remaining Ironclad cards."""
+"""Ironclad card-model parity tests for combat edge cases and owner behavior."""
 
 import sts2_env.powers  # noqa: F401
 
@@ -101,7 +101,7 @@ def _make_combat(*, extra_enemies: int = 0, seed: int = 1234) -> CombatState:
     return combat
 
 
-class TestIroncladParityExtra4:
+class TestIroncladCombatEdgeCardModelParity:
     def test_anger_adds_a_matching_copy_to_discard(self):
         combat = _make_combat()
         enemy = combat.enemies[0]

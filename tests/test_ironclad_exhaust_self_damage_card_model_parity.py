@@ -1,4 +1,4 @@
-"""Additional Ironclad parity tests for remaining high-signal cards."""
+"""Ironclad card-model parity tests for exhaust and self-damage mechanics."""
 
 import random
 
@@ -56,7 +56,7 @@ def _make_combat(*, extra_enemies: int = 0) -> CombatState:
     return combat
 
 
-class TestIroncladParityExtra3:
+class TestIroncladExhaustSelfDamageCardModelParity:
     def test_bash_plus_deals_upgraded_damage_and_applies_upgraded_vulnerable(self):
         """Matches Bash.cs: deal 10 then apply 3 Vulnerable when upgraded."""
         combat = _make_combat()
