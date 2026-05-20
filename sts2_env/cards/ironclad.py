@@ -13,6 +13,7 @@ from sts2_env.cards.registry import (
     register_before_hand_draw_hook,
     register_effect,
     register_playability_hook,
+    register_self_mutating_damage,
 )
 from sts2_env.core.enums import (
     CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, CombatSide,
@@ -1303,6 +1304,9 @@ def rampage(card: CardInstance, combat: CombatState, target: Creature | None) ->
     increase_base_damage(card, increase)
 
 
+register_self_mutating_damage(CardId.RAMPAGE)
+
+
 def make_rampage(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.RAMPAGE,
@@ -2173,6 +2177,9 @@ def thrash(card: CardInstance, combat: CombatState, target: Creature | None) -> 
         bonus = _calculate_untargeted_card_damage(exhausted, owner, combat)
         increase_base_damage(card, bonus)
         combat.exhaust_card(exhausted)
+
+
+register_self_mutating_damage(CardId.THRASH)
 
 
 def make_thrash(upgraded: bool = False) -> CardInstance:

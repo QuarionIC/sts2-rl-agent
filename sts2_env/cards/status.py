@@ -21,6 +21,7 @@ from sts2_env.cards.registry import (
     register_playability_hook,
     register_quest_complete_hook,
     register_rest_site_options_hook,
+    register_self_mutating_damage,
     register_should_play_hook,
     register_target_type_hook,
     register_turn_end_in_hand_hook,
@@ -534,6 +535,9 @@ def maul_effect(card: CardInstance, combat: CombatState, target: Creature | None
     for maul in combat._all_cards_for_creature(_owner(card, combat)):
         if maul.card_id == CardId.MAUL:
             increase_base_damage(maul, increase)
+
+
+register_self_mutating_damage(CardId.MAUL)
 
 
 def make_maul(upgraded: bool = False) -> CardInstance:
@@ -1228,6 +1232,9 @@ def is_sovereign_blade(card: CardInstance) -> bool:
 def add_sovereign_blade_damage(card: CardInstance, amount: int) -> None:
     card.base_damage = (card.base_damage or SOVEREIGN_BLADE_BASE_DAMAGE) + amount
     card.after_forged()
+
+
+register_self_mutating_damage(CardId.SOVEREIGN_BLADE)
 
 
 def make_sovereign_blade(upgraded: bool = False) -> CardInstance:

@@ -15,6 +15,7 @@ from sts2_env.cards.registry import (
     register_effect,
     register_late_effect,
     register_playability_hook,
+    register_self_mutating_damage,
 )
 from sts2_env.core.enums import (
     CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, PowerType, PowerStackType,
@@ -1001,6 +1002,9 @@ def the_scythe(card: CardInstance, combat: CombatState, target: Creature | None)
     _deal_damage_single(card, combat, target)
     increase = card.effect_vars.get("increase", 3)
     increase_base_damage(card, increase)
+
+
+register_self_mutating_damage(CardId.THE_SCYTHE)
 
 
 @register_effect(CardId.TIMES_UP)

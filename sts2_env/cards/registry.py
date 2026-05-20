@@ -129,6 +129,8 @@ _CARD_BEFORE_CARD_PLAYED_HOOKS: dict[CardId, CardCardPlayHook] = {}
 _CARD_AFTER_CARD_PLAYED_HOOKS: dict[CardId, CardCardPlayHook] = {}
 _CARD_AFTER_ATTACK_HOOKS: dict[CardId, CardAfterAttackHook] = {}
 _CARD_AFTER_DEATH_HOOKS: dict[CardId, CardAfterDeathHook] = {}
+_SELF_MUTATING_DAMAGE_CARD_IDS: set[CardId] = set()
+_SELF_MUTATING_BLOCK_CARD_IDS: set[CardId] = set()
 
 
 def register_effect(card_id: CardId):
@@ -308,6 +310,22 @@ def register_after_death_hook(card_id: CardId):
         _CARD_AFTER_DEATH_HOOKS[card_id] = func
         return func
     return decorator
+
+
+def register_self_mutating_damage(card_id: CardId) -> None:
+    _SELF_MUTATING_DAMAGE_CARD_IDS.add(card_id)
+
+
+def register_self_mutating_block(card_id: CardId) -> None:
+    _SELF_MUTATING_BLOCK_CARD_IDS.add(card_id)
+
+
+def card_preserves_self_mutating_damage(card_id: CardId) -> bool:
+    return card_id in _SELF_MUTATING_DAMAGE_CARD_IDS
+
+
+def card_preserves_self_mutating_block(card_id: CardId) -> bool:
+    return card_id in _SELF_MUTATING_BLOCK_CARD_IDS
 
 
 def play_card_effect(

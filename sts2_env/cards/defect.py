@@ -10,7 +10,12 @@ from sts2_env.cards.base import (
     new_card_instance_id,
 )
 from sts2_env.cards.factory import create_character_cards
-from sts2_env.cards.registry import register_after_card_generated_for_combat_hook, register_effect
+from sts2_env.cards.registry import (
+    register_after_card_generated_for_combat_hook,
+    register_effect,
+    register_self_mutating_block,
+    register_self_mutating_damage,
+)
 from sts2_env.core.enums import (
     CardId, CardType, TargetType, CardRarity, ValueProp, PowerId, OrbType,
 )
@@ -455,6 +460,9 @@ def claw(card: CardInstance, combat: CombatState, target: Creature | None) -> No
     for claw_card in combat._all_cards_for_creature(_owner(card, combat)):
         if claw_card.card_id == CardId.CLAW:
             increase_base_damage(claw_card, increase)
+
+
+register_self_mutating_damage(CardId.CLAW)
 
 
 @register_effect(CardId.COLD_SNAP)
@@ -1046,6 +1054,9 @@ def genetic_algorithm(card: CardInstance, combat: CombatState, target: Creature 
     _gain_resolved_block(owner, blk, combat)
     increase = card.effect_vars.get(GENETIC_ALGORITHM_INCREASE_KEY, GENETIC_ALGORITHM_INCREASE)
     increase_base_block(card, increase)
+
+
+register_self_mutating_block(CardId.GENETIC_ALGORITHM)
 
 
 @register_effect(CardId.HELIX_DRILL)

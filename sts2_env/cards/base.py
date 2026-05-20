@@ -37,21 +37,6 @@ _DEFAULT_VISUAL_CARD_POOL_BY_CARD_ID = {
     for card_id in card_ids
 }
 
-_SELF_MUTATING_DAMAGE_CARD_IDS = frozenset({
-    CardId.CLAW,
-    CardId.KINGLY_PUNCH,
-    CardId.MAUL,
-    CardId.RAMPAGE,
-    CardId.SOVEREIGN_BLADE,
-    CardId.THE_SCYTHE,
-    CardId.THRASH,
-})
-
-_SELF_MUTATING_BLOCK_CARD_IDS = frozenset({
-    CardId.GENETIC_ALGORITHM,
-})
-
-
 @lru_cache(maxsize=None)
 def _reference_card_base_values(card_id: CardId, upgraded: bool) -> tuple[int | None, int | None]:
     from sts2_env.cards.factory import create_card
@@ -73,11 +58,13 @@ def increase_base_block(card: CardInstance, amount: int) -> None:
 
 
 def capture_self_mutating_card_progress(card: CardInstance) -> dict[str, int]:
+    from sts2_env.cards.registry import card_preserves_self_mutating_block, card_preserves_self_mutating_damage
+
     progress: dict[str, int] = {}
     reference_damage, reference_block = _reference_card_base_values(card.card_id, card.upgraded)
-    if card.card_id in _SELF_MUTATING_DAMAGE_CARD_IDS and card.base_damage is not None and reference_damage is not None:
+    if card_preserves_self_mutating_damage(card.card_id) and card.base_damage is not None and reference_damage is not None:
         progress["damage"] = card.base_damage - reference_damage
-    if card.card_id in _SELF_MUTATING_BLOCK_CARD_IDS and reference_block is not None:
+    if card_preserves_self_mutating_block(card.card_id) and reference_block is not None:
         current_block = card.effect_vars.get("block", card.base_block or 0)
         progress["block"] = current_block - reference_block
     return progress

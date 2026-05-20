@@ -14,6 +14,7 @@ from sts2_env.cards.registry import (
     register_before_hand_draw_hook,
     register_effect,
     register_late_effect,
+    register_self_mutating_damage,
 )
 from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import (
@@ -440,6 +441,9 @@ def kingly_punch_after_card_drawn(
         from sts2_env.cards.base import increase_base_damage
 
         increase_base_damage(card, card.effect_vars.get("increase", 3))
+
+
+register_self_mutating_damage(CardId.KINGLY_PUNCH)
 
 
 @register_effect(CardId.KNOCKOUT_BLOW)
