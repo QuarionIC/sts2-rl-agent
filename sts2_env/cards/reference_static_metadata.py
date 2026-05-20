@@ -13,6 +13,9 @@ from sts2_env.core.enums import CardId, CardRarity, CardTag, CardType, TargetTyp
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REFERENCE_CARD_DIR = Path("decompiled/MegaCrit.Sts2.Core.Models.Cards")
+MULTIPLAYER_CONSTRAINT_NONE = "None"
+MULTIPLAYER_CONSTRAINT_MULTIPLAYER_ONLY = "MultiplayerOnly"
+MULTIPLAYER_CONSTRAINT_SINGLEPLAYER_ONLY = "SingleplayerOnly"
 BASE_CONSTRUCTOR_RE = re.compile(
     r":\s*base\(\s*"
     r"(?P<cost>-?\d+)\s*,\s*"
@@ -32,6 +35,10 @@ CAN_BE_GENERATED_IN_COMBAT_RE = re.compile(
 )
 CAN_BE_GENERATED_BY_MODIFIERS_RE = re.compile(
     r"override\s+bool\s+CanBeGeneratedByModifiers\s*=>\s*(?P<value>true|false)\s*;"
+)
+MULTIPLAYER_CONSTRAINT_RE = re.compile(
+    r"override\s+CardMultiplayerConstraint\s+MultiplayerConstraint\s*=>\s*"
+    r"CardMultiplayerConstraint\.(?P<constraint>[A-Za-z]+)\s*;"
 )
 ENERGY_COST_UPGRADE_RE = re.compile(
     r"base\.EnergyCost\.UpgradeBy\((?P<delta>-?\d+(?:\.0+)?m?)\)"
@@ -151,6 +158,7 @@ class ReferenceCardStaticMetadata:
     max_upgrade_level: int
     can_be_generated_in_combat: bool
     can_be_generated_by_modifiers: bool
+    multiplayer_constraint: str
 
 
 def snake_case(name: str) -> str:
@@ -206,6 +214,7 @@ def reference_metadata_from_source(path: Path) -> ReferenceCardStaticMetadata:
     max_upgrade_level_match = MAX_UPGRADE_LEVEL_RE.search(source)
     combat_generation_match = CAN_BE_GENERATED_IN_COMBAT_RE.search(source)
     modifier_generation_match = CAN_BE_GENERATED_BY_MODIFIERS_RE.search(source)
+    multiplayer_constraint_match = MULTIPLAYER_CONSTRAINT_RE.search(source)
 
     return ReferenceCardStaticMetadata(
         card_id=card_id_for_reference_class(path.stem),
@@ -232,6 +241,11 @@ def reference_metadata_from_source(path: Path) -> ReferenceCardStaticMetadata:
             modifier_generation_match.group("value") != "false"
             if modifier_generation_match is not None
             else True
+        ),
+        multiplayer_constraint=(
+            multiplayer_constraint_match.group("constraint")
+            if multiplayer_constraint_match is not None
+            else MULTIPLAYER_CONSTRAINT_NONE
         ),
     )
 

@@ -14,6 +14,7 @@ from sts2_env.cards.factory import (
     create_transform_card,
     eligible_character_cards,
     eligible_registered_cards,
+    is_multiplayer_only_card,
 )
 from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.selection import CardChoiceOption, PendingCardChoice
@@ -32,31 +33,6 @@ from sts2_env.cards.base import (
     restore_self_mutating_card_progress,
 )
 from sts2_env.run.odds import UnknownMapPointOdds, CardRarityOdds, PotionRewardOdds
-
-
-_MULTIPLAYER_ONLY_CARD_IDS = frozenset({
-    CardId.BEACON_OF_HOPE,
-    CardId.BELIEVE_IN_YOU,
-    CardId.COORDINATE_CARD,
-    CardId.DEMONIC_SHIELD,
-    CardId.ENERGY_SURGE,
-    CardId.FLANKING,
-    CardId.GANG_UP,
-    CardId.GLIMPSE_BEYOND,
-    CardId.HAMMER_TIME,
-    CardId.HUDDLE_UP,
-    CardId.IGNITION,
-    CardId.INTERCEPT_CARD,
-    CardId.KNOCKDOWN,
-    CardId.LARGESSE,
-    CardId.LEGION_OF_BONE,
-    CardId.LIFT,
-    CardId.MIMIC,
-    CardId.RALLY,
-    CardId.SNEAKY_CARD,
-    CardId.TAG_TEAM,
-    CardId.TANK_CARD,
-})
 
 
 @dataclass
@@ -984,11 +960,11 @@ class PlayerState:
         custom_card_ids = []
         seen_ids = set()
         for card_id in eligible_registered_cards(card_pool=CardPoolId.COLORLESS, generation_context=None):
-            if card_id in _MULTIPLAYER_ONLY_CARD_IDS:
+            if is_multiplayer_only_card(card_id):
                 custom_card_ids.append(card_id)
                 seen_ids.add(card_id)
         for card_id in get_character(self.character_id).card_pool:
-            if card_id in _MULTIPLAYER_ONLY_CARD_IDS and card_id not in seen_ids:
+            if is_multiplayer_only_card(card_id) and card_id not in seen_ids:
                 custom_card_ids.append(card_id)
                 seen_ids.add(card_id)
         self.offer_custom_card_reward(

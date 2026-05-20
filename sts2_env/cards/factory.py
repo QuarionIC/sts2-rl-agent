@@ -33,6 +33,11 @@ from sts2_env.core.card_pools import (
 from sts2_env.characters.all import get_character
 from sts2_env.core.enums import CardId, CardRarity, CardTag, CardType, TargetType
 from sts2_env.core.rng import Rng
+from sts2_env.cards.reference_static_metadata import (
+    MULTIPLAYER_CONSTRAINT_MULTIPLAYER_ONLY,
+    MULTIPLAYER_CONSTRAINT_NONE,
+    MULTIPLAYER_CONSTRAINT_SINGLEPLAYER_ONLY,
+)
 
 CardFactory = Callable[..., CardInstance]
 GenerationContext = Literal["combat", "modifier"]
@@ -146,36 +151,7 @@ class CardMetadata:
     keywords: frozenset[str]
     can_be_generated_in_combat: bool
     can_be_generated_by_modifiers: bool
-
-
-_MULTIPLAYER_ONLY_CARD_IDS = frozenset({
-    CardId.BEACON_OF_HOPE,
-    CardId.BELIEVE_IN_YOU,
-    CardId.COORDINATE_CARD,
-    CardId.DEMONIC_SHIELD,
-    CardId.ENERGY_SURGE,
-    CardId.FLANKING,
-    CardId.GANG_UP,
-    CardId.GLIMPSE_BEYOND,
-    CardId.HAMMER_TIME,
-    CardId.HUDDLE_UP,
-    CardId.IGNITION,
-    CardId.INTERCEPT_CARD,
-    CardId.KNOCKDOWN,
-    CardId.LARGESSE,
-    CardId.LEGION_OF_BONE,
-    CardId.LIFT,
-    CardId.MIMIC,
-    CardId.RALLY,
-    CardId.SNEAKY_CARD,
-    CardId.TAG_TEAM,
-    CardId.TANK_CARD,
-})
-
-_SINGLEPLAYER_ONLY_CARD_IDS = frozenset({
-    CardId.STRATAGEM,
-    CardId.WELL_LAID_PLANS,
-})
+    multiplayer_constraint: str
 
 
 @dataclass(frozen=True)
@@ -501,6 +477,11 @@ def card_metadata(card_id: CardId) -> CardMetadata:
         keywords=card.keywords,
         can_be_generated_in_combat=card.can_be_generated_in_combat,
         can_be_generated_by_modifiers=card.can_be_generated_by_modifiers,
+        multiplayer_constraint=(
+            _static_metadata_override(card_id).multiplayer_constraint
+            if _static_metadata_override(card_id) is not None
+            else MULTIPLAYER_CONSTRAINT_NONE
+        ),
     )
 
 
@@ -534,12 +515,17 @@ def _matches_generation_context(
     return True
 
 
-def _matches_player_count(card_id: CardId, *, is_multiplayer: bool | None) -> bool:
+def matches_player_count(card_id: CardId, *, is_multiplayer: bool | None) -> bool:
     if is_multiplayer is None:
         return True
+    constraint = card_metadata(card_id).multiplayer_constraint
     if is_multiplayer:
-        return card_id not in _SINGLEPLAYER_ONLY_CARD_IDS
-    return card_id not in _MULTIPLAYER_ONLY_CARD_IDS
+        return constraint != MULTIPLAYER_CONSTRAINT_SINGLEPLAYER_ONLY
+    return constraint != MULTIPLAYER_CONSTRAINT_MULTIPLAYER_ONLY
+
+
+def is_multiplayer_only_card(card_id: CardId) -> bool:
+    return card_metadata(card_id).multiplayer_constraint == MULTIPLAYER_CONSTRAINT_MULTIPLAYER_ONLY
 
 
 def _registered_card_order(
@@ -575,7 +561,7 @@ def eligible_character_cards(
     eligible: list[CardId] = []
 
     for card_id in config.card_pool:
-        if not _matches_player_count(card_id, is_multiplayer=is_multiplayer):
+        if not matches_player_count(card_id, is_multiplayer=is_multiplayer):
             continue
         try:
             metadata = card_metadata(card_id)
@@ -618,7 +604,7 @@ def eligible_registered_cards(
     ):
         if card_id in exclude_ids:
             continue
-        if not _matches_player_count(card_id, is_multiplayer=is_multiplayer):
+        if not matches_player_count(card_id, is_multiplayer=is_multiplayer):
             continue
         if card_id in _REGISTERED_POOL_EXCLUDED_CARD_IDS:
             continue

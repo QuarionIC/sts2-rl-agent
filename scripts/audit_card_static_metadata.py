@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sts2_env.cards.factory import create_card
+from sts2_env.cards.factory import card_metadata, create_card
 from sts2_env.cards.reference_static_metadata import (
     ReferenceCardStaticMetadata,
     reference_metadata_by_card_id,
@@ -53,6 +53,7 @@ def _collect_mismatches_for_upgrade_state(
             "has_star_cost_x": reference.has_star_cost_x,
             "can_be_generated_in_combat": reference.can_be_generated_in_combat,
             "can_be_generated_by_modifiers": reference.can_be_generated_by_modifiers,
+            "multiplayer_constraint": reference.multiplayer_constraint,
         }
         actual = {
             "upgraded": card.upgraded,
@@ -67,6 +68,7 @@ def _collect_mismatches_for_upgrade_state(
             "has_star_cost_x": card.has_star_cost_x,
             "can_be_generated_in_combat": card.can_be_generated_in_combat,
             "can_be_generated_by_modifiers": card.can_be_generated_by_modifiers,
+            "multiplayer_constraint": card_metadata(reference.card_id).multiplayer_constraint,
         }
         for field_name, expected_value in expected.items():
             actual_value = actual[field_name]
