@@ -1226,7 +1226,11 @@ def sovereign_blade_target_type(card: CardInstance, owner: Creature, target_type
 
 
 def is_sovereign_blade(card: CardInstance) -> bool:
-    return card.card_id == CardId.SOVEREIGN_BLADE and not bool(card.combat_vars.get("_is_dupe"))
+    return card.card_id == CardId.SOVEREIGN_BLADE
+
+
+def is_forgeable_sovereign_blade(card: CardInstance) -> bool:
+    return is_sovereign_blade(card) and not bool(card.combat_vars.get("_is_dupe"))
 
 
 def add_sovereign_blade_damage(card: CardInstance, amount: int) -> None:

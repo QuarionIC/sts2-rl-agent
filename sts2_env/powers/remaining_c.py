@@ -1244,7 +1244,9 @@ class SwordSagePower(PowerInstance):
         return self.amount
 
     def modify_card_cost(self, owner: Creature, card: object) -> int | None:
-        if getattr(card, "card_id", None) != CardId.SOVEREIGN_BLADE:
+        from sts2_env.cards.status import is_sovereign_blade
+
+        if not is_sovereign_blade(card):
             return None
         if getattr(card, "owner", None) is not owner:
             return None

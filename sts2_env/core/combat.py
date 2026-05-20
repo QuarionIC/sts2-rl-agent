@@ -3284,12 +3284,12 @@ class CombatState:
         *,
         include_exhausted: bool,
     ) -> list[CardInstance]:
-        from sts2_env.cards.status import is_sovereign_blade
+        from sts2_env.cards.status import is_forgeable_sovereign_blade
 
         return [
             card
             for card in self._all_cards_for_creature(creature, include_exhausted=include_exhausted)
-            if is_sovereign_blade(card)
+            if is_forgeable_sovereign_blade(card)
         ]
 
     def forge(self, owner: Creature, amount: int, source: object | None = None) -> None:

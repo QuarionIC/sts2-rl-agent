@@ -645,8 +645,10 @@ class ConquerorPower(PowerInstance):
     def modify_damage_multiplicative(
         self, owner: Creature, dealer: Creature | None, target: Creature, props: ValueProp
     ) -> float:
+        from sts2_env.cards.status import is_sovereign_blade
+
         card_source = getattr(owner.combat_state, "active_card_source", None)
-        if getattr(card_source, "card_id", None) != CardId.SOVEREIGN_BLADE:
+        if not is_sovereign_blade(card_source):
             return 1.0
         if target is not owner:
             return 1.0

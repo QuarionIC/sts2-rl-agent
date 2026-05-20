@@ -1507,8 +1507,9 @@ class ParryPower(PowerInstance):
         super().__init__(PowerId.PARRY, amount)
 
     def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
-        card_id = getattr(card, "card_id", None)
-        if card_id is not None and card_id.name == "SOVEREIGN_BLADE":
+        from sts2_env.cards.status import is_sovereign_blade
+
+        if is_sovereign_blade(card):
             card_owner = getattr(card, "owner", None)
             if card_owner is owner or card_owner is None:
                 _gain_unpowered_block(owner, self.amount, combat)
