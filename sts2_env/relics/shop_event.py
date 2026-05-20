@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sts2_env.cards.base import new_card_instance_id
 from sts2_env.cards.enchantments import can_enchant_card
 from sts2_env.characters.all import ALL_CHARACTERS
 from sts2_env.core.enums import (
     CardId, CardRarity, RelicRarity, CombatSide, CardTag, CardType, MapPointType, PowerId, RoomType, TargetType,
     ValueProp,
 )
-from sts2_env.core.rng import INT_MAX
 from sts2_env.relics.base import RelicId, RelicPool, RelicInstance
 from sts2_env.relics.registry import register_relic
 
@@ -2040,7 +2040,7 @@ class HistoryCourse(RelicInstance):
         pending = combat.last_finished_attack_or_skill_from_previous_round(owner)
         if pending is None:
             return
-        replay = pending.create_dupe(combat.rng.next_int(1, INT_MAX))
+        replay = pending.create_dupe(new_card_instance_id())
         replay.owner = owner
         combat.auto_play_card(replay)
 

@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage, increase_base_block
+from sts2_env.cards.base import (
+    CardInstance,
+    _get_next_id,
+    increase_base_block,
+    increase_base_damage,
+    new_card_instance_id,
+)
 from sts2_env.cards.factory import create_character_cards
 from sts2_env.cards.registry import register_effect
 from sts2_env.core.enums import (
@@ -12,7 +18,6 @@ from sts2_env.core.damage import calculate_damage, apply_damage, calculate_block
 from sts2_env.core.hooks import fire_after_block_gained
 from sts2_env.core.creature import Creature
 from sts2_env.core.combat import CombatState
-from sts2_env.core.rng import INT_MAX
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -694,7 +699,7 @@ def adaptive_strike(card: CardInstance, combat: CombatState, target: Creature | 
     dmg = calculate_damage(card.base_damage, _owner(card, combat), target, ValueProp.MOVE, combat)
     owner = _owner(card, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, owner)
-    clone = card.clone(combat.rng.next_int(1, INT_MAX))
+    clone = card.clone(new_card_instance_id())
     clone.set_combat_cost(0)
     combat.add_generated_card_to_creature_discard(owner, clone)
 

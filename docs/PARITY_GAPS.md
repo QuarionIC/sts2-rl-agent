@@ -95,6 +95,7 @@ The following items were previously listed as major parity blockers and are now 
   - `HardenedShell` now runs in the late before-Osty HP-loss modifier pass, so its cap applies before damage can be redirected to Osty
   - `SuckPower` now ignores same-side attack results and performs pet-owner result filtering before counting unblocked hits, matching the original `AfterAttack` behavior
   - `Gigantification` now tracks and consumes the actual attack command instead of card-play state, matching the original `BeforeAttack` / `AfterAttack` lifecycle
+  - card clone / dupe paths for `DualWield`, `AdaptiveStrike`, `Undeath`, `HeirloomHammer`, `HistoryCourse`, and shared combat clone helpers now allocate new card instance ids without consuming combat RNG, matching the original `CreateClone` / `CreateDupe` behavior
 - `sts2_env/gym_env/run_env.py`
   - step exceptions are logged instead of being silently converted into losses
 - Explicit card-choice parity fixes
@@ -217,7 +218,7 @@ The codebase is no longer blocked on the old “core helper missing” category,
 - full Regent and Necrobinder regression coverage
 - relic interactions across combat, shop, rewards, and rest-site hooks
 - broader bridge smoke testing against a live game
-- broader random-call boundary audits outside the currently fixed event / combat stream routes
+- broader random-call boundary audits outside the currently fixed event / combat stream / clone-dupe id routes
 
 This is primarily a coverage gap, not proof of incorrect behavior, but it prevents claiming an exact match.
 

@@ -729,6 +729,18 @@ class TestDefectParityExtra3:
         assert copies[0].cost == 0
         assert copies[0].owner is combat.player
 
+    def test_adaptive_strike_clone_does_not_consume_combat_rng(self):
+        """Matches AdaptiveStrike.cs: CreateClone does not advance the combat RNG."""
+        combat = _make_combat()
+        card = make_adaptive_strike()
+        combat.hand = [card]
+        combat.energy = 2
+        counter = combat.rng.counter
+
+        assert combat.play_card(0, 0)
+
+        assert combat.rng.counter == counter
+
     def test_shadow_shield_gains_block_and_channels_dark(self):
         combat = _make_combat()
         combat.hand = [make_shadow_shield()]

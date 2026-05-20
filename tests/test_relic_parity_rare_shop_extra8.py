@@ -152,6 +152,18 @@ class TestRelicParityRareShopExtra8:
         combat.end_player_turn()
         assert enemy.current_hp == starting_hp - 10
 
+    def test_history_course_dupe_does_not_consume_combat_rng(self):
+        """Matches HistoryCourse.cs: CreateDupe does not advance the combat RNG."""
+        combat = _make_ironclad_combat(["HistoryCourse"])
+        combat.hand = [make_strike_ironclad()]
+        combat.energy = 1
+        counter = combat.rng.counter
+
+        assert combat.play_card(0, 0)
+        combat.end_player_turn()
+
+        assert combat.rng.counter == counter
+
     def test_history_course_replays_last_card_played_after_player_turn_end(self):
         combat = _make_ironclad_combat(["HistoryCourse"])
         enemy = combat.enemies[0]

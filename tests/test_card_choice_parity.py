@@ -104,6 +104,18 @@ class TestSingleChoiceParity:
         expected = sorted(draw_cards, key=lambda current: (current.rarity.value, current.card_id.value))
         assert [option.card for option in combat.pending_choice.options] == expected
 
+    def test_dual_wield_clone_does_not_consume_combat_rng(self):
+        """Matches DualWield.cs: CreateClone copies the card without consuming combat RNG."""
+        combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
+        combat.start_combat()
+        combat.hand = [make_dual_wield(), make_strike_ironclad()]
+        combat.energy = 1
+        counter = combat.rng.counter
+
+        assert combat.play_card(0)
+
+        assert combat.rng.counter == counter
+
     def test_grand_finale_cannot_be_played_while_draw_pile_is_non_empty(self):
         """Matches GrandFinale.cs: legality depends on draw pile being empty."""
         combat = _make_combat(create_silent_starter_deck(), "Silent")

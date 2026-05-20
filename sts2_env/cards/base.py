@@ -381,6 +381,10 @@ def _get_next_id() -> int:
     return _next_instance_id
 
 
+def new_card_instance_id() -> int:
+    return _get_next_id()
+
+
 def reset_instance_counter() -> None:
     global _next_instance_id
     _next_instance_id = 0

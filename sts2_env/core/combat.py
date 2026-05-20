@@ -16,6 +16,7 @@ from sts2_env.cards.base import (
     CardInstance,
     capture_self_mutating_card_progress,
     increase_base_damage,
+    new_card_instance_id,
     restore_self_mutating_card_progress,
 )
 from sts2_env.cards.enchantments import (
@@ -2629,7 +2630,7 @@ class CombatState:
     def clone_card_to_hand(self, owner: Creature, card: CardInstance | None) -> None:
         if self.combat_player_state_for(owner) is None or card is None:
             return
-        clone = card.clone(self.rng.next_int(1, INT_MAX))
+        clone = card.clone(new_card_instance_id())
         self.add_generated_card_to_creature_hand(owner, clone)
 
     def insert_card_into_draw_pile(self, card: CardInstance | None, *, random_position: bool = False) -> None:
@@ -3718,7 +3719,7 @@ class CombatState:
     def create_ethereal_clone_in_hand(self, owner: Creature, card: CardInstance) -> None:
         if self.combat_player_state_for(owner) is None:
             return
-        clone = card.clone(self.rng.next_int(1, INT_MAX))
+        clone = card.clone(new_card_instance_id())
         clone.keywords = frozenset(set(clone.keywords) | {"ethereal"})
         self.add_generated_card_to_creature_hand(owner, clone)
 

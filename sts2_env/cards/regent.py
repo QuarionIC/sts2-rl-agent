@@ -6,7 +6,7 @@ Rare (26), Ancient (2).
 
 from __future__ import annotations
 
-from sts2_env.cards.base import CardInstance, _get_next_id
+from sts2_env.cards.base import CardInstance, _get_next_id, new_card_instance_id
 from sts2_env.cards.factory import create_cards_from_ids, eligible_registered_cards
 from sts2_env.cards.registry import register_effect, register_late_effect
 from sts2_env.core.enums import (
@@ -16,7 +16,6 @@ from sts2_env.core.damage import calculate_damage, apply_damage, calculate_block
 from sts2_env.core.hooks import fire_after_block_gained
 from sts2_env.core.creature import Creature
 from sts2_env.core.combat import CombatState
-from sts2_env.core.rng import INT_MAX
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -798,7 +797,7 @@ def heirloom_hammer(card: CardInstance, combat: CombatState, target: Creature | 
         if selected is None:
             return
         copies = card.effect_vars.get("repeat", 1)
-        clones = [selected.clone(combat.rng.next_int(1, INT_MAX)) for _ in range(copies)]
+        clones = [selected.clone(new_card_instance_id()) for _ in range(copies)]
         combat._add_generated_cards_to_hand(clones)  # noqa: SLF001
 
     combat.request_card_choice(

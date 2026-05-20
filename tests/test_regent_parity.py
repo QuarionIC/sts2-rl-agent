@@ -464,6 +464,18 @@ class TestRegentParity:
         copies = [card for card in combat.hand if card.card_id == gem.card_id]
         assert len(copies) == 2
 
+    def test_heirloom_hammer_clone_does_not_consume_combat_rng(self):
+        """Matches HeirloomHammer.cs: CreateClone does not advance the combat RNG."""
+        combat = _make_combat()
+        gem = make_hidden_gem()
+        combat.hand = [make_heirloom_hammer(), gem]
+        combat.energy = 2
+        counter = combat.rng.counter
+
+        assert combat.play_card(0, 0)
+
+        assert combat.rng.counter == counter
+
     def test_crash_landing_fills_hand_to_ten_with_debris_after_attacking_all_enemies(self):
         """Matches CrashLanding.cs: attack all enemies, then add Debris until the hand reaches 10 cards."""
         combat = _make_combat()

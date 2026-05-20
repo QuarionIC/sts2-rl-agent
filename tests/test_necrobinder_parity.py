@@ -177,6 +177,17 @@ class TestNecrobinderParity:
         assert len(clones) == 2
         assert combat.count_generated_cards_this_combat(combat.player) == 1
 
+    def test_undeath_clone_does_not_consume_combat_rng(self):
+        """Matches Undeath.cs: CreateClone does not advance the combat RNG."""
+        combat = _make_combat()
+        combat.hand = [make_undeath()]
+        combat.energy = 0
+        counter = combat.rng.counter
+
+        assert combat.play_card(0)
+
+        assert combat.rng.counter == counter
+
     def test_bodyguard_summons_osty_at_card_summon_value(self):
         """Matches Bodyguard.cs: summon Osty using the card's summon value."""
         combat = _make_combat()
