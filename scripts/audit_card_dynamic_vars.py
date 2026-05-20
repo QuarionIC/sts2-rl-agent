@@ -13,28 +13,15 @@ from sts2_env.cards.reference_static_metadata import reference_dynamic_vars_by_c
 from sts2_env.core.enums import CardId
 
 
-CARD_DYNAMIC_VAR_AUDIT_IDS = frozenset({
-    CardId.BRIGHTEST_FLAME,
-    CardId.BURN,
-    CardId.CAPACITOR,
-    CardId.CELESTIAL_MIGHT,
-    CardId.DECAY,
-    CardId.FIGHT_ME,
-    CardId.GLITTERSTREAM,
-    CardId.GUNK_UP,
-    CardId.ICE_LANCE,
-    CardId.MODDED,
-    CardId.NORMALITY,
-    CardId.QUADCAST,
-    CardId.REFRACT,
-    CardId.SEVEN_STARS,
-})
+RUNTIME_ONLY_CARD_IDS = frozenset({CardId.GENERIC})
 
 
 def collect_card_dynamic_var_mismatches() -> list[str]:
     mismatches: list[str] = []
     reference_vars = reference_dynamic_vars_by_card_id()
-    for card_id in sorted(CARD_DYNAMIC_VAR_AUDIT_IDS, key=lambda item: item.name):
+    for card_id in sorted(reference_vars, key=lambda item: item.name):
+        if card_id in RUNTIME_ONLY_CARD_IDS:
+            continue
         card = create_card(card_id)
         for key, expected_value in reference_vars[card_id].items():
             actual_value = card.effect_vars.get(key)

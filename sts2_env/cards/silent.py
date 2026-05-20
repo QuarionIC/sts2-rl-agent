@@ -13,6 +13,10 @@ from sts2_env.core.creature import Creature
 from sts2_env.core.combat import CombatState
 
 
+LEADING_STRIKE_SHIVS = 1
+OUTBREAK_REPEAT = 3
+
+
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
     return (
         getattr(card, "owner", None)
@@ -186,7 +190,8 @@ def leading_strike(card: CardInstance, combat: CombatState, target: Creature | N
     owner = _owner(card, combat)
     dmg = calculate_damage(card.base_damage, owner, target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, owner)
-    combat.add_generated_card_to_creature_hand(owner, _make_shiv())
+    for _ in range(card.effect_vars.get("shivs", LEADING_STRIKE_SHIVS)):
+        combat.add_generated_card_to_creature_hand(owner, _make_shiv())
 
 
 @register_effect(CardId.PIERCING_WAIL)
@@ -533,7 +538,11 @@ def noxious_fumes(card: CardInstance, combat: CombatState, target: Creature | No
 
 @register_effect(CardId.OUTBREAK_CARD)
 def outbreak(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.OUTBREAK, card.effect_vars.get("outbreak_power", 11))
+    owner = _owner(card, combat)
+    combat.apply_power_to(owner, PowerId.OUTBREAK, card.effect_vars.get("outbreak_power", 11))
+    outbreak_power = owner.powers.get(PowerId.OUTBREAK)
+    if outbreak_power is not None:
+        outbreak_power.repeat = card.effect_vars.get("repeat", OUTBREAK_REPEAT)
 
 
 @register_effect(CardId.PHANTOM_BLADES_CARD)
@@ -1048,6 +1057,7 @@ def make_leading_strike(upgraded: bool = False) -> CardInstance:
         card_id=CardId.LEADING_STRIKE, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
         base_damage=10 if upgraded else 7,
+        effect_vars={"shivs": LEADING_STRIKE_SHIVS},
         upgraded=upgraded, instance_id=_get_next_id(),
     )
 
@@ -1352,7 +1362,7 @@ def make_outbreak(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.OUTBREAK_CARD, cost=1, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        effect_vars={"outbreak_power": 15 if upgraded else 11},
+        effect_vars={"outbreak_power": 15 if upgraded else 11, "repeat": OUTBREAK_REPEAT},
         upgraded=upgraded, instance_id=_get_next_id(),
     )
 

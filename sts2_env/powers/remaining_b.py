@@ -1343,10 +1343,9 @@ class OutbreakPower(PowerInstance):
     power_type = PowerType.BUFF
     stack_type = PowerStackType.COUNTER
 
-    POISON_THRESHOLD = 3
-
-    def __init__(self, amount: int):
+    def __init__(self, amount: int, repeat: int = 3):
         super().__init__(PowerId.OUTBREAK, amount)
+        self.repeat = repeat
         self._times_poisoned: int = 0
 
     def after_power_amount_changed(
@@ -1362,7 +1361,7 @@ class OutbreakPower(PowerInstance):
         if applier is not owner or power_id != PowerId.POISON or amount <= 0:
             return
         self._times_poisoned += 1
-        if self._times_poisoned >= self.POISON_THRESHOLD:
+        if self._times_poisoned >= self.repeat:
             for enemy in combat.hittable_enemies:
                 combat.deal_damage(
                     dealer=owner,
@@ -1370,7 +1369,7 @@ class OutbreakPower(PowerInstance):
                     amount=self.amount,
                     props=ValueProp.UNPOWERED,
                 )
-            self._times_poisoned %= self.POISON_THRESHOLD
+            self._times_poisoned %= self.repeat
 
 
 # ---------------------------------------------------------------------------
