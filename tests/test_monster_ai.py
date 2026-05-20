@@ -1693,6 +1693,16 @@ class TestFixedRotation:
         assert lethal_knowledge.current_hp == 100
         assert lethal_knowledge.get_power_amount(PowerId.STRENGTH) == 0
 
+        multiplayer_knowledge, multiplayer_knowledge_ai = create_knowledge_demon(Rng(143))
+        multiplayer_knowledge.current_hp = 300
+        multiplayer_combat = _make_combat(143)
+        _add_test_ally(multiplayer_combat, hp=80)
+        multiplayer_combat.add_enemy(multiplayer_knowledge, multiplayer_knowledge_ai)
+        multiplayer_knowledge_ai.states["PONDER_MOVE"].perform(multiplayer_combat)
+
+        assert multiplayer_knowledge.current_hp == 360
+        assert multiplayer_knowledge.get_power_amount(PowerId.STRENGTH) == 2
+
         crusher, crusher_ai = create_crusher(Rng(43))
         assert crusher_ai.current_move.state_id == "THRASH_MOVE"
         assert _run_ai(crusher_ai, Rng(43), 5) == [

@@ -1183,7 +1183,7 @@ def create_knowledge_demon(rng: Rng) -> tuple[Creature, MonsterAI]:
         _deal_damage_to_player(combat, creature, ponder_dmg)
         if combat.is_over:
             return
-        creature.heal(ponder_heal)
+        creature.heal(ponder_heal * len(combat.combat_player_states))
         combat.apply_power_to(creature, PowerId.STRENGTH, ponder_str, applier=creature)
 
     # After Ponder: if curse_counter < 3, go back to CURSE_OF_KNOWLEDGE; else SLAP
