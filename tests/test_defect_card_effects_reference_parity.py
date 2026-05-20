@@ -127,7 +127,7 @@ def _make_combat(monster_factory=create_shrinker_beetle, *, extra_enemies: int =
     return combat
 
 
-class TestDefectParityExtra3:
+class TestDefectCardEffectsReferenceParity:
     def test_strike_defect_matches_reference_damage_and_upgrade(self):
         combat = _make_combat(monster_factory=create_twig_slime_s)
         enemy = combat.enemies[0]

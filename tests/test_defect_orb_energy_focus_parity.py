@@ -41,7 +41,7 @@ def _make_combat(*, extra_enemies: int = 0) -> CombatState:
     return combat
 
 
-class TestDefectParityExtra:
+class TestDefectOrbEnergyFocusParity:
     def test_charge_battery_grants_block_and_energy_next_turn_power(self):
         """Matches ChargeBattery.cs: gain block, then apply EnergyNextTurn."""
         combat = _make_combat()

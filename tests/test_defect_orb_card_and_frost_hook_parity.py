@@ -50,7 +50,7 @@ def _make_combat() -> CombatState:
     return combat
 
 
-class TestDefectParityExtra2:
+class TestDefectOrbCardAndFrostHookParity:
     def test_ball_lightning_deals_damage_and_channels_lightning(self):
         """Matches BallLightning.cs: attack target, then channel one Lightning orb."""
         combat = _make_combat()
