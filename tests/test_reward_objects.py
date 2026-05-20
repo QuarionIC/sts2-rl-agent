@@ -58,6 +58,32 @@ def test_rewards_set_uses_encounter_gold_ranges_for_combat_rooms():
         assert (gold_reward.min_gold, gold_reward.max_gold) == expected_range
 
 
+def test_rewards_set_scales_monster_gold_by_gold_proportion_only():
+    run_state = RunState(seed=44, character_id="Ironclad")
+    run_state.initialize_run()
+
+    monster_room = CombatRoom(room_type=RoomType.MONSTER, gold_proportion=0.5)
+    monster_rewards = RewardsSet(run_state.player.player_id).with_rewards_from_room(monster_room, run_state)
+    monster_gold = next(reward for reward in monster_rewards.rewards if isinstance(reward, GoldReward))
+
+    elite_room = CombatRoom(room_type=RoomType.ELITE, gold_proportion=0.5)
+    elite_rewards = RewardsSet(run_state.player.player_id).with_rewards_from_room(elite_room, run_state)
+    elite_gold = next(reward for reward in elite_rewards.rewards if isinstance(reward, GoldReward))
+
+    assert (monster_gold.min_gold, monster_gold.max_gold) == (5, 10)
+    assert (elite_gold.min_gold, elite_gold.max_gold) == (35, 45)
+
+
+def test_rewards_set_omits_monster_gold_when_gold_proportion_is_zero():
+    run_state = RunState(seed=45, character_id="Ironclad")
+    run_state.initialize_run()
+    room = CombatRoom(room_type=RoomType.MONSTER, gold_proportion=0)
+
+    rewards = RewardsSet(run_state.player.player_id).with_rewards_from_room(room, run_state)
+
+    assert not any(isinstance(reward, GoldReward) for reward in rewards.rewards)
+
+
 def test_cauldron_after_obtained_queues_five_potion_rewards():
     run_state = RunState(seed=42, character_id="Ironclad")
     run_state.initialize_run()

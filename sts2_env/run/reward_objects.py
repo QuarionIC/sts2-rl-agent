@@ -752,7 +752,15 @@ class RewardsSet:
             return self
         if room.room_type in ENCOUNTER_GOLD_REWARD_RANGES:
             low, high = ENCOUNTER_GOLD_REWARD_RANGES[room.room_type]
-            self.rewards.append(GoldReward(self.player_id, low, high))
+            gold_proportion = getattr(room, "gold_proportion", 1.0) if room.room_type == RoomType.MONSTER else 1.0
+            if gold_proportion > 0:
+                self.rewards.append(
+                    GoldReward(
+                        self.player_id,
+                        round(low * gold_proportion),
+                        round(high * gold_proportion),
+                    )
+                )
             player = run_state.get_player(self.player_id)
             forced_potion = any(
                 relic.should_force_potion_reward(player) is True
