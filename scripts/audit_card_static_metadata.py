@@ -51,6 +51,8 @@ def _collect_mismatches_for_upgrade_state(
             "has_energy_cost_x": reference.has_energy_cost_x,
             "star_cost": reference.star_cost,
             "has_star_cost_x": reference.has_star_cost_x,
+            "can_be_generated_in_combat": reference.can_be_generated_in_combat,
+            "can_be_generated_by_modifiers": reference.can_be_generated_by_modifiers,
         }
         actual = {
             "upgraded": card.upgraded,
@@ -63,6 +65,8 @@ def _collect_mismatches_for_upgrade_state(
             "has_energy_cost_x": card.has_energy_cost_x,
             "star_cost": card.star_cost,
             "has_star_cost_x": card.has_star_cost_x,
+            "can_be_generated_in_combat": card.can_be_generated_in_combat,
+            "can_be_generated_by_modifiers": card.can_be_generated_by_modifiers,
         }
         for field_name, expected_value in expected.items():
             actual_value = actual[field_name]

@@ -476,8 +476,8 @@ def test_deprecated_card_matches_original_save_placeholder():
     assert card.target_type is TargetType.NONE
     assert card.keywords == frozenset({"unplayable"})
     assert card.upgraded is False
-    assert not card.can_be_generated_in_combat
-    assert not card.can_be_generated_by_modifiers
+    assert card.can_be_generated_in_combat is True
+    assert card.can_be_generated_by_modifiers is True
 
 
 def test_new_real_necrobinder_factory_cards_participate_in_generation_pools():

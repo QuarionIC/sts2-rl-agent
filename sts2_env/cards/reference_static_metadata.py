@@ -27,6 +27,12 @@ STAR_COST_RE = re.compile(r"override\s+int\s+CanonicalStarCost\s*=>\s*(?P<star_c
 MAX_UPGRADE_LEVEL_RE = re.compile(
     r"override\s+int\s+MaxUpgradeLevel\s*=>\s*(?P<max_upgrade_level>-?\d+)\s*;"
 )
+CAN_BE_GENERATED_IN_COMBAT_RE = re.compile(
+    r"override\s+bool\s+CanBeGeneratedInCombat\s*=>\s*(?P<value>true|false)\s*;"
+)
+CAN_BE_GENERATED_BY_MODIFIERS_RE = re.compile(
+    r"override\s+bool\s+CanBeGeneratedByModifiers\s*=>\s*(?P<value>true|false)\s*;"
+)
 ENERGY_COST_UPGRADE_RE = re.compile(
     r"base\.EnergyCost\.UpgradeBy\((?P<delta>-?\d+(?:\.0+)?m?)\)"
 )
@@ -143,6 +149,8 @@ class ReferenceCardStaticMetadata:
     star_cost: int
     has_star_cost_x: bool
     max_upgrade_level: int
+    can_be_generated_in_combat: bool
+    can_be_generated_by_modifiers: bool
 
 
 def snake_case(name: str) -> str:
@@ -196,6 +204,8 @@ def reference_metadata_from_source(path: Path) -> ReferenceCardStaticMetadata:
     )
     star_cost_match = STAR_COST_RE.search(source)
     max_upgrade_level_match = MAX_UPGRADE_LEVEL_RE.search(source)
+    combat_generation_match = CAN_BE_GENERATED_IN_COMBAT_RE.search(source)
+    modifier_generation_match = CAN_BE_GENERATED_BY_MODIFIERS_RE.search(source)
 
     return ReferenceCardStaticMetadata(
         card_id=card_id_for_reference_class(path.stem),
@@ -212,6 +222,16 @@ def reference_metadata_from_source(path: Path) -> ReferenceCardStaticMetadata:
             int(max_upgrade_level_match.group("max_upgrade_level"))
             if max_upgrade_level_match is not None
             else 1
+        ),
+        can_be_generated_in_combat=(
+            combat_generation_match.group("value") != "false"
+            if combat_generation_match is not None
+            else True
+        ),
+        can_be_generated_by_modifiers=(
+            modifier_generation_match.group("value") != "false"
+            if modifier_generation_match is not None
+            else True
         ),
     )
 

@@ -56,9 +56,6 @@ _COMBAT_GENERATION_EXCLUDED = frozenset({
     CardId.HAND_OF_GREED,
     CardId.MIND_ROT,
     CardId.NEOWS_FURY,
-    CardId.PAIN,
-    CardId.PARASITE,
-    CardId.DEPRECATED_CARD,
     CardId.ROYALTIES_CARD,
     CardId.SLOTH_STATUS,
     CardId.SOOT,
@@ -70,12 +67,9 @@ _MODIFIER_GENERATION_EXCLUDED = frozenset({
     CardId.ASCENDERS_BANE,
     CardId.BAD_LUCK,
     CardId.CURSE_OF_THE_BELL,
-    CardId.DEPRECATED_CARD,
     CardId.ENTHRALLED,
     CardId.FOLLY,
     CardId.GREED,
-    CardId.PAIN,
-    CardId.PARASITE,
     CardId.POOR_SLEEP,
     CardId.SPORE_MIND,
 })
@@ -199,6 +193,11 @@ class ReferenceCardDefinition:
 
 
 def _apply_generation_metadata(card: CardInstance) -> CardInstance:
+    static_metadata = _static_metadata_override(card.card_id)
+    if static_metadata is not None:
+        card.can_be_generated_in_combat = static_metadata.can_be_generated_in_combat
+        card.can_be_generated_by_modifiers = static_metadata.can_be_generated_by_modifiers
+        return card
     card.can_be_generated_in_combat = card.card_id not in _COMBAT_GENERATION_EXCLUDED
     card.can_be_generated_by_modifiers = card.card_id not in _MODIFIER_GENERATION_EXCLUDED
     return card
