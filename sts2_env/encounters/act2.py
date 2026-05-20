@@ -155,8 +155,9 @@ NORMAL_ENCOUNTERS: list[EncounterSetup] = [
 # ---- Elite Encounters ----
 
 def setup_decimillipede_elite(combat: CombatState, rng: Rng) -> None:
-    for i in range(3):
-        creature, ai = create_decimillipede_segment(rng, starter_idx=i)
+    starter_idx = rng.next_int_exclusive(0, 3)
+    for offset in range(3):
+        creature, ai = create_decimillipede_segment(rng, starter_idx=(starter_idx + offset) % 3)
         combat.add_enemy(creature, ai)
 
 

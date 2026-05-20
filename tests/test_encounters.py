@@ -459,6 +459,24 @@ class TestAct1Pools:
 # ========================================================================
 
 class TestAct2Pools:
+    def test_decimillipede_elite_offsets_segment_openers_from_original_random_starter(self):
+        encounter_seed = 0
+        expected_openers = [
+            "CONSTRICT_MOVE",
+            "WRITHE_MOVE",
+            "BULK_MOVE",
+        ]
+        combat = _make_combat(encounter_seed)
+
+        setup_decimillipede_elite(combat, Rng(encounter_seed))
+
+        assert [enemy.monster_id for enemy in combat.enemies] == [
+            "DECIMILLIPEDE_SEGMENT",
+            "DECIMILLIPEDE_SEGMENT",
+            "DECIMILLIPEDE_SEGMENT",
+        ]
+        assert [combat.enemy_ais[enemy.combat_id].current_move.state_id for enemy in combat.enemies] == expected_openers
+
     def test_weak_encounter_count(self):
         assert len(ACT2_WEAK) == 4
 
