@@ -19,6 +19,10 @@ from sts2_env.core.creature import Creature
 from sts2_env.core.combat import CombatState
 
 
+CELESTIAL_MIGHT_REPEAT = 3
+SEVEN_STARS_REPEAT = 7
+
+
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
     return (
         getattr(card, "owner", None)
@@ -127,7 +131,7 @@ def begone(card: CardInstance, combat: CombatState, target: Creature | None) -> 
 def celestial_might(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     owner = _owner(card, combat)
-    hits = card.effect_vars.get("hits", 3)
+    hits = card.effect_vars.get("repeat", CELESTIAL_MIGHT_REPEAT)
     for _ in range(hits):
         if owner.is_dead or target.is_dead:
             break
@@ -200,7 +204,7 @@ def gather_light(card: CardInstance, combat: CombatState, target: Creature | Non
 def glitterstream(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     owner = _owner(card, combat)
     _gain_block(card, combat)
-    block_next = card.effect_vars.get("block_next", 0)
+    block_next = card.effect_vars.get("block_next_turn", 0)
     if block_next:
         modified = calculate_block(block_next, owner, ValueProp.MOVE, combat, card_source=card)
         combat.apply_power_to(owner, PowerId.BLOCK_NEXT_TURN, modified)
@@ -862,9 +866,9 @@ def seeking_edge(card: CardInstance, combat: CombatState, target: Creature | Non
 
 @register_effect(CardId.SEVEN_STARS)
 def seven_stars(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    """Deal damage to all enemies 7 times."""
+    """Deal damage to all enemies seven times."""
     owner = _owner(card, combat)
-    for _ in range(7):
+    for _ in range(card.effect_vars.get("repeat", SEVEN_STARS_REPEAT)):
         if owner.is_dead:
             break
         _deal_damage_all(card, combat)
@@ -988,7 +992,7 @@ def make_celestial_might(upgraded: bool = False) -> CardInstance:
         card_id=CardId.CELESTIAL_MIGHT, cost=2, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
         base_damage=8 if upgraded else 6, upgraded=upgraded,
-        effect_vars={"hits": 3},
+        effect_vars={"repeat": CELESTIAL_MIGHT_REPEAT},
         instance_id=_get_next_id(),
     )
 
@@ -1404,8 +1408,14 @@ def make_i_am_invincible(upgraded: bool = False) -> CardInstance:
 def make_glitterstream(upgraded: bool = False) -> CardInstance:
     from sts2_env.cards.factory import create_reference_card
 
-    card = create_reference_card(CardId.GLITTERSTREAM, upgraded=upgraded, allow_generation=True)
-    card.effect_vars["block_next"] = card.effect_vars["block_next_turn"]
+    return create_reference_card(CardId.GLITTERSTREAM, upgraded=upgraded, allow_generation=True)
+
+
+def make_seven_stars(upgraded: bool = False) -> CardInstance:
+    from sts2_env.cards.factory import create_reference_card
+
+    card = create_reference_card(CardId.SEVEN_STARS, upgraded=upgraded, allow_generation=True)
+    card.effect_vars["repeat"] = SEVEN_STARS_REPEAT
     return card
 
 

@@ -18,6 +18,11 @@ from sts2_env.core.creature import Creature
 from sts2_env.core.combat import CombatState
 
 
+BURN_DAMAGE = 2
+DECAY_DAMAGE = 2
+BRIGHTEST_FLAME_MAX_HP = 1
+
+
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
     return (
         getattr(card, "owner", None)
@@ -114,7 +119,9 @@ def make_burn() -> CardInstance:
     return CardInstance(
         card_id=CardId.BURN, cost=-1, card_type=CardType.STATUS,
         target_type=TargetType.NONE, rarity=CardRarity.STATUS,
-        keywords=frozenset({"unplayable"}), instance_id=_get_next_id(),
+        keywords=frozenset({"unplayable"}),
+        effect_vars={"damage": BURN_DAMAGE},
+        instance_id=_get_next_id(),
     )
 
 
@@ -235,7 +242,9 @@ def make_decay() -> CardInstance:
     return CardInstance(
         card_id=CardId.DECAY, cost=-1, card_type=CardType.CURSE,
         target_type=TargetType.NONE, rarity=CardRarity.CURSE,
-        keywords=frozenset({"unplayable"}), instance_id=_get_next_id(),
+        keywords=frozenset({"unplayable"}),
+        effect_vars={"damage": DECAY_DAMAGE},
+        instance_id=_get_next_id(),
     )
 
 
@@ -296,7 +305,7 @@ def make_normality() -> CardInstance:
         card_id=CardId.NORMALITY, cost=-1, card_type=CardType.CURSE,
         target_type=TargetType.NONE, rarity=CardRarity.CURSE,
         keywords=frozenset({"unplayable"}),
-        effect_vars={"calc_base": 3}, instance_id=_get_next_id(),
+        effect_vars={"calc_base": 3, "calc_extra": -1}, instance_id=_get_next_id(),
     )
 
 
@@ -437,7 +446,7 @@ def brightest_flame_effect(card: CardInstance, combat: CombatState, target: Crea
     energy = card.effect_vars.get("energy", 2)
     combat.gain_energy(owner, energy)
     combat._draw_cards_for_creature(owner, cards)
-    combat.lose_max_hp(owner, card.effect_vars.get("max_hp_loss", 1))
+    combat.lose_max_hp(owner, card.effect_vars.get("max_hp", BRIGHTEST_FLAME_MAX_HP))
 
 
 def make_brightest_flame(upgraded: bool = False) -> CardInstance:
@@ -446,7 +455,7 @@ def make_brightest_flame(upgraded: bool = False) -> CardInstance:
         target_type=TargetType.SELF, rarity=CardRarity.ANCIENT,
         upgraded=upgraded,
         effect_vars={
-            "max_hp_loss": 1,
+            "max_hp": BRIGHTEST_FLAME_MAX_HP,
             "cards": 3 if upgraded else 2,
             "energy": 3 if upgraded else 2,
         },

@@ -3848,7 +3848,7 @@ class CombatState:
             self.deal_damage(
                 dealer=owner,
                 target=owner,
-                amount=2,
+                amount=card.effect_vars.get("damage", 2),
                 props=ValueProp.UNPOWERED | ValueProp.MOVE,
             )
             return
@@ -3874,7 +3874,7 @@ class CombatState:
             self.deal_damage(
                 dealer=owner,
                 target=owner,
-                amount=2,
+                amount=card.effect_vars.get("damage", 2),
                 props=ValueProp.UNPOWERED | ValueProp.MOVE,
             )
             return

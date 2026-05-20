@@ -64,13 +64,6 @@ REGENT_FACTORY_UPGRADE_CARD_IDS = (
     CardId.VENERATE,
 )
 
-REFERENCE_EFFECT_VAR_ALIASES = {
-    CardId.GLITTERSTREAM: {
-        "block_next_turn": "block_next",
-    },
-}
-
-
 def _regent_card_id(card_id: CardId) -> str:
     return card_id.name
 
@@ -97,8 +90,7 @@ def test_regent_factory_upgrade_dynamic_values_match_reference(card_id: CardId):
     expected = create_reference_card(card_id, upgraded=True, allow_generation=True)
 
     for key, expected_value in expected.effect_vars.items():
-        actual_key = REFERENCE_EFFECT_VAR_ALIASES.get(card_id, {}).get(key, key)
-        actual_value = actual.effect_vars.get(actual_key)
+        actual_value = actual.effect_vars.get(key)
         if key in {"damage", "calc_base"} and actual_value is None:
             assert actual.base_damage == expected_value
             continue

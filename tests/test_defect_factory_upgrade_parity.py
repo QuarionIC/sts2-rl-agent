@@ -16,7 +16,7 @@ from sts2_env.cards.defect import (
     METEOR_STRIKE_PLASMA_ORBS,
     METEOR_STRIKE_UPGRADED_DAMAGE,
     MODDED_COST_INCREASE,
-    MODDED_ORB_SLOTS,
+    MODDED_REPEAT,
     MODDED_UPGRADED_CARDS,
     OVERCLOCK_UPGRADED_CARDS,
     REBOOT_UPGRADED_CARDS,
@@ -146,7 +146,7 @@ DEFRAGMENT_UPGRADED_FOCUS = 2
 GO_FOR_THE_EYES_UPGRADED_DAMAGE = 4
 GO_FOR_THE_EYES_UPGRADED_WEAK = 2
 GUNK_UP_UPGRADED_DAMAGE = 5
-GUNK_UP_HITS = 3
+GUNK_UP_REPEAT = 3
 HOTFIX_UPGRADED_FOCUS = 3
 LEAP_UPGRADED_BLOCK = 12
 LIGHTNING_ROD_UPGRADED_BLOCK = 7
@@ -530,7 +530,7 @@ def test_gunk_up_factory_upgrade_increases_each_hit_damage_and_keeps_slimed():
     assert combat.play_card(HAND_CARD_INDEX, FIRST_ENEMY_INDEX)
 
     slimed = [card for card in combat.discard_pile if card.card_id == CardId.SLIMED]
-    assert enemy.current_hp == starting_hp - (GUNK_UP_UPGRADED_DAMAGE * GUNK_UP_HITS)
+    assert enemy.current_hp == starting_hp - (GUNK_UP_UPGRADED_DAMAGE * GUNK_UP_REPEAT)
     assert len(slimed) == 1
     assert slimed[0].owner is combat.player
 
@@ -631,7 +631,7 @@ def test_modded_factory_upgrade_draws_two_and_keeps_slot_and_cost_increase():
 
     assert combat.hand == drawn
     assert len(combat.hand) == MODDED_UPGRADED_CARDS
-    assert combat.orb_queue.capacity == starting_slots + MODDED_ORB_SLOTS
+    assert combat.orb_queue.capacity == starting_slots + MODDED_REPEAT
     assert card.cost == MODDED_COST_INCREASE
 
 

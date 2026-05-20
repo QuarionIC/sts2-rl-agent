@@ -992,7 +992,7 @@ def make_feel_no_pain(upgraded: bool = False) -> CardInstance:
 def fight_me(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     owner = _owner(card, combat)
-    hits = card.effect_vars.get("hits", 2)
+    hits = card.effect_vars.get("repeat", 2)
     for _ in range(hits):
         if owner.is_dead or target.is_dead:
             break
@@ -1016,7 +1016,7 @@ def make_fight_me(upgraded: bool = False) -> CardInstance:
         rarity=CardRarity.UNCOMMON,
         base_damage=6 if upgraded else 5,
         effect_vars={
-            "hits": 2,
+            "repeat": 2,
             "strength": 3 if upgraded else 2,
             "enemy_strength": 1,
         },

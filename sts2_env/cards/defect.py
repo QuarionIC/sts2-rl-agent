@@ -97,8 +97,8 @@ GO_FOR_THE_EYES_WEAK = 1
 GO_FOR_THE_EYES_UPGRADED_WEAK = 2
 GUNK_UP_DAMAGE = 4
 GUNK_UP_UPGRADED_DAMAGE = 5
-GUNK_UP_HITS_KEY = "hits"
-GUNK_UP_HITS = 3
+GUNK_UP_REPEAT_KEY = "repeat"
+GUNK_UP_REPEAT = 3
 HOTFIX_FOCUS_KEY = "focus_power"
 HOTFIX_FOCUS = 2
 HOTFIX_UPGRADED_FOCUS = 3
@@ -163,8 +163,13 @@ METEOR_STRIKE_PLASMA_ORBS = 3
 MODDED_CARDS_KEY = "cards"
 MODDED_CARDS = 1
 MODDED_UPGRADED_CARDS = 2
-MODDED_ORB_SLOTS = 1
+MODDED_REPEAT_KEY = "repeat"
+MODDED_REPEAT = 1
 MODDED_COST_INCREASE = 1
+REFRACT_REPEAT_KEY = "repeat"
+REFRACT_REPEAT = 2
+ICE_LANCE_REPEAT_KEY = "repeat"
+ICE_LANCE_REPEAT = 3
 SHADOW_SHIELD_BLOCK = 11
 SHADOW_SHIELD_UPGRADED_BLOCK = 15
 SYNTHESIS_DAMAGE = 12
@@ -501,7 +506,7 @@ def go_for_the_eyes(card: CardInstance, combat: CombatState, target: Creature | 
 def gunk_up(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     owner = _owner(card, combat)
-    for _ in range(card.effect_vars.get(GUNK_UP_HITS_KEY, GUNK_UP_HITS)):
+    for _ in range(card.effect_vars.get(GUNK_UP_REPEAT_KEY, GUNK_UP_REPEAT)):
         if owner.is_dead or target.is_dead:
             break
         dmg = calculate_damage(card.base_damage, owner, target, ValueProp.MOVE, combat)
@@ -613,7 +618,7 @@ def bulk_up(card: CardInstance, combat: CombatState, target: Creature | None) ->
 
 @register_effect(CardId.CAPACITOR)
 def capacitor(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    slots = card.effect_vars.get("slots", 2)
+    slots = card.effect_vars.get("repeat", 2)
     _add_orb_slot(combat, slots)
 
 
@@ -763,12 +768,12 @@ def overclock(card: CardInstance, combat: CombatState, target: Creature | None) 
 def refract(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     owner = _owner(card, combat)
-    for _ in range(2):
+    for _ in range(card.effect_vars.get(REFRACT_REPEAT_KEY, REFRACT_REPEAT)):
         if owner.is_dead or target.is_dead:
             break
         dmg = calculate_damage(card.base_damage, owner, target, ValueProp.MOVE, combat)
         apply_damage(target, dmg, ValueProp.MOVE, combat, owner)
-    for _ in range(card.effect_vars.get("glass", 2)):
+    for _ in range(card.effect_vars.get(REFRACT_REPEAT_KEY, REFRACT_REPEAT)):
         _channel_orb(combat, OrbType.GLASS)
 
 
@@ -1061,7 +1066,7 @@ def ice_lance(card: CardInstance, combat: CombatState, target: Creature | None) 
     owner = _owner(card, combat)
     dmg = calculate_damage(card.base_damage, owner, target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, owner)
-    for _ in range(card.effect_vars.get("frost", 3)):
+    for _ in range(card.effect_vars.get(ICE_LANCE_REPEAT_KEY, ICE_LANCE_REPEAT)):
         _channel_orb(combat, OrbType.FROST)
 
 
@@ -1092,8 +1097,7 @@ def meteor_strike(card: CardInstance, combat: CombatState, target: Creature | No
 @register_effect(CardId.MODDED)
 def modded(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     combat._draw_cards(card.effect_vars.get(MODDED_CARDS_KEY, MODDED_CARDS))
-    _add_orb_slot(combat, MODDED_ORB_SLOTS)
-    # Increase cost by 1 this combat
+    _add_orb_slot(combat, card.effect_vars.get(MODDED_REPEAT_KEY, MODDED_REPEAT))
     card.cost += MODDED_COST_INCREASE
 
 
@@ -1193,8 +1197,9 @@ def biased_cognition(card: CardInstance, combat: CombatState, target: Creature |
 
 @register_effect(CardId.QUADCAST)
 def quadcast(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    for index in range(QUADCAST_REPEAT):
-        if index == QUADCAST_REPEAT - 1:
+    repeat = card.effect_vars.get("repeat", QUADCAST_REPEAT)
+    for index in range(repeat):
+        if index == repeat - 1:
             _evoke_front(combat)
         else:
             _passive_front(combat)
@@ -1368,7 +1373,7 @@ def make_gunk_up(upgraded: bool = False) -> CardInstance:
         card_id=CardId.GUNK_UP, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
         base_damage=GUNK_UP_UPGRADED_DAMAGE if upgraded else GUNK_UP_DAMAGE,
-        effect_vars={GUNK_UP_HITS_KEY: GUNK_UP_HITS},
+        effect_vars={GUNK_UP_REPEAT_KEY: GUNK_UP_REPEAT},
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -1484,7 +1489,7 @@ def make_capacitor(upgraded: bool = False) -> CardInstance:
         card_id=CardId.CAPACITOR, cost=1, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
         upgraded=upgraded,
-        effect_vars={"slots": 3 if upgraded else 2}, instance_id=_get_next_id(),
+        effect_vars={"repeat": 3 if upgraded else 2}, instance_id=_get_next_id(),
     )
 
 
@@ -1671,7 +1676,7 @@ def make_refract(upgraded: bool = False) -> CardInstance:
         card_id=CardId.REFRACT, cost=3, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
         base_damage=12 if upgraded else 9,
-        effect_vars={"glass": 2},
+        effect_vars={REFRACT_REPEAT_KEY: REFRACT_REPEAT},
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -1974,7 +1979,7 @@ def make_ice_lance(upgraded: bool = False) -> CardInstance:
         card_id=CardId.ICE_LANCE, cost=3, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.RARE,
         base_damage=24 if upgraded else 19,
-        effect_vars={"frost": 3},
+        effect_vars={ICE_LANCE_REPEAT_KEY: ICE_LANCE_REPEAT},
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -2014,7 +2019,10 @@ def make_modded(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.MODDED, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
-        effect_vars={MODDED_CARDS_KEY: MODDED_UPGRADED_CARDS if upgraded else MODDED_CARDS},
+        effect_vars={
+            MODDED_CARDS_KEY: MODDED_UPGRADED_CARDS if upgraded else MODDED_CARDS,
+            MODDED_REPEAT_KEY: MODDED_REPEAT,
+        },
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -2142,6 +2150,7 @@ def make_quadcast(upgraded: bool = False) -> CardInstance:
         cost=QUADCAST_UPGRADED_COST if upgraded else QUADCAST_COST,
         card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.ANCIENT,
+        effect_vars={"repeat": QUADCAST_REPEAT},
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
