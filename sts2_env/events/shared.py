@@ -1798,15 +1798,29 @@ class SunkenTreasury(EventModel):
     """First Chest: Gain ~60 gold. Second Chest: Gain ~333 gold + Greed curse."""
 
     event_id = "SunkenTreasury"
+    SMALL_CHEST_GOLD = 60
+    SMALL_CHEST_VARIANCE_ROLL = 16
+    SMALL_CHEST_VARIANCE_OFFSET = 8
+    LARGE_CHEST_GOLD = 333
+    LARGE_CHEST_VARIANCE_ROLL = 61
+    LARGE_CHEST_VARIANCE_OFFSET = 30
 
     def __init__(self) -> None:
-        self._small_gold = 60
-        self._large_gold = 333
+        self._small_gold = self.SMALL_CHEST_GOLD
+        self._large_gold = self.LARGE_CHEST_GOLD
 
     def calculate_vars(self, run_state: RunState) -> None:
         rng = self.get_rng(run_state)
-        self._small_gold = 60 + rng.next_int_exclusive(0, 16) - 8
-        self._large_gold = 333 + rng.next_int_exclusive(0, 61) - 30
+        self._small_gold = (
+            self.SMALL_CHEST_GOLD
+            + rng.next_int_exclusive(0, self.SMALL_CHEST_VARIANCE_ROLL)
+            - self.SMALL_CHEST_VARIANCE_OFFSET
+        )
+        self._large_gold = (
+            self.LARGE_CHEST_GOLD
+            + rng.next_int_exclusive(0, self.LARGE_CHEST_VARIANCE_ROLL)
+            - self.LARGE_CHEST_VARIANCE_OFFSET
+        )
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         self.ensure_vars_calculated(run_state)
@@ -2424,16 +2438,25 @@ class UnrestSite(EventModel):
     """
 
     event_id = "UnrestSite"
+    REQUIRED_HP_RATIO = 0.70
+    MAX_HP_LOSS = 8
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return all(player.current_hp <= player.max_hp * 0.70 for player in run_state.players)
+        return all(
+            player.current_hp <= player.max_hp * self.REQUIRED_HP_RATIO
+            for player in run_state.players
+        )
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         heal_amount = run_state.player.max_hp - run_state.player.current_hp
         return [
             EventOption("rest", "Rest",
                          f"Heal {heal_amount} HP, gain Poor Sleep curse"),
-            EventOption("kill", "Kill", "Lose 8 Max HP, gain a relic"),
+            EventOption(
+                "kill",
+                "Kill",
+                f"Lose {self.MAX_HP_LOSS} Max HP, gain a relic",
+            ),
         ]
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
@@ -2448,10 +2471,10 @@ class UnrestSite(EventModel):
             run_state.player.add_card_instance_to_deck(make_poor_sleep())
             return EventResult(finished=True,
                                description=f"Healed {heal_amount} HP, gained Poor Sleep curse.")
-        run_state.player.lose_max_hp(8)
+        run_state.player.lose_max_hp(self.MAX_HP_LOSS)
         return EventResult(
             finished=True,
-            description="Lost 8 Max HP, gained a relic.",
+            description=f"Lost {self.MAX_HP_LOSS} Max HP, gained a relic.",
             rewards={"reward_objects": [RelicReward(run_state.player.player_id)]},
         )
 
