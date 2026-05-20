@@ -1360,12 +1360,24 @@ class WelcomeToWongos(EventModel):
     """
 
     event_id = "WelcomeToWongos"
+    BARGAIN_BIN_COST = 100
+    FEATURED_ITEM_COST = 200
+    MYSTERY_BOX_COST = 300
+    BARGAIN_BIN_WONGO_POINTS = 32
+    FEATURED_ITEM_WONGO_POINTS = 16
+    MYSTERY_BOX_WONGO_POINTS = 8
+    WONGO_POINTS_FOR_BADGE = 2000
+    BADGE_RELIC_ID = RelicId.WONGO_CUSTOMER_APPRECIATION_BADGE.name
+    MYSTERY_TICKET_RELIC_ID = RelicId.WONGOS_MYSTERY_TICKET.name
 
     def __init__(self) -> None:
         self._featured_relic_id: str | None = None
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return run_state.current_act_index == 1 and all(player.gold >= 100 for player in run_state.players)
+        return run_state.current_act_index == 1 and all(
+            player.gold >= self.BARGAIN_BIN_COST
+            for player in run_state.players
+        )
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         gold = run_state.player.gold
@@ -1375,18 +1387,18 @@ class WelcomeToWongos(EventModel):
         options: list[EventOption] = [
             EventOption(
                 "bargain_bin",
-                "Bargain Bin (100g)" if gold >= 100 else "Bargain Bin",
+                f"Bargain Bin ({self.BARGAIN_BIN_COST}g)" if gold >= self.BARGAIN_BIN_COST else "Bargain Bin",
                 "Common relic",
-                enabled=gold >= 100,
+                enabled=gold >= self.BARGAIN_BIN_COST,
             )
         ]
-        if gold >= 200:
-            options.append(EventOption("featured", "Featured Item (200g)",
+        if gold >= self.FEATURED_ITEM_COST:
+            options.append(EventOption("featured", f"Featured Item ({self.FEATURED_ITEM_COST}g)",
                                         "Rare relic"))
         else:
             options.append(EventOption("featured", "Featured Item", "Rare relic", enabled=False))
-        if gold >= 300:
-            options.append(EventOption("mystery", "Mystery Box (300g)",
+        if gold >= self.MYSTERY_BOX_COST:
+            options.append(EventOption("mystery", f"Mystery Box ({self.MYSTERY_BOX_COST}g)",
                                         "Mystery ticket relic"))
         else:
             options.append(EventOption("mystery", "Mystery Box", "Mystery ticket relic", enabled=False))
@@ -1405,10 +1417,13 @@ class WelcomeToWongos(EventModel):
         previous_points = run_state.player.wongo_points
         run_state.player.wongo_points += points
         run_state.extra_fields["wongo_points_earned"] = points
-        if run_state.player.wongo_points // 2000 > previous_points // 2000:
-            badge_reward = RelicReward(run_state.player.player_id, relic_id=RelicId.WONGO_CUSTOMER_APPRECIATION_BADGE.name)
+        if (
+            run_state.player.wongo_points // self.WONGO_POINTS_FOR_BADGE
+            > previous_points // self.WONGO_POINTS_FOR_BADGE
+        ):
+            badge_reward = RelicReward(run_state.player.player_id, relic_id=self.BADGE_RELIC_ID)
             if not _should_defer_event_rewards(run_state):
-                run_state.player.obtain_relic(RelicId.WONGO_CUSTOMER_APPRECIATION_BADGE.name)
+                run_state.player.obtain_relic(self.BADGE_RELIC_ID)
             elif reward_objects is None:
                 reward_objects = [badge_reward]
             else:
@@ -1419,7 +1434,7 @@ class WelcomeToWongos(EventModel):
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "bargain_bin":
-            run_state.player.lose_gold(100)
+            run_state.player.lose_gold(self.BARGAIN_BIN_COST)
             reward = RelicReward(run_state.player.player_id, rarity=RelicRarity.COMMON)
             reward.populate(run_state, None)
             rewards: list[object] | None = None
@@ -1430,12 +1445,12 @@ class WelcomeToWongos(EventModel):
                     run_state.player.obtain_relic(reward.relic_id)
             return self._finish_purchase(
                 run_state,
-                description="Bought common relic for 100g.",
-                points=32,
+                description=f"Bought common relic for {self.BARGAIN_BIN_COST}g.",
+                points=self.BARGAIN_BIN_WONGO_POINTS,
                 reward_objects=rewards,
             )
         if option_id == "featured":
-            run_state.player.lose_gold(200)
+            run_state.player.lose_gold(self.FEATURED_ITEM_COST)
             reward_id = self._featured_relic_id
             rewards = None
             if reward_id is not None:
@@ -1445,21 +1460,21 @@ class WelcomeToWongos(EventModel):
                     run_state.player.obtain_relic(reward_id)
             return self._finish_purchase(
                 run_state,
-                description="Bought rare relic for 200g.",
-                points=16,
+                description=f"Bought rare relic for {self.FEATURED_ITEM_COST}g.",
+                points=self.FEATURED_ITEM_WONGO_POINTS,
                 reward_objects=rewards,
             )
         if option_id == "mystery":
-            run_state.player.lose_gold(300)
+            run_state.player.lose_gold(self.MYSTERY_BOX_COST)
             rewards = None
             if _should_defer_event_rewards(run_state):
-                rewards = [RelicReward(run_state.player.player_id, relic_id="WONGOS_MYSTERY_TICKET")]
+                rewards = [RelicReward(run_state.player.player_id, relic_id=self.MYSTERY_TICKET_RELIC_ID)]
             else:
-                run_state.player.obtain_relic("WONGOS_MYSTERY_TICKET")
+                run_state.player.obtain_relic(self.MYSTERY_TICKET_RELIC_ID)
             return self._finish_purchase(
                 run_state,
-                description="Bought mystery box for 300g.",
-                points=8,
+                description=f"Bought mystery box for {self.MYSTERY_BOX_COST}g.",
+                points=self.MYSTERY_BOX_WONGO_POINTS,
                 reward_objects=rewards,
             )
         upgraded_cards = [card for card in run_state.player.deck if card.upgraded]
