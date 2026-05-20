@@ -88,7 +88,7 @@ def _make_regent_combat(
     return combat
 
 
-class TestRelicParityStarterCommonExtra6:
+class TestRelicStarterCommonRestUpgradeHooksParity:
     def test_burning_blood_heals_six_after_combat_victory(self):
         """Matches BurningBlood.cs: heal 6 HP after winning combat."""
         combat = _make_ironclad_combat(["BurningBlood"], seed=1601, player_hp=50, player_max_hp=80)

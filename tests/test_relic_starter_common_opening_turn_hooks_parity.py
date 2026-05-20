@@ -55,7 +55,7 @@ def _make_defect_combat(
     return combat
 
 
-class TestRelicParityStarterCommonExtra3:
+class TestRelicStarterCommonOpeningTurnHooksParity:
     def test_ring_of_the_drake_draws_plus_two_for_first_three_turns_only(self):
         """Matches RingOfTheDrake.cs: +2 draw on rounds 1-3, then stop."""
         combat = _make_ironclad_combat(["RingOfTheDrake"], seed=301)

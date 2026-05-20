@@ -29,7 +29,7 @@ def _make_silent_combat(
     return combat
 
 
-class TestRelicParityStarterCommonExtra7:
+class TestRelicStarterCommonUnknownRoomPoisonParity:
     def test_juzu_bracelet_removes_monsters_from_unknown_room_rolls(self):
         """Matches JuzuBracelet.cs: unknown rooms can no longer resolve to Monster."""
         baseline = RunState(seed=1701, character_id="Ironclad")

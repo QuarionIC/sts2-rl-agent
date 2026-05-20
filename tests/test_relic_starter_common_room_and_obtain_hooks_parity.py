@@ -35,7 +35,7 @@ def _make_ironclad_combat(
     return combat
 
 
-class TestRelicParityStarterCommonExtra4:
+class TestRelicStarterCommonRoomAndObtainHooksParity:
     def test_blood_vial_heals_only_on_round_one_player_turn_start(self):
         """Matches BloodVial.cs: heal 2 only at first player turn start."""
         combat = _make_ironclad_combat(["BloodVial"], seed=901, player_hp=70)
