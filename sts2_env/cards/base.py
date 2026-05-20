@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 from sts2_env.core.card_pools import (
     CHARACTER_CARD_POOLS_BY_ID,
@@ -36,19 +37,27 @@ _DEFAULT_VISUAL_CARD_POOL_BY_CARD_ID = {
     for card_id in card_ids
 }
 
-_SELF_MUTATING_DAMAGE_BASES = {
-    CardId.CLAW: (3, 4),
-    CardId.KINGLY_PUNCH: (8, 8),
-    CardId.MAUL: (5, 6),
-    CardId.RAMPAGE: (9, 9),
-    CardId.SOVEREIGN_BLADE: (10, 10),
-    CardId.THE_SCYTHE: (13, 13),
-    CardId.THRASH: (4, 6),
-}
+_SELF_MUTATING_DAMAGE_CARD_IDS = frozenset({
+    CardId.CLAW,
+    CardId.KINGLY_PUNCH,
+    CardId.MAUL,
+    CardId.RAMPAGE,
+    CardId.SOVEREIGN_BLADE,
+    CardId.THE_SCYTHE,
+    CardId.THRASH,
+})
 
-_SELF_MUTATING_BLOCK_BASES = {
-    CardId.GENETIC_ALGORITHM: (1, 1),
-}
+_SELF_MUTATING_BLOCK_CARD_IDS = frozenset({
+    CardId.GENETIC_ALGORITHM,
+})
+
+
+@lru_cache(maxsize=None)
+def _reference_card_base_values(card_id: CardId, upgraded: bool) -> tuple[int | None, int | None]:
+    from sts2_env.cards.factory import create_card
+
+    reference = create_card(card_id, upgraded=upgraded)
+    return reference.base_damage, reference.effect_vars.get("block", reference.base_block)
 
 
 def increase_base_damage(card: CardInstance, amount: int) -> None:
@@ -65,14 +74,12 @@ def increase_base_block(card: CardInstance, amount: int) -> None:
 
 def capture_self_mutating_card_progress(card: CardInstance) -> dict[str, int]:
     progress: dict[str, int] = {}
-    upgraded_index = 1 if card.upgraded else 0
-    damage_bases = _SELF_MUTATING_DAMAGE_BASES.get(card.card_id)
-    if damage_bases is not None and card.base_damage is not None:
-        progress["damage"] = card.base_damage - damage_bases[upgraded_index]
-    block_bases = _SELF_MUTATING_BLOCK_BASES.get(card.card_id)
-    if block_bases is not None:
+    reference_damage, reference_block = _reference_card_base_values(card.card_id, card.upgraded)
+    if card.card_id in _SELF_MUTATING_DAMAGE_CARD_IDS and card.base_damage is not None and reference_damage is not None:
+        progress["damage"] = card.base_damage - reference_damage
+    if card.card_id in _SELF_MUTATING_BLOCK_CARD_IDS and reference_block is not None:
         current_block = card.effect_vars.get("block", card.base_block or 0)
-        progress["block"] = current_block - block_bases[upgraded_index]
+        progress["block"] = current_block - reference_block
     return progress
 
 
