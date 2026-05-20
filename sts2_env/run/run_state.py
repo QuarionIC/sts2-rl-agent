@@ -36,6 +36,16 @@ from sts2_env.cards.base import (
 from sts2_env.run.odds import UnknownMapPointOdds, CardRarityOdds, PotionRewardOdds
 
 
+UNLOCK_STATE_NUMBER_OF_RUNS_KEY = "number_of_runs"
+UNLOCK_STATE_EPOCH_UNLOCK_COUNT_KEY = "epoch_unlock_count"
+
+
+@dataclass(frozen=True)
+class MapPointHistoryEntry:
+    map_point_type: MapPointType
+    room_type: RoomType
+
+
 @dataclass
 class PlayerState:
     """Persistent state for a single player across a run."""
@@ -1311,6 +1321,7 @@ class RunState:
         self.current_act_index: int = 0
         self.map: ActMap | None = None
         self.visited_map_coords: list[MapCoord] = []
+        self.map_point_history: list[MapPointHistoryEntry] = []
         self.act_floor: int = 0
         self.total_floor: int = 0
 
@@ -1505,10 +1516,45 @@ class RunState:
         self.enter_act(self.current_act_index + 1)
         return True
 
-    def add_visited_coord(self, coord: MapCoord) -> None:
+    def add_visited_coord(self, coord: MapCoord, room_type: RoomType | None = None) -> None:
         self.visited_map_coords.append(coord)
         self.act_floor = coord.row + 1
         self.total_floor += 1
+        if room_type is not None:
+            map_point_type = self._map_point_type_for_room(room_type)
+            if self.map is not None:
+                point = self.map.get_point(coord)
+                if point is not None:
+                    map_point_type = point.point_type
+            self.append_to_map_point_history(map_point_type, room_type)
+
+    def append_to_map_point_history(self, map_point_type: MapPointType, room_type: RoomType) -> None:
+        self.map_point_history.append(MapPointHistoryEntry(map_point_type=map_point_type, room_type=room_type))
+
+    def count_map_point_history_entries(
+        self,
+        *,
+        room_type: RoomType | None = None,
+        map_point_type: MapPointType | None = None,
+    ) -> int:
+        return sum(
+            1
+            for entry in self.map_point_history
+            if (room_type is None or entry.room_type == room_type)
+            and (map_point_type is None or entry.map_point_type == map_point_type)
+        )
+
+    @staticmethod
+    def _map_point_type_for_room(room_type: RoomType) -> MapPointType:
+        return {
+            RoomType.MONSTER: MapPointType.MONSTER,
+            RoomType.ELITE: MapPointType.ELITE,
+            RoomType.BOSS: MapPointType.BOSS,
+            RoomType.SHOP: MapPointType.SHOP,
+            RoomType.REST_SITE: MapPointType.REST_SITE,
+            RoomType.TREASURE: MapPointType.TREASURE,
+            RoomType.EVENT: MapPointType.ANCIENT,
+        }[room_type]
 
     def get_available_next_coords(self) -> list[MapCoord]:
         """Get coordinates the player can move to from current position."""

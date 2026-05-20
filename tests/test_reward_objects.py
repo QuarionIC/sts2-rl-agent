@@ -3,7 +3,9 @@
 from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.status import make_curse_of_the_bell
-from sts2_env.core.enums import CardId, CardRarity, CardType, RoomType
+from sts2_env.characters.all import IRONCLAD
+from sts2_env.core.enums import CardId, CardRarity, CardType, MapPointType, RoomType
+from sts2_env.relics.base import RelicId
 from sts2_env.run.reward_objects import (
     AddCardsReward,
     CardReward,
@@ -19,10 +21,17 @@ from sts2_env.run.reward_objects import (
     RemoveCardReward,
     RewardsSet,
     SPECIAL_REWARD_SET_INDEX,
+    TUTORIAL_BLOCK_POTION_ID,
+    TUTORIAL_MONSTER_CARD_REWARDS,
+    TUTORIAL_MONSTER_POTION_REWARDS,
 )
 from sts2_env.run.modifiers import ModifierModel
 from sts2_env.run.rooms import CombatRoom
-from sts2_env.run.run_state import RunState
+from sts2_env.run.run_state import (
+    RunState,
+    UNLOCK_STATE_EPOCH_UNLOCK_COUNT_KEY,
+    UNLOCK_STATE_NUMBER_OF_RUNS_KEY,
+)
 
 
 class _ExtraRewardCardRelic:
@@ -168,6 +177,97 @@ def test_rewards_set_applies_poverty_ascension_to_encounter_gold_ranges():
         rewards = RewardsSet(run_state.player.player_id).with_rewards_from_room(room, run_state)
         gold_reward = next(reward for reward in rewards.rewards if isinstance(reward, GoldReward))
         assert (gold_reward.min_gold, gold_reward.max_gold) == expected_range
+
+
+def _tutorial_run_state(seed: int = 48) -> RunState:
+    run_state = RunState(seed=seed, character_id=IRONCLAD.character_id)
+    run_state.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 0
+    run_state.player.unlock_state[UNLOCK_STATE_EPOCH_UNLOCK_COUNT_KEY] = 0
+    return run_state
+
+
+def _set_tutorial_map_point_history(
+    run_state: RunState,
+    room_type: RoomType,
+    map_point_type: MapPointType,
+    count: int,
+) -> None:
+    run_state.map_point_history.clear()
+    for _ in range(count):
+        run_state.append_to_map_point_history(map_point_type, room_type)
+
+
+def test_tutorial_monster_rewards_use_fixed_card_sets_and_potions():
+    run_state = _tutorial_run_state()
+
+    for count, expected_cards in enumerate(TUTORIAL_MONSTER_CARD_REWARDS, start=1):
+        _set_tutorial_map_point_history(run_state, RoomType.MONSTER, MapPointType.MONSTER, count)
+        rewards = RewardsSet(run_state.player.player_id).with_rewards_from_room(
+            CombatRoom(room_type=RoomType.MONSTER),
+            run_state,
+        )
+
+        card_reward = next(reward for reward in rewards.rewards if isinstance(reward, CardReward))
+        assert [card.card_id for card in card_reward.cards] == list(expected_cards)
+        potions = [reward.potion_id for reward in rewards.rewards if isinstance(reward, PotionReward)]
+        expected_potion = TUTORIAL_MONSTER_POTION_REWARDS.get(count)
+        assert potions == ([expected_potion] if expected_potion else [])
+
+
+def test_tutorial_elite_and_boss_rewards_match_reference_fixed_rewards():
+    run_state = _tutorial_run_state(seed=49)
+
+    _set_tutorial_map_point_history(run_state, RoomType.ELITE, MapPointType.ELITE, 1)
+    first_elite = RewardsSet(run_state.player.player_id).with_rewards_from_room(
+        CombatRoom(room_type=RoomType.ELITE),
+        run_state,
+    )
+    first_elite_cards = next(reward for reward in first_elite.rewards if isinstance(reward, CardReward))
+    first_elite_relic = next(reward for reward in first_elite.rewards if isinstance(reward, RelicReward))
+    first_elite_potion = next(reward for reward in first_elite.rewards if isinstance(reward, PotionReward))
+    assert [card.card_id for card in first_elite_cards.cards] == [CardId.BLUDGEON, CardId.PYRE, CardId.EVIL_EYE]
+    assert first_elite_relic.relic_id == RelicId.VAJRA.name
+    assert first_elite_potion.potion_id == TUTORIAL_BLOCK_POTION_ID
+
+    _set_tutorial_map_point_history(run_state, RoomType.ELITE, MapPointType.ELITE, 2)
+    second_elite = RewardsSet(run_state.player.player_id).with_rewards_from_room(
+        CombatRoom(room_type=RoomType.ELITE),
+        run_state,
+    )
+    second_elite_cards = next(reward for reward in second_elite.rewards if isinstance(reward, CardReward))
+    second_elite_relic = next(reward for reward in second_elite.rewards if isinstance(reward, RelicReward))
+    assert [card.card_id for card in second_elite_cards.cards] == [
+        CardId.PILLAGE,
+        CardId.RAMPAGE,
+        CardId.FLAME_BARRIER_CARD,
+    ]
+    assert second_elite_relic.relic_id == RelicId.ORNAMENTAL_FAN.name
+    assert not any(isinstance(reward, PotionReward) for reward in second_elite.rewards)
+
+    _set_tutorial_map_point_history(run_state, RoomType.BOSS, MapPointType.BOSS, 1)
+    boss = RewardsSet(run_state.player.player_id).with_rewards_from_room(
+        CombatRoom(room_type=RoomType.BOSS),
+        run_state,
+    )
+    boss_cards = next(reward for reward in boss.rewards if isinstance(reward, CardReward))
+    assert [card.card_id for card in boss_cards.cards] == [
+        CardId.PRIMAL_FORCE,
+        CardId.DEMON_FORM_CARD,
+        CardId.THRASH,
+    ]
+
+
+def test_tutorial_rewards_require_explicit_first_run_unlock_state():
+    run_state = RunState(seed=50, character_id=IRONCLAD.character_id)
+    _set_tutorial_map_point_history(run_state, RoomType.MONSTER, MapPointType.MONSTER, 1)
+
+    rewards = RewardsSet(run_state.player.player_id).with_rewards_from_room(
+        CombatRoom(room_type=RoomType.MONSTER),
+        run_state,
+    )
+    card_reward = next(reward for reward in rewards.rewards if isinstance(reward, CardReward))
+
+    assert not card_reward.cards
 
 
 def test_cauldron_after_obtained_queues_five_potion_rewards():

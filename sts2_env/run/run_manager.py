@@ -1117,8 +1117,6 @@ class RunManager:
                 "description": f"Coordinate ({col},{row}) is not reachable.",
             }
 
-        self._run_state.add_visited_coord(coord)
-
         # Resolve room type
         act_map = self._run_state.map
         point = act_map.get_point(coord) if act_map else None
@@ -1126,6 +1124,7 @@ class RunManager:
             room_type = RoomType.MONSTER
         else:
             room_type = self._run_state.resolve_room_type(point.point_type)
+        self._run_state.add_visited_coord(coord, room_type=room_type)
 
         self._enter_room(room_type)
 

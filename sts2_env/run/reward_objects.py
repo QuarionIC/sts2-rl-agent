@@ -7,9 +7,11 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 from sts2_env.cards.base import CardInstance
-from sts2_env.core.enums import CardId, CardRarity, CardType, RoomType
+from sts2_env.cards.factory import create_card
+from sts2_env.characters.all import IRONCLAD
+from sts2_env.core.enums import CardId, CardRarity, CardType, MapPointType, RoomType
 from sts2_env.potions.base import create_potion, roll_random_potion_model
-from sts2_env.relics.base import RelicPool, RelicRarity
+from sts2_env.relics.base import RelicId, RelicPool, RelicRarity
 from sts2_env.relics.registry import RELIC_REGISTRY, load_all_relics
 from sts2_env.run.rewards import (
     CardRewardGenerationOptions,
@@ -22,6 +24,7 @@ if TYPE_CHECKING:
     from sts2_env.run.rooms import CombatRoom, Room
     from sts2_env.run.run_manager import RunManager
     from sts2_env.run.run_state import RunState
+from sts2_env.run.run_state import UNLOCK_STATE_EPOCH_UNLOCK_COUNT_KEY, UNLOCK_STATE_NUMBER_OF_RUNS_KEY
 
 
 class RewardType(Enum):
@@ -817,6 +820,48 @@ ENCOUNTER_GOLD_REWARD_RANGES: dict[RoomType, tuple[int, int]] = {
 }
 POVERTY_ASCENSION_LEVEL = 3
 POVERTY_ASCENSION_GOLD_MULTIPLIER = 0.75
+TUTORIAL_FIRST_RUN_COUNT = 0
+TUTORIAL_UNLOCKED_EPOCH_COUNT = 0
+TUTORIAL_FIRST_MONSTER_COUNT = 1
+TUTORIAL_THIRD_MONSTER_COUNT = 3
+TUTORIAL_FIFTH_MONSTER_COUNT = 5
+TUTORIAL_SEVENTH_MONSTER_COUNT = 7
+TUTORIAL_FIRST_ELITE_COUNT = 1
+TUTORIAL_SECOND_ELITE_COUNT = 2
+TUTORIAL_FIRST_BOSS_COUNT = 1
+TUTORIAL_FIRE_POTION_ID = "FirePotion"
+TUTORIAL_STRENGTH_POTION_ID = "StrengthPotion"
+TUTORIAL_ENERGY_POTION_ID = "EnergyPotion"
+TUTORIAL_BLOCK_POTION_ID = "BlockPotion"
+CARD_CREATION_SOURCE_ENCOUNTER = "encounter"
+CARD_GENERATION_CONTEXT_COMBAT = "combat"
+TUTORIAL_MONSTER_CARD_REWARDS: tuple[tuple[CardId, CardId, CardId], ...] = (
+    (CardId.SETUP_STRIKE_CARD, CardId.TREMBLE, CardId.BLOOD_WALL),
+    (CardId.BREAKTHROUGH, CardId.INFLAME, CardId.ANGER),
+    (CardId.IRON_WAVE, CardId.DISMANTLE, CardId.CINDER),
+    (CardId.STOMP, CardId.SHRUG_IT_OFF, CardId.ARMAMENTS),
+    (CardId.THUNDERCLAP, CardId.SETUP_STRIKE_CARD, CardId.RAGE_CARD),
+    (CardId.BATTLE_TRANCE, CardId.TRUE_GRIT, CardId.UPPERCUT),
+    (CardId.BLOODLETTING, CardId.WHIRLWIND, CardId.TREMBLE),
+)
+TUTORIAL_MONSTER_POTION_REWARDS = {
+    TUTORIAL_THIRD_MONSTER_COUNT: TUTORIAL_FIRE_POTION_ID,
+    TUTORIAL_FIFTH_MONSTER_COUNT: TUTORIAL_STRENGTH_POTION_ID,
+    TUTORIAL_SEVENTH_MONSTER_COUNT: TUTORIAL_ENERGY_POTION_ID,
+}
+TUTORIAL_ELITE_REWARDS = {
+    TUTORIAL_FIRST_ELITE_COUNT: (
+        (CardId.BLUDGEON, CardId.PYRE, CardId.EVIL_EYE),
+        TUTORIAL_BLOCK_POTION_ID,
+        RelicId.VAJRA.name,
+    ),
+    TUTORIAL_SECOND_ELITE_COUNT: (
+        (CardId.PILLAGE, CardId.RAMPAGE, CardId.FLAME_BARRIER_CARD),
+        None,
+        RelicId.ORNAMENTAL_FAN.name,
+    ),
+}
+TUTORIAL_BOSS_CARD_REWARD = (CardId.PRIMAL_FORCE, CardId.DEMON_FORM_CARD, CardId.THRASH)
 
 
 @dataclass
@@ -839,6 +884,10 @@ class RewardsSet:
                 self.rewards.extend(room.extra_rewards.get(self.player_id, []))
             return self
         if getattr(room, "suppress_default_rewards", False):
+            if hasattr(room, "extra_rewards"):
+                self.rewards.extend(room.extra_rewards.get(self.player_id, []))
+            return self
+        if self._try_generate_tutorial_rewards(room, run_state):
             if hasattr(room, "extra_rewards"):
                 self.rewards.extend(room.extra_rewards.get(self.player_id, []))
             return self
@@ -922,3 +971,61 @@ class RewardsSet:
         if room_type == RoomType.ELITE:
             return "elite"
         return "regular"
+
+    def _try_generate_tutorial_rewards(self, room: Room, run_state: RunState) -> bool:
+        player = run_state.get_player(self.player_id)
+        if not self._should_use_tutorial_rewards(player, room, run_state):
+            return False
+        if room.room_type == RoomType.MONSTER:
+            monster_count = run_state.count_map_point_history_entries(room_type=RoomType.MONSTER)
+            if not TUTORIAL_FIRST_MONSTER_COUNT <= monster_count <= len(TUTORIAL_MONSTER_CARD_REWARDS):
+                return False
+            self.rewards.append(GoldReward(self.player_id, *ENCOUNTER_GOLD_REWARD_RANGES[RoomType.MONSTER]))
+            potion_id = TUTORIAL_MONSTER_POTION_REWARDS.get(monster_count)
+            if potion_id is not None:
+                self.rewards.append(PotionReward(self.player_id, potion_id=potion_id))
+            self.rewards.append(self._fixed_card_reward(TUTORIAL_MONSTER_CARD_REWARDS[monster_count - TUTORIAL_FIRST_MONSTER_COUNT]))
+            return True
+        if room.room_type == RoomType.ELITE:
+            elite_count = run_state.count_map_point_history_entries(map_point_type=MapPointType.ELITE)
+            reward = TUTORIAL_ELITE_REWARDS.get(elite_count)
+            if reward is None:
+                return False
+            card_ids, potion_id, relic_id = reward
+            self.rewards.append(GoldReward(self.player_id, *ENCOUNTER_GOLD_REWARD_RANGES[RoomType.ELITE]))
+            if potion_id is not None:
+                self.rewards.append(PotionReward(self.player_id, potion_id=potion_id))
+            self.rewards.append(RelicReward(self.player_id, relic_id=relic_id))
+            self.rewards.append(self._fixed_card_reward(card_ids))
+            return True
+        if (
+            room.room_type == RoomType.BOSS
+            and run_state.count_map_point_history_entries(map_point_type=MapPointType.BOSS) == TUTORIAL_FIRST_BOSS_COUNT
+        ):
+            self.rewards.append(GoldReward(self.player_id, *ENCOUNTER_GOLD_REWARD_RANGES[RoomType.BOSS]))
+            self.rewards.append(self._fixed_card_reward(TUTORIAL_BOSS_CARD_REWARD))
+            return True
+        return False
+
+    def _should_use_tutorial_rewards(self, player: object, room: Room, run_state: RunState) -> bool:
+        if player.character_id != IRONCLAD.character_id:
+            return False
+        unlock_state = getattr(player, "unlock_state", {})
+        if unlock_state.get(UNLOCK_STATE_NUMBER_OF_RUNS_KEY) != TUTORIAL_FIRST_RUN_COUNT:
+            return False
+        if (
+            unlock_state.get(UNLOCK_STATE_EPOCH_UNLOCK_COUNT_KEY, len(getattr(player, "discovered_epochs", [])))
+            != TUTORIAL_UNLOCKED_EPOCH_COUNT
+        ):
+            return False
+        if not run_state.map_point_history:
+            return False
+        return room.room_type in {RoomType.MONSTER, RoomType.ELITE, RoomType.BOSS}
+
+    def _fixed_card_reward(self, card_ids: tuple[CardId, ...]) -> CardReward:
+        return CardReward(
+            self.player_id,
+            cards=[create_card(card_id) for card_id in card_ids],
+            generation_context=CARD_GENERATION_CONTEXT_COMBAT,
+            card_creation_source=CARD_CREATION_SOURCE_ENCOUNTER,
+        )

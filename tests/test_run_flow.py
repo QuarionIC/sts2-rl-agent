@@ -244,6 +244,19 @@ class TestMapNavigation:
         assert rs.act_floor == coords[0].row + 1
         assert rs.total_floor == 1
 
+    def test_visit_coord_records_map_point_history(self):
+        rs = RunState(seed=42)
+        rs.initialize_run()
+        coord = rs.get_available_next_coords()[0]
+        point = rs.map.get_point(coord)
+        room_type = rs.resolve_room_type(point.point_type)
+
+        rs.add_visited_coord(coord, room_type=room_type)
+
+        assert len(rs.map_point_history) == 1
+        assert rs.map_point_history[0].map_point_type == point.point_type
+        assert rs.map_point_history[0].room_type == room_type
+
     def test_second_move_goes_to_row_2(self):
         rs = RunState(seed=42)
         rs.initialize_run()
