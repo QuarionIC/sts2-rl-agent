@@ -16,6 +16,7 @@ from sts2_env.cards.registry import (
     register_generated_map_hook,
     register_generated_map_late_hook,
     register_next_event_hook,
+    register_quest_complete_hook,
     register_rest_site_options_hook,
     register_unknown_room_types_hook,
 )
@@ -1652,3 +1653,21 @@ def spoils_map_after_map_generated(card: CardInstance, run_state, act_map, act_i
     point = act_map.get_point(MapCoord(col, row))
     if point is not None:
         point.add_quest(card)
+
+
+@register_quest_complete_hook(CardId.SPOILS_MAP)
+def spoils_map_quest_complete(card: CardInstance, run_state) -> int:
+    gold = card.effect_vars["gold"]
+    run_state.player.gain_gold(gold)
+    if card in run_state.player.deck:
+        run_state.player.deck.remove(card)
+    if run_state.map is not None:
+        col = card.effect_vars.get("spoils_col")
+        row = card.effect_vars.get("spoils_row")
+        if col is not None and row is not None:
+            from sts2_env.map.map_point import MapCoord
+
+            point = run_state.map.get_point(MapCoord(col, row))
+            if point is not None:
+                point.remove_quest(card)
+    return gold

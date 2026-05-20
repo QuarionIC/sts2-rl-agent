@@ -103,6 +103,23 @@ def test_spoils_map_treasure_completion_grants_gold_and_removes_card():
     assert spoils not in treasure.quests
 
 
+def test_spoils_map_card_hook_completes_quest_and_removes_itself():
+    run_state = _make_run_state(444)
+    spoils = create_card(CardId.SPOILS_MAP)
+    run_state.player.deck.append(spoils)
+    run_state.current_act_index = 1
+    run_state.generate_map()
+    treasure = next(point for point in run_state.map.room_points() if point.point_type == MapPointType.TREASURE)
+    starting_gold = run_state.player.gold
+
+    gold = spoils.on_quest_complete(run_state)
+
+    assert gold == spoils.effect_vars["gold"]
+    assert run_state.player.gold == starting_gold + gold
+    assert spoils not in run_state.player.deck
+    assert spoils not in treasure.quests
+
+
 def test_spiraling_whirlpool_requires_spiral_targets_and_applies_observe_drink():
     blocked_state = _make_run_state(402)
     blocked_state.player.deck = [create_card(CardId.BASH)]

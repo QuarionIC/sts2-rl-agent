@@ -43,6 +43,10 @@ CardAfterMapGeneratedHook = Callable[
     ["CardInstance", "RunState", "ActMap", int],
     None,
 ]
+CardQuestCompleteHook = Callable[
+    ["CardInstance", "RunState"],
+    int,
+]
 CardRestSiteOptionsHook = Callable[
     ["CardInstance", "PlayerState", list["RestSiteOption"], "RunState | None"],
     list["RestSiteOption"],
@@ -57,6 +61,7 @@ _CARD_UNKNOWN_ROOM_TYPES_HOOKS: dict[CardId, CardUnknownRoomTypesHook] = {}
 _CARD_GENERATED_MAP_HOOKS: dict[CardId, CardGeneratedMapHook] = {}
 _CARD_GENERATED_MAP_LATE_HOOKS: dict[CardId, CardGeneratedMapHook] = {}
 _CARD_AFTER_MAP_GENERATED_HOOKS: dict[CardId, CardAfterMapGeneratedHook] = {}
+_CARD_QUEST_COMPLETE_HOOKS: dict[CardId, CardQuestCompleteHook] = {}
 _CARD_REST_SITE_OPTIONS_HOOKS: dict[CardId, CardRestSiteOptionsHook] = {}
 
 
@@ -121,6 +126,13 @@ def register_generated_map_late_hook(card_id: CardId):
 def register_after_map_generated_hook(card_id: CardId):
     def decorator(func: CardAfterMapGeneratedHook) -> CardAfterMapGeneratedHook:
         _CARD_AFTER_MAP_GENERATED_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_quest_complete_hook(card_id: CardId):
+    def decorator(func: CardQuestCompleteHook) -> CardQuestCompleteHook:
+        _CARD_QUEST_COMPLETE_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -230,6 +242,13 @@ def fire_card_after_map_generated(
     hook = _CARD_AFTER_MAP_GENERATED_HOOKS.get(card.card_id)
     if hook is not None:
         hook(card, run_state, act_map, act_index)
+
+
+def complete_card_quest(card: "CardInstance", run_state: "RunState") -> int:
+    hook = _CARD_QUEST_COMPLETE_HOOKS.get(card.card_id)
+    if hook is None:
+        return 0
+    return hook(card, run_state)
 
 
 def modify_card_rest_site_options(

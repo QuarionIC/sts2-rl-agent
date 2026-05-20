@@ -1933,16 +1933,15 @@ class RunManager:
         if run_state.map is None or not run_state.visited_map_coords:
             return 0
         point = run_state.map.get_point(run_state.visited_map_coords[-1])
-        if point is None or not any(getattr(quest, "card_id", None) == CardId.SPOILS_MAP for quest in point.quests):
+        if point is None:
             return 0
-        for card in list(run_state.player.deck):
-            if card.card_id != CardId.SPOILS_MAP:
+        for quest in list(point.quests):
+            on_quest_complete = getattr(quest, "on_quest_complete", None)
+            if not callable(on_quest_complete):
                 continue
-            gold = card.effect_vars.get("gold", 600)
-            run_state.player.gain_gold(gold)
-            run_state.player.deck.remove(card)
-            point.remove_quest(card)
-            return gold
+            gold = on_quest_complete(run_state)
+            if gold:
+                return gold
         return 0
 
     # ------------------------------------------------------------------

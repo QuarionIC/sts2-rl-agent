@@ -490,6 +490,11 @@ class CardInstance:
 
         fire_card_after_map_generated(self, run_state, act_map, act_index)
 
+    def on_quest_complete(self, run_state: object) -> int:
+        from sts2_env.cards.registry import complete_card_quest
+
+        return complete_card_quest(self, run_state)
+
     def modify_rest_site_options(
         self,
         owner: object,
