@@ -737,15 +737,7 @@ class RunManager:
     def _enter_event(self) -> None:
         self._phase = self.PHASE_EVENT
         act_cfg = self._run_state.current_act
-        if (
-            self._run_state.current_act_index == 2
-            and any(card.card_id == CardId.LANTERN_KEY for card in self._run_state.player.deck)
-        ):
-            from sts2_env.events.act3 import WarHistorianRepy
-
-            event = WarHistorianRepy()
-        else:
-            event = pick_event(self._run_state, pool=act_cfg.event_ids)
+        event = pick_event(self._run_state, pool=act_cfg.event_ids)
         self._event_model = event
         if event is not None:
             event.reset_rng_for_run(self._run_state)

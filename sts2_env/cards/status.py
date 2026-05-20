@@ -12,6 +12,7 @@ from sts2_env.cards.registry import (
     register_after_combat_end_hook,
     register_chosen_hook,
     register_effect,
+    register_next_event_hook,
     register_rest_site_options_hook,
 )
 from sts2_env.core.enums import (
@@ -1576,6 +1577,16 @@ def lantern_key_effect(card: CardInstance, combat: CombatState, target: Creature
     """Unplayable quest card. Modifies map in Act 3 to force War Historian event.
     Handled outside the play-effect path."""
     pass
+
+
+@register_next_event_hook(CardId.LANTERN_KEY)
+def lantern_key_next_event(card: CardInstance, run_state, event):
+    if run_state.current_act_index != 2:
+        return event
+
+    from sts2_env.events.act3 import WarHistorianRepy
+
+    return WarHistorianRepy()
 
 
 @register_effect(CardId.SPOILS_MAP)

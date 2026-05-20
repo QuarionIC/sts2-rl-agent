@@ -465,6 +465,11 @@ class CardInstance:
 
         return apply_card_after_combat_end(self, owner)
 
+    def modify_next_event(self, run_state: object, event: object | None) -> object | None:
+        from sts2_env.cards.registry import modify_card_next_event
+
+        return modify_card_next_event(self, run_state, event)
+
     def modify_rest_site_options(
         self,
         owner: object,

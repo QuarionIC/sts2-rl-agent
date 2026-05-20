@@ -240,8 +240,10 @@ def get_allowed_events(run_state: RunState, pool: list[str] | None = None) -> li
 def pick_event(run_state: RunState, pool: list[str] | None = None) -> EventModel | None:
     """Pick a random allowed event from the pool."""
     allowed = get_allowed_events(run_state, pool)
-    if not allowed:
-        return None
-    event = run_state.rng.up_front.choice(allowed)
-    run_state.visited_event_ids.add(event.event_id)
+    event = run_state.rng.up_front.choice(allowed) if allowed else None
+    for player in run_state.players:
+        for card in player.deck:
+            event = card.modify_next_event(run_state, event)
+    if event is not None:
+        run_state.visited_event_ids.add(event.event_id)
     return event

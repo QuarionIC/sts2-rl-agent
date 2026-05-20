@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from sts2_env.cards.base import CardInstance
     from sts2_env.core.combat import CombatState
     from sts2_env.core.creature import Creature
+    from sts2_env.run.events import EventModel
     from sts2_env.run.rest_site import RestSiteOption
     from sts2_env.run.run_state import PlayerState, RunState
 
@@ -24,6 +25,10 @@ CardAfterCombatEndHook = Callable[
     ["CardInstance", "PlayerState"],
     bool,
 ]
+CardNextEventHook = Callable[
+    ["CardInstance", "RunState", "EventModel | None"],
+    "EventModel | None",
+]
 CardRestSiteOptionsHook = Callable[
     ["CardInstance", "PlayerState", list["RestSiteOption"], "RunState | None"],
     list["RestSiteOption"],
@@ -33,6 +38,7 @@ _CARD_EFFECTS: dict[CardId, CardEffect] = {}
 _CARD_LATE_EFFECTS: dict[CardId, CardLateEffect] = {}
 _CARD_CHOSEN_HOOKS: dict[CardId, CardChosenHook] = {}
 _CARD_AFTER_COMBAT_END_HOOKS: dict[CardId, CardAfterCombatEndHook] = {}
+_CARD_NEXT_EVENT_HOOKS: dict[CardId, CardNextEventHook] = {}
 _CARD_REST_SITE_OPTIONS_HOOKS: dict[CardId, CardRestSiteOptionsHook] = {}
 
 
@@ -62,6 +68,13 @@ def register_chosen_hook(card_id: CardId):
 def register_after_combat_end_hook(card_id: CardId):
     def decorator(func: CardAfterCombatEndHook) -> CardAfterCombatEndHook:
         _CARD_AFTER_COMBAT_END_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_next_event_hook(card_id: CardId):
+    def decorator(func: CardNextEventHook) -> CardNextEventHook:
+        _CARD_NEXT_EVENT_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -114,6 +127,17 @@ def apply_card_after_combat_end(card: "CardInstance", owner: "PlayerState") -> b
     if hook is None:
         return True
     return hook(card, owner)
+
+
+def modify_card_next_event(
+    card: "CardInstance",
+    run_state: "RunState",
+    event: "EventModel | None",
+) -> "EventModel | None":
+    hook = _CARD_NEXT_EVENT_HOOKS.get(card.card_id)
+    if hook is None:
+        return event
+    return hook(card, run_state, event)
 
 
 def modify_card_rest_site_options(

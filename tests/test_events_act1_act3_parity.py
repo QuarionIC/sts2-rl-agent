@@ -39,6 +39,7 @@ from sts2_env.run.rest_site import generate_rest_site_options
 from sts2_env.run.reward_objects import CardReward, GoldReward, PotionReward, RelicReward, RewardsSet
 from sts2_env.run.rewards import CardRewardGenerationOptions
 from sts2_env.run.rooms import RoomVisitContext, create_room
+from sts2_env.run.events import pick_event
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.run_state import PlayerState, RunState
 from sts2_env.run.shop import _create_character_shop_card
@@ -534,6 +535,17 @@ def test_lantern_key_forces_act3_unknown_rooms_into_war_historian_repy():
     mgr._enter_event()
 
     assert isinstance(mgr._event_model, WarHistorianRepy)
+
+
+def test_lantern_key_card_hook_replaces_next_act3_event():
+    run_state = RunState(seed=810, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.current_act_index = 2
+    run_state.player.deck.append(create_card(CardId.LANTERN_KEY))
+
+    event = pick_event(run_state, pool=["Neow"])
+
+    assert isinstance(event, WarHistorianRepy)
 
 
 def test_war_historian_repy_removes_lantern_key_on_both_paths():
