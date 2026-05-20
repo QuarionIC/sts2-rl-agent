@@ -268,13 +268,9 @@ class CardInstance:
         *,
         is_auto_play: bool = False,
     ) -> bool:
-        if self.card_id == CardId.ENTHRALLED:
-            if is_auto_play:
-                return True
-            return card.card_id == CardId.ENTHRALLED
-        if self.card_id == CardId.NORMALITY:
-            return combat.count_card_play_starts_this_turn(owner) < self.effect_vars["calc_base"]
-        return True
+        from sts2_env.cards.registry import should_play_card_from_hand
+
+        return should_play_card_from_hand(self, card, owner_state, combat, owner, is_auto_play)
 
     def target_type_for(self, owner: object) -> TargetType:
         if self.card_id == CardId.MAD_SCIENCE and self.card_type != CardType.ATTACK:

@@ -19,6 +19,7 @@ from sts2_env.cards.registry import (
     register_playability_hook,
     register_quest_complete_hook,
     register_rest_site_options_hook,
+    register_should_play_hook,
     register_unknown_room_types_hook,
 )
 from sts2_env.core.enums import (
@@ -1472,6 +1473,18 @@ def enthralled_effect(card: CardInstance, combat: CombatState, target: Creature 
     pass
 
 
+@register_should_play_hook(CardId.ENTHRALLED)
+def enthralled_should_play(
+    card: CardInstance,
+    played_card: CardInstance,
+    owner_state,
+    combat: CombatState,
+    owner: Creature,
+    is_auto_play: bool,
+) -> bool:
+    return is_auto_play or played_card.card_id == CardId.ENTHRALLED
+
+
 @register_effect(CardId.FOLLY)
 def folly_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     """Unplayable, Innate, Eternal. Always drawn first turn. Dead weight."""
@@ -1509,6 +1522,18 @@ def normality_effect(card: CardInstance, combat: CombatState, target: Creature |
     """Unplayable. While in hand, limits player to 3 card plays per turn.
     Enforced by the combat system's ShouldPlay check, not this function."""
     pass
+
+
+@register_should_play_hook(CardId.NORMALITY)
+def normality_should_play(
+    card: CardInstance,
+    played_card: CardInstance,
+    owner_state,
+    combat: CombatState,
+    owner: Creature,
+    is_auto_play: bool,
+) -> bool:
+    return combat.count_card_play_starts_this_turn(owner) < card.effect_vars["calc_base"]
 
 
 @register_effect(CardId.PAIN)

@@ -27,6 +27,10 @@ CardPlayabilityHook = Callable[
     ["CardInstance", object, "CombatState", "Creature"],
     bool,
 ]
+CardShouldPlayHook = Callable[
+    ["CardInstance", "CardInstance", object, "CombatState", "Creature", bool],
+    bool,
+]
 CardAfterCombatEndHook = Callable[
     ["CardInstance", "PlayerState"],
     bool,
@@ -60,6 +64,7 @@ _CARD_EFFECTS: dict[CardId, CardEffect] = {}
 _CARD_LATE_EFFECTS: dict[CardId, CardLateEffect] = {}
 _CARD_CHOSEN_HOOKS: dict[CardId, CardChosenHook] = {}
 _CARD_PLAYABILITY_HOOKS: dict[CardId, CardPlayabilityHook] = {}
+_CARD_SHOULD_PLAY_HOOKS: dict[CardId, CardShouldPlayHook] = {}
 _CARD_AFTER_COMBAT_END_HOOKS: dict[CardId, CardAfterCombatEndHook] = {}
 _CARD_NEXT_EVENT_HOOKS: dict[CardId, CardNextEventHook] = {}
 _CARD_UNKNOWN_ROOM_TYPES_HOOKS: dict[CardId, CardUnknownRoomTypesHook] = {}
@@ -96,6 +101,13 @@ def register_chosen_hook(card_id: CardId):
 def register_playability_hook(card_id: CardId):
     def decorator(func: CardPlayabilityHook) -> CardPlayabilityHook:
         _CARD_PLAYABILITY_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_should_play_hook(card_id: CardId):
+    def decorator(func: CardShouldPlayHook) -> CardShouldPlayHook:
+        _CARD_SHOULD_PLAY_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -202,6 +214,20 @@ def is_card_playable(
     if hook is None:
         return True
     return hook(card, owner_state, combat, owner)
+
+
+def should_play_card_from_hand(
+    listener_card: "CardInstance",
+    played_card: "CardInstance",
+    owner_state: object,
+    combat: "CombatState",
+    owner: "Creature",
+    is_auto_play: bool,
+) -> bool:
+    hook = _CARD_SHOULD_PLAY_HOOKS.get(listener_card.card_id)
+    if hook is None:
+        return True
+    return hook(listener_card, played_card, owner_state, combat, owner, is_auto_play)
 
 
 def apply_card_after_combat_end(card: "CardInstance", owner: "PlayerState") -> bool:
