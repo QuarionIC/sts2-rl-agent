@@ -160,16 +160,6 @@ def _get_encounter_pools(act_index: int) -> dict[str, list]:
     }
 
 
-# ---------------------------------------------------------------------------
-# Gold reward ranges by room type
-# ---------------------------------------------------------------------------
-
-_GOLD_REWARDS: dict[RoomType, tuple[int, int]] = {
-    RoomType.MONSTER: (10, 20),
-    RoomType.ELITE: (25, 35),
-    RoomType.BOSS: (50, 75),
-}
-
 _BOSS_RELIC_POOL = [
     "ASTROLABE",
     "BLACK_STAR",

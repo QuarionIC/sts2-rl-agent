@@ -67,10 +67,12 @@ class CombatRoom(Room):
     extra_rewards: dict[int, list[Any]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if self.is_boss:
+        if self.is_boss or self.room_type == RoomType.BOSS:
             self.room_type = RoomType.BOSS
-        elif self.is_elite:
+            self.is_boss = True
+        elif self.is_elite or self.room_type == RoomType.ELITE:
             self.room_type = RoomType.ELITE
+            self.is_elite = True
         else:
             self.room_type = RoomType.MONSTER
 

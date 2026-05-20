@@ -720,10 +720,10 @@ class EnchantCardsReward(Reward):
         }
 
 
-_GOLD_REWARD_RANGES: dict[RoomType, tuple[int, int]] = {
+ENCOUNTER_GOLD_REWARD_RANGES: dict[RoomType, tuple[int, int]] = {
     RoomType.MONSTER: (10, 20),
-    RoomType.ELITE: (25, 35),
-    RoomType.BOSS: (95, 105),
+    RoomType.ELITE: (35, 45),
+    RoomType.BOSS: (100, 100),
 }
 
 
@@ -750,8 +750,8 @@ class RewardsSet:
             if hasattr(room, "extra_rewards"):
                 self.rewards.extend(room.extra_rewards.get(self.player_id, []))
             return self
-        if room.room_type in _GOLD_REWARD_RANGES:
-            low, high = _GOLD_REWARD_RANGES[room.room_type]
+        if room.room_type in ENCOUNTER_GOLD_REWARD_RANGES:
+            low, high = ENCOUNTER_GOLD_REWARD_RANGES[room.room_type]
             self.rewards.append(GoldReward(self.player_id, low, high))
             player = run_state.get_player(self.player_id)
             forced_potion = any(

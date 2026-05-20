@@ -4,7 +4,14 @@ from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.status import make_curse_of_the_bell
 from sts2_env.core.enums import CardId, CardRarity, CardType, RoomType
-from sts2_env.run.reward_objects import CardReward, PotionReward, RelicReward, RewardsSet
+from sts2_env.run.reward_objects import (
+    CardReward,
+    ENCOUNTER_GOLD_REWARD_RANGES,
+    GoldReward,
+    PotionReward,
+    RelicReward,
+    RewardsSet,
+)
 from sts2_env.run.rooms import CombatRoom
 from sts2_env.run.run_state import RunState
 
@@ -30,6 +37,25 @@ def test_rewards_set_merges_combat_room_extra_rewards_for_player():
     generated = rewards.generate_without_offering(run_state)
 
     assert any(reward is extra for reward in generated)
+
+
+def test_combat_room_gold_ranges_match_encounter_model_defaults():
+    assert ENCOUNTER_GOLD_REWARD_RANGES == {
+        RoomType.MONSTER: (10, 20),
+        RoomType.ELITE: (35, 45),
+        RoomType.BOSS: (100, 100),
+    }
+
+
+def test_rewards_set_uses_encounter_gold_ranges_for_combat_rooms():
+    run_state = RunState(seed=43, character_id="Ironclad")
+    run_state.initialize_run()
+
+    for room_type, expected_range in ENCOUNTER_GOLD_REWARD_RANGES.items():
+        room = CombatRoom(room_type=room_type)
+        rewards = RewardsSet(run_state.player.player_id).with_rewards_from_room(room, run_state)
+        gold_reward = next(reward for reward in rewards.rewards if isinstance(reward, GoldReward))
+        assert (gold_reward.min_gold, gold_reward.max_gold) == expected_range
 
 
 def test_cauldron_after_obtained_queues_five_potion_rewards():
