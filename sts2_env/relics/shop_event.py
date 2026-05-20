@@ -861,6 +861,14 @@ class ArchaicTooth(RelicInstance):
     relic_id = RelicId.ARCHAIC_TOOTH
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    TRANSCENDENCE_UPGRADES = {
+        CardId.BASH: CardId.BREAK,
+        CardId.NEUTRALIZE: CardId.SUPPRESS,
+        CardId.UNLEASH: CardId.PROTECTOR,
+        CardId.FALLING_STAR: CardId.METEOR_SHOWER,
+        CardId.DUALCAST: CardId.QUADCAST,
+    }
+    TRANSCENDENCE_CARDS = frozenset(TRANSCENDENCE_UPGRADES.values())
 
     def __init__(self, relic_id: RelicId):
         super().__init__(relic_id)
@@ -868,15 +876,8 @@ class ArchaicTooth(RelicInstance):
         self._ancient_card_id: str | None = None
 
     def setup_for_player(self, owner: Creature) -> bool:
-        mapping = {
-            CardId.BASH: CardId.BREAK,
-            CardId.NEUTRALIZE: CardId.SUPPRESS,
-            CardId.UNLEASH: CardId.PROTECTOR,
-            CardId.FALLING_STAR: CardId.METEOR_SHOWER,
-            CardId.DUALCAST: CardId.QUADCAST,
-        }
         for card in owner.deck:
-            target_id = mapping.get(card.card_id)
+            target_id = self.TRANSCENDENCE_UPGRADES.get(card.card_id)
             if target_id is None:
                 continue
             self._starter_card_id = card.card_id.name
@@ -885,13 +886,6 @@ class ArchaicTooth(RelicInstance):
         return False
 
     def after_obtained(self, owner: Creature) -> None:
-        mapping = {
-            CardId.BASH: CardId.BREAK,
-            CardId.NEUTRALIZE: CardId.SUPPRESS,
-            CardId.UNLEASH: CardId.PROTECTOR,
-            CardId.FALLING_STAR: CardId.METEOR_SHOWER,
-            CardId.DUALCAST: CardId.QUADCAST,
-        }
         if self._starter_card_id is not None and self._ancient_card_id is not None:
             starter_id = owner._coerce_card_id(self._starter_card_id)
             ancient_id = owner._coerce_card_id(self._ancient_card_id)
@@ -913,12 +907,12 @@ class ArchaicTooth(RelicInstance):
                         preserve_enchantments=True,
                     )
                     return
-        cards = [card for card in owner.deck if card.card_id in mapping][:1]
+        cards = [card for card in owner.deck if card.card_id in self.TRANSCENDENCE_UPGRADES][:1]
         if getattr(owner.run_state, "defer_followup_rewards", False):
-            owner.offer_transform_cards_reward(1, cards=cards, mapping=mapping)
+            owner.offer_transform_cards_reward(1, cards=cards, mapping=self.TRANSCENDENCE_UPGRADES)
             return
         if cards:
-            owner.transform_specific_cards_with_mapping(cards, mapping)
+            owner.transform_specific_cards_with_mapping(cards, self.TRANSCENDENCE_UPGRADES)
 
 
 @register_relic
@@ -1175,14 +1169,19 @@ class Byrdpip(RelicInstance):
     pool = RelicPool.EVENT
 
     def after_obtained(self, owner: Creature) -> None:
-        eggs = [card for card in getattr(owner, "deck", ()) if card.card_id == CardId.BYRDONIS_EGG]
+        from sts2_env.cards.status import (
+            BYRDONIS_EGG_HATCH_TRANSFORM,
+            is_byrdonis_egg,
+            make_byrd_swoop_from_byrdonis_egg,
+        )
+
+        eggs = [card for card in getattr(owner, "deck", ()) if is_byrdonis_egg(card)]
         transform = getattr(owner, "transform_specific_cards_with_mapping", None)
         if callable(transform):
-            transform(eggs, {CardId.BYRDONIS_EGG: CardId.BYRD_SWOOP})
+            transform(eggs, BYRDONIS_EGG_HATCH_TRANSFORM)
         combat, creature = _active_combat_creature(owner)
         if combat is None or creature is None:
             return
-        from sts2_env.cards.factory import create_card
 
         seen: set[int] = set()
         state = combat.combat_player_state_for(creature)
@@ -1193,8 +1192,8 @@ class Byrdpip(RelicInstance):
                     if marker in seen:
                         continue
                     seen.add(marker)
-                    if card.card_id == CardId.BYRDONIS_EGG:
-                        combat.transform_card(card, create_card(CardId.BYRD_SWOOP, upgraded=card.upgraded))
+                    if is_byrdonis_egg(card):
+                        combat.transform_card(card, make_byrd_swoop_from_byrdonis_egg(card))
         combat.summon_event_pet(creature, "BYRDPIP")
 
     def before_combat_start(self, owner: Creature, combat: CombatState) -> None:
@@ -1485,17 +1484,10 @@ class DustyTome(RelicInstance):
     def setup_for_player(self, owner: Creature) -> bool:
         from sts2_env.cards.factory import eligible_character_cards
 
-        transcendence_cards = {
-            CardId.BREAK.name,
-            CardId.SUPPRESS.name,
-            CardId.PROTECTOR.name,
-            CardId.METEOR_SHOWER.name,
-            CardId.QUADCAST.name,
-        }
         candidates = [
             card_id
             for card_id in eligible_character_cards(owner.character_id, rarity="ancient", generation_context="modifier")
-            if card_id.name not in transcendence_cards
+            if card_id not in ArchaicTooth.TRANSCENDENCE_CARDS
         ]
         if not candidates:
             return False

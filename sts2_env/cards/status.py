@@ -648,6 +648,10 @@ def make_byrd_swoop(upgraded: bool = False) -> CardInstance:
     )
 
 
+def make_byrd_swoop_from_byrdonis_egg(card: CardInstance) -> CardInstance:
+    return make_byrd_swoop(upgraded=card.upgraded)
+
+
 @register_effect(CardId.CALTROPS)
 def caltrops_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     thorns = card.effect_vars.get("thorns_power", 3)
@@ -1317,6 +1321,13 @@ def make_byrdonis_egg() -> CardInstance:
         target_type=TargetType.NONE, rarity=CardRarity.QUEST,
         keywords=frozenset({"unplayable"}), instance_id=_get_next_id(),
     )
+
+
+def is_byrdonis_egg(card: object) -> bool:
+    return getattr(card, "card_id", None) == CardId.BYRDONIS_EGG
+
+
+BYRDONIS_EGG_HATCH_TRANSFORM = {CardId.BYRDONIS_EGG: CardId.BYRD_SWOOP}
 
 
 def make_lantern_key() -> CardInstance:
