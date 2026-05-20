@@ -13,6 +13,7 @@ from sts2_env.cards.registry import (
     register_after_map_generated_hook,
     register_chosen_hook,
     register_effect,
+    register_gains_block_hook,
     register_generated_map_hook,
     register_generated_map_late_hook,
     register_next_event_hook,
@@ -832,6 +833,11 @@ def mad_science_target_type(card: CardInstance, owner: Creature, target_type: Ta
     if card.card_type != CardType.ATTACK:
         return TargetType.SELF
     return target_type
+
+
+@register_gains_block_hook(CardId.MAD_SCIENCE)
+def mad_science_gains_block(card: CardInstance, default: bool) -> bool:
+    return card.card_type == CardType.SKILL
 
 
 def make_mad_science(upgraded: bool = False) -> CardInstance:

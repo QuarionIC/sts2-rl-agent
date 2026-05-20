@@ -35,6 +35,10 @@ CardTargetTypeHook = Callable[
     ["CardInstance", "Creature", "TargetType"],
     "TargetType",
 ]
+CardGainsBlockHook = Callable[
+    ["CardInstance", bool],
+    bool,
+]
 CardAfterCombatEndHook = Callable[
     ["CardInstance", "PlayerState"],
     bool,
@@ -70,6 +74,7 @@ _CARD_CHOSEN_HOOKS: dict[CardId, CardChosenHook] = {}
 _CARD_PLAYABILITY_HOOKS: dict[CardId, CardPlayabilityHook] = {}
 _CARD_SHOULD_PLAY_HOOKS: dict[CardId, CardShouldPlayHook] = {}
 _CARD_TARGET_TYPE_HOOKS: dict[CardId, CardTargetTypeHook] = {}
+_CARD_GAINS_BLOCK_HOOKS: dict[CardId, CardGainsBlockHook] = {}
 _CARD_AFTER_COMBAT_END_HOOKS: dict[CardId, CardAfterCombatEndHook] = {}
 _CARD_NEXT_EVENT_HOOKS: dict[CardId, CardNextEventHook] = {}
 _CARD_UNKNOWN_ROOM_TYPES_HOOKS: dict[CardId, CardUnknownRoomTypesHook] = {}
@@ -120,6 +125,13 @@ def register_should_play_hook(card_id: CardId):
 def register_target_type_hook(card_id: CardId):
     def decorator(func: CardTargetTypeHook) -> CardTargetTypeHook:
         _CARD_TARGET_TYPE_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_gains_block_hook(card_id: CardId):
+    def decorator(func: CardGainsBlockHook) -> CardGainsBlockHook:
+        _CARD_GAINS_BLOCK_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -251,6 +263,13 @@ def card_target_type_for(
     if hook is None:
         return target_type
     return hook(card, owner, target_type)
+
+
+def card_gains_block(card: "CardInstance", default: bool) -> bool:
+    hook = _CARD_GAINS_BLOCK_HOOKS.get(card.card_id)
+    if hook is None:
+        return default
+    return hook(card, default)
 
 
 def apply_card_after_combat_end(card: "CardInstance", owner: "PlayerState") -> bool:

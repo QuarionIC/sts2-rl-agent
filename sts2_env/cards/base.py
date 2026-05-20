@@ -212,9 +212,9 @@ class CardInstance:
 
     @property
     def gains_block(self) -> bool:
-        if self.card_id == CardId.MAD_SCIENCE:
-            return self.card_type == CardType.SKILL
-        return reference_gains_block(self.card_id)
+        from sts2_env.cards.registry import card_gains_block
+
+        return card_gains_block(self, reference_gains_block(self.card_id))
 
     @property
     def orb_evoke_type(self) -> OrbEvokeType:
