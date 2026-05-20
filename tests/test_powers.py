@@ -1556,6 +1556,19 @@ class TestPowerAmountChangedHooks:
         assert card.bound is False
         assert simple_combat.can_play_card(card) is True
 
+    def test_chains_of_binding_clears_bound_cards_at_any_turn_end_like_reference(self, simple_combat):
+        card = make_strike_ironclad()
+        card.owner = simple_combat.player
+        card.bound = True
+        simple_combat.hand = [card]
+        simple_combat.apply_power_to(simple_combat.player, PowerId.CHAINS_OF_BINDING, 2)
+
+        power = simple_combat.player.powers[PowerId.CHAINS_OF_BINDING]
+        power.before_turn_end(simple_combat.player, CombatSide.ENEMY, simple_combat)
+
+        assert card.bound is False
+        assert simple_combat.can_play_card(card) is True
+
     def test_smoggy_only_tracks_owners_skill_plays(self, simple_combat):
         ally = simple_combat.add_ally_player(PlayerState(player_id=2, character_id="Ironclad", max_hp=70, current_hp=70))
         ally_state = simple_combat.combat_player_state_for(ally)

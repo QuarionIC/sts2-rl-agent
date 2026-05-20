@@ -497,18 +497,17 @@ class ChainsOfBindingPower(PowerInstance):
             self._bound_cards_this_turn += 1
 
     def before_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
-        if side == owner.side:
-            self._bound_card_played = False
-            self._bound_cards_this_turn = 0
-            state = combat.combat_player_state_for(owner)
-            if state is not None:
-                for pile in state.all_piles:
-                    for card in pile:
-                        clear_affliction = getattr(card, "clear_affliction", None)
-                        if callable(clear_affliction):
-                            clear_affliction("bound")
-                        elif getattr(card, "bound", False):
-                            card.bound = False
+        self._bound_card_played = False
+        self._bound_cards_this_turn = 0
+        state = combat.combat_player_state_for(owner)
+        if state is not None:
+            for pile in state.all_piles:
+                for card in pile:
+                    clear_affliction = getattr(card, "clear_affliction", None)
+                    if callable(clear_affliction):
+                        clear_affliction("bound")
+                    elif getattr(card, "bound", False):
+                        card.bound = False
 
     def before_side_turn_start(self, owner: Creature, side: CombatSide,
                                combat: CombatState) -> None:
