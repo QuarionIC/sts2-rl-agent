@@ -865,6 +865,26 @@ class TestPotionInstance:
         assert ally_first.cost == 0
         assert ally_second.cost == 1
 
+    def test_touch_of_insanity_can_select_card_with_global_cost_modifier(self):
+        combat = _make_silent_combat(relics=["SpikedGauntlets"])
+        free_power = make_neutralize()
+        normal_card = make_defend_silent()
+        paid_card = make_strike_silent()
+        free_power.card_type = CardType.POWER
+        free_power.cost = free_power.original_cost = 0
+        normal_card.cost = normal_card.original_cost = 0
+        paid_card.cost = paid_card.original_cost = 1
+        combat.hand = [free_power, normal_card, paid_card]
+        combat.potions = [create_potion("TouchOfInsanity"), None, None]
+
+        assert combat.use_potion(PRIMARY_POTION_SLOT_INDEX)
+
+        assert combat.pending_choice is not None
+        assert [option.card for option in combat.pending_choice.options] == [free_power, paid_card]
+        assert combat.resolve_pending_choice(FIRST_CARD_CHOICE_INDEX)
+        assert free_power.cost == 0
+        assert "_combat_star_cost_override" in free_power.combat_vars
+
     def test_snecko_oil_randomizes_non_x_costs_for_this_turn_only(self):
         combat = _make_silent_combat()
         hand_card = make_strike_silent()
@@ -1005,6 +1025,21 @@ class TestPotionInstance:
         assert len(combat.hand) == 5
         assert {id(card) for card in combat.hand} == {id(card) for card in hand_cards + draw_cards}
         assert combat.draw_pile == []
+
+    def test_bottled_potential_shuffles_target_discard_before_drawing(self):
+        combat = _make_silent_combat()
+        hand_cards = [make_strike_silent() for _ in range(2)]
+        discard_cards = [make_defend_silent() for _ in range(BOTTLED_POTENTIAL_DRAW_COUNT - len(hand_cards))]
+        combat.hand = list(hand_cards)
+        combat.draw_pile = []
+        combat.discard_pile = list(discard_cards)
+        combat.potions = [create_potion("BottledPotential"), None, None]
+
+        assert combat.use_potion(PRIMARY_POTION_SLOT_INDEX)
+
+        assert {id(card) for card in combat.hand} == {id(card) for card in hand_cards + discard_cards}
+        assert combat.draw_pile == []
+        assert combat.discard_pile == []
 
     def test_bottled_potential_moves_owner_hand_but_draws_target_player_like_reference(self):
         combat = _make_silent_combat()

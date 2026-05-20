@@ -468,7 +468,25 @@ def _touch_of_insanity(combat: CombatState, user: Creature, target: Creature | N
     owner_state = combat.combat_player_state_for(user)
     if owner_state is None:
         return
-    candidates = [c for c in owner_state.hand if c.cost > 0 or c.star_cost > 0]
+    candidates = [
+        card for card in owner_state.hand
+        if (
+            (
+                not card.has_energy_cost_x
+                and (
+                    card.cost > 0
+                    or combat.modified_card_cost(user, card) > 0
+                )
+            )
+            or (
+                not card.has_star_cost_x
+                and (
+                    card.star_cost > 0
+                    or combat.modified_star_cost(user, card) > 0
+                )
+            )
+        )
+    ]
     if not candidates:
         return
 
@@ -508,6 +526,8 @@ def _bottled_potential(combat: CombatState, user: Creature, target: Creature | N
     target_state = combat.combat_player_state_for(t)
     if target_state is None:
         return
+    target_state.draw.extend(target_state.discard)
+    target_state.discard.clear()
     combat.shuffle_rng.shuffle(target_state.draw)
     combat.draw_cards(t, BOTTLED_POTENTIAL_DRAW_COUNT)
 
