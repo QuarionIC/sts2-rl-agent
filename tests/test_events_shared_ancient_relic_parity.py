@@ -1,4 +1,4 @@
-"""Focused parity tests for additional shared events coverage (extra5)."""
+"""Focused parity tests for shared ancient/relic event coverage."""
 
 import sts2_env.events.shared  # noqa: F401
 

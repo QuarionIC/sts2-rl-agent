@@ -24,44 +24,56 @@ if TYPE_CHECKING:
 
 # ── Pricing ───────────────────────────────────────────────────────────
 
+CARD_BASE_COSTS = {
+    CardRarity.RARE: 150,
+    CardRarity.UNCOMMON: 75,
+}
+CARD_DEFAULT_BASE_COST = 50
+COLORLESS_CARD_PRICE_MULTIPLIER = 1.15
+MERCHANT_CARD_PRICE_VARIANCE = (0.95, 1.05)
+MERCHANT_POTION_PRICE_VARIANCE = (0.95, 1.05)
+MERCHANT_RELIC_PRICE_VARIANCE = (0.85, 1.15)
+SALE_PRICE_DIVISOR = 2
+
+POTION_BASE_COSTS = {
+    PotionRarity.RARE: 100,
+    PotionRarity.UNCOMMON: 75,
+}
+POTION_DEFAULT_BASE_COST = 50
+
+CARD_REMOVAL_BASE_COST = 75
+CARD_REMOVAL_COST_INCREASE = 25
+
+
 def card_base_cost(rarity: CardRarity) -> int:
-    if rarity == CardRarity.RARE:
-        return 150
-    if rarity == CardRarity.UNCOMMON:
-        return 75
-    return 50  # Common/Basic
+    return CARD_BASE_COSTS.get(rarity, CARD_DEFAULT_BASE_COST)
 
 
 def card_price(rarity: CardRarity, rng: Rng, is_colorless: bool = False, on_sale: bool = False) -> int:
     """Calculate the price of a card in the shop."""
     base = card_base_cost(rarity)
     if is_colorless:
-        base = round(base * 1.15)
-    cost = round(base * rng.next_float_range(0.95, 1.05))
+        base = round(base * COLORLESS_CARD_PRICE_MULTIPLIER)
+    cost = round(base * rng.next_float_range(*MERCHANT_CARD_PRICE_VARIANCE))
     if on_sale:
-        cost //= 2
+        cost //= SALE_PRICE_DIVISOR
     return cost
 
 
 def potion_price(rarity: PotionRarity, rng: Rng) -> int:
     """Calculate the price of a potion in the shop."""
-    if rarity == PotionRarity.RARE:
-        base = 100
-    elif rarity == PotionRarity.UNCOMMON:
-        base = 75
-    else:
-        base = 50
-    return round(base * rng.next_float_range(0.95, 1.05))
+    base = POTION_BASE_COSTS.get(rarity, POTION_DEFAULT_BASE_COST)
+    return round(base * rng.next_float_range(*MERCHANT_POTION_PRICE_VARIANCE))
 
 
 def relic_price(merchant_cost: int, rng: Rng) -> int:
     """Calculate relic price (wider variance than cards: 0.85-1.15)."""
-    return round(merchant_cost * rng.next_float_range(0.85, 1.15))
+    return round(merchant_cost * rng.next_float_range(*MERCHANT_RELIC_PRICE_VARIANCE))
 
 
 def card_removal_cost(removals_used: int) -> int:
     """75 + 25 * number of removals already used."""
-    return 75 + 25 * removals_used
+    return CARD_REMOVAL_BASE_COST + CARD_REMOVAL_COST_INCREASE * removals_used
 
 
 # ── Relic Rarity Roll ─────────────────────────────────────────────────
@@ -92,6 +104,17 @@ def roll_potion_rarity(rng: Rng) -> PotionRarity:
 
 SHOP_ENTRY_SOLD_OUT_PRICE = 999999
 SHOP_BLACKLISTED_RELICS = {"TheCourier", "THE_COURIER", "OldCoin", "OLD_COIN"}
+MERCHANT_CHARACTER_CARD_TYPES = ("Attack", "Attack", "Skill", "Skill", "Power")
+MERCHANT_COLORLESS_CARD_RARITIES = (CardRarity.UNCOMMON, CardRarity.RARE)
+MERCHANT_ROLLED_RELIC_COUNT = 2
+MERCHANT_POTION_COUNT = 3
+RELIC_BASE_COSTS = {
+    RelicRarity.COMMON: 150,
+    RelicRarity.UNCOMMON: 250,
+    RelicRarity.RARE: 300,
+    RelicRarity.SHOP: 150,
+}
+RELIC_DEFAULT_BASE_COST = 200
 
 
 def is_shop_entry_available(entry: object) -> bool:
@@ -293,7 +316,6 @@ def _create_relic_shop_entry(
     chosen = rng.choice(candidates) if candidates else ""
     if chosen:
         owned.add(chosen)
-    base_costs = {RelicRarity.COMMON: 150, RelicRarity.UNCOMMON: 250, RelicRarity.RARE: 300, RelicRarity.SHOP: 150}
     entry = ShopRelicEntry(
         relic_rarity=relic_rarity,
         relic_id=chosen,
@@ -301,7 +323,7 @@ def _create_relic_shop_entry(
     )
     entry.price = apply_merchant_price_modifiers(
         run_state,
-        relic_price(base_costs.get(relic_rarity, 200), rng),
+        relic_price(RELIC_BASE_COSTS.get(relic_rarity, RELIC_DEFAULT_BASE_COST), rng),
         item_kind="relic",
         item=entry,
     )
@@ -387,10 +409,9 @@ def generate_shop_inventory(run_state: RunState) -> ShopInventory:
     inv = ShopInventory()
 
     # ── Character cards ───────────────────────────────────────────────
-    card_types = ["Attack", "Attack", "Skill", "Skill", "Power"]
-    sale_index = rng.next_int(0, 4)
+    sale_index = rng.next_int(0, len(MERCHANT_CHARACTER_CARD_TYPES) - 1)
 
-    for i, ct in enumerate(card_types):
+    for i, ct in enumerate(MERCHANT_CHARACTER_CARD_TYPES):
         rarity = run_state.card_rarity_odds.roll_without_changing_odds(rng, context="shop")
         inv.cards.append(_create_character_shop_card(
             run_state,
@@ -401,14 +422,14 @@ def generate_shop_inventory(run_state: RunState) -> ShopInventory:
         ))
 
     # ── Colorless cards ───────────────────────────────────────────────
-    for rarity in [CardRarity.UNCOMMON, CardRarity.RARE]:
+    for rarity in MERCHANT_COLORLESS_CARD_RARITIES:
         inv.colorless_cards.append(_create_colorless_shop_card(run_state, rng, rarity))
 
     # ── Relics ────────────────────────────────────────────────────────
     load_all_relics()
     owned = set(run_state.player.relics)
 
-    for _ in range(2):
+    for _ in range(MERCHANT_ROLLED_RELIC_COUNT):
         rr = roll_relic_rarity(rng)
         inv.relics.append(_create_relic_shop_entry(run_state, rng, rr, owned=owned))
 
@@ -416,7 +437,7 @@ def generate_shop_inventory(run_state: RunState) -> ShopInventory:
     inv.relics.append(_create_relic_shop_entry(run_state, rng, RelicRarity.SHOP, owned=owned))
 
     # ── Potions ───────────────────────────────────────────────────────
-    for _ in range(3):
+    for _ in range(MERCHANT_POTION_COUNT):
         pr = roll_potion_rarity(rng)
         inv.potions.append(_create_potion_shop_entry(run_state, rng, pr))
 
