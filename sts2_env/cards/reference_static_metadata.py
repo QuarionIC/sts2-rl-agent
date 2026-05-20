@@ -24,6 +24,9 @@ BASE_CONSTRUCTOR_RE = re.compile(
 ENERGY_X_RE = re.compile(r"override\s+bool\s+HasEnergyCostX\s*=>\s*true\s*;")
 STAR_X_RE = re.compile(r"override\s+bool\s+HasStarCostX\s*=>\s*true\s*;")
 STAR_COST_RE = re.compile(r"override\s+int\s+CanonicalStarCost\s*=>\s*(?P<star_cost>-?\d+)\s*;")
+MAX_UPGRADE_LEVEL_RE = re.compile(
+    r"override\s+int\s+MaxUpgradeLevel\s*=>\s*(?P<max_upgrade_level>-?\d+)\s*;"
+)
 ENERGY_COST_UPGRADE_RE = re.compile(
     r"base\.EnergyCost\.UpgradeBy\((?P<delta>-?\d+(?:\.0+)?m?)\)"
 )
@@ -139,6 +142,7 @@ class ReferenceCardStaticMetadata:
     has_energy_cost_x: bool
     star_cost: int
     has_star_cost_x: bool
+    max_upgrade_level: int
 
 
 def snake_case(name: str) -> str:
@@ -191,6 +195,7 @@ def reference_metadata_from_source(path: Path) -> ReferenceCardStaticMetadata:
         for tag in CARD_TAG_RE.findall(_property_expression(source, "CanonicalTags"))
     )
     star_cost_match = STAR_COST_RE.search(source)
+    max_upgrade_level_match = MAX_UPGRADE_LEVEL_RE.search(source)
 
     return ReferenceCardStaticMetadata(
         card_id=card_id_for_reference_class(path.stem),
@@ -203,6 +208,11 @@ def reference_metadata_from_source(path: Path) -> ReferenceCardStaticMetadata:
         has_energy_cost_x=ENERGY_X_RE.search(source) is not None,
         star_cost=int(star_cost_match.group("star_cost")) if star_cost_match is not None else 0,
         has_star_cost_x=STAR_X_RE.search(source) is not None,
+        max_upgrade_level=(
+            int(max_upgrade_level_match.group("max_upgrade_level"))
+            if max_upgrade_level_match is not None
+            else 1
+        ),
     )
 
 

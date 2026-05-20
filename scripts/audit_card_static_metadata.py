@@ -41,6 +41,7 @@ def _collect_mismatches_for_upgrade_state(
             continue
         card = create_card(reference.card_id, upgraded=upgraded)
         expected = {
+            "upgraded": upgraded and reference.max_upgrade_level > 0,
             "cost": reference.cost,
             "card_type": reference.card_type,
             "target_type": reference.target_type,
@@ -52,6 +53,7 @@ def _collect_mismatches_for_upgrade_state(
             "has_star_cost_x": reference.has_star_cost_x,
         }
         actual = {
+            "upgraded": card.upgraded,
             "cost": card.cost,
             "card_type": card.card_type,
             "target_type": card.target_type,
