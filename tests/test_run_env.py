@@ -16,6 +16,7 @@ from sts2_env.core.enums import CardId, CardRarity
 from sts2_env.core.rng import Rng
 from sts2_env.gym_env.run_env import (
     STS2RunEnv,
+    DEFAULT_MAX_STEPS,
     RUN_OBS_SIZE,
     TOTAL_ACTIONS,
     NUM_PHASES,
@@ -54,7 +55,11 @@ from sts2_env.run.shop import ShopInventory
 @pytest.fixture
 def env():
     """Fresh run environment."""
-    return STS2RunEnv(character_id="Ironclad", ascension_level=0, max_steps=10000)
+    return STS2RunEnv(
+        character_id="Ironclad",
+        ascension_level=0,
+        max_steps=DEFAULT_MAX_STEPS,
+    )
 
 
 @pytest.fixture
@@ -68,7 +73,11 @@ def seeded_env(env):
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _run_random_episode(env, seed, max_steps=10000):
+RUN_ENV_TEST_RNG_OFFSET = 1000
+RUN_ENV_REWARD_TEST_RNG_OFFSET = 2000
+
+
+def _run_random_episode(env, seed, max_steps=DEFAULT_MAX_STEPS):
     """Run a single episode with random valid actions.
 
     Returns (completed: bool, steps: int, cumulative_reward: float, info: dict).
@@ -205,7 +214,7 @@ class TestRandomAgentCompletesEpisodes:
         rng = np.random.RandomState(42)
         done = False
         steps = 0
-        while not done and steps < 10000:
+        while not done and steps < DEFAULT_MAX_STEPS:
             mask = info["action_mask"]
             valid = np.where(mask == 1)[0]
             action = int(rng.choice(valid))
@@ -547,10 +556,10 @@ class TestStress50Episodes:
 
         for seed in range(50):
             obs, info = env.reset(seed=seed)
-            rng = np.random.RandomState(seed + 1000)
+            rng = np.random.RandomState(seed + RUN_ENV_TEST_RNG_OFFSET)
             done = False
             steps = 0
-            while not done and steps < 10000:
+            while not done and steps < DEFAULT_MAX_STEPS:
                 assert np.all(np.isfinite(obs)), (
                     f"NaN/inf at seed={seed}, step={steps}"
                 )
@@ -572,10 +581,10 @@ class TestStress50Episodes:
         env = STS2RunEnv(character_id="Ironclad", ascension_level=0)
         for seed in range(50):
             obs, info = env.reset(seed=seed)
-            rng = np.random.RandomState(seed + 2000)
+            rng = np.random.RandomState(seed + RUN_ENV_REWARD_TEST_RNG_OFFSET)
             done = False
             steps = 0
-            while not done and steps < 10000:
+            while not done and steps < DEFAULT_MAX_STEPS:
                 mask = info["action_mask"]
                 valid = np.where(mask == 1)[0]
                 action = int(rng.choice(valid))
@@ -615,7 +624,7 @@ class TestPhaseTransitions:
         visited_phases = set()
         done = False
         steps = 0
-        while not done and steps < 10000:
+        while not done and steps < DEFAULT_MAX_STEPS:
             visited_phases.add(info.get("phase", "?"))
             mask = info["action_mask"]
             valid = np.where(mask == 1)[0]
@@ -722,6 +731,6 @@ class TestRender:
 class TestMultiCharacter:
     @pytest.mark.parametrize("char_id", ["Ironclad", "Silent", "Defect"])
     def test_character_completes_episode(self, char_id):
-        env = STS2RunEnv(character_id=char_id, ascension_level=0, max_steps=10000)
+        env = STS2RunEnv(character_id=char_id, ascension_level=0, max_steps=DEFAULT_MAX_STEPS)
         done, steps, reward, info = _run_random_episode(env, seed=42)
         assert done, f"{char_id} episode did not complete"

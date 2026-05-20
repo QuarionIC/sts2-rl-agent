@@ -32,9 +32,9 @@ Flat ``float32`` vector of size ``RUN_OBS_SIZE`` (151).
 
 * Combat observation (131) -- reuses :func:`encode_observation`.
 * Run-level state (20):
-  - current_act / 3, total_floor / 50, act_floor / 20           (3)
-  - player HP ratio, gold / 1000                                 (2)
-  - deck_size / 40, num_relics / 30                              (2)
+  - current_act, total_floor, and act_floor normalized by run scales (3)
+  - player HP ratio and normalized gold                             (2)
+  - normalized deck size and relic count                            (2)
   - num_potions / max_potion_slots (or 0)                        (2)
   - phase one-hot (8 phases)                                     (8)
   - ascension_level / 20                                         (1)
@@ -205,6 +205,20 @@ NUM_PHASES = len(_PHASE_INDEX)
 _RUN_STATE_SIZE = 20   # see module docstring
 RUN_OBS_SIZE = COMBAT_OBS_SIZE + _RUN_STATE_SIZE  # 131 + 20 = 151
 
+DEFAULT_MAX_STEPS = 10_000
+DEFAULT_MAX_COMBAT_TURNS = 200
+
+OBS_VALUE_LOW = -1.0
+OBS_VALUE_HIGH = 10.0
+OBS_CURRENT_ACT_SCALE = 3.0
+OBS_TOTAL_FLOOR_SCALE = 50.0
+OBS_ACT_FLOOR_SCALE = 20.0
+OBS_GOLD_SCALE = 1000.0
+OBS_DECK_SIZE_SCALE = 40.0
+OBS_RELIC_COUNT_SCALE = 30.0
+OBS_MAX_POTION_SLOTS_SCALE = 5.0
+OBS_ASCENSION_SCALE = 20.0
+
 # ---------------------------------------------------------------------------
 # Reward constants
 # ---------------------------------------------------------------------------
@@ -242,14 +256,17 @@ class STS2RunEnv(gymnasium.Env):
         self,
         character_id: str = "Ironclad",
         ascension_level: int = 0,
-        max_steps: int = 10000,
-        max_combat_turns: int = 200,
+        max_steps: int = DEFAULT_MAX_STEPS,
+        max_combat_turns: int = DEFAULT_MAX_COMBAT_TURNS,
         render_mode: str | None = None,
     ):
         super().__init__()
 
         self.observation_space = spaces.Box(
-            low=-1.0, high=10.0, shape=(RUN_OBS_SIZE,), dtype=np.float32,
+            low=OBS_VALUE_LOW,
+            high=OBS_VALUE_HIGH,
+            shape=(RUN_OBS_SIZE,),
+            dtype=np.float32,
         )
         self.action_space = spaces.Discrete(_LAYOUT.total_actions)
 
@@ -682,39 +699,39 @@ class STS2RunEnv(gymnasium.Env):
         idx = COMBAT_OBS_SIZE
 
         # Act / floor (3)
-        obs[idx + 0] = rs.current_act_index / 3.0
-        obs[idx + 1] = rs.total_floor / 50.0
-        obs[idx + 2] = rs.act_floor / 20.0
+        obs[idx + 0] = rs.current_act_index / OBS_CURRENT_ACT_SCALE
+        obs[idx + 1] = rs.total_floor / OBS_TOTAL_FLOOR_SCALE
+        obs[idx + 2] = rs.act_floor / OBS_ACT_FLOOR_SCALE
 
         # HP ratio, gold (2)
         obs[idx + 3] = (
             player.current_hp / max(player.max_hp, 1)
         )
-        obs[idx + 4] = player.gold / 1000.0
+        obs[idx + 4] = player.gold / OBS_GOLD_SCALE
 
         # Deck size, relic count (2)
-        obs[idx + 5] = len(player.deck) / 40.0
-        obs[idx + 6] = len(rs.relics) / 30.0
+        obs[idx + 5] = len(player.deck) / OBS_DECK_SIZE_SCALE
+        obs[idx + 6] = len(rs.relics) / OBS_RELIC_COUNT_SCALE
 
         # Potions (2)
         num_potions = sum(1 for p in player.potions if p is not None)
         max_slots = max(player.max_potion_slots, 1)
         obs[idx + 7] = num_potions / max_slots
-        obs[idx + 8] = player.max_potion_slots / 5.0
+        obs[idx + 8] = player.max_potion_slots / OBS_MAX_POTION_SLOTS_SCALE
 
         # Phase one-hot (8)
         phase_idx = _PHASE_INDEX.get(mgr.phase, 0)
         obs[idx + 9 + phase_idx] = 1.0
 
         # Ascension (1)
-        obs[idx + 17] = rs.ascension_level / 20.0
+        obs[idx + 17] = rs.ascension_level / OBS_ASCENSION_SCALE
 
         # is_elite, is_boss flags (2)
         room = mgr._current_room_type
         obs[idx + 18] = 1.0 if room == RoomType.ELITE else 0.0
         obs[idx + 19] = 1.0 if room == RoomType.BOSS else 0.0
 
-        np.clip(obs, -1.0, 10.0, out=obs)
+        np.clip(obs, OBS_VALUE_LOW, OBS_VALUE_HIGH, out=obs)
         return obs
 
     # ------------------------------------------------------------------
