@@ -254,7 +254,7 @@ class TestDefectParityExtra3:
         upgraded_enemy = upgraded_combat.enemies[0]
         upgraded_enemy.max_hp = TEST_ENEMY_HP
         upgraded_enemy.current_hp = TEST_ENEMY_HP
-        upgraded_combat.hand = [create_card(CardId.NULL_CARD, upgraded=True)]
+        upgraded_combat.hand = [make_null(upgraded=True)]
         upgraded_combat.energy = 2
 
         assert upgraded_combat.play_card(0, 0)
@@ -272,7 +272,7 @@ class TestDefectParityExtra3:
         assert [orb.orb_type for orb in combat.orb_queue.orbs] == list(RAINBOW_ORBS)
         assert card in combat.exhaust_pile
 
-        upgraded = create_card(CardId.RAINBOW, upgraded=True)
+        upgraded = make_rainbow(upgraded=True)
         assert EXHAUST_KEYWORD not in upgraded.keywords
 
     def test_cold_snap_deals_damage_and_channels_frost(self):
@@ -947,9 +947,7 @@ class TestDefectParityExtra3:
         assert all(orb.orb_type == OrbType.LIGHTNING for orb in base_combat.orb_queue.orbs)
 
         upgraded_combat = _make_combat()
-        upgraded = make_tempest()
-        upgraded.upgraded = True
-        upgraded_combat.hand = [upgraded]
+        upgraded_combat.hand = [make_tempest(upgraded=True)]
         upgraded_combat.energy = 2
 
         assert upgraded_combat.play_card(0)

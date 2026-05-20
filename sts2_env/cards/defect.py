@@ -128,6 +128,11 @@ SWEEPING_BEAM_DAMAGE = 6
 SWEEPING_BEAM_UPGRADED_DAMAGE = 9
 SWEEPING_BEAM_CARDS_KEY = "cards"
 SWEEPING_BEAM_CARDS = 1
+NULL_DAMAGE = 10
+NULL_UPGRADED_DAMAGE = 13
+NULL_WEAK_KEY = "weak"
+NULL_WEAK = 2
+NULL_UPGRADED_WEAK = 3
 THUNDER_POWER_KEY = "thunder_power"
 THUNDER_POWER = 6
 THUNDER_UPGRADED_POWER = 8
@@ -677,7 +682,7 @@ def null_card(card: CardInstance, combat: CombatState, target: Creature | None) 
     assert target is not None
     dmg = calculate_damage(card.base_damage, _owner(card, combat), target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, _owner(card, combat))
-    combat.apply_power_to(target, PowerId.WEAK, card.effect_vars.get("weak", 2))
+    combat.apply_power_to(target, PowerId.WEAK, card.effect_vars.get(NULL_WEAK_KEY, NULL_WEAK))
     _channel_orb(combat, OrbType.DARK)
 
 
@@ -1569,11 +1574,14 @@ def make_loop() -> CardInstance:
     )
 
 
-def make_null() -> CardInstance:
+def make_null(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.NULL_CARD, cost=2, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
-        base_damage=10, effect_vars={"weak": 2}, instance_id=_get_next_id(),
+        base_damage=NULL_UPGRADED_DAMAGE if upgraded else NULL_DAMAGE,
+        effect_vars={NULL_WEAK_KEY: NULL_UPGRADED_WEAK if upgraded else NULL_WEAK},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1693,11 +1701,12 @@ def make_synthesis() -> CardInstance:
     )
 
 
-def make_tempest() -> CardInstance:
+def make_tempest(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.TEMPEST, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
         has_energy_cost_x=True,
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
@@ -1911,11 +1920,13 @@ def make_multi_cast() -> CardInstance:
     )
 
 
-def make_rainbow() -> CardInstance:
+def make_rainbow(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.RAINBOW, cost=2, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
-        keywords=frozenset({"exhaust"}), instance_id=_get_next_id(),
+        keywords=frozenset() if upgraded else frozenset({"exhaust"}),
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
