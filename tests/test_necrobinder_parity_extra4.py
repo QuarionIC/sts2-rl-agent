@@ -49,6 +49,7 @@ from sts2_env.cards.necrobinder import (
 )
 from sts2_env.cards.status import make_soul, make_void
 from sts2_env.core.combat import CombatState
+from sts2_env.core.creature import Creature
 from sts2_env.core.enums import CardId, CombatSide, PowerId, ValueProp
 from sts2_env.core.hooks import fire_after_side_turn_start, fire_after_turn_end
 from sts2_env.core.rng import Rng
@@ -710,6 +711,44 @@ class TestNecrobinderParityExtra4:
         assert combat.play_card(0)
         assert enemy.get_power_amount(PowerId.DOOM) == 3
         assert player.block == 2
+
+    def test_oblivion_only_records_cards_from_applier_player(self):
+        combat = _make_combat()
+        player = combat.player
+        enemy = combat.enemies[0]
+        ally = Creature(max_hp=60, current_hp=60, side=CombatSide.PLAYER, is_player=True)
+        combat.add_ally_player(ally)
+        ally_state = combat.combat_player_state_for(ally)
+        assert ally_state is not None
+
+        combat.apply_power_to(enemy, PowerId.OBLIVION, 3, applier=player)
+        ally_soul = make_soul()
+        ally_soul.owner = ally
+        ally_state.hand = [ally_soul]
+        ally_state.zone_map["hand"] = ally_state.hand
+        ally_state.energy = 1
+
+        assert combat.play_card_from_creature(ally, 0)
+        assert enemy.get_power_amount(PowerId.DOOM) == 0
+
+        player_soul = make_soul()
+        combat.hand = [player_soul]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert enemy.get_power_amount(PowerId.DOOM) == 3
+
+    def test_oblivion_is_removed_at_player_turn_end(self):
+        combat = _make_combat()
+        player = combat.player
+        enemy = combat.enemies[0]
+
+        combat.apply_power_to(enemy, PowerId.OBLIVION, 3, applier=player)
+
+        fire_after_turn_end(CombatSide.PLAYER, combat)
+
+        assert enemy.get_power_amount(PowerId.OBLIVION) == 0
+        assert PowerId.OBLIVION not in enemy.powers
 
     def test_pagestorm_draws_extra_when_ethereal_card_is_drawn(self):
         combat = _make_combat()
