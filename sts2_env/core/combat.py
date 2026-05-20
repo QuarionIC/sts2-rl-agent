@@ -1199,6 +1199,31 @@ class CombatState:
             return not card.is_unplayable
         return True
 
+    def can_auto_play_card(self, card: CardInstance) -> bool:
+        """Check whether a card can be auto-played without spending resources."""
+        from sts2_env.core.hooks import should_play
+
+        owner = getattr(card, "owner", None) or self.player
+        if getattr(card, "owner", None) is None:
+            card.owner = owner
+        owner_state = self.combat_player_state_for(owner) or self.current_player_state
+        if self.is_over:
+            return False
+        if card.is_unplayable:
+            return False
+        if not should_play(card, self):
+            return False
+        return all(
+            hand_card.allows_hand_card_play(
+                card,
+                owner_state,
+                self,
+                owner,
+                is_auto_play=True,
+            )
+            for hand_card in owner_state.hand
+        )
+
     def modified_card_cost(self, owner: Creature, card: CardInstance) -> int:
         if getattr(card, "owner", None) is None:
             card.owner = owner
@@ -3449,6 +3474,12 @@ class CombatState:
             return False
 
         owner = getattr(card, "owner", None) or self.player
+        if getattr(card, "owner", None) is None:
+            card.owner = owner
+        if not self.can_auto_play_card(card):
+            self._remove_card_from_piles(card)
+            self._zones_for_creature(owner)["discard"].append(card)
+            return False
         self._remove_card_from_piles(card)
         target_type = card.target_type_for(owner)
         resolved_target = target if target is not None else self._resolve_target(card, None)

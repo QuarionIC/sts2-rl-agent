@@ -266,8 +266,18 @@ class CardInstance:
             return len(owner_state.exhaust) >= self.effect_vars["cards"]
         return True
 
-    def allows_hand_card_play(self, card: CardInstance, owner_state: object, combat: object, owner: object) -> bool:
+    def allows_hand_card_play(
+        self,
+        card: CardInstance,
+        owner_state: object,
+        combat: object,
+        owner: object,
+        *,
+        is_auto_play: bool = False,
+    ) -> bool:
         if self.card_id == CardId.ENTHRALLED:
+            if is_auto_play:
+                return True
             return card.card_id == CardId.ENTHRALLED
         if self.card_id == CardId.NORMALITY:
             return combat.count_card_play_starts_this_turn(owner) < self.effect_vars["calc_base"]

@@ -124,10 +124,12 @@ from sts2_env.cards.status import (
     make_dual_wield,
     make_enlightenment,
     make_metamorphosis,
+    make_normality,
     make_stack,
     make_wish,
 )
 from sts2_env.cards.status import (
+    make_enthralled,
     make_frantic_escape,
     make_fuel,
     make_shiv,
@@ -365,6 +367,38 @@ class TestAutoPlayFromDraw:
         combat.auto_play_from_draw(combat.player, 2)
 
         assert enemy.current_hp == 999 - 8 - 6
+        assert strike in combat.discard_pile
+
+    def test_auto_play_from_draw_respects_normality_should_play_limit(self):
+        combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
+        combat.start_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        normality = make_normality()
+        normality.effect_vars["calc_base"] = 0
+        strike = make_strike_ironclad()
+        combat.hand = [normality]
+        combat.draw_pile = [strike]
+        combat.discard_pile.clear()
+
+        combat.auto_play_from_draw(combat.player, 1)
+
+        assert enemy.current_hp == 100
+        assert strike in combat.discard_pile
+
+    def test_auto_play_from_draw_bypasses_enthralled_manual_play_block(self):
+        combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
+        combat.start_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        strike = make_strike_ironclad()
+        combat.hand = [make_enthralled()]
+        combat.draw_pile = [strike]
+        combat.discard_pile.clear()
+
+        combat.auto_play_from_draw(combat.player, 1)
+
+        assert enemy.current_hp == 94
         assert strike in combat.discard_pile
 
 
