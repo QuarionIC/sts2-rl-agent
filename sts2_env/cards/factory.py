@@ -18,7 +18,19 @@ from typing import Callable, Literal
 import sts2_env.cards  # noqa: F401  # ensure card modules are imported
 from sts2_env.cards import base as card_base
 from sts2_env.cards.base import CardInstance
-from sts2_env.characters.all import ALL_CHARACTERS, get_character
+from sts2_env.core.card_pools import (
+    ALL_CARD_POOL,
+    CardPoolId,
+    CHARACTER_CARD_POOLS_BY_ID,
+    COLORLESS_CARD_POOL,
+    CURSE_CARD_POOL,
+    EVENT_CARD_POOL,
+    QUEST_CARD_POOL,
+    SHARED_CARD_POOLS_BY_ID,
+    STATUS_CARD_POOL,
+    TOKEN_CARD_POOL,
+)
+from sts2_env.characters.all import get_character
 from sts2_env.core.enums import CardId, CardRarity, CardTag, CardType, TargetType
 from sts2_env.core.rng import Rng
 
@@ -73,6 +85,32 @@ _REGISTERED_POOL_EXCLUDED_CARD_IDS = frozenset({
     CardId.PAIN,
     CardId.PARASITE,
 })
+
+_MODULE_CARD_POOL_ORDER: dict[str, tuple[CardId, ...]] = {
+    "sts2_env.cards.ironclad": ALL_CARD_POOL,
+    "sts2_env.cards.ironclad_basic": ALL_CARD_POOL,
+    "sts2_env.cards.silent": ALL_CARD_POOL,
+    "sts2_env.cards.defect": ALL_CARD_POOL,
+    "sts2_env.cards.necrobinder": ALL_CARD_POOL,
+    "sts2_env.cards.regent": ALL_CARD_POOL,
+    "sts2_env.cards.colorless": COLORLESS_CARD_POOL,
+    "sts2_env.cards.status": CURSE_CARD_POOL + EVENT_CARD_POOL + QUEST_CARD_POOL + STATUS_CARD_POOL + TOKEN_CARD_POOL,
+}
+
+_CARD_POOLS_BY_ID = {**CHARACTER_CARD_POOLS_BY_ID, **SHARED_CARD_POOLS_BY_ID}
+
+_TYPE_CARD_POOL_ORDER: dict[CardType, tuple[CardId, ...]] = {
+    CardType.CURSE: CURSE_CARD_POOL,
+    CardType.QUEST: QUEST_CARD_POOL,
+    CardType.STATUS: STATUS_CARD_POOL + TOKEN_CARD_POOL,
+}
+
+_RARITY_CARD_POOL_ORDER: dict[CardRarity, tuple[CardId, ...]] = {
+    CardRarity.CURSE: CURSE_CARD_POOL,
+    CardRarity.EVENT: EVENT_CARD_POOL,
+    CardRarity.QUEST: QUEST_CARD_POOL,
+    CardRarity.STATUS: STATUS_CARD_POOL + TOKEN_CARD_POOL,
+}
 
 _REFERENCE_VAR_ALIASES: dict[str, str] = {
     "vulnerable_power": "vulnerable",
@@ -488,6 +526,24 @@ def _matches_player_count(card_id: CardId, *, is_multiplayer: bool | None) -> bo
     return card_id not in _MULTIPLAYER_ONLY_CARD_IDS
 
 
+def _registered_card_order(
+    *,
+    card_pool: CardPoolId | None,
+    module_name: str | None,
+    card_type: CardType | None,
+    rarity_filter: CardRarity | None,
+) -> tuple[CardId, ...]:
+    if card_pool is not None:
+        return _CARD_POOLS_BY_ID[card_pool]
+    if module_name is not None:
+        return _MODULE_CARD_POOL_ORDER.get(module_name, ALL_CARD_POOL)
+    if card_type in _TYPE_CARD_POOL_ORDER:
+        return _TYPE_CARD_POOL_ORDER[card_type]
+    if rarity_filter in _RARITY_CARD_POOL_ORDER:
+        return _RARITY_CARD_POOL_ORDER[rarity_filter]
+    return ALL_CARD_POOL
+
+
 def eligible_character_cards(
     character_id: str,
     *,
@@ -524,6 +580,7 @@ def eligible_character_cards(
 
 def eligible_registered_cards(
     *,
+    card_pool: CardPoolId | None = None,
     module_name: str | None = None,
     card_type: CardType | None = None,
     rarity: str | CardRarity | None = None,
@@ -531,13 +588,18 @@ def eligible_registered_cards(
     generation_context: GenerationContext | None = "combat",
     is_multiplayer: bool | None = None,
 ) -> list[CardId]:
-    """Return registered cards filtered by source module and metadata."""
+    """Return registered cards filtered by source module, reference pool, and metadata."""
     rarity_filter = _coerce_rarity(rarity)
     exclude_ids = exclude_ids or set()
     eligible: list[CardId] = []
 
     registry = _factory_registry()
-    for card_id in CardId:
+    for card_id in _registered_card_order(
+        card_pool=card_pool,
+        module_name=module_name,
+        card_type=card_type,
+        rarity_filter=rarity_filter,
+    ):
         if card_id in exclude_ids:
             continue
         if not _matches_player_count(card_id, is_multiplayer=is_multiplayer):
