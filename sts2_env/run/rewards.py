@@ -19,6 +19,10 @@ if TYPE_CHECKING:
     from sts2_env.run.run_state import RunState
 
 
+COMBAT_CARD_UPGRADE_BASE_CHANCE = 0.0
+MERCHANT_CARD_UPGRADE_BASE_CHANCE = -999999999
+
+
 @dataclass(frozen=True)
 class CardRewardGenerationOptions:
     context: str = "regular"
@@ -104,7 +108,7 @@ def roll_for_upgrade(
         run_state: Current run state.
         rarity: The card's rarity.
         rng: RNG stream for the roll.
-        base_chance: Base upgrade chance (0.0 for combat, -999999999 for shop).
+        base_chance: Base upgrade chance.
 
     Returns:
         True if the card should be upgraded.
@@ -132,7 +136,7 @@ def generate_combat_card_rewards(
     result: list[tuple[CardRarity, bool]] = []
     for rarity in rarities:
         upgraded = roll_for_upgrade(
-            run_state, rarity, run_state.rng.rewards, base_chance=0.0,
+            run_state, rarity, run_state.rng.rewards, base_chance=COMBAT_CARD_UPGRADE_BASE_CHANCE,
         )
         result.append((rarity, upgraded))
     return result
@@ -265,7 +269,7 @@ def _pick_reward_card(
             run_state,
             current_rarity,
             run_state.rng.rewards,
-            base_chance=0.0,
+            base_chance=COMBAT_CARD_UPGRADE_BASE_CHANCE,
         )
     card = create_card(chosen_id, upgraded=upgraded)
     if cost is not None and card.cost != cost:

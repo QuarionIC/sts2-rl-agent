@@ -11,6 +11,8 @@ from sts2_env.core.enums import CardId, CardRarity, CardType
 from sts2_env.core.rng import Rng
 from sts2_env.run.odds import CardRarityOdds
 from sts2_env.run.rewards import (
+    COMBAT_CARD_UPGRADE_BASE_CHANCE,
+    MERCHANT_CARD_UPGRADE_BASE_CHANCE,
     generate_card_reward,
     generate_combat_card_rewards,
     generate_combat_reward_cards,
@@ -162,7 +164,7 @@ class TestUpgradeProbability:
         # Roll many times -- at act 0, base chance is 0 so should never upgrade
         upgraded_count = sum(
             1 for _ in range(1000)
-            if roll_for_upgrade(rs, CardRarity.COMMON, rng, base_chance=0.0)
+            if roll_for_upgrade(rs, CardRarity.COMMON, rng, base_chance=COMBAT_CARD_UPGRADE_BASE_CHANCE)
         )
         assert upgraded_count == 0
 
@@ -175,7 +177,7 @@ class TestUpgradeProbability:
         n = 5000
         upgraded = sum(
             1 for _ in range(n)
-            if roll_for_upgrade(rs, CardRarity.COMMON, rng, base_chance=0.0)
+            if roll_for_upgrade(rs, CardRarity.COMMON, rng, base_chance=COMBAT_CARD_UPGRADE_BASE_CHANCE)
         )
         # Should be around 25% (scaling = 0.25 * act_index 1 = 0.25)
         ratio = upgraded / n
@@ -190,7 +192,7 @@ class TestUpgradeProbability:
         n = 5000
         upgraded = sum(
             1 for _ in range(n)
-            if roll_for_upgrade(rs, CardRarity.COMMON, rng, base_chance=0.0)
+            if roll_for_upgrade(rs, CardRarity.COMMON, rng, base_chance=COMBAT_CARD_UPGRADE_BASE_CHANCE)
         )
         ratio = upgraded / n
         assert 0.40 <= ratio <= 0.60, f"Expected ~50%, got {ratio:.2%}"
@@ -203,19 +205,19 @@ class TestUpgradeProbability:
         rng = Rng(99)
         upgraded = sum(
             1 for _ in range(1000)
-            if roll_for_upgrade(rs, CardRarity.RARE, rng, base_chance=0.0)
+            if roll_for_upgrade(rs, CardRarity.RARE, rng, base_chance=COMBAT_CARD_UPGRADE_BASE_CHANCE)
         )
         assert upgraded == 0
 
     def test_shop_never_upgrades(self):
-        """Shop cards use base_chance=-999999999, should never upgrade."""
+        """Shop cards use the merchant base chance and should never upgrade."""
         rs = RunState(42)
         rs.initialize_run()
         rs.current_act_index = 2
         rng = Rng(99)
         upgraded = sum(
             1 for _ in range(1000)
-            if roll_for_upgrade(rs, CardRarity.COMMON, rng, base_chance=-999999999)
+            if roll_for_upgrade(rs, CardRarity.COMMON, rng, base_chance=MERCHANT_CARD_UPGRADE_BASE_CHANCE)
         )
         assert upgraded == 0
 
@@ -228,7 +230,7 @@ class TestUpgradeProbability:
         n = 5000
         upgraded = sum(
             1 for _ in range(n)
-            if roll_for_upgrade(rs, CardRarity.COMMON, rng, base_chance=0.0)
+            if roll_for_upgrade(rs, CardRarity.COMMON, rng, base_chance=COMBAT_CARD_UPGRADE_BASE_CHANCE)
         )
         ratio = upgraded / n
         # A7: 0.125 * 2 = 0.25
