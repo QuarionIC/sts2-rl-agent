@@ -51,6 +51,37 @@ BIASED_COGNITION_POWER_KEY = "biased_cognition_power"
 BIASED_COGNITION_FOCUS = 4
 BIASED_COGNITION_UPGRADED_FOCUS = 5
 BIASED_COGNITION_POWER = 1
+FOCUSED_STRIKE_DAMAGE = 9
+FOCUSED_STRIKE_UPGRADED_DAMAGE = 11
+FOCUSED_STRIKE_POWER_KEY = "focus_power"
+FOCUSED_STRIKE_POWER = 1
+FOCUSED_STRIKE_UPGRADED_POWER = 2
+ENERGY_SURGE_ENERGY_KEY = "energy"
+ENERGY_SURGE_ENERGY = 2
+ENERGY_SURGE_UPGRADED_ENERGY = 3
+FERAL_POWER_KEY = "feral_power"
+FERAL_POWER = 1
+FTL_DAMAGE = 5
+FTL_UPGRADED_DAMAGE = 6
+FTL_CARDS_KEY = "cards"
+FTL_CARDS = 1
+FTL_PLAY_MAX_KEY = "play_max"
+FTL_PLAY_MAX = 3
+FTL_UPGRADED_PLAY_MAX = 4
+GLACIER_BLOCK = 6
+GLACIER_UPGRADED_BLOCK = 9
+GLASSWORK_BLOCK = 5
+GLASSWORK_UPGRADED_BLOCK = 8
+COOLANT_POWER_KEY = "coolant_power"
+COOLANT_POWER = 2
+COOLANT_UPGRADED_POWER = 3
+CREATIVE_AI_POWER_KEY = "creative_ai"
+CREATIVE_AI_POWER = 1
+CREATIVE_AI_COST = 3
+CREATIVE_AI_UPGRADED_COST = 2
+DEFRAGMENT_FOCUS_KEY = "focus_power"
+DEFRAGMENT_FOCUS = 1
+DEFRAGMENT_UPGRADED_FOCUS = 2
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -319,7 +350,11 @@ def focused_strike(card: CardInstance, combat: CombatState, target: Creature | N
     assert target is not None
     dmg = calculate_damage(card.base_damage, _owner(card, combat), target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, _owner(card, combat))
-    combat.apply_power_to(_owner(card, combat), PowerId.FOCUSED_STRIKE, card.effect_vars.get("focus_power", 1))
+    combat.apply_power_to(
+        _owner(card, combat),
+        PowerId.FOCUSED_STRIKE,
+        card.effect_vars.get(FOCUSED_STRIKE_POWER_KEY, FOCUSED_STRIKE_POWER),
+    )
 
 
 @register_effect(CardId.GO_FOR_THE_EYES)
@@ -498,12 +533,17 @@ def double_energy(card: CardInstance, combat: CombatState, target: Creature | No
 def energy_surge(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     owner = _owner(card, combat)
     for ally in combat.get_player_allies_of(owner):
-        combat.gain_energy(ally, card.effect_vars.get("energy", 2))
+        energy = card.effect_vars.get(ENERGY_SURGE_ENERGY_KEY, ENERGY_SURGE_ENERGY)
+        combat.gain_energy(ally, energy)
 
 
 @register_effect(CardId.FERAL)
 def feral(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.FERAL, card.effect_vars.get("feral_power", 1))
+    combat.apply_power_to(
+        _owner(card, combat),
+        PowerId.FERAL,
+        card.effect_vars.get(FERAL_POWER_KEY, FERAL_POWER),
+    )
 
 
 @register_effect(CardId.FIGHT_THROUGH)
@@ -522,8 +562,11 @@ def ftl(card: CardInstance, combat: CombatState, target: Creature | None) -> Non
     dmg = calculate_damage(card.base_damage, owner, target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, owner)
     previous_plays = combat.count_card_plays_finished_this_turn(owner)
-    if previous_plays < card.effect_vars.get("play_max", 4 if card.upgraded else 3):
-        combat.draw_cards(owner, card.effect_vars.get("cards", 1))
+    if previous_plays < card.effect_vars.get(
+        FTL_PLAY_MAX_KEY,
+        FTL_UPGRADED_PLAY_MAX if card.upgraded else FTL_PLAY_MAX,
+    ):
+        combat.draw_cards(owner, card.effect_vars.get(FTL_CARDS_KEY, FTL_CARDS))
 
 
 @register_effect(CardId.FUSION)
@@ -782,17 +825,29 @@ def consuming_shadow(card: CardInstance, combat: CombatState, target: Creature |
 
 @register_effect(CardId.COOLANT)
 def coolant(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.COOLANT, card.effect_vars.get("coolant_power", 2))
+    combat.apply_power_to(
+        _owner(card, combat),
+        PowerId.COOLANT,
+        card.effect_vars.get(COOLANT_POWER_KEY, COOLANT_POWER),
+    )
 
 
 @register_effect(CardId.CREATIVE_AI_CARD)
 def creative_ai(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.CREATIVE_AI, card.effect_vars.get("creative_ai", 1))
+    combat.apply_power_to(
+        _owner(card, combat),
+        PowerId.CREATIVE_AI,
+        card.effect_vars.get(CREATIVE_AI_POWER_KEY, CREATIVE_AI_POWER),
+    )
 
 
 @register_effect(CardId.DEFRAGMENT)
 def defragment(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.FOCUS, card.effect_vars.get("focus_power", 1))
+    combat.apply_power_to(
+        _owner(card, combat),
+        PowerId.FOCUS,
+        card.effect_vars.get(DEFRAGMENT_FOCUS_KEY, DEFRAGMENT_FOCUS),
+    )
 
 
 @register_effect(CardId.ECHO_FORM_CARD)
@@ -1124,11 +1179,18 @@ def make_coolheaded() -> CardInstance:
     )
 
 
-def make_focused_strike() -> CardInstance:
+def make_focused_strike(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.FOCUSED_STRIKE_CARD, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=9, effect_vars={"focus_power": 1}, instance_id=_get_next_id(),
+        base_damage=FOCUSED_STRIKE_UPGRADED_DAMAGE if upgraded else FOCUSED_STRIKE_DAMAGE,
+        effect_vars={
+            FOCUSED_STRIKE_POWER_KEY: (
+                FOCUSED_STRIKE_UPGRADED_POWER if upgraded else FOCUSED_STRIKE_POWER
+            ),
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1283,11 +1345,13 @@ def make_darkness(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_double_energy() -> CardInstance:
+def make_double_energy(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.DOUBLE_ENERGY, cost=1, card_type=CardType.SKILL,
+        card_id=CardId.DOUBLE_ENERGY, cost=0 if upgraded else 1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        keywords=frozenset({"exhaust"}), instance_id=_get_next_id(),
+        keywords=frozenset({"exhaust"}),
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1296,16 +1360,23 @@ def make_energy_surge(upgraded: bool = False) -> CardInstance:
         card_id=CardId.ENERGY_SURGE, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.ALL_ALLIES, rarity=CardRarity.UNCOMMON,
         keywords=frozenset({"exhaust"}),
-        effect_vars={"energy": 3 if upgraded else 2}, upgraded=upgraded,
+        effect_vars={
+            ENERGY_SURGE_ENERGY_KEY: (
+                ENERGY_SURGE_UPGRADED_ENERGY if upgraded else ENERGY_SURGE_ENERGY
+            ),
+        },
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
 
-def make_feral() -> CardInstance:
+def make_feral(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.FERAL, cost=2, card_type=CardType.POWER,
+        card_id=CardId.FERAL, cost=1 if upgraded else 2, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        effect_vars={"feral_power": 1}, instance_id=_get_next_id(),
+        effect_vars={FERAL_POWER_KEY: FERAL_POWER},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1320,36 +1391,46 @@ def make_fight_through(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_ftl() -> CardInstance:
+def make_ftl(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.FTL, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
-        base_damage=5, effect_vars={"cards": 1, "play_max": 3},
+        base_damage=FTL_UPGRADED_DAMAGE if upgraded else FTL_DAMAGE,
+        effect_vars={
+            FTL_CARDS_KEY: FTL_CARDS,
+            FTL_PLAY_MAX_KEY: FTL_UPGRADED_PLAY_MAX if upgraded else FTL_PLAY_MAX,
+        },
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
 
-def make_fusion() -> CardInstance:
+def make_fusion(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.FUSION, cost=2, card_type=CardType.SKILL,
+        card_id=CardId.FUSION, cost=1 if upgraded else 2, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
 
-def make_glacier() -> CardInstance:
+def make_glacier(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.GLACIER, cost=2, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        base_block=6, instance_id=_get_next_id(),
+        base_block=GLACIER_UPGRADED_BLOCK if upgraded else GLACIER_BLOCK,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_glasswork() -> CardInstance:
+def make_glasswork(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.GLASSWORK, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        base_block=5, instance_id=_get_next_id(),
+        base_block=GLASSWORK_UPGRADED_BLOCK if upgraded else GLASSWORK_BLOCK,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1566,27 +1647,37 @@ def make_consuming_shadow(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_coolant() -> CardInstance:
+def make_coolant(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.COOLANT, cost=1, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
-        effect_vars={"coolant_power": 2}, instance_id=_get_next_id(),
+        effect_vars={COOLANT_POWER_KEY: COOLANT_UPGRADED_POWER if upgraded else COOLANT_POWER},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_creative_ai() -> CardInstance:
+def make_creative_ai(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.CREATIVE_AI_CARD, cost=3, card_type=CardType.POWER,
+        card_id=CardId.CREATIVE_AI_CARD,
+        cost=CREATIVE_AI_UPGRADED_COST if upgraded else CREATIVE_AI_COST,
+        card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
-        effect_vars={"creative_ai": 1}, instance_id=_get_next_id(),
+        effect_vars={CREATIVE_AI_POWER_KEY: CREATIVE_AI_POWER},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_defragment() -> CardInstance:
+def make_defragment(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.DEFRAGMENT, cost=1, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
-        effect_vars={"focus_power": 1}, instance_id=_get_next_id(),
+        effect_vars={
+            DEFRAGMENT_FOCUS_KEY: DEFRAGMENT_UPGRADED_FOCUS if upgraded else DEFRAGMENT_FOCUS,
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 

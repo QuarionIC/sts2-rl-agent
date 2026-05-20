@@ -12,11 +12,23 @@ from sts2_env.cards.defect import (
     make_bulk_up,
     make_chaos,
     make_chill,
+    make_coolant,
+    make_creative_ai,
+    make_defragment,
+    make_double_energy,
+    make_energy_surge,
+    make_feral,
+    make_focused_strike,
+    make_ftl,
+    make_fusion,
+    make_glacier,
+    make_glasswork,
 )
 from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import CardId, OrbType, PowerId
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
+from sts2_env.run.run_state import PlayerState
 
 
 TEST_PLAYER_HP = 75
@@ -38,6 +50,24 @@ ADAPTIVE_STRIKE_UPGRADED_DAMAGE = 23
 ALL_FOR_ONE_UPGRADED_DAMAGE = 14
 BIASED_COGNITION_UPGRADED_FOCUS = 5
 BIASED_COGNITION_POWER = 1
+FOCUSED_STRIKE_UPGRADED_DAMAGE = 11
+FOCUSED_STRIKE_UPGRADED_POWER = 2
+FTL_UPGRADED_DAMAGE = 6
+FTL_UPGRADED_PLAY_MAX = 4
+FTL_DRAW_COUNT = 1
+ENERGY_SURGE_UPGRADED_ENERGY = 3
+FERAL_UPGRADED_COST = 1
+FERAL_POWER = 1
+FUSION_UPGRADED_COST = 1
+GLACIER_UPGRADED_BLOCK = 9
+GLACIER_FROST_ORBS = 2
+GLASSWORK_UPGRADED_BLOCK = 8
+COOLANT_UPGRADED_POWER = 3
+CREATIVE_AI_UPGRADED_COST = 2
+CREATIVE_AI_POWER = 1
+DEFRAGMENT_UPGRADED_FOCUS = 2
+ALLY_PLAYER_ID = 2
+ALLY_PLAYER_HP = 70
 
 
 def _make_combat(*, extra_enemies: int = 0) -> CombatState:
@@ -175,3 +205,151 @@ def test_biased_cognition_factory_upgrade_increases_focus_only():
 
     assert combat.player.get_power_amount(PowerId.FOCUS) == BIASED_COGNITION_UPGRADED_FOCUS
     assert combat.player.get_power_amount(PowerId.BIASED_COGNITION) == BIASED_COGNITION_POWER
+
+
+def test_focused_strike_factory_upgrade_increases_damage_and_focus_power():
+    combat = _make_combat()
+    enemy = combat.enemies[FIRST_ENEMY_INDEX]
+    starting_hp = enemy.current_hp
+    combat.hand = [make_focused_strike(upgraded=True)]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX, FIRST_ENEMY_INDEX)
+
+    assert enemy.current_hp == starting_hp - FOCUSED_STRIKE_UPGRADED_DAMAGE
+    assert (
+        combat.player.get_power_amount(PowerId.FOCUSED_STRIKE)
+        == FOCUSED_STRIKE_UPGRADED_POWER
+    )
+
+
+def test_double_energy_factory_upgrade_costs_zero_and_keeps_exhaust():
+    combat = _make_combat()
+    card = make_double_energy(upgraded=True)
+    combat.hand = [card]
+    combat.energy = ONE_ENERGY
+
+    assert card.cost == ZERO_COST
+    assert card.exhausts is True
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.energy == TWO_ENERGY
+    assert card in combat.exhaust_pile
+
+
+def test_energy_surge_factory_upgrade_gives_three_energy_to_player_ally():
+    combat = _make_combat()
+    ally_state = PlayerState(
+        player_id=ALLY_PLAYER_ID,
+        character_id=DEFECT_CHARACTER_ID,
+        max_hp=ALLY_PLAYER_HP,
+        current_hp=ALLY_PLAYER_HP,
+    )
+    ally = combat.add_ally_player(ally_state)
+    ally_combat_state = combat.combat_player_state_for(ally)
+    assert ally_combat_state is not None
+    combat.hand = [make_energy_surge(upgraded=True)]
+    combat.energy = ONE_ENERGY
+    ally_combat_state.energy = ZERO_COST
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.energy == ZERO_COST
+    assert ally_combat_state.energy == ENERGY_SURGE_UPGRADED_ENERGY
+
+
+def test_feral_factory_upgrade_costs_one_and_keeps_power_amount():
+    combat = _make_combat()
+    card = make_feral(upgraded=True)
+    combat.hand = [card]
+    combat.energy = ONE_ENERGY
+
+    assert card.cost == FERAL_UPGRADED_COST
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.get_power_amount(PowerId.FERAL) == FERAL_POWER
+
+
+def test_ftl_factory_upgrade_increases_damage_and_four_play_draw_window():
+    combat = _make_combat()
+    enemy = combat.enemies[FIRST_ENEMY_INDEX]
+    starting_hp = enemy.current_hp
+    drawn = make_boot_sequence()
+    combat.hand = [make_ftl(upgraded=True)]
+    combat.draw_pile = [drawn]
+    combat.energy = ZERO_COST
+    combat.card_plays_this_turn = [make_chill(), make_chill(), make_chill()]
+
+    assert combat.play_card(HAND_CARD_INDEX, FIRST_ENEMY_INDEX)
+
+    assert enemy.current_hp == starting_hp - FTL_UPGRADED_DAMAGE
+    assert combat.hand == [drawn]
+    assert len(combat.hand) == FTL_DRAW_COUNT
+
+
+def test_fusion_factory_upgrade_costs_one_and_channels_plasma():
+    combat = _make_combat()
+    card = make_fusion(upgraded=True)
+    combat.hand = [card]
+    combat.energy = ONE_ENERGY
+
+    assert card.cost == FUSION_UPGRADED_COST
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert [orb.orb_type for orb in combat.orb_queue.orbs] == [OrbType.PLASMA]
+
+
+def test_glacier_factory_upgrade_increases_block_and_keeps_two_frost_orbs():
+    combat = _make_combat()
+    combat.hand = [make_glacier(upgraded=True)]
+    combat.energy = TWO_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.block == GLACIER_UPGRADED_BLOCK
+    assert [orb.orb_type for orb in combat.orb_queue.orbs] == (
+        [OrbType.FROST] * GLACIER_FROST_ORBS
+    )
+
+
+def test_glasswork_factory_upgrade_increases_block_and_keeps_glass_orb():
+    combat = _make_combat()
+    combat.hand = [make_glasswork(upgraded=True)]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.block == GLASSWORK_UPGRADED_BLOCK
+    assert [orb.orb_type for orb in combat.orb_queue.orbs] == [OrbType.GLASS]
+
+
+def test_coolant_factory_upgrade_increases_power_amount():
+    combat = _make_combat()
+    combat.hand = [make_coolant(upgraded=True)]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.get_power_amount(PowerId.COOLANT) == COOLANT_UPGRADED_POWER
+
+
+def test_creative_ai_factory_upgrade_costs_two_and_keeps_power_amount():
+    combat = _make_combat()
+    card = make_creative_ai(upgraded=True)
+    combat.hand = [card]
+    combat.energy = TWO_ENERGY
+
+    assert card.cost == CREATIVE_AI_UPGRADED_COST
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.get_power_amount(PowerId.CREATIVE_AI) == CREATIVE_AI_POWER
+
+
+def test_defragment_factory_upgrade_increases_focus_amount():
+    combat = _make_combat()
+    combat.hand = [make_defragment(upgraded=True)]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.get_power_amount(PowerId.FOCUS) == DEFRAGMENT_UPGRADED_FOCUS
