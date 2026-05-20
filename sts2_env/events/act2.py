@@ -568,31 +568,51 @@ class JungleMazeAdventure(EventModel):
 
     event_id = "JungleMazeAdventure"
     is_shared = True
+    SOLO_GOLD = 150
+    SOLO_HP_LOSS = 18
+    JOIN_FORCES_GOLD = 50
+    GOLD_VARIANCE_MIN = -15
+    GOLD_VARIANCE_MAX = 15
 
     def __init__(self) -> None:
-        self._solo_gold = 150
-        self._join_gold = 50
+        self._solo_gold = self.SOLO_GOLD
+        self._join_gold = self.JOIN_FORCES_GOLD
 
     def calculate_vars(self, run_state: RunState) -> None:
         rng = self.get_rng(run_state)
-        self._solo_gold = 150 + rng.next_float_range(-15, 15)
-        self._join_gold = 50 + rng.next_float_range(-15, 15)
+        self._solo_gold = self.SOLO_GOLD + rng.next_float_range(
+            self.GOLD_VARIANCE_MIN,
+            self.GOLD_VARIANCE_MAX,
+        )
+        self._join_gold = self.JOIN_FORCES_GOLD + rng.next_float_range(
+            self.GOLD_VARIANCE_MIN,
+            self.GOLD_VARIANCE_MAX,
+        )
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         self.ensure_vars_calculated(run_state)
         return [
-            EventOption("solo", "Solo Quest",
-                         f"Take 18 damage, gain {self._solo_gold} gold"),
-            EventOption("join", "Join Forces",
-                         f"Gain {self._join_gold} gold"),
+            EventOption(
+                "solo",
+                "Solo Quest",
+                f"Take {self.SOLO_HP_LOSS} damage, gain {self._solo_gold} gold",
+            ),
+            EventOption(
+                "join",
+                "Join Forces",
+                f"Gain {self._join_gold} gold",
+            ),
         ]
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "solo":
-            run_state.player.lose_hp(18)
+            run_state.player.lose_hp(self.SOLO_HP_LOSS)
             run_state.player.gain_gold(self._solo_gold)
             return EventResult(finished=True,
-                               description=f"Took 18 damage, gained {self._solo_gold} gold.")
+                               description=(
+                                   f"Took {self.SOLO_HP_LOSS} damage, "
+                                   f"gained {self._solo_gold} gold."
+                               ))
         run_state.player.gain_gold(self._join_gold)
         return EventResult(finished=True,
                            description=f"Gained {self._join_gold} gold.")
@@ -726,26 +746,36 @@ class PotionCourier(EventModel):
     """Grab Potions: Gain 3 Foul Potions. Ransack: Gain 1 uncommon potion."""
 
     event_id = "PotionCourier"
+    FOUL_POTION_ID = "FoulPotion"
+    FOUL_POTION_COUNT = 3
+    RANSACK_POTION_COUNT = 1
 
     def is_allowed(self, run_state: RunState) -> bool:
         return run_state.current_act_index > 0
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         return [
-            EventOption("grab", "Grab Potions", "Gain 3 Foul Potions"),
-            EventOption("ransack", "Ransack", "Gain 1 uncommon potion"),
+            EventOption(
+                "grab",
+                "Grab Potions",
+                f"Gain {self.FOUL_POTION_COUNT} Foul Potions",
+            ),
+            EventOption(
+                "ransack",
+                "Ransack",
+                f"Gain {self.RANSACK_POTION_COUNT} uncommon potion",
+            ),
         ]
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "grab":
             return EventResult(
                 finished=True,
-                description="Gained 3 Foul Potions.",
+                description=f"Gained {self.FOUL_POTION_COUNT} Foul Potions.",
                 rewards={
                     "reward_objects": [
-                        PotionReward(run_state.player.player_id, potion_id="FoulPotion"),
-                        PotionReward(run_state.player.player_id, potion_id="FoulPotion"),
-                        PotionReward(run_state.player.player_id, potion_id="FoulPotion"),
+                        PotionReward(run_state.player.player_id, potion_id=self.FOUL_POTION_ID)
+                        for _ in range(self.FOUL_POTION_COUNT)
                     ]
                 },
             )
