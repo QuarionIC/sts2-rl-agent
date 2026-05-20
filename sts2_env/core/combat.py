@@ -41,6 +41,7 @@ from sts2_env.cards.registry import (
     fire_card_after_turn_end,
     fire_card_before_hand_draw,
     fire_card_late_effects,
+    fire_card_turn_end_in_hand,
     play_card_effect,
 )
 from sts2_env.characters.all import ALL_CHARACTERS, get_character
@@ -3853,106 +3854,9 @@ class CombatState:
         return card.has_turn_end_in_hand_effect
 
     def _execute_turn_end_in_hand_effect(self, card: CardInstance, cards_in_hand_at_turn_end: int) -> None:
-        from sts2_env.core.damage import apply_damage
-        from sts2_env.core.enums import CardId
-
         if not card.has_turn_end_in_hand_effect:
             return
-
-        if card.card_id == CardId.BECKON:
-            owner = getattr(card, "owner", None) or self.primary_player
-            apply_damage(
-                owner,
-                card.effect_vars.get("hp_loss", 6),
-                ValueProp.UNBLOCKABLE | ValueProp.UNPOWERED | ValueProp.MOVE,
-                self,
-                None,
-            )
-            self._check_combat_end()
-            return
-
-        if card.card_id == CardId.BURN:
-            owner = getattr(card, "owner", None) or self.primary_player
-            self.deal_damage(
-                dealer=owner,
-                target=owner,
-                amount=card.effect_vars.get("damage", 2),
-                props=ValueProp.UNPOWERED | ValueProp.MOVE,
-            )
-            return
-
-        if card.card_id == CardId.BAD_LUCK:
-            owner = getattr(card, "owner", None) or self.primary_player
-            apply_damage(
-                owner,
-                13,
-                ValueProp.UNBLOCKABLE | ValueProp.UNPOWERED | ValueProp.MOVE,
-                self,
-                None,
-            )
-            self._check_combat_end()
-            return
-
-        if card.card_id == CardId.DEBT:
-            self.gold = max(0, self.gold - min(card.effect_vars.get("gold", 10), self.gold))
-            return
-
-        if card.card_id == CardId.DECAY:
-            owner = getattr(card, "owner", None) or self.primary_player
-            self.deal_damage(
-                dealer=owner,
-                target=owner,
-                amount=card.effect_vars.get("damage", 2),
-                props=ValueProp.UNPOWERED | ValueProp.MOVE,
-            )
-            return
-
-        if card.card_id == CardId.DOUBT:
-            owner = getattr(card, "owner", None) or self.primary_player
-            already_had = owner.has_power(PowerId.WEAK)
-            owner.apply_power(PowerId.WEAK, card.effect_vars.get("weak", 1))
-            if not already_had and owner.has_power(PowerId.WEAK):
-                owner.powers[PowerId.WEAK].skip_next_tick = True
-            return
-
-        if card.card_id == CardId.INFECTION:
-            owner = getattr(card, "owner", None) or self.primary_player
-            self.deal_damage(
-                dealer=owner,
-                target=owner,
-                amount=card.effect_vars.get("damage", 3),
-                props=ValueProp.UNPOWERED | ValueProp.MOVE,
-            )
-            return
-
-        if card.card_id == CardId.REGRET:
-            owner = getattr(card, "owner", None) or self.primary_player
-            apply_damage(
-                owner,
-                cards_in_hand_at_turn_end,
-                ValueProp.UNBLOCKABLE | ValueProp.UNPOWERED | ValueProp.MOVE,
-                self,
-                None,
-            )
-            self._check_combat_end()
-            return
-
-        if card.card_id == CardId.SHAME:
-            owner = getattr(card, "owner", None) or self.primary_player
-            already_had = owner.has_power(PowerId.FRAIL)
-            owner.apply_power(PowerId.FRAIL, card.effect_vars.get("frail", 1))
-            if not already_had and owner.has_power(PowerId.FRAIL):
-                owner.powers[PowerId.FRAIL].skip_next_tick = True
-            return
-
-        if card.card_id == CardId.TOXIC:
-            owner = getattr(card, "owner", None) or self.primary_player
-            self.deal_damage(
-                dealer=owner,
-                target=owner,
-                amount=card.effect_vars.get("damage", 5),
-                props=ValueProp.UNPOWERED | ValueProp.MOVE,
-            )
+        fire_card_turn_end_in_hand(card, self, cards_in_hand_at_turn_end)
 
     # ---- Combat end ----
 

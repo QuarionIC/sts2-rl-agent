@@ -23,6 +23,7 @@ from sts2_env.cards.registry import (
     register_rest_site_options_hook,
     register_should_play_hook,
     register_target_type_hook,
+    register_turn_end_in_hand_hook,
     register_unknown_room_types_hook,
 )
 from sts2_env.core.enums import (
@@ -97,6 +98,41 @@ def _gain_resolved_block(creature: Creature, block: int, combat: CombatState) ->
     return gained
 
 
+def _hp_loss(card: CardInstance, combat: CombatState, amount: int) -> None:
+    owner = _owner(card, combat)
+    apply_damage(
+        owner,
+        amount,
+        ValueProp.UNBLOCKABLE | ValueProp.UNPOWERED | ValueProp.MOVE,
+        combat,
+        None,
+    )
+    combat._check_combat_end()
+
+
+def _deal_self_damage(card: CardInstance, combat: CombatState, amount: int) -> None:
+    owner = _owner(card, combat)
+    combat.deal_damage(
+        dealer=owner,
+        target=owner,
+        amount=amount,
+        props=ValueProp.UNPOWERED | ValueProp.MOVE,
+    )
+
+
+def _apply_duration_power_from_turn_end_card(
+    card: CardInstance,
+    combat: CombatState,
+    power_id: PowerId,
+    amount: int,
+) -> None:
+    owner = _owner(card, combat)
+    already_had = owner.has_power(power_id)
+    owner.apply_power(power_id, amount)
+    if not already_had and owner.has_power(power_id):
+        owner.powers[power_id].skip_next_tick = True
+
+
 # ===========================================================================
 # STATUS CARDS (11)
 # ===========================================================================
@@ -155,6 +191,11 @@ def make_void() -> CardInstance:
 def beckon_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     """Turn-end-in-hand HP loss is handled by combat hooks."""
     return
+
+
+@register_turn_end_in_hand_hook(CardId.BECKON)
+def beckon_turn_end_in_hand(card: CardInstance, combat: CombatState, cards_in_hand_at_turn_end: int) -> None:
+    _hp_loss(card, combat, card.effect_vars.get("hp_loss", 6))
 
 
 def make_beckon() -> CardInstance:
@@ -1299,6 +1340,11 @@ def burn_effect(card: CardInstance, combat: CombatState, target: Creature | None
     pass
 
 
+@register_turn_end_in_hand_hook(CardId.BURN)
+def burn_turn_end_in_hand(card: CardInstance, combat: CombatState, cards_in_hand_at_turn_end: int) -> None:
+    _deal_self_damage(card, combat, card.effect_vars.get("damage", BURN_DAMAGE))
+
+
 @register_effect(CardId.DAZED)
 def dazed_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     """Unplayable, Ethereal. Pure dead-weight status card."""
@@ -1368,6 +1414,11 @@ def toxic_effect(card: CardInstance, combat: CombatState, target: Creature | Non
     pass
 
 
+@register_turn_end_in_hand_hook(CardId.TOXIC)
+def toxic_turn_end_in_hand(card: CardInstance, combat: CombatState, cards_in_hand_at_turn_end: int) -> None:
+    _deal_self_damage(card, combat, card.effect_vars.get("damage", 5))
+
+
 # ---------------------------------------------------------------------------
 # Debuff status cards (5): DISINTEGRATION, INFECTION, MIND_ROT,
 #                          SLOTH_STATUS, WASTE_AWAY
@@ -1396,6 +1447,11 @@ def infection_effect(card: CardInstance, combat: CombatState, target: Creature |
     """Unplayable. End-of-turn: deals 3 damage to player (unpowered).
     Triggered by combat end-of-turn hook, not this function."""
     pass
+
+
+@register_turn_end_in_hand_hook(CardId.INFECTION)
+def infection_turn_end_in_hand(card: CardInstance, combat: CombatState, cards_in_hand_at_turn_end: int) -> None:
+    _deal_self_damage(card, combat, card.effect_vars.get("damage", 3))
 
 
 @register_effect(CardId.MIND_ROT)
@@ -1472,6 +1528,11 @@ def bad_luck_effect(card: CardInstance, combat: CombatState, target: Creature | 
     pass
 
 
+@register_turn_end_in_hand_hook(CardId.BAD_LUCK)
+def bad_luck_turn_end_in_hand(card: CardInstance, combat: CombatState, cards_in_hand_at_turn_end: int) -> None:
+    _hp_loss(card, combat, card.effect_vars.get("hp_loss", 13))
+
+
 @register_effect(CardId.CLUMSY)
 def clumsy_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     """Unplayable, Ethereal. Pure dead-weight curse."""
@@ -1491,6 +1552,11 @@ def debt_effect(card: CardInstance, combat: CombatState, target: Creature | None
     pass
 
 
+@register_turn_end_in_hand_hook(CardId.DEBT)
+def debt_turn_end_in_hand(card: CardInstance, combat: CombatState, cards_in_hand_at_turn_end: int) -> None:
+    combat.lose_gold(_owner(card, combat), card.effect_vars.get("gold", 10))
+
+
 @register_effect(CardId.DECAY)
 def decay_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     """Unplayable. End-of-turn: deal 2 damage to player (unpowered).
@@ -1498,11 +1564,21 @@ def decay_effect(card: CardInstance, combat: CombatState, target: Creature | Non
     pass
 
 
+@register_turn_end_in_hand_hook(CardId.DECAY)
+def decay_turn_end_in_hand(card: CardInstance, combat: CombatState, cards_in_hand_at_turn_end: int) -> None:
+    _deal_self_damage(card, combat, card.effect_vars.get("damage", DECAY_DAMAGE))
+
+
 @register_effect(CardId.DOUBT)
 def doubt_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     """Unplayable. End-of-turn: apply 1 Weak to player (skip first tick).
     Triggered by combat end-of-turn hook, not this function."""
     pass
+
+
+@register_turn_end_in_hand_hook(CardId.DOUBT)
+def doubt_turn_end_in_hand(card: CardInstance, combat: CombatState, cards_in_hand_at_turn_end: int) -> None:
+    _apply_duration_power_from_turn_end_card(card, combat, PowerId.WEAK, card.effect_vars.get("weak", 1))
 
 
 @register_effect(CardId.ENTHRALLED)
@@ -1601,11 +1677,21 @@ def regret_effect(card: CardInstance, combat: CombatState, target: Creature | No
     pass
 
 
+@register_turn_end_in_hand_hook(CardId.REGRET)
+def regret_turn_end_in_hand(card: CardInstance, combat: CombatState, cards_in_hand_at_turn_end: int) -> None:
+    _hp_loss(card, combat, cards_in_hand_at_turn_end)
+
+
 @register_effect(CardId.SHAME)
 def shame_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     """Unplayable. End-of-turn: apply 1 Frail to player (skip first tick).
     Triggered by combat end-of-turn hook, not this function."""
     pass
+
+
+@register_turn_end_in_hand_hook(CardId.SHAME)
+def shame_turn_end_in_hand(card: CardInstance, combat: CombatState, cards_in_hand_at_turn_end: int) -> None:
+    _apply_duration_power_from_turn_end_card(card, combat, PowerId.FRAIL, card.effect_vars.get("frail", 1))
 
 
 @register_effect(CardId.SPORE_MIND)
