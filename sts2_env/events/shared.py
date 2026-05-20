@@ -2742,51 +2742,104 @@ class ZenWeaver(EventModel):
     """
 
     event_id = "ZenWeaver"
+    BREATHING_TECHNIQUES_COST = 50
+    BREATHING_TECHNIQUES_CARDS = 2
+    EMOTIONAL_AWARENESS_COST = 125
+    EMOTIONAL_AWARENESS_REMOVE_COUNT = 1
+    ARACHNID_ACUPUNCTURE_COST = 250
+    ARACHNID_ACUPUNCTURE_REMOVE_COUNT = 2
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return all(player.gold >= 125 for player in run_state.players)
+        return all(
+            player.gold >= self.EMOTIONAL_AWARENESS_COST
+            for player in run_state.players
+        )
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         gold = run_state.player.gold
         return [
-            EventOption("breathing", "Breathing Techniques",
-                        "Pay 50g, gain 2 Enlightenment cards"),
-            EventOption("emotional", "Emotional Awareness",
-                        "Pay 125g, remove 1 card", enabled=gold >= 125),
-            EventOption("acupuncture", "Arachnid Acupuncture",
-                        "Pay 250g, remove 2 cards", enabled=gold >= 250),
+            EventOption(
+                "breathing",
+                "Breathing Techniques",
+                (
+                    f"Pay {self.BREATHING_TECHNIQUES_COST}g, gain "
+                    f"{self.BREATHING_TECHNIQUES_CARDS} Enlightenment cards"
+                ),
+            ),
+            EventOption(
+                "emotional",
+                "Emotional Awareness",
+                (
+                    f"Pay {self.EMOTIONAL_AWARENESS_COST}g, remove "
+                    f"{self.EMOTIONAL_AWARENESS_REMOVE_COUNT} card"
+                ),
+                enabled=gold >= self.EMOTIONAL_AWARENESS_COST,
+            ),
+            EventOption(
+                "acupuncture",
+                "Arachnid Acupuncture",
+                (
+                    f"Pay {self.ARACHNID_ACUPUNCTURE_COST}g, remove "
+                    f"{self.ARACHNID_ACUPUNCTURE_REMOVE_COUNT} cards"
+                ),
+                enabled=gold >= self.ARACHNID_ACUPUNCTURE_COST,
+            ),
         ]
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "breathing":
-            run_state.player.lose_gold(50)
+            run_state.player.lose_gold(self.BREATHING_TECHNIQUES_COST)
             if _should_defer_event_rewards(run_state):
                 return _event_result_with_rewards(
-                    "Paid 50g, gained 2 Enlightenment cards.",
+                    (
+                        f"Paid {self.BREATHING_TECHNIQUES_COST}g, gained "
+                        f"{self.BREATHING_TECHNIQUES_CARDS} Enlightenment cards."
+                    ),
                     [
                         AddCardsReward(
                             run_state.player.player_id,
-                            [create_card(CardId.ENLIGHTENMENT), create_card(CardId.ENLIGHTENMENT)],
+                            [
+                                create_card(CardId.ENLIGHTENMENT)
+                                for _ in range(self.BREATHING_TECHNIQUES_CARDS)
+                            ],
                         )
                     ],
                 )
-            run_state.player.add_card_instance_to_deck(create_card(CardId.ENLIGHTENMENT))
-            run_state.player.add_card_instance_to_deck(create_card(CardId.ENLIGHTENMENT))
-            return EventResult(finished=True,
-                               description="Paid 50g, gained 2 Enlightenment cards.")
+            for _ in range(self.BREATHING_TECHNIQUES_CARDS):
+                run_state.player.add_card_instance_to_deck(create_card(CardId.ENLIGHTENMENT))
+            return EventResult(
+                finished=True,
+                description=(
+                    f"Paid {self.BREATHING_TECHNIQUES_COST}g, gained "
+                    f"{self.BREATHING_TECHNIQUES_CARDS} Enlightenment cards."
+                ),
+            )
         if option_id == "emotional":
-            if run_state.player.gold < 125:
+            if run_state.player.gold < self.EMOTIONAL_AWARENESS_COST:
                 return EventResult(finished=True, description="Could not afford Emotional Awareness.")
             candidates = run_state.player.removable_deck_cards()
             if not candidates:
-                run_state.player.lose_gold(125)
-                return EventResult(finished=True, description="Paid 125g, removed 1 card.")
+                run_state.player.lose_gold(self.EMOTIONAL_AWARENESS_COST)
+                return EventResult(
+                    finished=True,
+                    description=(
+                        f"Paid {self.EMOTIONAL_AWARENESS_COST}g, removed "
+                        f"{self.EMOTIONAL_AWARENESS_REMOVE_COUNT} card."
+                    ),
+                )
             if _should_defer_event_rewards(run_state):
                 return _event_result_with_rewards(
-                    "Paid 125g, removed 1 card.",
+                    (
+                        f"Paid {self.EMOTIONAL_AWARENESS_COST}g, removed "
+                        f"{self.EMOTIONAL_AWARENESS_REMOVE_COUNT} card."
+                    ),
                     [
-                        RemoveCardReward(run_state.player.player_id, count=1, cards=candidates),
-                        LoseGoldReward(run_state.player.player_id, 125),
+                        RemoveCardReward(
+                            run_state.player.player_id,
+                            count=self.EMOTIONAL_AWARENESS_REMOVE_COUNT,
+                            cards=candidates,
+                        ),
+                        LoseGoldReward(run_state.player.player_id, self.EMOTIONAL_AWARENESS_COST),
                     ],
                 )
             return self.request_card_choice(
@@ -2795,28 +2848,43 @@ class ZenWeaver(EventModel):
                 source_pile="deck",
                 resolver=lambda selected: (
                     _remove_selected_cards(selected, run_state),
-                    run_state.player.lose_gold(125),
-                    EventResult(finished=True, description="Paid 125g, removed 1 card."),
+                    run_state.player.lose_gold(self.EMOTIONAL_AWARENESS_COST),
+                    EventResult(
+                        finished=True,
+                        description=(
+                            f"Paid {self.EMOTIONAL_AWARENESS_COST}g, removed "
+                            f"{self.EMOTIONAL_AWARENESS_REMOVE_COUNT} card."
+                        ),
+                    ),
                 )[-1],
                 allow_skip=False,
-                min_count=1,
-                max_count=1,
+                min_count=self.EMOTIONAL_AWARENESS_REMOVE_COUNT,
+                max_count=self.EMOTIONAL_AWARENESS_REMOVE_COUNT,
                 description="Choose a card to remove.",
             )
         if option_id == "acupuncture":
-            if run_state.player.gold < 250:
+            if run_state.player.gold < self.ARACHNID_ACUPUNCTURE_COST:
                 return EventResult(finished=True, description="Could not afford Arachnid Acupuncture.")
             candidates = run_state.player.removable_deck_cards()
-            remove_count = min(2, len(candidates))
+            remove_count = min(self.ARACHNID_ACUPUNCTURE_REMOVE_COUNT, len(candidates))
             if remove_count == 0:
-                run_state.player.lose_gold(250)
-                return EventResult(finished=True, description="Paid 250g, removed 2 cards.")
+                run_state.player.lose_gold(self.ARACHNID_ACUPUNCTURE_COST)
+                return EventResult(
+                    finished=True,
+                    description=(
+                        f"Paid {self.ARACHNID_ACUPUNCTURE_COST}g, removed "
+                        f"{self.ARACHNID_ACUPUNCTURE_REMOVE_COUNT} cards."
+                    ),
+                )
             if _should_defer_event_rewards(run_state):
                 return _event_result_with_rewards(
-                    "Paid 250g, removed 2 cards.",
+                    (
+                        f"Paid {self.ARACHNID_ACUPUNCTURE_COST}g, removed "
+                        f"{self.ARACHNID_ACUPUNCTURE_REMOVE_COUNT} cards."
+                    ),
                     [
                         RemoveCardReward(run_state.player.player_id, count=remove_count, cards=candidates),
-                        LoseGoldReward(run_state.player.player_id, 250),
+                        LoseGoldReward(run_state.player.player_id, self.ARACHNID_ACUPUNCTURE_COST),
                     ],
                 )
             return self.request_card_choice(
@@ -2825,8 +2893,14 @@ class ZenWeaver(EventModel):
                 source_pile="deck",
                 resolver=lambda selected: (
                     _remove_selected_cards(selected, run_state),
-                    run_state.player.lose_gold(250),
-                    EventResult(finished=True, description="Paid 250g, removed 2 cards."),
+                    run_state.player.lose_gold(self.ARACHNID_ACUPUNCTURE_COST),
+                    EventResult(
+                        finished=True,
+                        description=(
+                            f"Paid {self.ARACHNID_ACUPUNCTURE_COST}g, removed "
+                            f"{self.ARACHNID_ACUPUNCTURE_REMOVE_COUNT} cards."
+                        ),
+                    ),
                 )[-1],
                 allow_skip=False,
                 min_count=remove_count,
