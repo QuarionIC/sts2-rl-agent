@@ -5,7 +5,6 @@ All Uncommon-rarity relics from the reference doc.
 
 from __future__ import annotations
 
-from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from sts2_env.core.constants import VULNERABLE_MULTIPLIER
@@ -30,19 +29,6 @@ def _gain_unpowered_block(owner: Creature, amount: int, combat: CombatState) -> 
 
         fire_after_block_gained(owner, gained, combat)
     return gained
-
-
-@lru_cache(maxsize=1)
-def _colorless_card_ids() -> frozenset[object]:
-    from sts2_env.cards.factory import eligible_registered_cards
-    from sts2_env.core.card_pools import CardPoolId
-
-    return frozenset(
-        eligible_registered_cards(
-            card_pool=CardPoolId.COLORLESS,
-            generation_context=None,
-        )
-    )
 
 
 @register_relic
@@ -693,11 +679,12 @@ class Regalite(RelicInstance):
         if getattr(card, "owner", None) is not owner:
             return
         visual_card_pool = getattr(card, "visual_card_pool", None)
+        is_visual_colorless = getattr(card, "is_visual_colorless", None)
         is_colorless = bool(
             getattr(card, "is_colorless", False)
             or getattr(card, "visual_card_pool_is_colorless", False)
+            or (callable(is_visual_colorless) and is_visual_colorless())
             or getattr(visual_card_pool, "is_colorless", False)
-            or getattr(card, "card_id", None) in _colorless_card_ids()
         )
         if is_colorless:
             _gain_unpowered_block(owner, self.BLOCK, combat)

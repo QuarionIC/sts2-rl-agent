@@ -228,6 +228,9 @@ class CardInstance:
     def visual_card_pool_is_colorless(self) -> bool:
         return self.visual_card_pool in {CardPoolId.COLORLESS, CardPoolId.EVENT, CardPoolId.TOKEN}
 
+    def is_visual_colorless(self) -> bool:
+        return self.visual_card_pool_is_colorless
+
     @property
     def should_show_in_card_library(self) -> bool:
         return reference_should_show_in_card_library(self.card_id)

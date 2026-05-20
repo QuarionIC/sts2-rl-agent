@@ -5,7 +5,6 @@ decompiled/MegaCrit.Sts2.Core.Models.Powers/.
 """
 
 from __future__ import annotations
-from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from sts2_env.core.enums import (
@@ -183,27 +182,15 @@ class ArsenalPower(PowerInstance):
         super().__init__(PowerId.ARSENAL, amount)
 
     def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
+        is_visual_colorless = getattr(card, "is_visual_colorless", None)
         is_colorless = bool(
             getattr(card, "is_colorless", False)
             or getattr(card, "visual_card_pool_is_colorless", False)
-            or getattr(card, "card_id", None) in _colorless_card_ids()
+            or (callable(is_visual_colorless) and is_visual_colorless())
         )
         card_owner = getattr(card, "owner", None)
         if is_colorless and (card_owner is owner or card_owner is None):
             owner.apply_power(PowerId.STRENGTH, self.amount)
-
-
-@lru_cache(maxsize=1)
-def _colorless_card_ids():
-    from sts2_env.cards.factory import eligible_registered_cards
-    from sts2_env.core.card_pools import CardPoolId
-
-    return frozenset(
-        eligible_registered_cards(
-            card_pool=CardPoolId.COLORLESS,
-            generation_context=None,
-        )
-    )
 
 
 # =====================================================================
