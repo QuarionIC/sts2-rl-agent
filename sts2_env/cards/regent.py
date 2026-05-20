@@ -9,6 +9,7 @@ from __future__ import annotations
 from sts2_env.cards.base import CardInstance, _get_next_id, new_card_instance_id
 from sts2_env.cards.factory import create_cards_from_ids, eligible_registered_cards
 from sts2_env.cards.registry import register_effect, register_late_effect
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import (
     CardId, CardType, TargetType, CardRarity, ValueProp, PowerId,
 )
@@ -420,7 +421,7 @@ def largesse(card: CardInstance, combat: CombatState, target: Creature | None) -
     if target is None:
         return
     colorless_ids = eligible_registered_cards(
-        module_name="sts2_env.cards.colorless",
+        card_pool=CardPoolId.COLORLESS,
         generation_context="combat",
         is_multiplayer=combat.is_multiplayer,
     )
@@ -451,7 +452,7 @@ def lunar_blast(card: CardInstance, combat: CombatState, target: Creature | None
 def manifest_authority(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     _gain_block(card, combat)
     colorless_ids = eligible_registered_cards(
-        module_name="sts2_env.cards.colorless",
+        card_pool=CardPoolId.COLORLESS,
         generation_context="combat",
         is_multiplayer=combat.is_multiplayer,
     )
@@ -505,7 +506,7 @@ def prophesize(card: CardInstance, combat: CombatState, target: Creature | None)
 @register_effect(CardId.QUASAR)
 def quasar(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     colorless_ids = eligible_registered_cards(
-        module_name="sts2_env.cards.colorless",
+        card_pool=CardPoolId.COLORLESS,
         generation_context="combat",
         is_multiplayer=combat.is_multiplayer,
     )
@@ -661,7 +662,7 @@ def bombardment(card: CardInstance, combat: CombatState, target: Creature | None
 @register_effect(CardId.BUNDLE_OF_JOY)
 def bundle_of_joy(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     colorless_ids = eligible_registered_cards(
-        module_name="sts2_env.cards.colorless",
+        card_pool=CardPoolId.COLORLESS,
         generation_context="combat",
         is_multiplayer=combat.is_multiplayer,
     )
@@ -788,7 +789,7 @@ def heavenly_drill(card: CardInstance, combat: CombatState, target: Creature | N
 def heirloom_hammer(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     _deal_damage_single(card, combat, target)
-    colorless_ids = set(eligible_registered_cards(module_name="sts2_env.cards.colorless", generation_context="modifier"))
+    colorless_ids = set(eligible_registered_cards(card_pool=CardPoolId.COLORLESS, generation_context="modifier"))
     candidates = [c for c in combat.hand if c.card_id in colorless_ids]
     if not candidates:
         return

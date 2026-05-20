@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sts2_env.cards.factory import card_metadata, eligible_character_cards, eligible_registered_cards
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import CardRarity, CombatSide, MapPointType, PowerId, RoomType
 from sts2_env.core.selection import CardChoiceOption, PendingCardChoice
 from sts2_env.run.events import EventResult
@@ -264,7 +265,7 @@ class BigGameHunterModifier(ModifierModel):
                     rares.append(card_id)
             if options.include_colorless:
                 for card_id in eligible_registered_cards(
-                    module_name="sts2_env.cards.colorless",
+                    card_pool=CardPoolId.COLORLESS,
                     rarity=CardRarity.RARE,
                     generation_context=options.generation_context,
                     is_multiplayer=len(run_state.players) > 1,

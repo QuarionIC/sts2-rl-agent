@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from sts2_env.cards.base import CardInstance
 from sts2_env.cards.factory import create_card, eligible_character_cards, eligible_registered_cards
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import CardRarity, CardType, PotionRarity, RelicRarity
 from sts2_env.core.rng import Rng
 from sts2_env.potions.base import normal_pool_models
@@ -231,7 +232,7 @@ def _create_colorless_shop_card(
     rarity: CardRarity,
 ) -> ShopCardEntry:
     candidates = eligible_registered_cards(
-        module_name="sts2_env.cards.colorless",
+        card_pool=CardPoolId.COLORLESS,
         rarity=rarity,
         generation_context=None,
         is_multiplayer=len(run_state.players) > 1,

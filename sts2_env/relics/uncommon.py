@@ -35,10 +35,11 @@ def _gain_unpowered_block(owner: Creature, amount: int, combat: CombatState) -> 
 @lru_cache(maxsize=1)
 def _colorless_card_ids() -> frozenset[object]:
     from sts2_env.cards.factory import eligible_registered_cards
+    from sts2_env.core.card_pools import CardPoolId
 
     return frozenset(
         eligible_registered_cards(
-            module_name="sts2_env.cards.colorless",
+            card_pool=CardPoolId.COLORLESS,
             generation_context=None,
         )
     )

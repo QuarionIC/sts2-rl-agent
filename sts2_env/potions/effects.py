@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sts2_env.cards.factory import create_cards_from_ids, create_character_cards, eligible_registered_cards
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import (
     CardRarity, CardType, PowerId, ValueProp, PotionTargetType, CardId,
 )
@@ -134,7 +135,7 @@ def _colorless_potion(combat: CombatState, user: Creature, target: Creature | No
     if state is None:
         return
     colorless_ids = eligible_registered_cards(
-        module_name="sts2_env.cards.colorless",
+        card_pool=CardPoolId.COLORLESS,
         generation_context="combat",
         is_multiplayer=combat.is_multiplayer,
     )
@@ -536,7 +537,7 @@ def _cosmic_concoction(combat: CombatState, user: Creature, target: Creature | N
     """Generate 3 upgraded Colorless cards in hand.
     """
     colorless_ids = eligible_registered_cards(
-        module_name="sts2_env.cards.colorless",
+        card_pool=CardPoolId.COLORLESS,
         generation_context="combat",
         is_multiplayer=combat.is_multiplayer,
     )

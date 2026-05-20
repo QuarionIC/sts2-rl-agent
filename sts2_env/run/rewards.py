@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from sts2_env.cards.base import CardInstance
 from sts2_env.cards.factory import card_metadata, card_preview, create_card, eligible_character_cards, eligible_registered_cards
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import CardId, CardRarity, CardType
 from sts2_env.core.rng import Rng
 
@@ -190,7 +191,7 @@ def _pick_reward_card(
                     candidate_ids.append(card_id)
             if include_colorless:
                 for card_id in eligible_registered_cards(
-                    module_name="sts2_env.cards.colorless",
+                    card_pool=CardPoolId.COLORLESS,
                     card_type=card_type,
                     rarity=current_rarity,
                     generation_context=generation_context,
@@ -241,7 +242,7 @@ def _pick_reward_card(
                     candidate_ids.append(card_id)
             if include_colorless:
                 for card_id in eligible_registered_cards(
-                    module_name="sts2_env.cards.colorless",
+                    card_pool=CardPoolId.COLORLESS,
                     card_type=card_type,
                     rarity=current_rarity,
                     generation_context=generation_context,
@@ -383,7 +384,7 @@ def generate_uniform_noncombat_cards(
             candidate_ids.append(card_id)
     if include_colorless:
         for card_id in eligible_registered_cards(
-            module_name="sts2_env.cards.colorless",
+            card_pool=CardPoolId.COLORLESS,
             card_type=card_type,
             rarity=rarity,
             generation_context=None,

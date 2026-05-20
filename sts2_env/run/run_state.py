@@ -15,6 +15,7 @@ from sts2_env.cards.factory import (
     eligible_character_cards,
     eligible_registered_cards,
 )
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.selection import CardChoiceOption, PendingCardChoice
 from sts2_env.core.enums import CardId, CardRarity, CardType
 from sts2_env.core.rng import Rng, deterministic_hash_code
@@ -496,7 +497,7 @@ class PlayerState:
         return True
 
     def add_random_curses(self, count: int, rng: Rng | None = None) -> int:
-        curse_ids = eligible_registered_cards(card_type=CardType.CURSE, generation_context="modifier")
+        curse_ids = eligible_registered_cards(card_pool=CardPoolId.CURSE, generation_context="modifier")
         selected_rng = rng or self.run_state.rng.rewards
         chosen_ids = selected_rng.sample(curse_ids, min(max(0, count), len(curse_ids)))
         added = 0
@@ -982,7 +983,7 @@ class PlayerState:
     def offer_multiplayer_cards(self, count: int) -> None:
         custom_card_ids = []
         seen_ids = set()
-        for card_id in eligible_registered_cards(module_name="sts2_env.cards.colorless", generation_context=None):
+        for card_id in eligible_registered_cards(card_pool=CardPoolId.COLORLESS, generation_context=None):
             if card_id in _MULTIPLAYER_ONLY_CARD_IDS:
                 custom_card_ids.append(card_id)
                 seen_ids.add(card_id)

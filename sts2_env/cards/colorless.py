@@ -16,6 +16,7 @@ from sts2_env.cards.factory import (
 )
 from sts2_env.cards.registry import register_effect
 from sts2_env.characters.all import ALL_CHARACTERS, get_character
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import (
     CardId, CardType, TargetType, CardRarity, CardTag, PowerStackType, PowerType, ValueProp, PowerId,
 )
@@ -349,7 +350,7 @@ def intercept_card(card: CardInstance, combat: CombatState, target: Creature | N
 @register_effect(CardId.JACK_OF_ALL_TRADES)
 def jack_of_all_trades(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     colorless_ids = eligible_registered_cards(
-        module_name=__name__,
+        card_pool=CardPoolId.COLORLESS,
         exclude_ids={CardId.JACK_OF_ALL_TRADES},
         generation_context="combat",
         is_multiplayer=combat.is_multiplayer,

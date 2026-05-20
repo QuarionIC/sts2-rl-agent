@@ -41,6 +41,7 @@ from sts2_env.cards.factory import (
 from sts2_env.cards.registry import fire_card_late_effects, play_card_effect
 from sts2_env.characters.all import ALL_CHARACTERS, get_character
 from sts2_env.core.attack import AttackContext
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.combat_player import CombatPlayerState
 from sts2_env.core.constants import BASE_DRAW, BASE_ENERGY, MAX_HAND_SIZE
 from sts2_env.core.creature import Creature
@@ -3609,7 +3610,7 @@ class CombatState:
         if state is None or count <= 0:
             return
         colorless_ids = eligible_registered_cards(
-            module_name="sts2_env.cards.colorless",
+            card_pool=CardPoolId.COLORLESS,
             generation_context="combat",
             is_multiplayer=self.is_multiplayer,
         )

@@ -712,7 +712,7 @@ def eligible_transform_cards(
     )
     if use_colorless_pool:
         candidates = eligible_registered_cards(
-            module_name="sts2_env.cards.colorless",
+            card_pool=CardPoolId.COLORLESS,
             generation_context=generation_context,
             is_multiplayer=is_multiplayer,
         )

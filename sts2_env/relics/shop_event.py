@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from sts2_env.cards.base import new_card_instance_id
 from sts2_env.cards.enchantments import can_enchant_card
 from sts2_env.characters.all import ALL_CHARACTERS
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import (
     CardId, CardRarity, RelicRarity, CombatSide, CardTag, CardType, MapPointType, PowerId, RoomType, TargetType,
     ValueProp,
@@ -654,7 +655,7 @@ class Toolbox(RelicInstance):
         if combat.round_number != 1 or self._used_this_combat:
             return
         ids = eligible_registered_cards(
-            module_name="sts2_env.cards.colorless",
+            card_pool=CardPoolId.COLORLESS,
             generation_context="combat",
         )
         cards = create_cards_from_ids(ids, combat.combat_card_generation_rng, self.CARDS, distinct=True)
@@ -3056,7 +3057,7 @@ class SereTalon(RelicInstance):
         if getattr(owner.run_state, "defer_followup_rewards", False):
             from sts2_env.cards.factory import create_card, eligible_registered_cards
 
-            curse_ids = eligible_registered_cards(card_type=CardType.CURSE, generation_context="modifier")
+            curse_ids = eligible_registered_cards(card_pool=CardPoolId.CURSE, generation_context="modifier")
             chosen_curses = owner.run_state.rng.niche.sample(curse_ids, min(2, len(curse_ids)))
             generated = [
                 create_card(card_id)
