@@ -1291,46 +1291,75 @@ class WaterloggedScriptorium(EventModel):
     """
 
     event_id = "WaterloggedScriptorium"
+    SPAWN_GOLD_REQUIREMENT = 65
+    BLOODY_INK_MAX_HP_GAIN = 6
+    TENTACLE_QUILL_COST = 65
+    TENTACLE_QUILL_CARDS = 1
+    PRICKLY_SPONGE_COST = 155
+    PRICKLY_SPONGE_CARDS = 2
+    STEADY_AMOUNT = 1
+    STEADY_ENCHANTMENT = "Steady"
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return all(player.gold >= 65 for player in run_state.players)
+        return all(
+            player.gold >= self.SPAWN_GOLD_REQUIREMENT
+            for player in run_state.players
+        )
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         gold = run_state.player.gold
         return [
-            EventOption("bloody_ink", "Bloody Ink", "Gain 6 Max HP"),
+            EventOption(
+                "bloody_ink",
+                "Bloody Ink",
+                f"Gain {self.BLOODY_INK_MAX_HP_GAIN} Max HP",
+            ),
             EventOption(
                 "tentacle_quill",
-                "Tentacle Quill (65g)" if gold >= 65 else "Tentacle Quill",
-                "Enchant 1 card with Steady",
-                enabled=gold >= 65,
+                f"Tentacle Quill ({self.TENTACLE_QUILL_COST}g)"
+                if gold >= self.TENTACLE_QUILL_COST else "Tentacle Quill",
+                f"Enchant {self.TENTACLE_QUILL_CARDS} card with Steady",
+                enabled=gold >= self.TENTACLE_QUILL_COST,
             ),
             EventOption(
                 "prickly_sponge",
-                "Prickly Sponge (155g)" if gold >= 155 else "Prickly Sponge",
-                "Enchant 2 cards with Steady",
-                enabled=gold >= 155,
+                f"Prickly Sponge ({self.PRICKLY_SPONGE_COST}g)"
+                if gold >= self.PRICKLY_SPONGE_COST else "Prickly Sponge",
+                f"Enchant {self.PRICKLY_SPONGE_CARDS} cards with Steady",
+                enabled=gold >= self.PRICKLY_SPONGE_COST,
             ),
         ]
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "bloody_ink":
-            run_state.player.gain_max_hp(6)
-            return EventResult(finished=True, description="Gained 6 Max HP.")
+            run_state.player.gain_max_hp(self.BLOODY_INK_MAX_HP_GAIN)
+            return EventResult(
+                finished=True,
+                description=f"Gained {self.BLOODY_INK_MAX_HP_GAIN} Max HP.",
+            )
         if option_id == "tentacle_quill":
-            run_state.player.lose_gold(65)
-            candidates = [card for card in run_state.player.deck if can_enchant_card(card, "Steady")]
+            run_state.player.lose_gold(self.TENTACLE_QUILL_COST)
+            candidates = [
+                card for card in run_state.player.deck
+                if can_enchant_card(card, self.STEADY_ENCHANTMENT)
+            ]
             if not candidates:
-                return EventResult(finished=True, description="Paid 65g, but had no card to enchant.")
+                return EventResult(
+                    finished=True,
+                    description=f"Paid {self.TENTACLE_QUILL_COST}g, but had no card to enchant.",
+                )
             if _should_defer_event_rewards(run_state):
                 return _event_result_with_rewards(
-                    "Paid 65g, enchanted 1 card with Steady.",
+                    (
+                        f"Paid {self.TENTACLE_QUILL_COST}g, enchanted "
+                        f"{self.TENTACLE_QUILL_CARDS} card with Steady."
+                    ),
                     [
                         EnchantCardsReward(
                             run_state.player.player_id,
-                            enchantment="Steady",
-                            amount=1,
-                            count=1,
+                            enchantment=self.STEADY_ENCHANTMENT,
+                            amount=self.STEADY_AMOUNT,
+                            count=self.TENTACLE_QUILL_CARDS,
                             cards=candidates,
                         )
                     ],
@@ -1340,24 +1369,42 @@ class WaterloggedScriptorium(EventModel):
                 cards=candidates,
                 source_pile="deck",
                 resolver=lambda selected: (
-                    selected and selected[0].add_enchantment("Steady", 1),
-                    EventResult(finished=True, description="Paid 65g, enchanted 1 card with Steady."),
+                    selected and selected[0].add_enchantment(
+                        self.STEADY_ENCHANTMENT,
+                        self.STEADY_AMOUNT,
+                    ),
+                    EventResult(
+                        finished=True,
+                        description=(
+                            f"Paid {self.TENTACLE_QUILL_COST}g, enchanted "
+                            f"{self.TENTACLE_QUILL_CARDS} card with Steady."
+                        ),
+                    ),
                 )[-1],
                 description="Choose a card to enchant.",
             )
-        run_state.player.lose_gold(155)
-        candidates = [card for card in run_state.player.deck if can_enchant_card(card, "Steady")]
+        run_state.player.lose_gold(self.PRICKLY_SPONGE_COST)
+        candidates = [
+            card for card in run_state.player.deck
+            if can_enchant_card(card, self.STEADY_ENCHANTMENT)
+        ]
         if not candidates:
-            return EventResult(finished=True, description="Paid 155g, but had no cards to enchant.")
+            return EventResult(
+                finished=True,
+                description=f"Paid {self.PRICKLY_SPONGE_COST}g, but had no cards to enchant.",
+            )
         if _should_defer_event_rewards(run_state):
             return _event_result_with_rewards(
-                "Paid 155g, enchanted 2 cards with Steady.",
+                (
+                    f"Paid {self.PRICKLY_SPONGE_COST}g, enchanted "
+                    f"{self.PRICKLY_SPONGE_CARDS} cards with Steady."
+                ),
                 [
                     EnchantCardsReward(
                         run_state.player.player_id,
-                        enchantment="Steady",
-                        amount=1,
-                        count=min(2, len(candidates)),
+                        enchantment=self.STEADY_ENCHANTMENT,
+                        amount=self.STEADY_AMOUNT,
+                        count=min(self.PRICKLY_SPONGE_CARDS, len(candidates)),
                         cards=candidates,
                     )
                 ],
@@ -1367,11 +1414,20 @@ class WaterloggedScriptorium(EventModel):
             cards=candidates,
             source_pile="deck",
             resolver=lambda selected: (
-                [card.add_enchantment("Steady", 1) for card in selected],
-                EventResult(finished=True, description="Paid 155g, enchanted 2 cards with Steady."),
+                [
+                    card.add_enchantment(self.STEADY_ENCHANTMENT, self.STEADY_AMOUNT)
+                    for card in selected
+                ],
+                EventResult(
+                    finished=True,
+                    description=(
+                        f"Paid {self.PRICKLY_SPONGE_COST}g, enchanted "
+                        f"{self.PRICKLY_SPONGE_CARDS} cards with Steady."
+                    ),
+                ),
             )[-1],
-            min_count=min(2, len(candidates)),
-            max_count=min(2, len(candidates)),
+            min_count=min(self.PRICKLY_SPONGE_CARDS, len(candidates)),
+            max_count=min(self.PRICKLY_SPONGE_CARDS, len(candidates)),
             description="Choose 2 cards to enchant.",
         )
 
