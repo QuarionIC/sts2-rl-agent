@@ -29,6 +29,7 @@ CARD_MODULES = (
 
 def _effect_var_keys_read(func) -> set[str]:
     tree = ast.parse(inspect.getsource(func))
+    constants = _string_constants(tree) | _global_string_constants(func)
     keys: set[str] = set()
     for node in ast.walk(tree):
         if (
@@ -38,19 +39,47 @@ def _effect_var_keys_read(func) -> set[str]:
             and isinstance(node.func.value, ast.Attribute)
             and node.func.value.attr == "effect_vars"
             and node.args
-            and isinstance(node.args[0], ast.Constant)
-            and isinstance(node.args[0].value, str)
         ):
-            keys.add(node.args[0].value)
+            key = _string_key(node.args[0], constants)
+            if key is not None:
+                keys.add(key)
         elif (
             isinstance(node, ast.Subscript)
             and isinstance(node.value, ast.Attribute)
             and node.value.attr == "effect_vars"
-            and isinstance(node.slice, ast.Constant)
-            and isinstance(node.slice.value, str)
         ):
-            keys.add(node.slice.value)
+            key = _string_key(node.slice, constants)
+            if key is not None:
+                keys.add(key)
     return keys
+
+
+def _string_constants(tree: ast.AST) -> dict[str, str]:
+    return {
+        node.targets[0].id: node.value.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    }
+
+
+def _global_string_constants(func) -> dict[str, str]:
+    return {
+        name: value
+        for name, value in func.__globals__.items()
+        if isinstance(value, str)
+    }
+
+
+def _string_key(node: ast.AST, constants: dict[str, str]) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name):
+        return constants.get(node.id)
+    return None
 
 
 def main() -> int:

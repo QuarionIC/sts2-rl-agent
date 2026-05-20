@@ -14,8 +14,7 @@ from typing import Iterable
 
 CAMEL_WORD_BOUNDARY_RE = re.compile(r"(.)([A-Z][a-z]+)")
 LOWER_TO_UPPER_BOUNDARY_RE = re.compile(r"([a-z0-9])([A-Z])")
-IDENTIFIER_TOKEN_TEMPLATE = r"(?<![A-Za-z0-9_]){}(?![A-Za-z0-9_])"
-SNAKE_SEGMENT_TOKEN_TEMPLATE = r"(?<![A-Za-z0-9]){}(?![A-Za-z0-9])"
+ALNUM_UNDERSCORE_TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
 PYTHON_FILE_PATTERN = "*.py"
 CS_FILE_PATTERN = "*.cs"
 DEPRECATED_NAME_MARKER = "Deprecated"
@@ -62,6 +61,12 @@ class SurfaceReport:
     missing_implementation: tuple[str, ...]
     missing_tests: tuple[str, ...]
     items: tuple[ReferenceItem, ...]
+
+
+@dataclass(frozen=True)
+class AliasIndex:
+    identifier_tokens: frozenset[str]
+    snake_segment_tokens: frozenset[str]
 
 
 SURFACES: dict[str, SurfaceConfig] = {
@@ -257,15 +262,26 @@ def _node_reference_chunks(node: ast.AST) -> list[str]:
     return chunks
 
 
-def alias_hits(text: str, aliases: Iterable[str]) -> tuple[str, ...]:
+def alias_index(text: str) -> AliasIndex:
+    identifier_tokens = frozenset(ALNUM_UNDERSCORE_TOKEN_RE.findall(text))
+    snake_tokens: set[str] = set()
+    for token in identifier_tokens:
+        parts = [part for part in token.split("_") if part]
+        for start in range(len(parts)):
+            for end in range(start + 1, len(parts) + 1):
+                snake_tokens.add("_".join(parts[start:end]))
+    return AliasIndex(identifier_tokens, frozenset(snake_tokens))
+
+
+def alias_hits(index: AliasIndex, aliases: Iterable[str]) -> tuple[str, ...]:
     hits: list[str] = []
     for alias in aliases:
-        template = (
-            SNAKE_SEGMENT_TOKEN_TEMPLATE
+        tokens = (
+            index.snake_segment_tokens
             if alias == alias.lower() or alias == alias.upper()
-            else IDENTIFIER_TOKEN_TEMPLATE
+            else index.identifier_tokens
         )
-        if re.search(template.format(re.escape(alias)), text):
+        if alias in tokens:
             hits.append(alias)
     return tuple(hits)
 
@@ -290,6 +306,8 @@ def build_report(
     config = SURFACES[surface]
     implementation_text = collect_text(root, config.implementation_paths)
     test_text = collect_test_text(root, direct_references_only=direct_test_references)
+    implementation_index = alias_index(implementation_text)
+    test_index = alias_index(test_text)
     items: list[ReferenceItem] = []
 
     for path in reference_files(root, config, include_deprecated):
@@ -298,8 +316,8 @@ def build_report(
             ReferenceItem(
                 name=path.stem,
                 path=str(path.relative_to(root)),
-                implementation_hits=alias_hits(implementation_text, aliases),
-                test_hits=alias_hits(test_text, aliases),
+                implementation_hits=alias_hits(implementation_index, aliases),
+                test_hits=alias_hits(test_index, aliases),
             )
         )
 

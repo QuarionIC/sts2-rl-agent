@@ -20,6 +20,17 @@ from sts2_env.core.creature import Creature
 from sts2_env.core.combat import CombatState
 
 
+CHARGE_BATTERY_BLOCK = 7
+CHARGE_BATTERY_UPGRADED_BLOCK = 10
+CHARGE_BATTERY_ENERGY_KEY = "energy"
+CHARGE_BATTERY_ENERGY_NEXT_TURN = 1
+CLAW_DAMAGE = 3
+CLAW_UPGRADED_DAMAGE = 4
+CLAW_INCREASE_KEY = "increase"
+CLAW_INCREASE = 2
+CLAW_UPGRADED_INCREASE = 3
+
+
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
     return (
         getattr(card, "owner", None)
@@ -238,7 +249,11 @@ def boost_away(card: CardInstance, combat: CombatState, target: Creature | None)
 def charge_battery(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     blk = calculate_block(card.base_block, _owner(card, combat), ValueProp.MOVE, combat, card_source=card)
     _gain_resolved_block(_owner(card, combat), blk, combat)
-    combat.apply_power_to(_owner(card, combat), PowerId.ENERGY_NEXT_TURN, card.effect_vars.get("energy", 1))
+    combat.apply_power_to(
+        _owner(card, combat),
+        PowerId.ENERGY_NEXT_TURN,
+        card.effect_vars.get(CHARGE_BATTERY_ENERGY_KEY, CHARGE_BATTERY_ENERGY_NEXT_TURN),
+    )
 
 
 @register_effect(CardId.CLAW)
@@ -247,7 +262,7 @@ def claw(card: CardInstance, combat: CombatState, target: Creature | None) -> No
     dmg = calculate_damage(card.base_damage, _owner(card, combat), target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, _owner(card, combat))
     # All Claw copies gain +Increase damage permanently
-    increase = card.effect_vars.get("increase", 2)
+    increase = card.effect_vars.get(CLAW_INCREASE_KEY, CLAW_INCREASE)
     for claw_card in combat._all_cards_for_creature(_owner(card, combat)):
         if claw_card.card_id == CardId.CLAW:
             increase_base_damage(claw_card, increase)
@@ -1017,19 +1032,25 @@ def make_boost_away() -> CardInstance:
     )
 
 
-def make_charge_battery() -> CardInstance:
+def make_charge_battery(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.CHARGE_BATTERY, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.COMMON,
-        base_block=7, effect_vars={"energy": 1}, instance_id=_get_next_id(),
+        base_block=CHARGE_BATTERY_UPGRADED_BLOCK if upgraded else CHARGE_BATTERY_BLOCK,
+        effect_vars={CHARGE_BATTERY_ENERGY_KEY: CHARGE_BATTERY_ENERGY_NEXT_TURN},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_claw() -> CardInstance:
+def make_claw(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.CLAW, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=3, effect_vars={"increase": 2}, instance_id=_get_next_id(),
+        base_damage=CLAW_UPGRADED_DAMAGE if upgraded else CLAW_DAMAGE,
+        effect_vars={CLAW_INCREASE_KEY: CLAW_UPGRADED_INCREASE if upgraded else CLAW_INCREASE},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
