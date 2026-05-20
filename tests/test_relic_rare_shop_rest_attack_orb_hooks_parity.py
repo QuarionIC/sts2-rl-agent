@@ -58,7 +58,7 @@ def _combat_relic(combat: CombatState, relic_name: str):
     return next(relic for relic in combat.relics if relic.relic_id.name == relic_name)
 
 
-class TestRelicParityRareShopExtra9:
+class TestRelicRareShopRestAttackOrbHooksParity:
     def test_girya_lift_option_caps_at_three_and_grants_strength_in_combat(self):
         """Matches Girya.cs: add Lift up to 3 times, then grant that much Strength in combat."""
         run_state = RunState(seed=1801, character_id="Ironclad")

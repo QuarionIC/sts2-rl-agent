@@ -69,7 +69,7 @@ def _make_regent_combat(relics: list[str] | None = None, *, seed: int = 602) -> 
     return combat
 
 
-class TestRelicParityRareShopExtra8:
+class TestRelicRareShopReplayAndTurnTimingParity:
     def test_big_hat_generates_two_ethereal_cards_on_first_turn(self):
         combat = _make_necrobinder_combat(["BigHat"])
         generated = [card for card in combat.hand if card.is_ethereal]

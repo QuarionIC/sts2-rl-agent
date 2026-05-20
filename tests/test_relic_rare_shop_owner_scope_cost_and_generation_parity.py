@@ -72,7 +72,7 @@ def _combat_relic(combat: CombatState, relic_name: str):
     return next(relic for relic in combat.relics if relic.relic_id.name == relic_name)
 
 
-class TestRelicParityRareShopExtra10:
+class TestRelicRareShopOwnerScopeCostAndGenerationParity:
     def test_unsettling_lamp_doubles_first_card_debuff_once(self):
         """Matches UnsettlingLamp.cs: first debuff card doubles debuff amounts once."""
         combat = _make_ironclad_combat(["UnsettlingLamp"], seed=1900)
