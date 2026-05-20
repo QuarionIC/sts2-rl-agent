@@ -34,6 +34,11 @@ VAR_CONSTRUCTOR_RE = re.compile(
     r"\s*\("
 )
 INTEGER_LITERAL_RE = re.compile(r"-?\d+(?:\.0+)?m?")
+DYNAMIC_VAR_UPGRADE_RE = re.compile(
+    r"base\.DynamicVars"
+    r"(?:\.(?P<property>[A-Za-z][A-Za-z0-9_]*)|\[\"(?P<name>[^\"]+)\"\])"
+    r"\.UpgradeValueBy\((?P<delta>-?\d+(?:\.0+)?m?)\)"
+)
 REFERENCE_CLASS_ALIASES = {
     "Null": ("NULL_CARD",),
     "Sloth": ("SLOTH_STATUS",),
@@ -55,6 +60,30 @@ DYNAMIC_VAR_DEFAULT_NAMES = {
     "RepeatVar": "Repeat",
     "StarsVar": "Stars",
     "SummonVar": "Summon",
+}
+DYNAMIC_VAR_PROPERTY_NAMES = {
+    "Block": "Block",
+    "CalculationBase": "CalculationBase",
+    "CalculationExtra": "CalculationExtra",
+    "Cards": "Cards",
+    "Damage": "Damage",
+    "Dexterity": "DexterityPower",
+    "Doom": "DoomPower",
+    "Energy": "Energy",
+    "ExtraDamage": "ExtraDamage",
+    "Forge": "Forge",
+    "Gold": "Gold",
+    "Heal": "Heal",
+    "HpLoss": "HpLoss",
+    "MaxHp": "MaxHp",
+    "OstyDamage": "OstyDamage",
+    "Poison": "PoisonPower",
+    "Repeat": "Repeat",
+    "Stars": "Stars",
+    "Strength": "StrengthPower",
+    "Summon": "Summon",
+    "Vulnerable": "VulnerablePower",
+    "Weak": "WeakPower",
 }
 DYNAMIC_VAR_TYPES_WITH_DYNAMIC_VALUE = frozenset({
     "CalculatedBlockVar",
@@ -182,6 +211,38 @@ def reference_dynamic_vars_from_source(path: Path) -> dict[str, int]:
             raise ValueError(f"{path} has duplicate dynamic var key {key!r}")
         result[key] = value
     return result
+
+
+def upgraded_reference_dynamic_vars_from_source(path: Path) -> dict[str, int]:
+    result = reference_dynamic_vars_from_source(path)
+    for key, delta in _dynamic_var_upgrade_deltas(path.read_text()).items():
+        result[key] = result.get(key, 0) + delta
+    return result
+
+
+def _dynamic_var_upgrade_deltas(source: str) -> dict[str, int]:
+    result: dict[str, int] = {}
+    for match in DYNAMIC_VAR_UPGRADE_RE.finditer(_on_upgrade_body(source)):
+        raw_name = match.group("name")
+        if raw_name is None:
+            raw_name = DYNAMIC_VAR_PROPERTY_NAMES.get(
+                match.group("property"),
+                match.group("property"),
+            )
+        key = _reference_dynamic_var_key(raw_name)
+        result[key] = result.get(key, 0) + _integer_literal(match.group("delta"))
+    return result
+
+
+def _on_upgrade_body(source: str) -> str:
+    match = re.search(r"protected\s+override\s+void\s+OnUpgrade\s*\(\)\s*\{", source)
+    if match is None:
+        return ""
+    start = match.end()
+    close_brace = _matching_delimiter(source, start - 1, "{", "}")
+    if close_brace is None:
+        return source[start:]
+    return source[start:close_brace]
 
 
 def _canonical_var_constructors(source: str) -> list[tuple[str, str | None, str]]:
@@ -332,8 +393,12 @@ def _dynamic_var_key_value(
     value = _integer_literal(value_text)
     if value is None:
         return None
+    return _reference_dynamic_var_key(name), value
+
+
+def _reference_dynamic_var_key(name: str) -> str:
     key = snake_case(name)
-    return REFERENCE_DYNAMIC_VAR_ALIASES.get(key, key), value
+    return REFERENCE_DYNAMIC_VAR_ALIASES.get(key, key)
 
 
 def _integer_literal(value_text: str) -> int | None:
@@ -361,5 +426,13 @@ def reference_metadata_by_card_id() -> dict[CardId, ReferenceCardStaticMetadata]
 def reference_dynamic_vars_by_card_id() -> dict[CardId, dict[str, int]]:
     return {
         card_id_for_reference_class(path.stem): reference_dynamic_vars_from_source(path)
+        for path in sorted((REPO_ROOT / REFERENCE_CARD_DIR).glob("*.cs"))
+    }
+
+
+@lru_cache(maxsize=1)
+def upgraded_reference_dynamic_vars_by_card_id() -> dict[CardId, dict[str, int]]:
+    return {
+        card_id_for_reference_class(path.stem): upgraded_reference_dynamic_vars_from_source(path)
         for path in sorted((REPO_ROOT / REFERENCE_CARD_DIR).glob("*.cs"))
     }
