@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage, new_card_instance_id
 from sts2_env.cards.factory import create_character_cards
-from sts2_env.cards.registry import register_effect
+from sts2_env.cards.registry import register_effect, register_rest_site_options_hook
 from sts2_env.core.enums import (
     CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId,
 )
@@ -1499,9 +1499,19 @@ def deprecated_card_effect(card: CardInstance, combat: CombatState, target: Crea
 
 @register_effect(CardId.BYRDONIS_EGG)
 def byrdonis_egg_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    """Unplayable quest card. Adds 'Hatch' option at rest sites.
-    Handled outside the play-effect path."""
+    """Unplayable quest card. Rest-site behavior is handled by card hooks."""
     pass
+
+
+@register_rest_site_options_hook(CardId.BYRDONIS_EGG)
+def byrdonis_egg_rest_site_options(card: CardInstance, player, options, run_state):
+    if getattr(card, "owner", player) is not player:
+        return options
+
+    from sts2_env.run.rest_site import HatchOption
+
+    options.append(HatchOption())
+    return options
 
 
 @register_effect(CardId.LANTERN_KEY)

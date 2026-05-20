@@ -455,6 +455,16 @@ class CardInstance:
         """Card lifecycle hook fired after a forge increases this card's damage."""
         return
 
+    def modify_rest_site_options(
+        self,
+        owner: object,
+        options: list[object],
+        run_state: object | None,
+    ) -> list[object]:
+        from sts2_env.cards.registry import modify_card_rest_site_options
+
+        return modify_card_rest_site_options(self, owner, options, run_state)
+
     def end_of_turn_cleanup(self) -> None:
         self.single_turn_retain = False
         self.bound = False

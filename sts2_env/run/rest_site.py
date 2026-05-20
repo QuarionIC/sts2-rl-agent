@@ -225,10 +225,10 @@ def generate_rest_site_options(
     has_upgradable = any(not c.upgraded for c in player.deck)
     options.append(SmithOption(has_upgradable=has_upgradable))
 
-    if any(card.card_id.name == "BYRDONIS_EGG" for card in player.deck):
-        options.append(HatchOption())
-
     run_state = getattr(player, "run_state", None)
+    for card in player.deck:
+        options = list(card.modify_rest_site_options(player, options, run_state))
+
     if run_state is not None:
         for relic in player.get_relic_objects():
             options = list(relic.modify_rest_site_options(player, options, run_state))

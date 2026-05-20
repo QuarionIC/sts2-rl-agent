@@ -10,13 +10,20 @@ if TYPE_CHECKING:
     from sts2_env.cards.base import CardInstance
     from sts2_env.core.combat import CombatState
     from sts2_env.core.creature import Creature
+    from sts2_env.run.rest_site import RestSiteOption
+    from sts2_env.run.run_state import PlayerState, RunState
 
 # Type alias for card effect functions
 CardEffect = Callable[["CardInstance", "CombatState", "Creature | None"], None]
 CardLateEffect = Callable[["CardInstance", "CardInstance", "CombatState"], None]
+CardRestSiteOptionsHook = Callable[
+    ["CardInstance", "PlayerState", list["RestSiteOption"], "RunState | None"],
+    list["RestSiteOption"],
+]
 
 _CARD_EFFECTS: dict[CardId, CardEffect] = {}
 _CARD_LATE_EFFECTS: dict[CardId, CardLateEffect] = {}
+_CARD_REST_SITE_OPTIONS_HOOKS: dict[CardId, CardRestSiteOptionsHook] = {}
 
 
 def register_effect(card_id: CardId):
@@ -31,6 +38,13 @@ def register_late_effect(card_id: CardId):
     """Decorator to register a card's post-play late effect function."""
     def decorator(func: CardLateEffect) -> CardLateEffect:
         _CARD_LATE_EFFECTS[card_id] = func
+        return func
+    return decorator
+
+
+def register_rest_site_options_hook(card_id: CardId):
+    def decorator(func: CardRestSiteOptionsHook) -> CardRestSiteOptionsHook:
+        _CARD_REST_SITE_OPTIONS_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -60,3 +74,15 @@ def fire_card_late_effects(
     effect = _CARD_LATE_EFFECTS.get(watched_card.card_id)
     if effect is not None:
         effect(watched_card, played_card, combat)
+
+
+def modify_card_rest_site_options(
+    card: "CardInstance",
+    owner: "PlayerState",
+    options: list["RestSiteOption"],
+    run_state: "RunState | None",
+) -> list["RestSiteOption"]:
+    hook = _CARD_REST_SITE_OPTIONS_HOOKS.get(card.card_id)
+    if hook is None:
+        return options
+    return hook(card, owner, options, run_state)
