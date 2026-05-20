@@ -104,16 +104,33 @@ HOTFIX_FOCUS = 2
 HOTFIX_UPGRADED_FOCUS = 3
 LEAP_BLOCK = 9
 LEAP_UPGRADED_BLOCK = 12
+HAILSTORM_POWER_KEY = "hailstorm_power"
+HAILSTORM_POWER = 6
+HAILSTORM_UPGRADED_POWER = 8
 LIGHTNING_ROD_BLOCK = 4
 LIGHTNING_ROD_UPGRADED_BLOCK = 7
 LIGHTNING_ROD_POWER_KEY = "lightning_rod_power"
 LIGHTNING_ROD_POWER = 2
+MACHINE_LEARNING_CARDS_KEY = "cards"
+MACHINE_LEARNING_CARDS = 1
 MOMENTUM_STRIKE_DAMAGE = 10
 MOMENTUM_STRIKE_UPGRADED_DAMAGE = 13
+OVERCLOCK_CARDS_KEY = "cards"
+OVERCLOCK_CARDS = 2
+OVERCLOCK_UPGRADED_CARDS = 3
+SKIM_CARDS_KEY = "cards"
+SKIM_CARDS = 3
+SKIM_UPGRADED_CARDS = 4
+STORM_POWER_KEY = "storm_power"
+STORM_POWER = 1
+STORM_UPGRADED_POWER = 2
 SWEEPING_BEAM_DAMAGE = 6
 SWEEPING_BEAM_UPGRADED_DAMAGE = 9
 SWEEPING_BEAM_CARDS_KEY = "cards"
 SWEEPING_BEAM_CARDS = 1
+THUNDER_POWER_KEY = "thunder_power"
+THUNDER_POWER = 6
+THUNDER_UPGRADED_POWER = 8
 TURBO_ENERGY_KEY = "energy"
 TURBO_ENERGY = 2
 TURBO_UPGRADED_ENERGY = 3
@@ -638,7 +655,11 @@ def glasswork(card: CardInstance, combat: CombatState, target: Creature | None) 
 
 @register_effect(CardId.HAILSTORM)
 def hailstorm(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.HAILSTORM, card.effect_vars.get("hailstorm_power", 6))
+    combat.apply_power_to(
+        _owner(card, combat),
+        PowerId.HAILSTORM,
+        card.effect_vars.get(HAILSTORM_POWER_KEY, HAILSTORM_POWER),
+    )
 
 
 @register_effect(CardId.ITERATION_CARD)
@@ -663,7 +684,7 @@ def null_card(card: CardInstance, combat: CombatState, target: Creature | None) 
 @register_effect(CardId.OVERCLOCK)
 def overclock(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     owner = _owner(card, combat)
-    combat.draw_cards(owner, card.effect_vars.get("cards", 2))
+    combat.draw_cards(owner, card.effect_vars.get(OVERCLOCK_CARDS_KEY, OVERCLOCK_CARDS))
     combat.add_generated_card_to_creature_discard(owner, _make_burn())
 
 
@@ -740,7 +761,7 @@ def shadow_shield(card: CardInstance, combat: CombatState, target: Creature | No
 
 @register_effect(CardId.SKIM)
 def skim(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat._draw_cards(card.effect_vars.get("cards", 3))
+    combat._draw_cards(card.effect_vars.get(SKIM_CARDS_KEY, SKIM_CARDS))
 
 
 @register_effect(CardId.SMOKESTACK)
@@ -750,7 +771,7 @@ def smokestack(card: CardInstance, combat: CombatState, target: Creature | None)
 
 @register_effect(CardId.STORM_CARD)
 def storm(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.STORM, card.effect_vars.get("storm_power", 1))
+    combat.apply_power_to(_owner(card, combat), PowerId.STORM, card.effect_vars.get(STORM_POWER_KEY, STORM_POWER))
 
 
 @register_effect(CardId.SUBROUTINE)
@@ -806,7 +827,11 @@ def tesla_coil(card: CardInstance, combat: CombatState, target: Creature | None)
 
 @register_effect(CardId.THUNDER_CARD)
 def thunder_card(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.THUNDER, card.effect_vars.get("thunder_power", 6))
+    combat.apply_power_to(
+        _owner(card, combat),
+        PowerId.THUNDER,
+        card.effect_vars.get(THUNDER_POWER_KEY, THUNDER_POWER),
+    )
 
 
 @register_effect(CardId.WHITE_NOISE)
@@ -973,7 +998,11 @@ def ignition(card: CardInstance, combat: CombatState, target: Creature | None) -
 
 @register_effect(CardId.MACHINE_LEARNING_CARD)
 def machine_learning(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.MACHINE_LEARNING, card.effect_vars.get("cards", 1))
+    combat.apply_power_to(
+        _owner(card, combat),
+        PowerId.MACHINE_LEARNING,
+        card.effect_vars.get(MACHINE_LEARNING_CARDS_KEY, MACHINE_LEARNING_CARDS),
+    )
 
 
 @register_effect(CardId.METEOR_STRIKE)
@@ -1511,11 +1540,15 @@ def make_glasswork(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_hailstorm() -> CardInstance:
+def make_hailstorm(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.HAILSTORM, cost=1, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        effect_vars={"hailstorm_power": 6}, instance_id=_get_next_id(),
+        effect_vars={
+            HAILSTORM_POWER_KEY: HAILSTORM_UPGRADED_POWER if upgraded else HAILSTORM_POWER
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1544,11 +1577,15 @@ def make_null() -> CardInstance:
     )
 
 
-def make_overclock() -> CardInstance:
+def make_overclock(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.OVERCLOCK, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        effect_vars={"cards": 2}, instance_id=_get_next_id(),
+        effect_vars={
+            OVERCLOCK_CARDS_KEY: OVERCLOCK_UPGRADED_CARDS if upgraded else OVERCLOCK_CARDS
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1595,11 +1632,13 @@ def make_shadow_shield() -> CardInstance:
     )
 
 
-def make_skim() -> CardInstance:
+def make_skim(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SKIM, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        effect_vars={"cards": 3}, instance_id=_get_next_id(),
+        effect_vars={SKIM_CARDS_KEY: SKIM_UPGRADED_CARDS if upgraded else SKIM_CARDS},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1611,11 +1650,13 @@ def make_smokestack() -> CardInstance:
     )
 
 
-def make_storm() -> CardInstance:
+def make_storm(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.STORM_CARD, cost=1, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        effect_vars={"storm_power": 1}, instance_id=_get_next_id(),
+        effect_vars={STORM_POWER_KEY: STORM_UPGRADED_POWER if upgraded else STORM_POWER},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1669,11 +1710,15 @@ def make_tesla_coil() -> CardInstance:
     )
 
 
-def make_thunder() -> CardInstance:
+def make_thunder(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.THUNDER_CARD, cost=1, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        effect_vars={"thunder_power": 6}, instance_id=_get_next_id(),
+        effect_vars={
+            THUNDER_POWER_KEY: THUNDER_UPGRADED_POWER if upgraded else THUNDER_POWER
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1830,11 +1875,14 @@ def make_ignition(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_machine_learning() -> CardInstance:
+def make_machine_learning(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.MACHINE_LEARNING_CARD, cost=1, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
-        effect_vars={"cards": 1}, instance_id=_get_next_id(),
+        effect_vars={MACHINE_LEARNING_CARDS_KEY: MACHINE_LEARNING_CARDS},
+        keywords=frozenset({"innate"}) if upgraded else frozenset(),
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 

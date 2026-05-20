@@ -7,6 +7,12 @@ from sts2_env.cards.defect import (
     GENETIC_ALGORITHM_BLOCK_KEY,
     GENETIC_ALGORITHM_INCREASE_KEY,
     GENETIC_ALGORITHM_UPGRADED_INCREASE,
+    HAILSTORM_UPGRADED_POWER,
+    MACHINE_LEARNING_CARDS,
+    OVERCLOCK_UPGRADED_CARDS,
+    SKIM_UPGRADED_CARDS,
+    STORM_UPGRADED_POWER,
+    THUNDER_UPGRADED_POWER,
     create_defect_starter_deck,
     make_adaptive_strike,
     make_all_for_one,
@@ -30,11 +36,17 @@ from sts2_env.cards.defect import (
     make_glasswork,
     make_go_for_the_eyes,
     make_gunk_up,
+    make_hailstorm,
     make_hotfix,
     make_leap,
     make_lightning_rod,
+    make_machine_learning,
     make_momentum_strike,
+    make_overclock,
+    make_skim,
+    make_storm,
     make_sweeping_beam,
+    make_thunder,
     make_turbo,
     make_uproar,
 )
@@ -401,6 +413,16 @@ def test_genetic_algorithm_factory_upgrade_grows_by_four():
     assert card.effect_vars[GENETIC_ALGORITHM_BLOCK_KEY] == card.base_block
 
 
+def test_hailstorm_factory_upgrade_increases_power_amount():
+    combat = _make_combat()
+    combat.hand = [make_hailstorm(upgraded=True)]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.get_power_amount(PowerId.HAILSTORM) == HAILSTORM_UPGRADED_POWER
+
+
 def test_go_for_the_eyes_factory_upgrade_increases_damage_and_weak():
     combat = _make_combat(monster_factory=create_twig_slime_s)
     enemy = combat.enemies[FIRST_ENEMY_INDEX]
@@ -461,6 +483,18 @@ def test_lightning_rod_factory_upgrade_increases_block_only():
     assert combat.player.get_power_amount(PowerId.LIGHTNING_ROD) == LIGHTNING_ROD_POWER
 
 
+def test_machine_learning_factory_upgrade_adds_innate_without_changing_power_amount():
+    combat = _make_combat()
+    card = make_machine_learning(upgraded=True)
+    combat.hand = [card]
+    combat.energy = ONE_ENERGY
+
+    assert card.is_innate is True
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.get_power_amount(PowerId.MACHINE_LEARNING) == MACHINE_LEARNING_CARDS
+
+
 def test_momentum_strike_factory_upgrade_increases_damage_and_sets_cost_zero():
     combat = _make_combat()
     enemy = combat.enemies[FIRST_ENEMY_INDEX]
@@ -473,6 +507,46 @@ def test_momentum_strike_factory_upgrade_increases_damage_and_sets_cost_zero():
 
     assert enemy.current_hp == starting_hp - MOMENTUM_STRIKE_UPGRADED_DAMAGE
     assert card.cost == ZERO_COST
+
+
+def test_overclock_factory_upgrade_draws_three_and_adds_burn_to_discard():
+    combat = _make_combat()
+    drawn = [make_boot_sequence(), make_chill(), make_fusion()]
+    combat.hand = [make_overclock(upgraded=True)]
+    combat.draw_pile = list(drawn)
+    combat.energy = ZERO_COST
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.hand == drawn
+    assert len(combat.hand) == OVERCLOCK_UPGRADED_CARDS
+    burns = [card for card in combat.discard_pile if card.card_id == CardId.BURN]
+    assert len(burns) == 1
+    assert burns[0].owner is combat.player
+
+
+def test_skim_factory_upgrade_draws_four_cards():
+    combat = _make_combat()
+    drawn = [make_boot_sequence(), make_chill(), make_fusion(), make_leap()]
+    combat.hand = [make_skim(upgraded=True)]
+    combat.draw_pile = list(drawn)
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.hand == drawn
+    assert len(combat.hand) == SKIM_UPGRADED_CARDS
+
+
+def test_storm_factory_upgrade_increases_power_amount_only():
+    combat = _make_combat()
+    combat.hand = [make_storm(upgraded=True)]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.get_power_amount(PowerId.STORM) == STORM_UPGRADED_POWER
+    assert combat.orb_queue.orbs == []
 
 
 def test_sweeping_beam_factory_upgrade_increases_all_enemy_damage_and_draws():
@@ -492,6 +566,17 @@ def test_sweeping_beam_factory_upgrade_increases_all_enemy_damage_and_draws():
     ]
     assert combat.hand == [drawn]
     assert len(combat.hand) == SWEEPING_BEAM_DRAW_COUNT
+
+
+def test_thunder_factory_upgrade_increases_power_amount_without_channeling():
+    combat = _make_combat()
+    combat.hand = [make_thunder(upgraded=True)]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.get_power_amount(PowerId.THUNDER) == THUNDER_UPGRADED_POWER
+    assert combat.orb_queue.orbs == []
 
 
 def test_turbo_factory_upgrade_gains_three_energy_and_keeps_void_discard():
