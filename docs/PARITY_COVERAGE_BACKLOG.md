@@ -269,14 +269,9 @@ STRIKE_SILENT, SUCKER_PUNCH, SUPPRESS, TACTICIAN, TOOLS_OF_THE_TRADE,
 TRACKING, UNTOUCHABLE, UP_MY_SLEEVE, WELL_LAID_PLANS
 ```
 
-#### `sts2_env.cards.defect` (6)
+#### `sts2_env.cards.defect` (0)
 
-```text
-IGNITION,
-REBOOT, ROCKET_PUNCH,
-SCRAPE,
-SYNCHRONIZE, TRASH_TO_TREASURE
-```
+All currently implemented Defect cards now have direct coverage.
 
 #### `sts2_env.cards.colorless` (38)
 

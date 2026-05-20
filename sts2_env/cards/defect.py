@@ -176,10 +176,27 @@ VOLTAIC_CALC_BASE_KEY = "calc_base"
 VOLTAIC_CALC_BASE = 0
 VOLTAIC_CALC_EXTRA_KEY = "calc_extra"
 VOLTAIC_CALC_EXTRA = 1
+ROCKET_PUNCH_DAMAGE = 13
+ROCKET_PUNCH_UPGRADED_DAMAGE = 14
+ROCKET_PUNCH_CARDS_KEY = "cards"
+ROCKET_PUNCH_CARDS = 1
+ROCKET_PUNCH_UPGRADED_CARDS = 2
+SCRAPE_DAMAGE = 7
+SCRAPE_UPGRADED_DAMAGE = 10
+SCRAPE_CARDS_KEY = "cards"
+SCRAPE_CARDS = 4
+SCRAPE_UPGRADED_CARDS = 5
+SYNCHRONIZE_CALC_BASE_KEY = "calc_base"
+SYNCHRONIZE_CALC_BASE = 0
+SYNCHRONIZE_CALC_EXTRA_KEY = "calc_extra"
+SYNCHRONIZE_FOCUS_PER_ORB_TYPE = 2
 MULTI_CAST_UPGRADED_EXTRA_EVOKE = 1
 QUADCAST_COST = 1
 QUADCAST_UPGRADED_COST = 0
 QUADCAST_REPEAT = 4
+REBOOT_CARDS_KEY = "cards"
+REBOOT_CARDS = 4
+REBOOT_UPGRADED_CARDS = 6
 SHATTER_DAMAGE = 11
 SHATTER_UPGRADED_DAMAGE = 15
 SIGNAL_BOOST_COST = 1
@@ -195,6 +212,7 @@ SUBROUTINE_POWER = 1
 SUPERCRITICAL_ENERGY_KEY = "energy"
 SUPERCRITICAL_ENERGY = 4
 SUPERCRITICAL_UPGRADED_ENERGY = 6
+TRASH_TO_TREASURE_POWER = 1
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -759,7 +777,7 @@ def rocket_punch(card: CardInstance, combat: CombatState, target: Creature | Non
     assert target is not None
     dmg = calculate_damage(card.base_damage, _owner(card, combat), target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, _owner(card, combat))
-    combat._draw_cards(card.effect_vars.get("cards", 1))
+    combat._draw_cards(card.effect_vars.get(ROCKET_PUNCH_CARDS_KEY, ROCKET_PUNCH_CARDS))
 
 
 @register_effect(CardId.SCAVENGE)
@@ -791,7 +809,7 @@ def scrape(card: CardInstance, combat: CombatState, target: Creature | None) -> 
     apply_damage(target, dmg, ValueProp.MOVE, combat, _owner(card, combat))
     if combat.is_over:
         return
-    draw = card.effect_vars.get("cards", 4)
+    draw = card.effect_vars.get(SCRAPE_CARDS_KEY, SCRAPE_CARDS)
     combat._draw_cards(draw)
     to_discard = [
         c for c in combat.hand[-draw:]
@@ -846,7 +864,7 @@ def sunder(card: CardInstance, combat: CombatState, target: Creature | None) -> 
 def synchronize(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     # Gain Focus based on orb count
     orb_count = _get_unique_orb_type_count(combat)
-    extra = card.effect_vars.get("calc_extra", 2)
+    extra = card.effect_vars.get(SYNCHRONIZE_CALC_EXTRA_KEY, SYNCHRONIZE_FOCUS_PER_ORB_TYPE)
     focus = orb_count * extra
     if focus > 0:
         combat.apply_power_to(_owner(card, combat), PowerId.SYNCHRONIZE, focus)
@@ -1050,7 +1068,7 @@ def ice_lance(card: CardInstance, combat: CombatState, target: Creature | None) 
 @register_effect(CardId.IGNITION)
 def ignition(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
-    combat.channel_orb(target, "PLASMA")
+    combat.channel_orb(target, OrbType.PLASMA)
 
 
 @register_effect(CardId.MACHINE_LEARNING_CARD)
@@ -1110,7 +1128,7 @@ def reboot(card: CardInstance, combat: CombatState, target: Creature | None) -> 
     combat.draw_pile.extend(combat.hand)
     combat.hand.clear()
     combat.shuffle_rng.shuffle(combat.draw_pile)
-    combat._draw_cards(card.effect_vars.get("cards", 4))
+    combat._draw_cards(card.effect_vars.get(REBOOT_CARDS_KEY, REBOOT_CARDS))
 
 
 @register_effect(CardId.SHATTER)
@@ -1140,7 +1158,7 @@ def supercritical(card: CardInstance, combat: CombatState, target: Creature | No
 
 @register_effect(CardId.TRASH_TO_TREASURE)
 def trash_to_treasure(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.apply_power_to(_owner(card, combat), PowerId.TRASH_TO_TREASURE, 1)
+    combat.apply_power_to(_owner(card, combat), PowerId.TRASH_TO_TREASURE, TRASH_TO_TREASURE_POWER)
 
 
 @register_effect(CardId.VOLTAIC)
@@ -1659,11 +1677,18 @@ def make_refract(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_rocket_punch() -> CardInstance:
+def make_rocket_punch(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.ROCKET_PUNCH, cost=2, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
-        base_damage=13, effect_vars={"cards": 1}, instance_id=_get_next_id(),
+        base_damage=ROCKET_PUNCH_UPGRADED_DAMAGE if upgraded else ROCKET_PUNCH_DAMAGE,
+        effect_vars={
+            ROCKET_PUNCH_CARDS_KEY: (
+                ROCKET_PUNCH_UPGRADED_CARDS if upgraded else ROCKET_PUNCH_CARDS
+            )
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1675,11 +1700,14 @@ def make_scavenge() -> CardInstance:
     )
 
 
-def make_scrape() -> CardInstance:
+def make_scrape(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SCRAPE, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
-        base_damage=7, effect_vars={"cards": 4}, instance_id=_get_next_id(),
+        base_damage=SCRAPE_UPGRADED_DAMAGE if upgraded else SCRAPE_DAMAGE,
+        effect_vars={SCRAPE_CARDS_KEY: SCRAPE_UPGRADED_CARDS if upgraded else SCRAPE_CARDS},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1744,12 +1772,17 @@ def make_sunder() -> CardInstance:
     )
 
 
-def make_synchronize() -> CardInstance:
+def make_synchronize(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SYNCHRONIZE, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        keywords=frozenset({"exhaust"}),
-        effect_vars={"calc_base": 0, "calc_extra": 2}, instance_id=_get_next_id(),
+        keywords=frozenset() if upgraded else frozenset({"exhaust"}),
+        effect_vars={
+            SYNCHRONIZE_CALC_BASE_KEY: SYNCHRONIZE_CALC_BASE,
+            SYNCHRONIZE_CALC_EXTRA_KEY: SYNCHRONIZE_FOCUS_PER_ORB_TYPE,
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -2007,12 +2040,14 @@ def make_rainbow(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_reboot() -> CardInstance:
+def make_reboot(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.REBOOT, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
         keywords=frozenset({"exhaust"}),
-        effect_vars={"cards": 4}, instance_id=_get_next_id(),
+        effect_vars={REBOOT_CARDS_KEY: REBOOT_UPGRADED_CARDS if upgraded else REBOOT_CARDS},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -2062,10 +2097,12 @@ def make_supercritical(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_trash_to_treasure() -> CardInstance:
+def make_trash_to_treasure(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.TRASH_TO_TREASURE, cost=1, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
+        keywords=frozenset({"innate"}) if upgraded else frozenset(),
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
