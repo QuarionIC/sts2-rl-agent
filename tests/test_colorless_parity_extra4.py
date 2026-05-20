@@ -51,6 +51,8 @@ KNOCKDOWN_BASE_DAMAGE = 10
 KNOCKDOWN_BASE_MULTIPLIER = 2
 KNOCKDOWN_PLUS_DAMAGE = 14
 KNOCKDOWN_PLUS_MULTIPLIER = 3
+PREP_TIME_BASE_VIGOR = 4
+PREP_TIME_PLUS_VIGOR = 6
 ROLLING_BOULDER_BASE_DAMAGE = 5
 ROLLING_BOULDER_PLUS_DAMAGE = 10
 ROLLING_BOULDER_INCREMENT = 5
@@ -233,11 +235,24 @@ class TestColorlessParityExtra4:
         combat.energy = 1
 
         assert combat.play_card(0)
-        assert combat.player.get_power_amount(PowerId.PREP_TIME) == 4
+        assert combat.player.get_power_amount(PowerId.PREP_TIME) == PREP_TIME_BASE_VIGOR
 
         combat.end_player_turn()
 
-        assert combat.player.get_power_amount(PowerId.VIGOR) == 4
+        assert combat.player.get_power_amount(PowerId.VIGOR) == PREP_TIME_BASE_VIGOR
+
+    def test_prep_time_plus_applies_upgraded_start_of_turn_vigor_power(self):
+        """Matches PrepTime.cs: upgraded PrepTimePower is 6."""
+        combat = _make_combat()
+        combat.hand = [make_prep_time(upgraded=True)]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert combat.player.get_power_amount(PowerId.PREP_TIME) == PREP_TIME_PLUS_VIGOR
+
+        combat.end_player_turn()
+
+        assert combat.player.get_power_amount(PowerId.VIGOR) == PREP_TIME_PLUS_VIGOR
 
     def test_prowess_grants_strength_and_dexterity(self):
         combat = _make_combat()
