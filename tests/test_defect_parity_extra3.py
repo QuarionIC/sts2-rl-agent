@@ -79,6 +79,16 @@ NULL_UPGRADED_WEAK = 3
 RAINBOW_ORBS = (OrbType.LIGHTNING, OrbType.FROST, OrbType.DARK)
 TEST_ENEMY_HP = 100
 EXHAUST_KEYWORD = "exhaust"
+FIGHT_THROUGH_BLOCK = 13
+FIGHT_THROUGH_UPGRADED_BLOCK = 17
+FIGHT_THROUGH_WOUND_COUNT = 2
+REFRACT_DAMAGE = 9
+REFRACT_UPGRADED_DAMAGE = 12
+REFRACT_HITS = 2
+REFRACT_GLASS_ORBS = 2
+ICE_LANCE_DAMAGE = 19
+ICE_LANCE_UPGRADED_DAMAGE = 24
+ICE_LANCE_FROST_ORBS = 3
 
 
 class _CannotHitPower(PowerInstance):
@@ -479,9 +489,20 @@ class TestDefectParityExtra3:
 
         assert combat.play_card(0)
         wounds = [card for card in combat.discard_pile if card.card_id.name == "WOUND"]
-        assert combat.player.block == 13
-        assert len(wounds) == 2
+        assert combat.player.block == FIGHT_THROUGH_BLOCK
+        assert len(wounds) == FIGHT_THROUGH_WOUND_COUNT
         assert all(card.owner is combat.player for card in wounds)
+
+    def test_upgraded_fight_through_gains_seventeen_block_and_still_adds_two_wounds(self):
+        """Matches FightThrough.cs: upgrade changes Block only."""
+        combat = _make_combat()
+        combat.hand = [make_fight_through(upgraded=True)]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        wounds = [card for card in combat.discard_pile if card.card_id.name == "WOUND"]
+        assert combat.player.block == FIGHT_THROUGH_UPGRADED_BLOCK
+        assert len(wounds) == FIGHT_THROUGH_WOUND_COUNT
 
     def test_overclock_draws_then_adds_owned_burn_to_discard(self):
         """Matches Overclock.cs: draw cards, then add generated Burn to discard."""
@@ -540,9 +561,21 @@ class TestDefectParityExtra3:
         combat.energy = 3
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == starting_hp - 18
-        assert len(combat.orb_queue.orbs) == 2
+        assert enemy.current_hp == starting_hp - REFRACT_DAMAGE * REFRACT_HITS
+        assert len(combat.orb_queue.orbs) == REFRACT_GLASS_ORBS
         assert all(orb.orb_type == OrbType.GLASS for orb in combat.orb_queue.orbs)
+
+    def test_upgraded_refract_hits_twice_with_twelve_damage(self):
+        """Matches Refract.cs: upgrade changes Damage only."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        starting_hp = enemy.current_hp
+        combat.hand = [make_refract(upgraded=True)]
+        combat.energy = 3
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == starting_hp - REFRACT_UPGRADED_DAMAGE * REFRACT_HITS
+        assert len(combat.orb_queue.orbs) == REFRACT_GLASS_ORBS
 
     def test_lightning_orb_damage_is_unpowered(self):
         """Matches LightningOrb.cs: orb damage uses ValueProp.Unpowered."""
@@ -592,8 +625,21 @@ class TestDefectParityExtra3:
         combat.energy = 3
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == starting_hp - 19
-        assert len(combat.orb_queue.orbs) == 3
+        assert enemy.current_hp == starting_hp - ICE_LANCE_DAMAGE
+        assert len(combat.orb_queue.orbs) == ICE_LANCE_FROST_ORBS
+        assert all(orb.orb_type == OrbType.FROST for orb in combat.orb_queue.orbs)
+
+    def test_upgraded_ice_lance_deals_twenty_four_damage_and_still_channels_three_frost(self):
+        """Matches IceLance.cs: upgrade changes Damage only."""
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        starting_hp = enemy.current_hp
+        combat.hand = [make_ice_lance(upgraded=True)]
+        combat.energy = 3
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == starting_hp - ICE_LANCE_UPGRADED_DAMAGE
+        assert len(combat.orb_queue.orbs) == ICE_LANCE_FROST_ORBS
         assert all(orb.orb_type == OrbType.FROST for orb in combat.orb_queue.orbs)
 
     def test_helix_drill_hits_once_per_prior_energy_spent_this_turn(self):

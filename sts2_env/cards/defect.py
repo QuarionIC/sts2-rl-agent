@@ -1226,11 +1226,14 @@ def make_feral() -> CardInstance:
     )
 
 
-def make_fight_through() -> CardInstance:
+def make_fight_through(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.FIGHT_THROUGH, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        base_block=13, effect_vars={"wounds": 2}, instance_id=_get_next_id(),
+        base_block=17 if upgraded else 13,
+        effect_vars={"wounds": 2},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1308,11 +1311,14 @@ def make_overclock() -> CardInstance:
     )
 
 
-def make_refract() -> CardInstance:
+def make_refract(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.REFRACT, cost=3, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
-        base_damage=9, effect_vars={"glass": 2}, instance_id=_get_next_id(),
+        base_damage=12 if upgraded else 9,
+        effect_vars={"glass": 2},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1542,11 +1548,14 @@ def make_hyperbeam() -> CardInstance:
     )
 
 
-def make_ice_lance() -> CardInstance:
+def make_ice_lance(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.ICE_LANCE, cost=3, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.RARE,
-        base_damage=19, effect_vars={"frost": 3}, instance_id=_get_next_id(),
+        base_damage=24 if upgraded else 19,
+        effect_vars={"frost": 3},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 

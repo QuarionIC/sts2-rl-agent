@@ -16,9 +16,8 @@ from sts2_env.cards.defect import (
     make_multi_cast,
     make_strike_defect,
 )
-from sts2_env.cards.factory import create_card
 from sts2_env.core.combat import CombatState
-from sts2_env.core.enums import CardId, OrbType, PowerId
+from sts2_env.core.enums import OrbType, PowerId
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 
@@ -78,7 +77,7 @@ class TestDefectParityExtra2:
         """Matches Capacitor.cs OnUpgrade: Repeat increases from 2 to 3."""
         combat = _make_combat()
         combat.orb_queue.capacity = 7
-        combat.hand = [create_card(CardId.CAPACITOR, upgraded=True)]
+        combat.hand = [make_capacitor(upgraded=True)]
         combat.energy = 1
 
         assert combat.play_card(0)
