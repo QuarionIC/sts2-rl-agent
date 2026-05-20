@@ -74,6 +74,7 @@ SNECKO_OIL_MIN_COST = 0
 SNECKO_OIL_MAX_COST = 3
 SOLDIERS_STEW_REPLAY_GAIN = 1
 BOTTLED_POTENTIAL_DRAW_COUNT = 5
+GLOWWATER_DRAW_COUNT = 10
 
 
 def _source_card_order(card) -> tuple[int, str]:
@@ -296,7 +297,10 @@ def _ashwater(combat: CombatState, user: Creature, target: Creature | None) -> N
 
 def _blessing_of_the_forge(combat: CombatState, user: Creature, target: Creature | None) -> None:
     """Upgrade all upgradable cards in hand."""
-    for card in list(combat.hand):
+    state = combat.combat_player_state_for(user)
+    if state is None:
+        return
+    for card in list(state.hand):
         combat.upgrade_card(card)
 
 
@@ -695,10 +699,13 @@ def _foul_potion(combat: CombatState, user: Creature, target: Creature | None) -
 
 def _glowwater_potion(combat: CombatState, user: Creature, target: Creature | None) -> None:
     """Exhaust entire hand, then draw 10."""
-    for card in list(combat.hand):
-        combat.hand.remove(card)
-        combat.exhaust_pile.append(card)
-    combat._draw_cards(10)  # noqa: SLF001
+    state = combat.combat_player_state_for(user)
+    if state is None:
+        return
+    for card in list(state.hand):
+        card.owner = user
+        combat.exhaust_card(card)
+    combat.draw_cards(user, GLOWWATER_DRAW_COUNT)
 
 
 def _potion_shaped_rock(combat: CombatState, user: Creature, target: Creature | None) -> None:

@@ -101,6 +101,9 @@ RADIANT_TINCTURE_RADIANCE = 3
 SNECKO_OIL_DRAW_COUNT = 7
 SOLDIERS_STEW_REPLAY_GAIN = 1
 BOTTLED_POTENTIAL_DRAW_COUNT = 5
+KINGS_COURAGE_FORGE_AMOUNT = 15
+SOVEREIGN_BLADE_BASE_DAMAGE = 10
+GLOWWATER_DRAW_COUNT = 10
 
 
 class TestPotionRegistry:
@@ -576,6 +579,50 @@ class TestPotionInstance:
         assert strike.upgraded
         assert defend.upgraded
 
+    def test_blessing_of_the_forge_upgrades_owner_hand_like_reference(self):
+        combat = _make_silent_combat()
+        ally = combat.add_ally_player(PlayerState(player_id=2, character_id="Silent", max_hp=70, current_hp=70))
+        ally_state = combat.combat_player_state_for(ally)
+        assert ally_state is not None
+        primary_strike = make_strike_silent()
+        ally_strike = make_strike_silent()
+        combat.hand = [primary_strike]
+        ally_state.hand = [ally_strike]
+        ally_state.zone_map["hand"] = ally_state.hand
+        ally_state.potions = [create_potion("BlessingOfTheForge"), None, None]
+
+        assert combat.use_potion(0, owner=ally)
+
+        assert ally_strike.upgraded
+        assert not primary_strike.upgraded
+
+    def test_glowwater_exhausts_and_draws_owner_hand_like_reference(self):
+        combat = _make_silent_combat()
+        ally = combat.add_ally_player(PlayerState(player_id=2, character_id="Silent", max_hp=70, current_hp=70))
+        ally_state = combat.combat_player_state_for(ally)
+        assert ally_state is not None
+        primary_hand = make_strike_silent()
+        primary_draw = make_defend_silent()
+        ally_hand_cards = [make_strike_silent(), make_neutralize()]
+        ally_draw_cards = [make_defend_silent() for _ in range(GLOWWATER_DRAW_COUNT)]
+        combat.hand = [primary_hand]
+        combat.draw_pile = [primary_draw]
+        ally_state.hand = list(ally_hand_cards)
+        ally_state.draw = list(ally_draw_cards)
+        ally_state.exhaust = []
+        ally_state.zone_map["hand"] = ally_state.hand
+        ally_state.zone_map["draw"] = ally_state.draw
+        ally_state.zone_map["exhaust"] = ally_state.exhaust
+        ally_state.potions = [create_potion("GlowwaterPotion"), None, None]
+
+        assert combat.use_potion(0, owner=ally)
+
+        assert combat.hand == [primary_hand]
+        assert combat.draw_pile == [primary_draw]
+        assert ally_state.hand == ally_draw_cards
+        assert ally_state.draw == []
+        assert ally_state.exhaust == ally_hand_cards
+
     def test_droplet_of_precognition_uses_only_current_draw_pile(self):
         combat = _make_silent_combat()
         discarded = make_strike_silent()
@@ -799,6 +846,23 @@ class TestPotionInstance:
 
         blade = next(card for card in combat.hand if card.card_id == CardId.SOVEREIGN_BLADE)
         assert blade.base_damage == 25
+
+    def test_kings_courage_forges_selected_player_like_reference(self):
+        combat = _make_combat_for_character("Regent", create_regent_starter_deck())
+        ally = combat.add_ally_player(PlayerState(player_id=2, character_id="Regent", max_hp=60, current_hp=60))
+        ally_state = combat.combat_player_state_for(ally)
+        assert ally_state is not None
+        combat.hand = []
+        ally_state.hand = []
+        ally_state.zone_map["hand"] = ally_state.hand
+        combat.potions = [create_potion("KingsCourage"), None, None]
+
+        assert combat.use_potion(0, target_index=FIRST_ALLY_PLAYER_TARGET_INDEX)
+
+        assert not any(card.card_id == CardId.SOVEREIGN_BLADE for card in combat.hand)
+        blade = next(card for card in ally_state.hand if card.card_id == CardId.SOVEREIGN_BLADE)
+        assert blade.owner is ally
+        assert blade.base_damage == SOVEREIGN_BLADE_BASE_DAMAGE + KINGS_COURAGE_FORGE_AMOUNT
 
     def test_potion_of_capacity_adds_two_orb_slots_up_to_cap(self):
         combat = _make_combat_for_character("Defect", create_defect_starter_deck())
