@@ -20,6 +20,14 @@ from sts2_env.core.creature import Creature
 from sts2_env.core.combat import CombatState
 
 
+STRIKE_DEFECT_COST = 1
+STRIKE_DEFECT_DAMAGE = 6
+STRIKE_DEFECT_UPGRADED_DAMAGE = 9
+DEFEND_DEFECT_COST = 1
+DEFEND_DEFECT_BLOCK = 5
+DEFEND_DEFECT_UPGRADED_BLOCK = 8
+ZAP_COST = 1
+ZAP_UPGRADED_COST = 0
 CHARGE_BATTERY_BLOCK = 7
 CHARGE_BATTERY_UPGRADED_BLOCK = 10
 CHARGE_BATTERY_ENERGY_KEY = "energy"
@@ -1095,23 +1103,27 @@ def quadcast(card: CardInstance, combat: CombatState, target: Creature | None) -
 
 def make_strike_defect(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.STRIKE_DEFECT, cost=1, card_type=CardType.ATTACK,
+        card_id=CardId.STRIKE_DEFECT, cost=STRIKE_DEFECT_COST, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.BASIC,
-        base_damage=9 if upgraded else 6, upgraded=upgraded, instance_id=_get_next_id(),
+        base_damage=STRIKE_DEFECT_UPGRADED_DAMAGE if upgraded else STRIKE_DEFECT_DAMAGE,
+        upgraded=upgraded, instance_id=_get_next_id(),
     )
 
 
 def make_defend_defect(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.DEFEND_DEFECT, cost=1, card_type=CardType.SKILL,
+        card_id=CardId.DEFEND_DEFECT, cost=DEFEND_DEFECT_COST, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.BASIC,
-        base_block=8 if upgraded else 5, upgraded=upgraded, instance_id=_get_next_id(),
+        base_block=DEFEND_DEFECT_UPGRADED_BLOCK if upgraded else DEFEND_DEFECT_BLOCK,
+        upgraded=upgraded, instance_id=_get_next_id(),
     )
 
 
 def make_zap(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.ZAP, cost=0 if upgraded else 1, card_type=CardType.SKILL,
+        card_id=CardId.ZAP,
+        cost=ZAP_UPGRADED_COST if upgraded else ZAP_COST,
+        card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.BASIC,
         upgraded=upgraded, instance_id=_get_next_id(),
     )

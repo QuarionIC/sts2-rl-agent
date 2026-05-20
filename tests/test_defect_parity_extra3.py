@@ -3,6 +3,9 @@
 import sts2_env.powers  # noqa: F401
 
 from sts2_env.cards.defect import (
+    DEFEND_DEFECT_BLOCK,
+    DEFEND_DEFECT_COST,
+    DEFEND_DEFECT_UPGRADED_BLOCK,
     make_adaptive_strike,
     make_buffer,
     create_defect_starter_deck,
@@ -56,11 +59,17 @@ from sts2_env.cards.defect import (
     make_thunder,
     make_uproar,
     make_voltaic,
+    STRIKE_DEFECT_COST,
+    STRIKE_DEFECT_DAMAGE,
+    STRIKE_DEFECT_UPGRADED_DAMAGE,
+    ZAP_COST,
+    ZAP_UPGRADED_COST,
+    make_zap,
 )
 from sts2_env.cards.factory import create_card
 from sts2_env.cards.status import make_burn, make_dazed, make_slimed
 from sts2_env.core.combat import CombatState
-from sts2_env.core.enums import CardId, OrbType, PowerId, ValueProp
+from sts2_env.core.enums import CardId, CardTag, OrbType, PowerId, ValueProp
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle, create_twig_slime_s
 from sts2_env.powers.base import PowerInstance
@@ -119,6 +128,53 @@ def _make_combat(monster_factory=create_shrinker_beetle, *, extra_enemies: int =
 
 
 class TestDefectParityExtra3:
+    def test_strike_defect_matches_reference_damage_and_upgrade(self):
+        combat = _make_combat(monster_factory=create_twig_slime_s)
+        enemy = combat.enemies[0]
+        starting_hp = enemy.current_hp
+        card = make_strike_defect()
+        combat.hand = [card]
+        combat.energy = STRIKE_DEFECT_COST
+
+        assert card.cost == STRIKE_DEFECT_COST
+        assert card.original_cost == STRIKE_DEFECT_COST
+        assert card.base_damage == STRIKE_DEFECT_DAMAGE
+        assert CardTag.STRIKE in card.tags
+        assert combat.play_card(0, 0)
+
+        assert enemy.current_hp == starting_hp - STRIKE_DEFECT_DAMAGE
+        assert make_strike_defect(upgraded=True).base_damage == STRIKE_DEFECT_UPGRADED_DAMAGE
+
+    def test_defend_defect_matches_reference_block_and_upgrade(self):
+        combat = _make_combat()
+        card = make_defend_defect()
+        combat.hand = [card]
+        combat.energy = DEFEND_DEFECT_COST
+
+        assert card.cost == DEFEND_DEFECT_COST
+        assert card.original_cost == DEFEND_DEFECT_COST
+        assert card.base_block == DEFEND_DEFECT_BLOCK
+        assert CardTag.DEFEND in card.tags
+        assert combat.play_card(0)
+
+        assert combat.player.block == DEFEND_DEFECT_BLOCK
+        assert make_defend_defect(upgraded=True).base_block == DEFEND_DEFECT_UPGRADED_BLOCK
+
+    def test_zap_matches_reference_channel_and_upgrade_cost(self):
+        combat = _make_combat()
+        card = make_zap()
+        combat.hand = [card]
+        combat.energy = ZAP_COST
+
+        assert card.cost == ZAP_COST
+        assert card.original_cost == ZAP_COST
+        assert combat.play_card(0)
+
+        assert [orb.orb_type for orb in combat.orb_queue.orbs] == [OrbType.LIGHTNING]
+        upgraded = make_zap(upgraded=True)
+        assert upgraded.cost == ZAP_UPGRADED_COST
+        assert upgraded.original_cost == ZAP_UPGRADED_COST
+
     def test_leap_gains_block(self):
         combat = _make_combat()
         combat.hand = [make_leap()]
