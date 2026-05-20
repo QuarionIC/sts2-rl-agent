@@ -9,6 +9,7 @@ from __future__ import annotations
 from sts2_env.cards.base import CardInstance, _get_next_id, new_card_instance_id
 from sts2_env.cards.factory import create_cards_from_ids, eligible_registered_cards
 from sts2_env.cards.registry import (
+    register_after_card_drawn_hook,
     register_after_turn_end_hook,
     register_before_hand_draw_hook,
     register_effect,
@@ -411,10 +412,34 @@ def kingly_kick(card: CardInstance, combat: CombatState, target: Creature | None
     _deal_damage_single(card, combat, target)
 
 
+@register_after_card_drawn_hook(CardId.KINGLY_KICK)
+def kingly_kick_after_card_drawn(
+    card: CardInstance,
+    drawn_card: CardInstance,
+    from_hand_draw: bool,
+    combat: CombatState,
+) -> None:
+    if drawn_card is card:
+        card.set_combat_cost(max(0, card.cost - 1))
+
+
 @register_effect(CardId.KINGLY_PUNCH)
 def kingly_punch(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     _deal_damage_single(card, combat, target)
+
+
+@register_after_card_drawn_hook(CardId.KINGLY_PUNCH)
+def kingly_punch_after_card_drawn(
+    card: CardInstance,
+    drawn_card: CardInstance,
+    from_hand_draw: bool,
+    combat: CombatState,
+) -> None:
+    if drawn_card is card and card.base_damage is not None:
+        from sts2_env.cards.base import increase_base_damage
+
+        increase_base_damage(card, card.effect_vars.get("increase", 3))
 
 
 @register_effect(CardId.KNOCKOUT_BLOW)

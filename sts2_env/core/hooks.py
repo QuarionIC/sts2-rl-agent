@@ -709,6 +709,7 @@ def fire_after_potion_used(
 
 def fire_after_card_drawn(card: object, from_hand_draw: bool, combat: CombatState) -> None:
     import inspect
+    from sts2_env.cards.registry import fire_card_after_card_drawn
 
     for owner, power in _iter_power_listeners(combat):
         method = getattr(power, "on_card_drawn", None)
@@ -719,6 +720,9 @@ def fire_after_card_drawn(card: object, from_hand_draw: bool, combat: CombatStat
             method(owner, card, from_hand_draw, combat)
         else:
             method(owner, card, combat)
+    for state in getattr(combat, "combat_player_states", ()):
+        for listener_card in combat.unique_cards_in_piles(state.all_piles):
+            fire_card_after_card_drawn(listener_card, card, from_hand_draw, combat)
 
 
 def fire_after_modifying_card_play_count(card: object, combat: CombatState) -> None:

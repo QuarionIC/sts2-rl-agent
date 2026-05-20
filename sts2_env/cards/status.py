@@ -10,6 +10,7 @@ from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage
 from sts2_env.cards.factory import create_character_cards
 from sts2_env.cards.registry import (
     register_after_combat_end_hook,
+    register_after_card_drawn_hook,
     register_after_map_generated_hook,
     register_chosen_hook,
     register_effect,
@@ -1309,6 +1310,17 @@ def void_effect(card: CardInstance, combat: CombatState, target: Creature | None
     """Unplayable, Ethereal. On draw: lose 1 energy.
     Triggered by the card-draw hook, not this function."""
     pass
+
+
+@register_after_card_drawn_hook(CardId.VOID)
+def void_after_card_drawn(
+    card: CardInstance,
+    drawn_card: CardInstance,
+    from_hand_draw: bool,
+    combat: CombatState,
+) -> None:
+    if drawn_card is card:
+        combat.lose_energy(_owner(card, combat), card.effect_vars.get("energy", 1))
 
 
 @register_effect(CardId.WOUND)

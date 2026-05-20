@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Callable, Sequence
 from sts2_env.cards.base import (
     CardInstance,
     capture_self_mutating_card_progress,
-    increase_base_damage,
     new_card_instance_id,
     restore_self_mutating_card_progress,
 )
@@ -954,19 +953,19 @@ class CombatState:
         for card in list(state.draw) + list(state.discard) + list(state.exhaust) + list(state.play):
             if card.combat_vars.get("_return_before_hand_draw_round") == self.round_number:
                 self.move_card_to_creature_hand(owner, card)
-        for card in self._unique_cards_in_piles(state.all_piles):
+        for card in self.unique_cards_in_piles(state.all_piles):
             fire_card_before_hand_draw(card, owner, self)
             if self.is_over:
                 return
 
     def _apply_card_after_turn_end(self, side: CombatSide) -> None:
         for state in self.combat_player_states:
-            for card in self._unique_cards_in_piles(state.all_piles):
+            for card in self.unique_cards_in_piles(state.all_piles):
                 fire_card_after_turn_end(card, side, self)
                 if self.is_over:
                     return
 
-    def _unique_cards_in_piles(self, piles: tuple[list[CardInstance], ...]) -> list[CardInstance]:
+    def unique_cards_in_piles(self, piles: tuple[list[CardInstance], ...]) -> list[CardInstance]:
         cards: list[CardInstance] = []
         seen_ids: set[int] = set()
         for pile in piles:
@@ -1823,7 +1822,6 @@ class CombatState:
             self._apply_card_after_card_drawn_early(card, owner)
             fire_after_card_drawn(card, from_hand_draw, self)
             apply_enchantment_on_card_drawn(card, self, from_hand_draw)
-            self._invoke_card_drawn(card, from_hand_draw, owner)
         return drawn_cards
 
     def _resume_pending_draw(self) -> None:
@@ -3837,20 +3835,6 @@ class CombatState:
         }
         factory = factories.get(card_name.upper())
         return factory() if factory is not None else None
-
-    def _invoke_card_drawn(self, card: CardInstance, from_hand_draw: bool, owner: Creature) -> None:
-        from sts2_env.core.enums import CardId
-        from sts2_env.core.damage import apply_damage
-
-        if card.card_id == CardId.VOID:
-            self.lose_energy(owner, card.effect_vars.get("energy", 1))
-            return
-        if card.card_id == CardId.KINGLY_KICK:
-            card.set_combat_cost(max(0, card.cost - 1))
-            return
-        if card.card_id == CardId.KINGLY_PUNCH and card.base_damage is not None:
-            increase_base_damage(card, card.effect_vars.get("increase", 3))
-            return
 
     def _apply_card_after_card_drawn_early(self, card: CardInstance, owner: Creature) -> None:
         if owner.get_power_amount(PowerId.HELLRAISER) <= 0:
