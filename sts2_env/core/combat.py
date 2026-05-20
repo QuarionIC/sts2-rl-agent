@@ -1184,7 +1184,7 @@ class CombatState:
         if not should_play(card, self):
             return False
 
-        if card.card_id == CardId.CLASH and any(hand_card.card_type != CardType.ATTACK for hand_card in owner_state.hand):
+        if not card.is_playable_by_card_logic(owner_state, self, owner):
             return False
         if (
             card.card_id != CardId.ENTHRALLED
@@ -1198,15 +1198,7 @@ class CombatState:
         ]
         if any(self.count_card_play_starts_this_turn(owner) >= limit for limit in normality_limits):
             return False
-        if card.card_id == CardId.HIGH_FIVE:
-            osty = self.get_osty(owner)
-            if osty is None or not osty.is_alive:
-                return False
         if card.target_type == TargetType.ANY_ALLY and not self.get_player_allies_of(owner):
-            return False
-        if card.card_id == CardId.GRAND_FINALE and owner_state.draw:
-            return False
-        if card.card_id == CardId.PACTS_END and len(owner_state.exhaust) < card.effect_vars.get("cards", 3):
             return False
         if self.modified_star_cost(owner, card) > owner_state.stars:
             return False

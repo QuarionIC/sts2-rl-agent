@@ -187,6 +187,13 @@ def reference_should_show_in_card_library(card_id: CardId) -> bool:
     return metadata.should_show_in_card_library if metadata is not None else True
 
 
+def reference_has_custom_playability(card_id: CardId) -> bool:
+    from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+
+    metadata = reference_metadata_by_card_id().get(card_id)
+    return metadata.has_custom_playability if metadata is not None else False
+
+
 @dataclass
 class CardInstance:
     """A single card instance in combat."""
@@ -269,6 +276,22 @@ class CardInstance:
     @property
     def should_show_in_card_library(self) -> bool:
         return reference_should_show_in_card_library(self.card_id)
+
+    @property
+    def has_custom_playability(self) -> bool:
+        return reference_has_custom_playability(self.card_id)
+
+    def is_playable_by_card_logic(self, owner_state: object, combat: object, owner: object) -> bool:
+        if self.card_id == CardId.CLASH:
+            return all(hand_card.card_type == CardType.ATTACK for hand_card in owner_state.hand)
+        if self.card_id == CardId.HIGH_FIVE:
+            osty = combat.get_osty(owner)
+            return osty is not None and osty.is_alive
+        if self.card_id == CardId.GRAND_FINALE:
+            return not owner_state.draw
+        if self.card_id == CardId.PACTS_END:
+            return len(owner_state.exhaust) >= self.effect_vars["cards"]
+        return True
 
     @property
     def is_status(self) -> bool:

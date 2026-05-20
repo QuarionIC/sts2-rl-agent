@@ -3,6 +3,7 @@
 from scripts.audit_card_dynamic_vars import collect_card_dynamic_var_mismatches
 from scripts.audit_card_static_metadata import collect_static_metadata_mismatches
 from sts2_env.cards.factory import create_card
+from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
 from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import CardId, OrbEvokeType
 
@@ -36,3 +37,10 @@ def test_card_library_visibility_matches_decompiled_constructor_flags() -> None:
     assert create_card(CardId.DEPRECATED_CARD).should_show_in_card_library is False
     assert create_card(CardId.MAD_SCIENCE).should_show_in_card_library is False
     assert create_card(CardId.STRIKE_IRONCLAD).should_show_in_card_library is True
+
+
+def test_custom_playability_matches_decompiled_card_properties() -> None:
+    references = reference_metadata_by_card_id()
+    expected_card_ids = {card_id for card_id, reference in references.items() if reference.has_custom_playability}
+    actual_card_ids = {card_id for card_id in references if create_card(card_id).has_custom_playability}
+    assert actual_card_ids == expected_card_ids
