@@ -12,7 +12,7 @@ from sts2_env.core.rng import Rng
 from sts2_env.run.odds import CardRarityOdds
 from sts2_env.run.rewards import (
     COMBAT_CARD_UPGRADE_BASE_CHANCE,
-    MERCHANT_CARD_UPGRADE_BASE_CHANCE,
+    MERCHANT_CARD_UPGRADE_SUPPRESSION_BASE_CHANCE,
     generate_card_reward,
     generate_combat_card_rewards,
     generate_combat_reward_cards,
@@ -217,7 +217,12 @@ class TestUpgradeProbability:
         rng = Rng(99)
         upgraded = sum(
             1 for _ in range(1000)
-            if roll_for_upgrade(rs, CardRarity.COMMON, rng, base_chance=MERCHANT_CARD_UPGRADE_BASE_CHANCE)
+            if roll_for_upgrade(
+                rs,
+                CardRarity.COMMON,
+                rng,
+                base_chance=MERCHANT_CARD_UPGRADE_SUPPRESSION_BASE_CHANCE,
+            )
         )
         assert upgraded == 0
 

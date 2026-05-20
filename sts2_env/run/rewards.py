@@ -19,14 +19,18 @@ if TYPE_CHECKING:
     from sts2_env.run.run_state import RunState
 
 
+DEFAULT_CARD_REWARD_OPTION_COUNT = 3
 COMBAT_CARD_UPGRADE_BASE_CHANCE = 0.0
-MERCHANT_CARD_UPGRADE_BASE_CHANCE = -999999999
+MERCHANT_CARD_UPGRADE_SUPPRESSION_BASE_CHANCE = -999999999
+SCARCITY_ASCENSION_LEVEL = 7
+CARD_UPGRADE_ODD_SCALING = 0.25
+SCARCITY_CARD_UPGRADE_ODD_SCALING = 0.125
 
 
 @dataclass(frozen=True)
 class CardRewardGenerationOptions:
     context: str = "regular"
-    num_cards: int = 3
+    num_cards: int = DEFAULT_CARD_REWARD_OPTION_COUNT
     character_ids: tuple[str, ...] = field(default_factory=tuple)
     forced_rarities: tuple[CardRarity, ...] = field(default_factory=tuple)
     include_colorless: bool = False
@@ -72,7 +76,7 @@ def _is_multiplayer_run(run_state: RunState) -> bool:
 def generate_card_reward(
     run_state: RunState,
     context: str = "regular",
-    num_cards: int = 3,
+    num_cards: int = DEFAULT_CARD_REWARD_OPTION_COUNT,
 ) -> list[CardRarity]:
     """Generate card rarities for a reward screen.
 
@@ -97,7 +101,7 @@ def roll_for_upgrade(
     run_state: RunState,
     rarity: CardRarity,
     rng: Rng,
-    base_chance: float = 0.0,
+    base_chance: float = COMBAT_CARD_UPGRADE_BASE_CHANCE,
 ) -> bool:
     """Roll whether a reward card should be upgraded.
 
@@ -117,7 +121,11 @@ def roll_for_upgrade(
     odds = base_chance
 
     if rarity != CardRarity.RARE:
-        scaling = 0.125 if run_state.ascension_level >= 7 else 0.25
+        scaling = (
+            SCARCITY_CARD_UPGRADE_ODD_SCALING
+            if run_state.ascension_level >= SCARCITY_ASCENSION_LEVEL
+            else CARD_UPGRADE_ODD_SCALING
+        )
         odds += run_state.current_act_index * scaling
 
     return roll <= odds
@@ -126,7 +134,7 @@ def roll_for_upgrade(
 def generate_combat_card_rewards(
     run_state: RunState,
     context: str = "regular",
-    num_cards: int = 3,
+    num_cards: int = DEFAULT_CARD_REWARD_OPTION_COUNT,
 ) -> list[tuple[CardRarity, bool]]:
     """Generate card rewards with upgrade rolls.
 
@@ -282,7 +290,7 @@ def _pick_reward_card(
 def generate_combat_reward_cards(
     run_state: RunState,
     context: str = "regular",
-    num_cards: int = 3,
+    num_cards: int = DEFAULT_CARD_REWARD_OPTION_COUNT,
     *,
     character_ids: tuple[str, ...] | None = None,
     forced_rarities: tuple[CardRarity, ...] = (),
