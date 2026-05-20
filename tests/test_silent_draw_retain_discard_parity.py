@@ -39,7 +39,7 @@ def _make_combat(deck: list | None = None, *, extra_enemies: int = 0) -> CombatS
     return combat
 
 
-class TestSilentParityExtra2:
+class TestSilentDrawRetainDiscardParity:
     def test_backflip_gains_block_then_draws_two_cards(self):
         combat = _make_combat()
         first_draw = make_strike_silent()

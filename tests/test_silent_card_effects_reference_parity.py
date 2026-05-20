@@ -85,7 +85,7 @@ def _make_combat(*, extra_enemies: int = 0, seed: int = 4243) -> CombatState:
     return combat
 
 
-class TestSilentParityExtra4:
+class TestSilentCardEffectsReferenceParity:
     def test_deflect_base_and_upgrade_block_values_match_reference(self):
         combat = _make_combat()
         from sts2_env.cards.silent import make_deflect as make_deflect_factory

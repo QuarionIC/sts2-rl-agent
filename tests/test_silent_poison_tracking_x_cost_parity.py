@@ -40,7 +40,7 @@ def _make_combat(deck: list | None = None, *, extra_enemies: int = 0) -> CombatS
     return combat
 
 
-class TestSilentParityExtra3:
+class TestSilentPoisonTrackingXCostParity:
     def test_anticipate_grants_temporary_dexterity_until_turn_end(self):
         combat = _make_combat()
         combat.hand = [make_anticipate(upgraded=True)]

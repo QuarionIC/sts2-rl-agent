@@ -33,7 +33,7 @@ def _make_combat(deck: list | None = None) -> CombatState:
     return combat
 
 
-class TestSilentParityExtra:
+class TestSilentOpeningSkillReplayParity:
     def test_backstab_is_innate_and_exhausts_after_play(self):
         """Matches Backstab.cs: Innate+Exhaust attack that should appear in opening hand."""
         deck = [make_backstab()] + [make_strike_silent() for _ in range(7)]
