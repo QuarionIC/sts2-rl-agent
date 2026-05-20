@@ -112,6 +112,11 @@ TURBO_UPGRADED_ENERGY = 3
 UPROAR_DAMAGE = 5
 UPROAR_UPGRADED_DAMAGE = 7
 UPROAR_HITS = 2
+GENETIC_ALGORITHM_BLOCK_KEY = "block"
+GENETIC_ALGORITHM_BLOCK = 1
+GENETIC_ALGORITHM_INCREASE_KEY = "increase"
+GENETIC_ALGORITHM_INCREASE = 3
+GENETIC_ALGORITHM_UPGRADED_INCREASE = 4
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -910,11 +915,11 @@ def flak_cannon(card: CardInstance, combat: CombatState, target: Creature | None
 @register_effect(CardId.GENETIC_ALGORITHM)
 def genetic_algorithm(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     # Gain Block (self-mutating: gains +3 block permanently each play)
-    block_amt = card.effect_vars.get("block", 0)
+    block_amt = card.effect_vars.get(GENETIC_ALGORITHM_BLOCK_KEY, 0)
     owner = _owner(card, combat)
     blk = calculate_block(block_amt, owner, ValueProp.MOVE, combat, card_source=card)
     _gain_resolved_block(owner, blk, combat)
-    increase = card.effect_vars.get("increase", 3)
+    increase = card.effect_vars.get(GENETIC_ALGORITHM_INCREASE_KEY, GENETIC_ALGORITHM_INCREASE)
     increase_base_block(card, increase)
 
 
@@ -1760,12 +1765,19 @@ def make_flak_cannon() -> CardInstance:
     )
 
 
-def make_genetic_algorithm() -> CardInstance:
+def make_genetic_algorithm(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.GENETIC_ALGORITHM, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
-        base_block=1, keywords=frozenset({"exhaust"}),
-        effect_vars={"block": 1, "increase": 3}, instance_id=_get_next_id(),
+        base_block=GENETIC_ALGORITHM_BLOCK, keywords=frozenset({"exhaust"}),
+        effect_vars={
+            GENETIC_ALGORITHM_BLOCK_KEY: GENETIC_ALGORITHM_BLOCK,
+            GENETIC_ALGORITHM_INCREASE_KEY: (
+                GENETIC_ALGORITHM_UPGRADED_INCREASE if upgraded else GENETIC_ALGORITHM_INCREASE
+            ),
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 

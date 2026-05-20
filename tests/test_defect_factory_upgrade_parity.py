@@ -3,6 +3,10 @@
 import sts2_env.powers  # noqa: F401
 
 from sts2_env.cards.defect import (
+    GENETIC_ALGORITHM_BLOCK,
+    GENETIC_ALGORITHM_BLOCK_KEY,
+    GENETIC_ALGORITHM_INCREASE_KEY,
+    GENETIC_ALGORITHM_UPGRADED_INCREASE,
     create_defect_starter_deck,
     make_adaptive_strike,
     make_all_for_one,
@@ -21,6 +25,7 @@ from sts2_env.cards.defect import (
     make_focused_strike,
     make_ftl,
     make_fusion,
+    make_genetic_algorithm,
     make_glacier,
     make_glasswork,
     make_go_for_the_eyes,
@@ -377,6 +382,23 @@ def test_defragment_factory_upgrade_increases_focus_amount():
     assert combat.play_card(HAND_CARD_INDEX)
 
     assert combat.player.get_power_amount(PowerId.FOCUS) == DEFRAGMENT_UPGRADED_FOCUS
+
+
+def test_genetic_algorithm_factory_upgrade_grows_by_four():
+    combat = _make_combat()
+    card = make_genetic_algorithm(upgraded=True)
+    combat.hand = [card]
+    combat.energy = ONE_ENERGY
+
+    assert card.upgraded is True
+    assert card.base_block == GENETIC_ALGORITHM_BLOCK
+    assert card.effect_vars[GENETIC_ALGORITHM_BLOCK_KEY] == GENETIC_ALGORITHM_BLOCK
+    assert card.effect_vars[GENETIC_ALGORITHM_INCREASE_KEY] == GENETIC_ALGORITHM_UPGRADED_INCREASE
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.block == GENETIC_ALGORITHM_BLOCK
+    assert card.base_block == GENETIC_ALGORITHM_BLOCK + GENETIC_ALGORITHM_UPGRADED_INCREASE
+    assert card.effect_vars[GENETIC_ALGORITHM_BLOCK_KEY] == card.base_block
 
 
 def test_go_for_the_eyes_factory_upgrade_increases_damage_and_weak():
