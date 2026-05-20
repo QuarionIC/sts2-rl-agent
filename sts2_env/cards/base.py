@@ -138,6 +138,13 @@ def reference_has_turn_end_in_hand_effect(card_id: CardId) -> bool:
     return metadata.has_turn_end_in_hand_effect if metadata is not None else False
 
 
+def reference_gains_block(card_id: CardId) -> bool:
+    from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+
+    metadata = reference_metadata_by_card_id().get(card_id)
+    return metadata.gains_block if metadata is not None else False
+
+
 @dataclass
 class CardInstance:
     """A single card instance in combat."""
@@ -192,6 +199,12 @@ class CardInstance:
     @property
     def is_power(self) -> bool:
         return self.card_type == CardType.POWER
+
+    @property
+    def gains_block(self) -> bool:
+        if self.card_id == CardId.MAD_SCIENCE:
+            return self.card_type == CardType.SKILL
+        return reference_gains_block(self.card_id)
 
     @property
     def is_status(self) -> bool:

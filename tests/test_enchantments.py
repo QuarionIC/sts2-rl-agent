@@ -2,10 +2,11 @@
 
 from sts2_env.cards.defect import create_defect_starter_deck
 from sts2_env.cards.enchantments import can_enchant_card
+from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.ironclad_basic import make_defend_ironclad, make_strike_ironclad
 from sts2_env.core.combat import CombatState
-from sts2_env.core.enums import PowerId
+from sts2_env.core.enums import CardId, CardType, PowerId
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 from sts2_env.run.rest_site import CloneOption
@@ -364,6 +365,32 @@ def test_can_enchant_card_filters_candidates_like_decompiled_rules():
     assert can_enchant_card(defend, "Spiral")
     assert can_enchant_card(attack, "TezcatarasEmber")
     assert not can_enchant_card(defend, "TezcatarasEmber")
+
+
+def test_nimble_uses_reference_gains_block_not_base_block_presence():
+    alignment = create_card(CardId.ALIGNMENT)
+    entrench = create_card(CardId.ENTRENCH)
+
+    assert alignment.base_block == 0
+    assert not alignment.gains_block
+    assert not can_enchant_card(alignment, "Nimble")
+
+    assert entrench.base_block is None
+    assert entrench.gains_block
+    assert can_enchant_card(entrench, "Nimble")
+
+
+def test_mad_science_gains_block_only_when_tinker_time_makes_it_a_skill():
+    card = create_card(CardId.MAD_SCIENCE)
+
+    assert card.card_type == CardType.ATTACK
+    assert not card.gains_block
+    assert not can_enchant_card(card, "Nimble")
+
+    card.card_type = CardType.SKILL
+
+    assert card.gains_block
+    assert can_enchant_card(card, "Nimble")
 
 
 def test_favored_doubles_powered_attack_damage():

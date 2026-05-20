@@ -71,7 +71,7 @@ def can_enchant_card(card: CardInstance, name: str) -> bool:
             or "DEFEND" in card.card_id.name
         )
     if name == "Nimble":
-        return card.base_block is not None
+        return card.gains_block
     if name == "Goopy":
         return CardTag.DEFEND in card.tags or "DEFEND" in card.card_id.name
     if name == "SoulsPower":
