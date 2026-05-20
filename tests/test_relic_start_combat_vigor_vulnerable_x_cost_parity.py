@@ -61,7 +61,7 @@ def _make_defect_combat(
     return combat
 
 
-class TestRelicParityExtra:
+class TestRelicStartCombatVigorVulnerableXCostParity:
     def test_akabeko_applies_vigor_once_on_round_one(self):
         """Matches Akabeko.cs: round-1 start grants 8 Vigor exactly once."""
         combat = _make_ironclad_combat(["Akabeko"])

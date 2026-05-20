@@ -64,7 +64,7 @@ def _make_defect_combat(
     return combat
 
 
-class TestRelicParityExtra2:
+class TestRelicTurnStartEndRewardHooksParity:
     def test_bag_of_preparation_adds_only_round_one_hand_draw(self):
         """Matches BagOfPreparation.cs: +2 draw only on the first turn."""
         combat = _make_ironclad_combat(["BagOfPreparation"], seed=101)
