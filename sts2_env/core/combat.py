@@ -3284,15 +3284,17 @@ class CombatState:
         *,
         include_exhausted: bool,
     ) -> list[CardInstance]:
+        from sts2_env.cards.status import is_sovereign_blade
+
         return [
             card
             for card in self._all_cards_for_creature(creature, include_exhausted=include_exhausted)
-            if card.card_id == CardId.SOVEREIGN_BLADE
+            if is_sovereign_blade(card)
         ]
 
     def forge(self, owner: Creature, amount: int, source: object | None = None) -> None:
         """Regent forge mechanic mirroring ForgeCmd: ensure blade, buff all, then fire hooks."""
-        from sts2_env.cards.status import make_sovereign_blade
+        from sts2_env.cards.status import add_sovereign_blade_damage, make_sovereign_blade
         from sts2_env.core.hooks import fire_after_forge
 
         if self.is_over or amount <= 0 or not self._is_player_side_player(owner) or not owner.is_alive:
@@ -3307,8 +3309,7 @@ class CombatState:
 
         all_blades = self._sovereign_blades_for_creature(owner, include_exhausted=True)
         for blade in all_blades:
-            blade.base_damage = (blade.base_damage or 10) + amount
-            blade.after_forged()
+            add_sovereign_blade_damage(blade, amount)
         fire_after_forge(self, amount, owner, source)
 
     def stun_enemy(

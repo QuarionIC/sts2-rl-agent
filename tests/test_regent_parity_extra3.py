@@ -214,6 +214,18 @@ class TestRegentParityExtra3:
         assert blade.cost == 1
         assert blade.base_damage == 17
 
+    def test_forge_ignores_sovereign_blade_dupes(self):
+        """Matches ForgeCmd.cs: GetSovereignBlades excludes IsDupe cards."""
+        combat = _make_combat()
+        blade = create_card(CardId.SOVEREIGN_BLADE)
+        dupe = blade.create_dupe(123456)
+        combat.hand = [blade, dupe]
+
+        combat.forge(combat.player, 7)
+
+        assert blade.base_damage == 17
+        assert dupe.base_damage == 10
+
     def test_tyranny_upgrade_adds_innate_and_power_increases_turn_draw(self):
         """Matches Tyranny.cs + TyrannyPower.cs: upgraded Innate and +draw from power."""
         upgraded = create_card(CardId.TYRANNY_CARD, upgraded=True)

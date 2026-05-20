@@ -39,6 +39,7 @@ BURN_DAMAGE = 2
 DECAY_DAMAGE = 2
 BRIGHTEST_FLAME_MAX_HP = 1
 GUILTY_MAX_COMBATS = 5
+SOVEREIGN_BLADE_BASE_DAMAGE = 10
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -1220,12 +1221,21 @@ def sovereign_blade_target_type(card: CardInstance, owner: Creature, target_type
     return target_type
 
 
+def is_sovereign_blade(card: CardInstance) -> bool:
+    return card.card_id == CardId.SOVEREIGN_BLADE and not bool(card.combat_vars.get("_is_dupe"))
+
+
+def add_sovereign_blade_damage(card: CardInstance, amount: int) -> None:
+    card.base_damage = (card.base_damage or SOVEREIGN_BLADE_BASE_DAMAGE) + amount
+    card.after_forged()
+
+
 def make_sovereign_blade(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SOVEREIGN_BLADE, cost=1 if upgraded else 2,
         card_type=CardType.ATTACK, target_type=TargetType.ANY_ENEMY,
         rarity=CardRarity.STATUS, upgraded=upgraded,
-        base_damage=10, keywords=frozenset({"retain"}),
+        base_damage=SOVEREIGN_BLADE_BASE_DAMAGE, keywords=frozenset({"retain"}),
         effect_vars={"calc_base": 0, "calc_extra": 1, "repeat": 1},
         instance_id=_get_next_id(),
     )
