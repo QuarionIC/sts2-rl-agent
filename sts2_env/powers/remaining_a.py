@@ -9,11 +9,13 @@ from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from sts2_env.core.enums import (
+    CardPilePosition,
     CardId,
     CardKeyword,
     CardTag,
     CardType,
     CombatSide,
+    PileType,
     PowerId,
     PowerType,
     PowerStackType,
@@ -1440,17 +1442,34 @@ class FeralPower(PowerInstance):
                 energy_value=self.FREE_ATTACK_ENERGY_VALUE,
             )
 
-    def should_return_to_hand(self, owner: Creature, card: object, energy_spent: int) -> bool:
-        """Return True if this 0-cost attack should return to hand."""
+    def modify_card_play_result_pile_type_and_position(
+        self,
+        owner: Creature,
+        card: object,
+        is_auto_play: bool,
+        energy_value: int,
+        pile_type: PileType,
+        position: CardPilePosition,
+    ) -> tuple[PileType, CardPilePosition]:
         card_type = getattr(card, "card_type", None) or getattr(card, "type", None)
+        if getattr(card, "owner", None) is not owner:
+            return pile_type, position
         if card_type != CardType.ATTACK:
-            return False
-        if energy_spent != self.FREE_ATTACK_ENERGY_VALUE:
-            return False
+            return pile_type, position
+        if energy_value != self.FREE_ATTACK_ENERGY_VALUE:
+            return pile_type, position
         if self._zero_cost_attacks_played >= self.amount:
-            return False
+            return pile_type, position
+        return PileType.HAND, CardPilePosition.TOP
+
+    def after_modifying_card_play_result_pile_or_position(
+        self,
+        card: object,
+        pile_type: PileType,
+        position: CardPilePosition,
+        combat: CombatState,
+    ) -> None:
         self._zero_cost_attacks_played += 1
-        return True
 
     def before_side_turn_start(self, owner: Creature, side: CombatSide,
                                combat: CombatState) -> None:

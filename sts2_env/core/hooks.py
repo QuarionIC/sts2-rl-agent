@@ -20,7 +20,7 @@ from sts2_env.cards.enchantments import (
     enchant_damage_additive,
     enchant_damage_multiplicative,
 )
-from sts2_env.core.enums import CombatSide, PowerId, ValueProp
+from sts2_env.core.enums import CardPilePosition, CombatSide, PileType, PowerId, ValueProp
 
 if TYPE_CHECKING:
     from sts2_env.core.creature import Creature
@@ -570,6 +570,38 @@ def should_play(card: object, combat: CombatState) -> bool:
         if result is False:
             return False
     return True
+
+
+def modify_card_play_result_pile_type_and_position(
+    card: object,
+    combat: CombatState,
+    is_auto_play: bool,
+    energy_value: int,
+    pile_type: PileType,
+    position: CardPilePosition,
+) -> tuple[PileType, CardPilePosition]:
+    modifiers: list[object] = []
+    for owner, power in _iter_power_listeners(combat):
+        modify_result = getattr(power, "modify_card_play_result_pile_type_and_position", None)
+        if not callable(modify_result):
+            continue
+        previous = (pile_type, position)
+        pile_type, position = modify_result(owner, card, is_auto_play, energy_value, pile_type, position)
+        if (pile_type, position) != previous:
+            modifiers.append(power)
+    for owner, relic in _iter_relic_listeners(combat):
+        modify_result = getattr(relic, "modify_card_play_result_pile_type_and_position", None)
+        if not callable(modify_result):
+            continue
+        previous = (pile_type, position)
+        pile_type, position = modify_result(owner, card, is_auto_play, energy_value, pile_type, position)
+        if (pile_type, position) != previous:
+            modifiers.append(relic)
+    for modifier in modifiers:
+        after_modify = getattr(modifier, "after_modifying_card_play_result_pile_or_position", None)
+        if callable(after_modify):
+            after_modify(card, pile_type, position, combat)
+    return pile_type, position
 
 
 def should_draw(combat: CombatState, drawing_owner: Creature, from_hand_draw: bool) -> bool:

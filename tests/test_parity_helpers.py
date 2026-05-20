@@ -6,6 +6,7 @@ import sts2_env.potions  # noqa: F401
 from sts2_env.cards.base import CardInstance
 from sts2_env.cards.defect import create_defect_starter_deck
 from sts2_env.cards.defect import (
+    make_beam_cell,
     make_charge_battery,
     make_compact,
     make_hologram,
@@ -36,6 +37,7 @@ from sts2_env.cards.ironclad import (
     make_demonic_shield,
     make_dismantle,
     make_feed,
+    make_havoc,
     make_headbutt,
     make_juggling,
     make_primal_force,
@@ -400,6 +402,39 @@ class TestAutoPlayFromDraw:
 
         assert enemy.current_hp == 94
         assert strike in combat.discard_pile
+
+    def test_auto_played_costly_attack_does_not_trigger_feral(self):
+        combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
+        combat.start_combat()
+        enemy = combat.enemies[0]
+        enemy.current_hp = enemy.max_hp = 100
+        strike = make_strike_ironclad()
+        combat.apply_power_to(combat.player, PowerId.FERAL, 1)
+        combat.draw_pile = [strike]
+        combat.discard_pile.clear()
+        combat.energy = 0
+
+        combat.auto_play_from_draw(combat.player, 1)
+
+        assert enemy.current_hp == 94
+        assert strike in combat.discard_pile
+        assert strike not in combat.hand
+
+    def test_feral_can_override_force_exhaust_auto_play_result(self):
+        combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
+        combat.start_combat()
+        beam_cell = make_beam_cell()
+        combat.apply_power_to(combat.player, PowerId.FERAL, 1)
+        combat.hand = [make_havoc(upgraded=True)]
+        combat.draw_pile = [beam_cell]
+        combat.discard_pile.clear()
+        combat.exhaust_pile.clear()
+        combat.energy = 0
+
+        assert combat.play_card(0, 0)
+
+        assert beam_cell in combat.hand
+        assert beam_cell not in combat.exhaust_pile
 
 
 class TestOstySummon:

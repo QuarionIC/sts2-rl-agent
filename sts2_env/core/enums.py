@@ -45,10 +45,20 @@ class CardRarity(Enum):
 
 
 class PileType(Enum):
+    NONE = auto()
     DRAW = auto()
     HAND = auto()
     DISCARD = auto()
     EXHAUST = auto()
+    PLAY = auto()
+    DECK = auto()
+
+
+class CardPilePosition(Enum):
+    NONE = auto()
+    BOTTOM = auto()
+    TOP = auto()
+    RANDOM = auto()
 
 
 class ValueProp(IntFlag):

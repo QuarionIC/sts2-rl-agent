@@ -13,9 +13,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sts2_env.core.enums import (
+    CardPilePosition,
     CardTag,
     CardType,
     CombatSide,
+    PileType,
     PowerId,
     PowerType,
     PowerStackType,
@@ -66,9 +68,20 @@ class CorruptionPower(PowerInstance):
             return 0
         return None
 
-    def should_exhaust_card(self, owner: Creature, card: object) -> bool:
-        """Return True if the card should be exhausted (skills)."""
-        return getattr(card, "owner", None) is owner and getattr(card, "card_type", None) == CardType.SKILL
+    def modify_card_play_result_pile_type_and_position(
+        self,
+        owner: Creature,
+        card: object,
+        is_auto_play: bool,
+        energy_value: int,
+        pile_type: PileType,
+        position: CardPilePosition,
+    ) -> tuple[PileType, CardPilePosition]:
+        if getattr(card, "owner", None) is not owner:
+            return pile_type, position
+        if getattr(card, "card_type", None) != CardType.SKILL:
+            return pile_type, position
+        return PileType.EXHAUST, position
 
 
 # ---------------------------------------------------------------------------

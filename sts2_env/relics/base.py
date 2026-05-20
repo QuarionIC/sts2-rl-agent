@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
-from sts2_env.core.enums import RelicRarity, ValueProp, CombatSide, CardType, PowerId
+from sts2_env.core.enums import CardPilePosition, PileType, RelicRarity, ValueProp, CombatSide, CardType, PowerId
 
 if TYPE_CHECKING:
     from sts2_env.cards.base import CardInstance
@@ -606,6 +606,26 @@ class RelicInstance:
         pass
 
     def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
+        pass
+
+    def modify_card_play_result_pile_type_and_position(
+        self,
+        owner: Creature,
+        card: object,
+        is_auto_play: bool,
+        energy_value: int,
+        pile_type: PileType,
+        position: CardPilePosition,
+    ) -> tuple[PileType, CardPilePosition]:
+        return pile_type, position
+
+    def after_modifying_card_play_result_pile_or_position(
+        self,
+        card: object,
+        pile_type: PileType,
+        position: CardPilePosition,
+        combat: CombatState,
+    ) -> None:
         pass
 
     def after_card_exhausted(self, owner: Creature, card: object, combat: CombatState) -> None:

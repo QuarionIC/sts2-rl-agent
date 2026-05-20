@@ -46,10 +46,12 @@ from sts2_env.core.combat_player import CombatPlayerState
 from sts2_env.core.constants import BASE_DRAW, BASE_ENERGY, MAX_HAND_SIZE
 from sts2_env.core.creature import Creature
 from sts2_env.core.enums import (
+    CardPilePosition,
     CardId,
     CardTag,
     CardType,
     CombatSide,
+    PileType,
     PotionTargetType,
     PowerId,
     TargetType,
@@ -87,6 +89,12 @@ class CardPlayFinishedEntry:
     card: CardInstance
     was_ethereal: bool
     round_number: int
+
+
+@dataclass(frozen=True)
+class CardPlayResult:
+    pile_type: PileType
+    position: CardPilePosition
 
 
 class CombatState:
@@ -1274,34 +1282,70 @@ class CombatState:
                 cost = max(0, int(modified))
         return cost
 
-    def should_exhaust_played_card(self, owner: Creature, card: CardInstance) -> bool:
-        for power in owner.powers.values():
-            should_exhaust = getattr(power, "should_exhaust_card", None)
-            if callable(should_exhaust) and should_exhaust(owner, card):
-                return True
-        return False
+    def _default_card_play_result(
+        self,
+        owner: Creature,
+        card: CardInstance,
+        *,
+        force_exhaust: bool,
+    ) -> CardPlayResult:
+        if card.combat_vars.get("_is_dupe") or card.card_type == CardType.POWER:
+            return CardPlayResult(PileType.NONE, CardPilePosition.NONE)
+        if force_exhaust or card.exhausts:
+            return CardPlayResult(PileType.EXHAUST, CardPilePosition.BOTTOM)
+        return CardPlayResult(PileType.DISCARD, CardPilePosition.BOTTOM)
 
-    def should_return_played_card_to_hand(self, owner: Creature, card: CardInstance) -> bool:
-        energy_spent = getattr(card, "energy_spent", 0)
-        for power in owner.powers.values():
-            should_return = getattr(power, "should_return_to_hand", None)
-            if callable(should_return) and should_return(owner, card, energy_spent):
-                return True
-        return False
+    def _modified_card_play_result(
+        self,
+        owner: Creature,
+        card: CardInstance,
+        *,
+        force_exhaust: bool,
+        is_auto_play: bool,
+        energy_value: int,
+    ) -> CardPlayResult:
+        from sts2_env.core.hooks import modify_card_play_result_pile_type_and_position
 
-    def should_move_played_card_to_draw_top(self, owner: Creature, card: CardInstance) -> bool:
-        for power in list(owner.powers.values()):
-            should_rebound = getattr(power, "should_rebound_card", None)
-            if callable(should_rebound) and should_rebound(owner, card):
-                after_rebound = getattr(power, "after_rebound_card", None)
-                if callable(after_rebound):
-                    after_rebound(owner, card, self)
-                return True
-        for power in list(owner.powers.values()):
-            should_redirect = getattr(power, "should_redirect_to_draw_pile", None)
-            if callable(should_redirect) and should_redirect(owner, card, self):
-                return True
-        return False
+        result = self._default_card_play_result(owner, card, force_exhaust=force_exhaust)
+        pile_type, position = modify_card_play_result_pile_type_and_position(
+            card,
+            self,
+            is_auto_play,
+            energy_value,
+            result.pile_type,
+            result.position,
+        )
+        return CardPlayResult(pile_type, position)
+
+    def _move_card_to_play_result(
+        self,
+        owner: Creature,
+        card: CardInstance,
+        result: CardPlayResult,
+    ) -> None:
+        owner_state = self.combat_player_state_for(owner) or self.current_player_state
+        if result.pile_type == PileType.NONE:
+            return
+        if result.pile_type == PileType.EXHAUST:
+            owner_state.exhaust.append(card)
+            from sts2_env.core.hooks import fire_after_card_exhausted
+
+            fire_after_card_exhausted(card, self)
+            return
+        if result.pile_type == PileType.HAND:
+            target_pile = owner_state.hand
+        elif result.pile_type == PileType.DRAW:
+            target_pile = owner_state.draw
+        elif result.pile_type == PileType.DISCARD:
+            target_pile = owner_state.discard
+        else:
+            return
+        if result.position == CardPilePosition.TOP:
+            target_pile.insert(0, card)
+        elif result.position == CardPilePosition.RANDOM:
+            target_pile.insert(self.shuffle_rng.next_int(0, len(target_pile)), card)
+        else:
+            target_pile.append(card)
 
     def play_card(self, hand_index: int, target_index: int | None = None) -> bool:
         return self.play_card_from_creature(self.primary_player, hand_index, target_index)
@@ -1397,6 +1441,10 @@ class CombatState:
             fire_after_modifying_card_play_count(card, self)
         finally:
             self._active_card_target = previous_card_target
+        energy_value = energy_spent
+        if not spend_energy:
+            energy_value = owner_state.energy if card.has_energy_cost_x else self.modified_card_cost(owner, card)
+
         self._pending_play = {
             "card": card,
             "target": target,
@@ -1404,6 +1452,7 @@ class CombatState:
             "remaining_plays": play_count,
             "play_count": play_count,
             "energy_spent": energy_spent,
+            "energy_value": energy_value,
             "force_exhaust": force_exhaust,
             "is_auto_play": not spend_energy if is_auto_play is None else is_auto_play,
             "awaiting_after_hook": False,
@@ -1411,7 +1460,7 @@ class CombatState:
         self._resume_pending_play()
 
     def _resume_pending_play(self) -> None:
-        from sts2_env.core.hooks import fire_after_card_exhausted, fire_after_card_played, fire_before_card_played
+        from sts2_env.core.hooks import fire_after_card_played, fire_before_card_played
 
         while self._pending_play is not None:
             ctx = self._pending_play
@@ -1444,23 +1493,14 @@ class CombatState:
                     self._pending_play = None
                     return
 
-                if card.combat_vars.get("_is_dupe"):
-                    self._pending_play = None
-                    if self._end_turn_after_play and self.current_side == CombatSide.PLAYER and not self.is_over:
-                        self._end_turn_after_play = False
-                        self.end_player_turn()
-                    return
-
-                if card.card_type != CardType.POWER:
-                    if ctx["force_exhaust"] or card.exhausts or self.should_exhaust_played_card(owner, card):
-                        owner_state.exhaust.append(card)
-                        fire_after_card_exhausted(card, self)
-                    elif self.should_return_played_card_to_hand(owner, card):
-                        owner_state.hand.append(card)
-                    elif self.should_move_played_card_to_draw_top(owner, card):
-                        owner_state.draw.insert(0, card)
-                    else:
-                        owner_state.discard.append(card)
+                result = self._modified_card_play_result(
+                    owner,
+                    card,
+                    force_exhaust=ctx["force_exhaust"],
+                    is_auto_play=ctx["is_auto_play"],
+                    energy_value=ctx["energy_value"],
+                )
+                self._move_card_to_play_result(owner, card, result)
                 self._pending_play = None
                 if self._end_turn_after_play and self.current_side == CombatSide.PLAYER and not self.is_over:
                     self._end_turn_after_play = False
@@ -1472,7 +1512,7 @@ class CombatState:
                 fire_before_card_played(card, self)
             is_first_in_series = ctx["remaining_plays"] == ctx["play_count"]
             self._card_play_starts_this_turn.append(
-                CardPlayStartedEntry(card, is_first_in_series, ctx["energy_spent"])
+                CardPlayStartedEntry(card, is_first_in_series, ctx["energy_value"])
             )
             ctx["remaining_plays"] -= 1
             previous_card_source = self._active_card_source

@@ -21,10 +21,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sts2_env.core.enums import (
+    CardPilePosition,
     CardId,
     CardKeyword,
     CardType,
     CombatSide,
+    PileType,
     PowerId,
     PowerType,
     PowerStackType,
@@ -1202,12 +1204,25 @@ class NostalgiaPower(PowerInstance):
     def __init__(self, amount: int):
         super().__init__(PowerId.NOSTALGIA, amount)
 
-    def should_redirect_to_draw_pile(self, owner: Creature, card: object, combat: CombatState) -> bool:
+    def modify_card_play_result_pile_type_and_position(
+        self,
+        owner: Creature,
+        card: object,
+        is_auto_play: bool,
+        energy_value: int,
+        pile_type: PileType,
+        position: CardPilePosition,
+    ) -> tuple[PileType, CardPilePosition]:
         if getattr(card, "owner", None) is not owner:
-            return False
+            return pile_type, position
         card_type = getattr(card, "card_type", None)
         if card_type not in (CardType.ATTACK, CardType.SKILL):
-            return False
+            return pile_type, position
+        if pile_type != PileType.DISCARD:
+            return pile_type, position
+        combat = getattr(owner, "combat_state", None)
+        if combat is None:
+            return pile_type, position
         qualifying_starts = combat.count_card_play_starts_this_turn(
             owner,
             card_type=CardType.ATTACK,
@@ -1217,7 +1232,9 @@ class NostalgiaPower(PowerInstance):
             card_type=CardType.SKILL,
             exclude_card=card,
         )
-        return qualifying_starts < self.amount
+        if qualifying_starts >= self.amount:
+            return pile_type, position
+        return PileType.DRAW, CardPilePosition.TOP
 
 
 # ---------------------------------------------------------------------------

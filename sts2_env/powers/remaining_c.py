@@ -24,10 +24,12 @@ from typing import TYPE_CHECKING
 
 from sts2_env.core.creature import _power_type_for_amount, get_power_class
 from sts2_env.core.enums import (
+    CardPilePosition,
     CardId,
     CardKeyword,
     CardType,
     CombatSide,
+    PileType,
     PowerId,
     PowerType,
     PowerStackType,
@@ -159,19 +161,34 @@ class ReboundPower(PowerInstance):
     def __init__(self, amount: int):
         super().__init__(PowerId.REBOUND, amount)
 
-    def should_rebound_card(self, owner: Creature, card: object) -> bool:
-        """Called by card-play pipeline. Returns True if card should go to draw top."""
-        card_owner = getattr(card, "owner", None)
-        if card_owner is not owner:
-            return False
-        return self.amount > 0
+    def modify_card_play_result_pile_type_and_position(
+        self,
+        owner: Creature,
+        card: object,
+        is_auto_play: bool,
+        energy_value: int,
+        pile_type: PileType,
+        position: CardPilePosition,
+    ) -> tuple[PileType, CardPilePosition]:
+        if getattr(card, "owner", None) is not owner:
+            return pile_type, position
+        if pile_type != PileType.DISCARD:
+            return pile_type, position
+        return PileType.DRAW, CardPilePosition.TOP
 
-    def after_rebound_card(self, owner: Creature, card: object, combat: CombatState) -> None:
-        card_owner = getattr(card, "owner", None)
-        if card_owner is owner:
-            self.amount -= 1
-            if self.amount <= 0:
-                combat._remove_power(owner, self.power_id)
+    def after_modifying_card_play_result_pile_or_position(
+        self,
+        card: object,
+        pile_type: PileType,
+        position: CardPilePosition,
+        combat: CombatState,
+    ) -> None:
+        owner = getattr(card, "owner", None)
+        if owner is None:
+            return
+        self.amount -= 1
+        if self.amount <= 0:
+            combat._remove_power(owner, self.power_id)
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side == owner.side:
