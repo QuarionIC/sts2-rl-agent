@@ -285,3 +285,4 @@ def test_reflections_shatter_duplicates_deck_and_adds_bad_luck():
     assert sum(1 for card in run_state.player.deck if card.card_id == CardId.BASH) == 2
     assert sum(1 for card in run_state.player.deck if card.card_id == CardId.ANGER) == 2
     assert any(card.card_id == make_bad_luck().card_id for card in run_state.player.deck)
+    assert len({card.instance_id for card in run_state.player.deck}) == len(run_state.player.deck)

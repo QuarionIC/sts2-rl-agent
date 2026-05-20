@@ -217,6 +217,7 @@ class TestPlayerState:
         rs.player.add_card_instance_to_deck(create_card(CardId.INJURY))
 
         assert len(rs.player.deck) == starting_deck + 2
+        assert len({card.instance_id for card in rs.player.deck}) == len(rs.player.deck)
         assert rs.player.max_hp == starting_max_hp + 12
 
 

@@ -824,6 +824,7 @@ def test_event_reflections_shatter_auto_applies_bulk_add_cards_reward_and_return
     assert sum(1 for card in mgr.run_state.player.deck if card.card_id == CardId.BASH) == 2
     assert sum(1 for card in mgr.run_state.player.deck if card.card_id == CardId.ANGER) == 2
     assert any(card.card_id.name == "BAD_LUCK" for card in mgr.run_state.player.deck)
+    assert len({card.instance_id for card in mgr.run_state.player.deck}) == len(mgr.run_state.player.deck)
 
 
 def test_event_random_relic_helper_in_act2_event_surfaces_reward_screen():

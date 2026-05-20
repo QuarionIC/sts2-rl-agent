@@ -352,6 +352,7 @@ class TestRelicParityEventExtra11:
         combat._end_combat(player_won=True)
 
         assert len(run_state.player.deck) == starting_deck - 4
+        assert len({card.instance_id for card in run_state.player.deck}) == len(run_state.player.deck)
         assert any(card.upgraded for card in run_state.player.deck)
 
     def test_paels_tooth_uses_deck_choice_for_cards_to_store(self):

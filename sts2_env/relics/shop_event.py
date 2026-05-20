@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sts2_env.cards.base import new_card_instance_id
+from sts2_env.cards.base import new_card_instance_id, new_card_instance_id_after
 from sts2_env.cards.enchantments import can_enchant_card
 from sts2_env.characters.all import ALL_CHARACTERS
 from sts2_env.core.card_pools import CardPoolId
@@ -1005,7 +1005,7 @@ class BingBong(RelicInstance):
         source: object | None = None,
     ) -> None:
         if source is None:
-            owner.add_card_instance_to_deck(card.clone(20_000_000 + len(owner.deck)), source=self)
+            owner.add_card_instance_to_deck(owner.clone_card_for_deck(card), source=self)
 
 
 @register_relic
@@ -2632,7 +2632,10 @@ class PaelsTooth(RelicInstance):
 
     def _store_and_remove_cards(self, owner: Creature, cards: list[CardInstance]) -> int:
         selected = sorted(cards[:self.CARDS], key=lambda card: card.card_id.name)
-        self._stored_cards = [card.clone(40_000_000 + index) for index, card in enumerate(selected)]
+        stored_cards: list[CardInstance] = []
+        for card in selected:
+            stored_cards.append(card.clone(new_card_instance_id_after([*owner.deck, *stored_cards])))
+        self._stored_cards = stored_cards
         selected_ids = {id(card) for card in selected}
         owner.deck = [card for card in owner.deck if id(card) not in selected_ids]
         return len(selected)

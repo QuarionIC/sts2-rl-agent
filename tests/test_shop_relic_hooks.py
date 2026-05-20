@@ -177,6 +177,7 @@ def test_hoarder_modifier_duplicates_new_deck_cards_only_once():
         CardId.STRIKE_IRONCLAD,
         CardId.STRIKE_IRONCLAD,
     ]
+    assert len({card.instance_id for card in run_state.player.deck}) == len(run_state.player.deck)
 
     run_state.player.add_card_instance_to_deck(create_card(CardId.DEFEND_IRONCLAD), source=hoarder)
 

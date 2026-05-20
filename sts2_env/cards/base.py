@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from functools import lru_cache
 
@@ -522,6 +523,15 @@ def _get_next_id() -> int:
 
 
 def new_card_instance_id() -> int:
+    return _get_next_id()
+
+
+def new_card_instance_id_after(cards: Iterable[object]) -> int:
+    global _next_instance_id
+    for card in cards:
+        instance_id = getattr(card, "instance_id", 0)
+        if isinstance(instance_id, int):
+            _next_instance_id = max(_next_instance_id, instance_id)
     return _get_next_id()
 
 

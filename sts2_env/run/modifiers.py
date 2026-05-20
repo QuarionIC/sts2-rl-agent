@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sts2_env.cards.base import new_card_instance_id_after
 from sts2_env.cards.factory import card_metadata, eligible_character_cards, eligible_registered_cards
 from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import CardRarity, CombatSide, MapPointType, PowerId, RoomType
@@ -206,7 +207,7 @@ class HoarderModifier(ModifierModel):
         if source is not None:
             return
         for _ in range(2):
-            player.add_card_instance_to_deck(card.clone(40_000_000 + len(player.deck)), source=self)
+            player.add_card_instance_to_deck(player.clone_card_for_deck(card), source=self)
 
     def should_allow_merchant_card_removal(self, player) -> bool:
         return False
@@ -430,8 +431,11 @@ class SpecializedModifier(ModifierModel):
         )
         if cards:
             card = cards[0]
-            for idx in range(5):
-                run_state.player.add_card_instance_to_deck(card.clone(30_000_000 + idx))
+            clones = []
+            for _ in range(5):
+                clone = card.clone(new_card_instance_id_after([*run_state.player.deck, *clones]))
+                clones.append(clone)
+                run_state.player.add_card_instance_to_deck(clone)
         return EventResult(finished=True, description="Added 5 copies of one random card.")
 
 

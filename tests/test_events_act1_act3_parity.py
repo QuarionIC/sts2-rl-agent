@@ -449,6 +449,7 @@ def test_neow_specialized_modifier_adds_five_copies_of_same_card():
     assert len(run_state.player.deck) == 15
     added_ids = {card.card_id for card in run_state.player.deck[-5:]}
     assert len(added_ids) == 1
+    assert len({card.instance_id for card in run_state.player.deck}) == len(run_state.player.deck)
 
 
 def test_neow_modifier_pending_choice_resumes_to_next_modifier_in_run_manager():

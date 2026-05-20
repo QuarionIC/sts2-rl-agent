@@ -30,6 +30,7 @@ from sts2_env.relics.base import RelicRarity
 from sts2_env.cards.base import (
     CardInstance,
     capture_self_mutating_card_progress,
+    new_card_instance_id_after,
     restore_self_mutating_card_progress,
 )
 from sts2_env.run.odds import UnknownMapPointOdds, CardRarityOdds, PotionRewardOdds
@@ -459,6 +460,9 @@ class PlayerState:
         self.add_card_instance_to_deck(card)
         return True
 
+    def clone_card_for_deck(self, card: CardInstance) -> CardInstance:
+        return card.clone(new_card_instance_id_after(self.deck))
+
     def add_random_card_to_deck(self, rarity: str, upgraded: bool = False) -> bool:
         card_rarity = CardRarity[rarity.upper()]
         candidates = eligible_character_cards(
@@ -524,24 +528,24 @@ class PlayerState:
             min_count=1,
             max_count=1,
         ):
-            self.add_card_instance_to_deck(candidates[0].clone(20_000_000 + len(self.deck)))
+            self.add_card_instance_to_deck(self.clone_card_for_deck(candidates[0]))
             return True
         if candidates and self.request_deck_choice(
             prompt="Choose a card to duplicate",
             cards=candidates,
-            resolver=lambda selected: selected and self.add_card_instance_to_deck(selected[0].clone(20_000_000 + len(self.deck))),
+            resolver=lambda selected: selected and self.add_card_instance_to_deck(self.clone_card_for_deck(selected[0])),
             allow_skip=False,
         ):
             return True
         if not candidates:
             return False
-        self.add_card_instance_to_deck(candidates[0].clone(20_000_000 + len(self.deck)))
+        self.add_card_instance_to_deck(self.clone_card_for_deck(candidates[0]))
         return True
 
     def duplicate_last_added_card(self, source: object | None = None) -> bool:
         if not self.deck:
             return False
-        self.add_card_instance_to_deck(self.deck[-1].clone(20_000_000 + len(self.deck)), source=source)
+        self.add_card_instance_to_deck(self.clone_card_for_deck(self.deck[-1]), source=source)
         return True
 
     def upgrade_selected_cards(
@@ -586,7 +590,7 @@ class PlayerState:
         clones = []
         for card in self.deck:
             if card.has_enchantment(enchantment):
-                clones.append(card.clone(10_000_000 + len(clones)))
+                clones.append(card.clone(new_card_instance_id_after([*self.deck, *clones])))
         self.deck.extend(clones)
         return len(clones)
 

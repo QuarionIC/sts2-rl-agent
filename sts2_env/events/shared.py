@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from sts2_env.cards.base import (
     capture_self_mutating_card_progress,
+    new_card_instance_id_after,
     restore_self_mutating_card_progress,
 )
 from sts2_env.cards.enchantments import can_enchant_card
@@ -1509,17 +1510,16 @@ class Reflections(EventModel):
 
         original_deck = list(run_state.player.deck)
         if _should_defer_event_rewards(run_state):
-            clones = [
-                card.clone(20_000_000 + len(original_deck) + index)
-                for index, card in enumerate(original_deck)
-            ]
+            clones = []
+            for card in original_deck:
+                clones.append(card.clone(new_card_instance_id_after([*original_deck, *clones])))
             clones.append(make_bad_luck())
             return _event_result_with_rewards(
                 "Duplicated deck, gained Bad Luck curse.",
                 [AddCardsReward(run_state.player.player_id, clones)],
             )
         for card in original_deck:
-            run_state.player.add_card_instance_to_deck(card.clone(20_000_000 + len(run_state.player.deck)))
+            run_state.player.add_card_instance_to_deck(run_state.player.clone_card_for_deck(card))
         run_state.player.add_card_instance_to_deck(make_bad_luck())
         return EventResult(finished=True,
                            description="Duplicated deck, gained Bad Luck curse.")

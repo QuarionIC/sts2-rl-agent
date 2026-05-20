@@ -697,7 +697,7 @@ class RunManager:
             if getattr(entry, "price", 0) >= 999999:
                 continue
             if entry.card is not None:
-                player.add_card_instance_to_deck(entry.card.clone(30_000_000 + len(player.deck)))
+                player.add_card_instance_to_deck(player.clone_card_for_deck(entry.card))
             elif entry.card_id:
                 player.add_card_to_deck(entry.card_id)
             self._handle_post_shop_purchase("card", entry, gold_spent=0)
@@ -1489,7 +1489,7 @@ class RunManager:
                 if player.gold >= entry.price:
                     gold_spent = player.lose_gold(entry.price)
                     if entry.card is not None:
-                        player.add_card_instance_to_deck(entry.card.clone(30_000_000 + len(player.deck)))
+                        player.add_card_instance_to_deck(player.clone_card_for_deck(entry.card))
                     elif entry.card_id:
                         player.add_card_to_deck(entry.card_id)
                     self._handle_post_shop_purchase("card", entry, gold_spent=gold_spent)
