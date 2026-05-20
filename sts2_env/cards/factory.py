@@ -151,6 +151,7 @@ class CardMetadata:
     keywords: frozenset[str]
     can_be_generated_in_combat: bool
     can_be_generated_by_modifiers: bool
+    has_turn_end_in_hand_effect: bool
     multiplayer_constraint: str
 
 
@@ -168,11 +169,12 @@ class ReferenceCardDefinition:
     upgrade_text: str
 
 
-def _apply_generation_metadata(card: CardInstance) -> CardInstance:
+def _apply_decompiled_static_metadata(card: CardInstance) -> CardInstance:
     static_metadata = _static_metadata_override(card.card_id)
     if static_metadata is not None:
         card.can_be_generated_in_combat = static_metadata.can_be_generated_in_combat
         card.can_be_generated_by_modifiers = static_metadata.can_be_generated_by_modifiers
+        card.has_turn_end_in_hand_effect = static_metadata.has_turn_end_in_hand_effect
         return card
     card.can_be_generated_in_combat = card.card_id not in _COMBAT_GENERATION_EXCLUDED
     card.can_be_generated_by_modifiers = card.card_id not in _MODIFIER_GENERATION_EXCLUDED
@@ -361,10 +363,13 @@ def _build_reference_card(
         has_energy_cost_x=has_energy_cost_x,
         star_cost=star_cost,
         has_star_cost_x=static_metadata.has_star_cost_x if static_metadata is not None else False,
+        has_turn_end_in_hand_effect=(
+            static_metadata.has_turn_end_in_hand_effect if static_metadata is not None else False
+        ),
     )
     if upgraded and can_upgrade:
         _apply_upgrade_text(card, effect_vars, definition.upgrade_text)
-    card = _apply_generation_metadata(card)
+    card = _apply_decompiled_static_metadata(card)
     if not allow_generation:
         card.can_be_generated_in_combat = False
         card.can_be_generated_by_modifiers = False
@@ -407,7 +412,7 @@ def _probe_factory(factory: CardFactory) -> CardInstance:
     """Call a card factory without consuming the global instance counter."""
     saved_counter = card_base._next_instance_id
     try:
-        return _apply_generation_metadata(factory())
+        return _apply_decompiled_static_metadata(factory())
     finally:
         card_base._next_instance_id = saved_counter
 
@@ -449,7 +454,7 @@ def create_card(card_id: CardId, upgraded: bool = False) -> CardInstance:
     factory, supports_upgraded, _ = entry
 
     if supports_upgraded:
-        return _apply_generation_metadata(factory(upgraded=upgraded))
+        return _apply_decompiled_static_metadata(factory(upgraded=upgraded))
     card = factory()
     if upgraded:
         definition = _reference_definition(card_id)
@@ -460,7 +465,7 @@ def create_card(card_id: CardId, upgraded: bool = False) -> CardInstance:
         }:
             card.upgraded = True
             _apply_upgrade_text(card, card.effect_vars, definition.upgrade_text)
-    return _apply_generation_metadata(card)
+    return _apply_decompiled_static_metadata(card)
 
 
 @lru_cache(maxsize=None)
@@ -477,6 +482,7 @@ def card_metadata(card_id: CardId) -> CardMetadata:
         keywords=card.keywords,
         can_be_generated_in_combat=card.can_be_generated_in_combat,
         can_be_generated_by_modifiers=card.can_be_generated_by_modifiers,
+        has_turn_end_in_hand_effect=card.has_turn_end_in_hand_effect,
         multiplayer_constraint=(
             _static_metadata_override(card_id).multiplayer_constraint
             if _static_metadata_override(card_id) is not None

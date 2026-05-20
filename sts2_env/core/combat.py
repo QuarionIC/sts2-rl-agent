@@ -2714,6 +2714,7 @@ class CombatState:
         card.tags = upgraded.tags
         card.can_be_generated_in_combat = upgraded.can_be_generated_in_combat
         card.can_be_generated_by_modifiers = upgraded.can_be_generated_by_modifiers
+        card.has_turn_end_in_hand_effect = upgraded.has_turn_end_in_hand_effect
         card.enchantments = dict(card.enchantments)
         card.effect_vars = dict(upgraded.effect_vars)
         card.has_energy_cost_x = upgraded.has_energy_cost_x
@@ -3797,38 +3798,13 @@ class CombatState:
                     card.end_of_turn_cleanup()
 
     def _has_turn_end_in_hand_effect(self, card: CardInstance) -> bool:
-        from sts2_env.core.enums import CardId
-
-        return card.card_id in {
-            CardId.BECKON,
-            CardId.BURN,
-            CardId.BAD_LUCK,
-            CardId.DEBT,
-            CardId.DECAY,
-            CardId.DOUBT,
-            CardId.INFECTION,
-            CardId.REGRET,
-            CardId.SHAME,
-            CardId.TOXIC,
-        }
+        return card.has_turn_end_in_hand_effect
 
     def _execute_turn_end_in_hand_effect(self, card: CardInstance, cards_in_hand_at_turn_end: int) -> None:
         from sts2_env.core.damage import apply_damage
         from sts2_env.core.enums import CardId
 
-        turn_end_ids = {
-            CardId.BECKON,
-            CardId.BURN,
-            CardId.BAD_LUCK,
-            CardId.DEBT,
-            CardId.DECAY,
-            CardId.DOUBT,
-            CardId.INFECTION,
-            CardId.REGRET,
-            CardId.SHAME,
-            CardId.TOXIC,
-        }
-        if card.card_id not in turn_end_ids:
+        if not card.has_turn_end_in_hand_effect:
             return
 
         if card.card_id == CardId.BECKON:

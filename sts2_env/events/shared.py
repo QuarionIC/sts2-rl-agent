@@ -257,6 +257,7 @@ def _transform_n_cards(run_state: RunState, count: int, rng=None) -> int:
         old_card.tags = new_card.tags
         old_card.can_be_generated_in_combat = new_card.can_be_generated_in_combat
         old_card.can_be_generated_by_modifiers = new_card.can_be_generated_by_modifiers
+        old_card.has_turn_end_in_hand_effect = new_card.has_turn_end_in_hand_effect
         old_card.effect_vars = dict(new_card.effect_vars)
         old_card.original_cost = new_card.original_cost
         transformed += 1
@@ -302,6 +303,7 @@ def _upgrade_selected_cards(cards: list, run_state: RunState) -> int:
         card.tags = upgraded_card.tags
         card.can_be_generated_in_combat = upgraded_card.can_be_generated_in_combat
         card.can_be_generated_by_modifiers = upgraded_card.can_be_generated_by_modifiers
+        card.has_turn_end_in_hand_effect = upgraded_card.has_turn_end_in_hand_effect
         card.effect_vars = dict(upgraded_card.effect_vars)
         card.original_cost = upgraded_card.original_cost
         restore_self_mutating_card_progress(card, progress)
@@ -330,6 +332,7 @@ def _downgrade_selected_cards(cards: list, run_state: RunState) -> int:
         card.tags = base_card.tags
         card.can_be_generated_in_combat = base_card.can_be_generated_in_combat
         card.can_be_generated_by_modifiers = base_card.can_be_generated_by_modifiers
+        card.has_turn_end_in_hand_effect = base_card.has_turn_end_in_hand_effect
         card.effect_vars = dict(base_card.effect_vars)
         card.original_cost = base_card.original_cost
         restore_self_mutating_card_progress(card, progress)
@@ -360,6 +363,7 @@ def _transform_selected_cards(cards: list, run_state: RunState, rng=None) -> int
         old_card.tags = new_card.tags
         old_card.can_be_generated_in_combat = new_card.can_be_generated_in_combat
         old_card.can_be_generated_by_modifiers = new_card.can_be_generated_by_modifiers
+        old_card.has_turn_end_in_hand_effect = new_card.has_turn_end_in_hand_effect
         old_card.effect_vars = dict(new_card.effect_vars)
         old_card.original_cost = new_card.original_cost
         transformed += 1

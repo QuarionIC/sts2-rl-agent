@@ -36,6 +36,9 @@ CAN_BE_GENERATED_IN_COMBAT_RE = re.compile(
 CAN_BE_GENERATED_BY_MODIFIERS_RE = re.compile(
     r"override\s+bool\s+CanBeGeneratedByModifiers\s*=>\s*(?P<value>true|false)\s*;"
 )
+HAS_TURN_END_IN_HAND_EFFECT_RE = re.compile(
+    r"override\s+bool\s+HasTurnEndInHandEffect\s*=>\s*(?P<value>true|false)\s*;"
+)
 MULTIPLAYER_CONSTRAINT_RE = re.compile(
     r"override\s+CardMultiplayerConstraint\s+MultiplayerConstraint\s*=>\s*"
     r"CardMultiplayerConstraint\.(?P<constraint>[A-Za-z]+)\s*;"
@@ -158,6 +161,7 @@ class ReferenceCardStaticMetadata:
     max_upgrade_level: int
     can_be_generated_in_combat: bool
     can_be_generated_by_modifiers: bool
+    has_turn_end_in_hand_effect: bool
     multiplayer_constraint: str
 
 
@@ -214,6 +218,7 @@ def reference_metadata_from_source(path: Path) -> ReferenceCardStaticMetadata:
     max_upgrade_level_match = MAX_UPGRADE_LEVEL_RE.search(source)
     combat_generation_match = CAN_BE_GENERATED_IN_COMBAT_RE.search(source)
     modifier_generation_match = CAN_BE_GENERATED_BY_MODIFIERS_RE.search(source)
+    turn_end_in_hand_match = HAS_TURN_END_IN_HAND_EFFECT_RE.search(source)
     multiplayer_constraint_match = MULTIPLAYER_CONSTRAINT_RE.search(source)
 
     return ReferenceCardStaticMetadata(
@@ -241,6 +246,11 @@ def reference_metadata_from_source(path: Path) -> ReferenceCardStaticMetadata:
             modifier_generation_match.group("value") != "false"
             if modifier_generation_match is not None
             else True
+        ),
+        has_turn_end_in_hand_effect=(
+            turn_end_in_hand_match.group("value") == "true"
+            if turn_end_in_hand_match is not None
+            else False
         ),
         multiplayer_constraint=(
             multiplayer_constraint_match.group("constraint")

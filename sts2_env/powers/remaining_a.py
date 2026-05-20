@@ -924,6 +924,7 @@ class DampenPower(PowerInstance):
                 card.tags = base.tags
                 card.can_be_generated_in_combat = base.can_be_generated_in_combat
                 card.can_be_generated_by_modifiers = base.can_be_generated_by_modifiers
+                card.has_turn_end_in_hand_effect = base.has_turn_end_in_hand_effect
                 card.effect_vars = dict(base.effect_vars)
                 card.has_energy_cost_x = base.has_energy_cost_x
                 card.star_cost = base.star_cost

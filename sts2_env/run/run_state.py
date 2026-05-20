@@ -321,6 +321,7 @@ class PlayerState:
         card.tags = upgraded_card.tags
         card.can_be_generated_in_combat = upgraded_card.can_be_generated_in_combat
         card.can_be_generated_by_modifiers = upgraded_card.can_be_generated_by_modifiers
+        card.has_turn_end_in_hand_effect = upgraded_card.has_turn_end_in_hand_effect
         card.effect_vars = dict(upgraded_card.effect_vars)
         card.original_cost = upgraded_card.original_cost
         card.has_energy_cost_x = upgraded_card.has_energy_cost_x
@@ -801,6 +802,7 @@ class PlayerState:
         card.tags = replacement.tags
         card.can_be_generated_in_combat = replacement.can_be_generated_in_combat
         card.can_be_generated_by_modifiers = replacement.can_be_generated_by_modifiers
+        card.has_turn_end_in_hand_effect = replacement.has_turn_end_in_hand_effect
         card.enchantments = dict(replacement.enchantments)
         card.effect_vars = dict(replacement.effect_vars)
         card.original_cost = replacement.original_cost

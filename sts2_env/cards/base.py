@@ -131,6 +131,13 @@ def restore_self_mutating_card_progress(card: CardInstance, progress: dict[str, 
         increase_base_block(card, block_bonus)
 
 
+def reference_has_turn_end_in_hand_effect(card_id: CardId) -> bool:
+    from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+
+    metadata = reference_metadata_by_card_id().get(card_id)
+    return metadata.has_turn_end_in_hand_effect if metadata is not None else False
+
+
 @dataclass
 class CardInstance:
     """A single card instance in combat."""
@@ -154,6 +161,7 @@ class CardInstance:
     has_energy_cost_x: bool = False
     star_cost: int = 0
     has_star_cost_x: bool = False
+    has_turn_end_in_hand_effect: bool = False
     # Persistent per-combat state (e.g. Rampage extra damage, Claw buff)
     combat_vars: dict[str, object] = field(default_factory=dict)
     # Original cost for cost-modification tracking
@@ -171,6 +179,7 @@ class CardInstance:
         }
         tags.update(_CANONICAL_TAGS_BY_CARD_ID.get(self.card_id, set()))
         self.tags = frozenset(tags)
+        self.has_turn_end_in_hand_effect = reference_has_turn_end_in_hand_effect(self.card_id)
 
     @property
     def is_attack(self) -> bool:
@@ -296,6 +305,7 @@ class CardInstance:
             has_energy_cost_x=self.has_energy_cost_x,
             star_cost=self.star_cost,
             has_star_cost_x=self.has_star_cost_x,
+            has_turn_end_in_hand_effect=self.has_turn_end_in_hand_effect,
             combat_vars={**self.combat_vars, "_is_clone": 1},
             original_cost=self.original_cost,
             single_turn_retain=self.single_turn_retain,
