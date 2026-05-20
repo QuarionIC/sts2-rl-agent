@@ -341,7 +341,7 @@ class CardInstance:
 
     @property
     def is_shiv(self) -> bool:
-        return self.card_id == CardId.SHIV or CardTag.SHIV in self.tags
+        return CardTag.SHIV in self.tags
 
     @property
     def affliction(self) -> str | None:
