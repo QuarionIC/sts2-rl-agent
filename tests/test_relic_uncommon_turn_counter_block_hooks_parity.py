@@ -70,7 +70,7 @@ def _make_defect_combat(
     return combat
 
 
-class TestRelicParityUncommonExtra6:
+class TestRelicUncommonTurnCounterBlockHooksParity:
     def test_candelabra_grants_energy_only_on_player_round_two_start(self):
         """Matches Candelabra.cs: +2 energy only on round 2 player-side turn start."""
         combat = _make_ironclad_combat(["Candelabra"], seed=1101)

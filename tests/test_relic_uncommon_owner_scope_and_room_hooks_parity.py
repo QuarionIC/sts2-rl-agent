@@ -55,7 +55,7 @@ def _run_relic(run_state: RunState, relic_name: str):
     return next(relic for relic in run_state.player.get_relic_objects() if relic.relic_id.name == relic_name)
 
 
-class TestRelicParityUncommonExtra7:
+class TestRelicUncommonOwnerScopeAndRoomHooksParity:
     def test_book_repair_knife_heals_per_qualifying_doom_death_only(self):
         """Matches BookRepairKnife.cs: heal 3 for each non-owner doomed death that still counts as fatal."""
         combat = _make_ironclad_combat(["BookRepairKnife"], seed=1201, enemies=2)

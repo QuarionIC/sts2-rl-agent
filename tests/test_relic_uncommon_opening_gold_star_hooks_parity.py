@@ -86,7 +86,7 @@ def _damage_from_single_card(card: object, relics: list[str] | None = None, *, s
     return hp_before - enemy.current_hp
 
 
-class TestRelicParityUncommonExtra5:
+class TestRelicUncommonOpeningGoldStarHooksParity:
     def test_bellows_upgrades_opening_hand_only_on_round_one(self):
         """Matches Bellows.cs: round-1 player turn start upgrades all cards currently in hand."""
         combat = _make_ironclad_combat(["Bellows"], seed=1001)

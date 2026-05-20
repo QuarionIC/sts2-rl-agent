@@ -53,7 +53,7 @@ def _make_ironclad_combat(
     return combat
 
 
-class TestRelicParityUncommonExtra3:
+class TestRelicUncommonCardCountAndExhaustHooksParity:
     def test_horn_cleat_grants_block_only_on_round_two_block_clear(self):
         """Matches HornCleat.cs: trigger once when owner's block is cleared on round 2."""
         combat = _make_ironclad_combat(["HornCleat"], seed=801)

@@ -83,7 +83,7 @@ def _strike_damage_vs_vulnerable(relics: list[str], *, seed: int) -> int:
     return hp_before - enemy.current_hp
 
 
-class TestRelicParityUncommonExtra4:
+class TestRelicUncommonRoomPotionOrbHooksParity:
     def test_parrying_shield_only_triggers_at_or_above_ten_block(self):
         """Matches ParryingShield.cs: after player turn, thresholded random-enemy hit for 6."""
         combat = _make_ironclad_combat(["ParryingShield"], seed=901)
