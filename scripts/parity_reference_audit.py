@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 from dataclasses import asdict, dataclass
@@ -148,8 +149,52 @@ def collect_text(root: Path, paths: Iterable[str]) -> str:
     return "\n".join(chunks)
 
 
-def collect_test_text(root: Path) -> str:
+def collect_test_text(root: Path, *, direct_references_only: bool = False) -> str:
+    if direct_references_only:
+        return collect_direct_test_reference_text(root)
     return collect_text(root, DEFAULT_TEST_PATHS)
+
+
+def collect_direct_test_reference_text(root: Path) -> str:
+    chunks: list[str] = []
+    for path_text in DEFAULT_TEST_PATHS:
+        path = root / path_text
+        files = [path] if path.is_file() else sorted(path.rglob(PYTHON_FILE_PATTERN))
+        for file_path in files:
+            chunks.append(direct_test_reference_text(file_path.read_text(errors="ignore")))
+    return "\n".join(chunks)
+
+
+def direct_test_reference_text(source: str) -> str:
+    try:
+        module = ast.parse(source)
+    except SyntaxError:
+        return ""
+    chunks: list[str] = []
+    for node in module.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_"):
+            chunks.extend(_test_node_reference_chunks(node))
+        elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
+            chunks.extend(_test_node_reference_chunks(node))
+    return "\n".join(chunks)
+
+
+def _test_node_reference_chunks(node: ast.AST) -> list[str]:
+    chunks: list[str] = []
+    name = getattr(node, "name", None)
+    if isinstance(name, str):
+        chunks.append(name)
+    docstring = ast.get_docstring(node)
+    if docstring:
+        chunks.append(docstring)
+    for child in ast.walk(node):
+        if isinstance(child, ast.Constant) and isinstance(child.value, str):
+            chunks.append(child.value)
+        elif isinstance(child, ast.Attribute):
+            chunks.append(child.attr)
+        elif isinstance(child, ast.Name):
+            chunks.append(child.id)
+    return chunks
 
 
 def alias_hits(text: str, aliases: Iterable[str]) -> tuple[str, ...]:
@@ -175,10 +220,16 @@ def reference_files(root: Path, config: SurfaceConfig, include_deprecated: bool)
     return [path for path in files if DEPRECATED_NAME_MARKER not in path.stem]
 
 
-def build_report(root: Path, surface: str, include_deprecated: bool = False) -> SurfaceReport:
+def build_report(
+    root: Path,
+    surface: str,
+    include_deprecated: bool = False,
+    *,
+    direct_test_references: bool = False,
+) -> SurfaceReport:
     config = SURFACES[surface]
     implementation_text = collect_text(root, config.implementation_paths)
-    test_text = collect_test_text(root)
+    test_text = collect_test_text(root, direct_references_only=direct_test_references)
     items: list[ReferenceItem] = []
 
     for path in reference_files(root, config, include_deprecated):
@@ -209,9 +260,16 @@ def build_reports(
     root: Path,
     surfaces: Iterable[str],
     include_deprecated: bool = False,
+    *,
+    direct_test_references: bool = False,
 ) -> tuple[SurfaceReport, ...]:
     return tuple(
-        build_report(root, surface, include_deprecated=include_deprecated)
+        build_report(
+            root,
+            surface,
+            include_deprecated=include_deprecated,
+            direct_test_references=direct_test_references,
+        )
         for surface in surfaces
     )
 
@@ -293,6 +351,15 @@ def parse_args() -> argparse.Namespace:
         help="Include decompiled classes with Deprecated in the filename.",
     )
     parser.add_argument(
+        "--direct-test-references",
+        action="store_true",
+        help=(
+            "Only count references inside test functions/classes, their docstrings, "
+            "and their literals/identifiers. This avoids module import and registry "
+            "pollution, but remains a lead-finding heuristic."
+        ),
+    )
+    parser.add_argument(
         "--show-missing",
         action="store_true",
         help="Print the missing implementation and test mention names.",
@@ -312,6 +379,7 @@ def main() -> int:
         args.root,
         surfaces,
         include_deprecated=args.include_deprecated,
+        direct_test_references=args.direct_test_references,
     )
     if args.json:
         print(json.dumps([asdict(report) for report in reports], indent=2, sort_keys=True))

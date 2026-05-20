@@ -21,6 +21,9 @@ from sts2_env.run.run_state import RunState
 from sts2_env.relics.registry import create_relic_by_name
 
 
+LEES_WAFFLE_MAX_HP_GAIN = 7
+
+
 def _make_combat(relics: list[str] | None = None, *, seed: int = 991) -> CombatState:
     combat = CombatState(
         player_hp=80,
@@ -136,6 +139,16 @@ class TestRelicParityEventExtra11:
 
         assert run_state.player.current_hp == 58
         assert run_state.player.max_hp == 85
+
+    def test_lees_waffle_grants_max_hp_and_heals_to_full_on_obtain(self):
+        run_state = RunState(seed=983, character_id="Ironclad")
+        run_state.player.max_hp = 80
+        run_state.player.current_hp = 35
+
+        assert run_state.player.obtain_relic("LeesWaffle")
+
+        assert run_state.player.max_hp == 80 + LEES_WAFFLE_MAX_HP_GAIN
+        assert run_state.player.current_hp == run_state.player.max_hp
 
     def test_fake_mango_grants_three_max_hp_on_obtain(self):
         run_state = RunState(seed=984, character_id="Ironclad")

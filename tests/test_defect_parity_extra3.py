@@ -37,8 +37,10 @@ from sts2_env.cards.defect import (
     make_meteor_strike,
     make_momentum_strike,
     make_modded,
+    make_null,
     make_overclock,
     make_quadcast,
+    make_rainbow,
     make_refract,
     make_reboot,
     make_shatter,
@@ -70,6 +72,13 @@ ECHO_FORM_POWER_AMOUNT = 1
 ITERATION_POWER_AMOUNT = 2
 ITERATION_UPGRADED_POWER_AMOUNT = 3
 SPINNER_POWER_AMOUNT = 1
+NULL_DAMAGE = 10
+NULL_UPGRADED_DAMAGE = 13
+NULL_WEAK = 2
+NULL_UPGRADED_WEAK = 3
+RAINBOW_ORBS = (OrbType.LIGHTNING, OrbType.FROST, OrbType.DARK)
+TEST_ENEMY_HP = 100
+EXHAUST_KEYWORD = "exhaust"
 
 
 class _CannotHitPower(PowerInstance):
@@ -159,6 +168,44 @@ class TestDefectParityExtra3:
         assert combat.player.block == 5
         assert len(combat.orb_queue.orbs) == 1
         assert combat.orb_queue.orbs[0].orb_type == OrbType.GLASS
+
+    def test_null_deals_damage_applies_weak_and_channels_dark(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.max_hp = TEST_ENEMY_HP
+        enemy.current_hp = TEST_ENEMY_HP
+        combat.hand = [make_null()]
+        combat.energy = 2
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == TEST_ENEMY_HP - NULL_DAMAGE
+        assert enemy.get_power_amount(PowerId.WEAK) == NULL_WEAK
+        assert [orb.orb_type for orb in combat.orb_queue.orbs] == [OrbType.DARK]
+
+        upgraded_combat = _make_combat()
+        upgraded_enemy = upgraded_combat.enemies[0]
+        upgraded_enemy.max_hp = TEST_ENEMY_HP
+        upgraded_enemy.current_hp = TEST_ENEMY_HP
+        upgraded_combat.hand = [create_card(CardId.NULL_CARD, upgraded=True)]
+        upgraded_combat.energy = 2
+
+        assert upgraded_combat.play_card(0, 0)
+        assert upgraded_enemy.current_hp == TEST_ENEMY_HP - NULL_UPGRADED_DAMAGE
+        assert upgraded_enemy.get_power_amount(PowerId.WEAK) == NULL_UPGRADED_WEAK
+        assert [orb.orb_type for orb in upgraded_combat.orb_queue.orbs] == [OrbType.DARK]
+
+    def test_rainbow_channels_lightning_frost_dark_and_upgrade_removes_exhaust(self):
+        combat = _make_combat()
+        card = make_rainbow()
+        combat.hand = [card]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+        assert [orb.orb_type for orb in combat.orb_queue.orbs] == list(RAINBOW_ORBS)
+        assert card in combat.exhaust_pile
+
+        upgraded = create_card(CardId.RAINBOW, upgraded=True)
+        assert EXHAUST_KEYWORD not in upgraded.keywords
 
     def test_cold_snap_deals_damage_and_channels_frost(self):
         """Matches ColdSnap.cs: attack target, then channel one Frost orb."""

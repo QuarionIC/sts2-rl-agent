@@ -68,6 +68,21 @@ from sts2_env.relics.registry import create_relic_by_name
 from sts2_env.run.run_state import PlayerState
 
 
+COLOSSUS_BLOCK = 5
+COLOSSUS_UPGRADED_BLOCK = 8
+COLOSSUS_POWER_AMOUNT = 1
+DOMINATE_TARGET_VULNERABLE = 3
+DOMINATE_STRENGTH_GAIN = DOMINATE_TARGET_VULNERABLE
+FIGHT_ME_DAMAGE_PER_HIT = 5
+FIGHT_ME_HITS = 2
+FIGHT_ME_SELF_STRENGTH = 2
+FIGHT_ME_ENEMY_STRENGTH = 1
+FIGHT_ME_UPGRADED_DAMAGE_PER_HIT = 6
+FIGHT_ME_UPGRADED_SELF_STRENGTH = 3
+TEST_ENEMY_HP = 100
+EXHAUST_KEYWORD = "exhaust"
+
+
 class _StrengthOnExhaustPower(PowerInstance):
     def __init__(self):
         super().__init__(PowerId.FEEL_NO_PAIN, 1)
@@ -102,6 +117,61 @@ def _make_combat(*, extra_enemies: int = 0, seed: int = 1234) -> CombatState:
 
 
 class TestIroncladCombatEdgeCardModelParity:
+    def test_colossus_gains_block_and_applies_reference_power(self):
+        combat = _make_combat()
+        combat.hand = [make_colossus()]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert combat.player.block == COLOSSUS_BLOCK
+        assert combat.player.get_power_amount(PowerId.COLOSSUS) == COLOSSUS_POWER_AMOUNT
+
+        upgraded_combat = _make_combat()
+        upgraded_combat.hand = [make_colossus(upgraded=True)]
+        upgraded_combat.energy = 1
+
+        assert upgraded_combat.play_card(0)
+        assert upgraded_combat.player.block == COLOSSUS_UPGRADED_BLOCK
+        assert upgraded_combat.player.get_power_amount(PowerId.COLOSSUS) == COLOSSUS_POWER_AMOUNT
+
+    def test_dominate_gains_strength_equal_to_target_vulnerable_and_upgrade_removes_exhaust(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.apply_power(PowerId.VULNERABLE, DOMINATE_TARGET_VULNERABLE, applier=combat.player)
+        card = make_dominate()
+        combat.hand = [card]
+        combat.energy = 1
+
+        assert combat.play_card(0, 0)
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == DOMINATE_STRENGTH_GAIN
+        assert card in combat.exhaust_pile
+        assert EXHAUST_KEYWORD not in make_dominate(upgraded=True).keywords
+
+    def test_fight_me_deals_two_hits_and_applies_reference_strength(self):
+        combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.max_hp = TEST_ENEMY_HP
+        enemy.current_hp = TEST_ENEMY_HP
+        combat.hand = [make_fight_me()]
+        combat.energy = 2
+
+        assert combat.play_card(0, 0)
+        assert enemy.current_hp == TEST_ENEMY_HP - FIGHT_ME_DAMAGE_PER_HIT * FIGHT_ME_HITS
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == FIGHT_ME_SELF_STRENGTH
+        assert enemy.get_power_amount(PowerId.STRENGTH) == FIGHT_ME_ENEMY_STRENGTH
+
+        upgraded_combat = _make_combat()
+        upgraded_enemy = upgraded_combat.enemies[0]
+        upgraded_enemy.max_hp = TEST_ENEMY_HP
+        upgraded_enemy.current_hp = TEST_ENEMY_HP
+        upgraded_combat.hand = [make_fight_me(upgraded=True)]
+        upgraded_combat.energy = 2
+
+        assert upgraded_combat.play_card(0, 0)
+        assert upgraded_enemy.current_hp == TEST_ENEMY_HP - FIGHT_ME_UPGRADED_DAMAGE_PER_HIT * FIGHT_ME_HITS
+        assert upgraded_combat.player.get_power_amount(PowerId.STRENGTH) == FIGHT_ME_UPGRADED_SELF_STRENGTH
+        assert upgraded_enemy.get_power_amount(PowerId.STRENGTH) == FIGHT_ME_ENEMY_STRENGTH
+
     def test_anger_adds_a_matching_copy_to_discard(self):
         combat = _make_combat()
         enemy = combat.enemies[0]
