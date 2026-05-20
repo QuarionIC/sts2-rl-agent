@@ -27,6 +27,7 @@ from sts2_env.core.combat import CombatState
 
 
 DEATHS_DOOR_REPEAT = 2
+HANG_STACK_CAP = 999
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -838,8 +839,8 @@ def hang(card: CardInstance, combat: CombatState, target: Creature | None) -> No
     _deal_damage_single(card, combat, target)
     current_hang = target.get_power_amount(PowerId.HANG)
     amount = max(2, current_hang)
-    if current_hang + amount > 999:
-        amount = max(0, 999 - current_hang)
+    if current_hang + amount > HANG_STACK_CAP:
+        amount = max(0, HANG_STACK_CAP - current_hang)
     combat.apply_power_to(target, PowerId.HANG, amount)
 
 

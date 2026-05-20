@@ -4,6 +4,7 @@ import sts2_env.powers  # noqa: F401
 
 from sts2_env.cards.factory import create_card
 from sts2_env.cards.necrobinder import (
+    HANG_STACK_CAP,
     make_banshees_cry,
     create_necrobinder_starter_deck,
     make_blight_strike,
@@ -940,7 +941,7 @@ class TestNecrobinderParityExtra4:
         combat.energy = 1
 
         assert combat.play_card(0, 0)
-        assert enemy.get_power_amount(PowerId.HANG) == 999
+        assert enemy.get_power_amount(PowerId.HANG) == HANG_STACK_CAP
 
     def test_misery_copies_original_target_debuffs_to_other_hittable_enemies(self):
         combat = _make_combat(extra_enemies=2)
