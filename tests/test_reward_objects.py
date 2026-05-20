@@ -84,6 +84,22 @@ def test_rewards_set_omits_monster_gold_when_gold_proportion_is_zero():
     assert not any(isinstance(reward, GoldReward) for reward in rewards.rewards)
 
 
+def test_rewards_set_applies_poverty_ascension_to_encounter_gold_ranges():
+    run_state = RunState(seed=46, character_id="Ironclad", ascension_level=3)
+    run_state.initialize_run()
+
+    expected = {
+        RoomType.MONSTER: (8, 15),
+        RoomType.ELITE: (26, 34),
+        RoomType.BOSS: (75, 75),
+    }
+    for room_type, expected_range in expected.items():
+        room = CombatRoom(room_type=room_type)
+        rewards = RewardsSet(run_state.player.player_id).with_rewards_from_room(room, run_state)
+        gold_reward = next(reward for reward in rewards.rewards if isinstance(reward, GoldReward))
+        assert (gold_reward.min_gold, gold_reward.max_gold) == expected_range
+
+
 def test_cauldron_after_obtained_queues_five_potion_rewards():
     run_state = RunState(seed=42, character_id="Ironclad")
     run_state.initialize_run()

@@ -725,6 +725,8 @@ ENCOUNTER_GOLD_REWARD_RANGES: dict[RoomType, tuple[int, int]] = {
     RoomType.ELITE: (35, 45),
     RoomType.BOSS: (100, 100),
 }
+POVERTY_ASCENSION_LEVEL = 3
+POVERTY_ASCENSION_GOLD_MULTIPLIER = 0.75
 
 
 @dataclass
@@ -752,6 +754,9 @@ class RewardsSet:
             return self
         if room.room_type in ENCOUNTER_GOLD_REWARD_RANGES:
             low, high = ENCOUNTER_GOLD_REWARD_RANGES[room.room_type]
+            if run_state.ascension_level >= POVERTY_ASCENSION_LEVEL:
+                low = round(low * POVERTY_ASCENSION_GOLD_MULTIPLIER)
+                high = round(high * POVERTY_ASCENSION_GOLD_MULTIPLIER)
             gold_proportion = getattr(room, "gold_proportion", 1.0) if room.room_type == RoomType.MONSTER else 1.0
             if gold_proportion > 0:
                 self.rewards.append(
