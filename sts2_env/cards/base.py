@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from sts2_env.core.enums import CardId, CardTag, CardType, TargetType, CardRarity
+from sts2_env.core.enums import CardId, CardTag, CardType, TargetType, CardRarity, OrbEvokeType
 
 
 _STRIKE_TAG_CARD_IDS = {
@@ -145,6 +145,13 @@ def reference_gains_block(card_id: CardId) -> bool:
     return metadata.gains_block if metadata is not None else False
 
 
+def reference_orb_evoke_type(card_id: CardId) -> OrbEvokeType:
+    from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+
+    metadata = reference_metadata_by_card_id().get(card_id)
+    return metadata.orb_evoke_type if metadata is not None else OrbEvokeType.NONE
+
+
 @dataclass
 class CardInstance:
     """A single card instance in combat."""
@@ -205,6 +212,10 @@ class CardInstance:
         if self.card_id == CardId.MAD_SCIENCE:
             return self.card_type == CardType.SKILL
         return reference_gains_block(self.card_id)
+
+    @property
+    def orb_evoke_type(self) -> OrbEvokeType:
+        return reference_orb_evoke_type(self.card_id)
 
     @property
     def is_status(self) -> bool:

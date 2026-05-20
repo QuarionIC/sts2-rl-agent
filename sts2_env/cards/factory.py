@@ -31,7 +31,7 @@ from sts2_env.core.card_pools import (
     TOKEN_CARD_POOL,
 )
 from sts2_env.characters.all import get_character
-from sts2_env.core.enums import CardId, CardRarity, CardTag, CardType, TargetType
+from sts2_env.core.enums import CardId, CardRarity, CardTag, CardType, OrbEvokeType, TargetType
 from sts2_env.core.rng import Rng
 from sts2_env.cards.reference_static_metadata import (
     MULTIPLAYER_CONSTRAINT_MULTIPLAYER_ONLY,
@@ -153,6 +153,7 @@ class CardMetadata:
     can_be_generated_by_modifiers: bool
     has_turn_end_in_hand_effect: bool
     gains_block: bool
+    orb_evoke_type: OrbEvokeType
     multiplayer_constraint: str
 
 
@@ -485,6 +486,7 @@ def card_metadata(card_id: CardId) -> CardMetadata:
         can_be_generated_by_modifiers=card.can_be_generated_by_modifiers,
         has_turn_end_in_hand_effect=card.has_turn_end_in_hand_effect,
         gains_block=card.gains_block,
+        orb_evoke_type=card.orb_evoke_type,
         multiplayer_constraint=(
             _static_metadata_override(card_id).multiplayer_constraint
             if _static_metadata_override(card_id) is not None

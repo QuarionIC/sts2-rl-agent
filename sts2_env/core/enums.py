@@ -165,6 +165,12 @@ class OrbType(Enum):
     GLASS = auto()
 
 
+class OrbEvokeType(Enum):
+    NONE = auto()
+    FRONT = auto()
+    ALL = auto()
+
+
 class IntentType(Enum):
     ATTACK = auto()
     MULTI_ATTACK = auto()

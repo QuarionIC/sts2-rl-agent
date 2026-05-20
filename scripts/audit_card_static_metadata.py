@@ -55,6 +55,7 @@ def _collect_mismatches_for_upgrade_state(
             "can_be_generated_by_modifiers": reference.can_be_generated_by_modifiers,
             "has_turn_end_in_hand_effect": reference.has_turn_end_in_hand_effect,
             "gains_block": reference.gains_block,
+            "orb_evoke_type": reference.orb_evoke_type,
             "multiplayer_constraint": reference.multiplayer_constraint,
         }
         actual = {
@@ -72,6 +73,7 @@ def _collect_mismatches_for_upgrade_state(
             "can_be_generated_by_modifiers": card.can_be_generated_by_modifiers,
             "has_turn_end_in_hand_effect": card.has_turn_end_in_hand_effect,
             "gains_block": card.gains_block,
+            "orb_evoke_type": card.orb_evoke_type,
             "multiplayer_constraint": card_metadata(reference.card_id).multiplayer_constraint,
         }
         for field_name, expected_value in expected.items():
