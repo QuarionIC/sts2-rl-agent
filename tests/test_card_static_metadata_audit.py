@@ -30,3 +30,9 @@ def test_visual_card_pool_matches_decompiled_card_properties() -> None:
     assert create_card(CardId.VOLLEY).visual_card_pool is CardPoolId.COLORLESS
     assert create_card(CardId.ENTRENCH).visual_card_pool_is_colorless is False
     assert create_card(CardId.VOLLEY).visual_card_pool_is_colorless is True
+
+
+def test_card_library_visibility_matches_decompiled_constructor_flags() -> None:
+    assert create_card(CardId.DEPRECATED_CARD).should_show_in_card_library is False
+    assert create_card(CardId.MAD_SCIENCE).should_show_in_card_library is False
+    assert create_card(CardId.STRIKE_IRONCLAD).should_show_in_card_library is True

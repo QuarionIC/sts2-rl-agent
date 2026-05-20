@@ -155,6 +155,7 @@ class CardMetadata:
     gains_block: bool
     orb_evoke_type: OrbEvokeType
     visual_card_pool: CardPoolId | None
+    should_show_in_card_library: bool
     multiplayer_constraint: str
 
 
@@ -489,6 +490,7 @@ def card_metadata(card_id: CardId) -> CardMetadata:
         gains_block=card.gains_block,
         orb_evoke_type=card.orb_evoke_type,
         visual_card_pool=card.visual_card_pool,
+        should_show_in_card_library=card.should_show_in_card_library,
         multiplayer_constraint=(
             _static_metadata_override(card_id).multiplayer_constraint
             if _static_metadata_override(card_id) is not None

@@ -180,6 +180,13 @@ def reference_visual_card_pool(card_id: CardId) -> CardPoolId | None:
     return metadata.visual_card_pool if metadata is not None else None
 
 
+def reference_should_show_in_card_library(card_id: CardId) -> bool:
+    from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+
+    metadata = reference_metadata_by_card_id().get(card_id)
+    return metadata.should_show_in_card_library if metadata is not None else True
+
+
 @dataclass
 class CardInstance:
     """A single card instance in combat."""
@@ -258,6 +265,10 @@ class CardInstance:
     @property
     def visual_card_pool_is_colorless(self) -> bool:
         return self.visual_card_pool in {CardPoolId.COLORLESS, CardPoolId.EVENT, CardPoolId.TOKEN}
+
+    @property
+    def should_show_in_card_library(self) -> bool:
+        return reference_should_show_in_card_library(self.card_id)
 
     @property
     def is_status(self) -> bool:
