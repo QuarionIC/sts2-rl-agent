@@ -8,11 +8,24 @@ from sts2_env.cards.defect import (
     GENETIC_ALGORITHM_INCREASE_KEY,
     GENETIC_ALGORITHM_UPGRADED_INCREASE,
     HAILSTORM_UPGRADED_POWER,
+    HELIX_DRILL_UPGRADED_DAMAGE,
+    HYPERBEAM_FOCUS,
+    HYPERBEAM_UPGRADED_DAMAGE,
     MACHINE_LEARNING_CARDS,
+    METEOR_STRIKE_PLASMA_ORBS,
+    METEOR_STRIKE_UPGRADED_DAMAGE,
+    MODDED_COST_INCREASE,
+    MODDED_ORB_SLOTS,
+    MODDED_UPGRADED_CARDS,
     OVERCLOCK_UPGRADED_CARDS,
+    SHADOW_SHIELD_UPGRADED_BLOCK,
     SKIM_UPGRADED_CARDS,
     STORM_UPGRADED_POWER,
+    SYNTHESIS_FREE_POWER,
+    SYNTHESIS_UPGRADED_DAMAGE,
+    TESLA_COIL_UPGRADED_DAMAGE,
     THUNDER_UPGRADED_POWER,
+    VOLTAIC_CALC_EXTRA,
     create_defect_starter_deck,
     make_adaptive_strike,
     make_all_for_one,
@@ -24,6 +37,7 @@ from sts2_env.cards.defect import (
     make_chill,
     make_coolant,
     make_creative_ai,
+    make_defend_defect,
     make_defragment,
     make_double_energy,
     make_energy_surge,
@@ -37,18 +51,26 @@ from sts2_env.cards.defect import (
     make_go_for_the_eyes,
     make_gunk_up,
     make_hailstorm,
+    make_helix_drill,
     make_hotfix,
+    make_hyperbeam,
     make_leap,
     make_lightning_rod,
     make_machine_learning,
+    make_meteor_strike,
+    make_modded,
     make_momentum_strike,
     make_overclock,
+    make_shadow_shield,
     make_skim,
     make_storm,
+    make_synthesis,
     make_sweeping_beam,
+    make_tesla_coil,
     make_thunder,
     make_turbo,
     make_uproar,
+    make_voltaic,
 )
 from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import CardId, OrbType, PowerId
@@ -423,6 +445,38 @@ def test_hailstorm_factory_upgrade_increases_power_amount():
     assert combat.player.get_power_amount(PowerId.HAILSTORM) == HAILSTORM_UPGRADED_POWER
 
 
+def test_helix_drill_factory_upgrade_increases_each_hit_damage():
+    combat = _make_combat()
+    enemy = combat.enemies[FIRST_ENEMY_INDEX]
+    enemy.current_hp = enemy.max_hp = TEST_PLAYER_HP
+    combat.hand = [make_defend_defect(), make_helix_drill(upgraded=True)]
+    combat.energy = ONE_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+    assert combat.play_card(HAND_CARD_INDEX, FIRST_ENEMY_INDEX)
+
+    assert enemy.current_hp == TEST_PLAYER_HP - HELIX_DRILL_UPGRADED_DAMAGE
+
+
+def test_hyperbeam_factory_upgrade_increases_damage_only():
+    combat = _make_combat(extra_enemies=1)
+    enemies = list(combat.enemies)
+    for enemy in enemies:
+        enemy.current_hp = enemy.max_hp = TEST_PLAYER_HP
+    starting_hp = [enemy.current_hp for enemy in enemies]
+    combat.apply_power_to(combat.player, PowerId.FOCUS, HYPERBEAM_FOCUS)
+    combat.hand = [make_hyperbeam(upgraded=True)]
+    combat.energy = TWO_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert [enemy.current_hp for enemy in enemies] == [
+        hp - HYPERBEAM_UPGRADED_DAMAGE
+        for hp in starting_hp
+    ]
+    assert combat.player.get_power_amount(PowerId.FOCUS) == ZERO_COST
+
+
 def test_go_for_the_eyes_factory_upgrade_increases_damage_and_weak():
     combat = _make_combat(monster_factory=create_twig_slime_s)
     enemy = combat.enemies[FIRST_ENEMY_INDEX]
@@ -495,6 +549,39 @@ def test_machine_learning_factory_upgrade_adds_innate_without_changing_power_amo
     assert combat.player.get_power_amount(PowerId.MACHINE_LEARNING) == MACHINE_LEARNING_CARDS
 
 
+def test_meteor_strike_factory_upgrade_increases_damage_and_keeps_three_plasma():
+    combat = _make_combat()
+    enemy = combat.enemies[FIRST_ENEMY_INDEX]
+    enemy.current_hp = enemy.max_hp = TEST_PLAYER_HP
+    starting_hp = enemy.current_hp
+    combat.hand = [make_meteor_strike(upgraded=True)]
+    combat.energy = 5
+
+    assert combat.play_card(HAND_CARD_INDEX, FIRST_ENEMY_INDEX)
+
+    assert enemy.current_hp == starting_hp - METEOR_STRIKE_UPGRADED_DAMAGE
+    assert [orb.orb_type for orb in combat.orb_queue.orbs] == (
+        [OrbType.PLASMA] * METEOR_STRIKE_PLASMA_ORBS
+    )
+
+
+def test_modded_factory_upgrade_draws_two_and_keeps_slot_and_cost_increase():
+    combat = _make_combat()
+    drawn = [make_boot_sequence(), make_chill()]
+    card = make_modded(upgraded=True)
+    starting_slots = combat.orb_queue.capacity
+    combat.hand = [card]
+    combat.draw_pile = list(drawn)
+    combat.energy = ZERO_COST
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.hand == drawn
+    assert len(combat.hand) == MODDED_UPGRADED_CARDS
+    assert combat.orb_queue.capacity == starting_slots + MODDED_ORB_SLOTS
+    assert card.cost == MODDED_COST_INCREASE
+
+
 def test_momentum_strike_factory_upgrade_increases_damage_and_sets_cost_zero():
     combat = _make_combat()
     enemy = combat.enemies[FIRST_ENEMY_INDEX]
@@ -549,6 +636,31 @@ def test_storm_factory_upgrade_increases_power_amount_only():
     assert combat.orb_queue.orbs == []
 
 
+def test_shadow_shield_factory_upgrade_increases_block_and_keeps_dark_channel():
+    combat = _make_combat()
+    combat.hand = [make_shadow_shield(upgraded=True)]
+    combat.energy = TWO_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    assert combat.player.block == SHADOW_SHIELD_UPGRADED_BLOCK
+    assert [orb.orb_type for orb in combat.orb_queue.orbs] == [OrbType.DARK]
+
+
+def test_synthesis_factory_upgrade_increases_damage_and_keeps_free_power():
+    combat = _make_combat()
+    enemy = combat.enemies[FIRST_ENEMY_INDEX]
+    enemy.current_hp = enemy.max_hp = TEST_PLAYER_HP
+    starting_hp = enemy.current_hp
+    combat.hand = [make_synthesis(upgraded=True)]
+    combat.energy = TWO_ENERGY
+
+    assert combat.play_card(HAND_CARD_INDEX, FIRST_ENEMY_INDEX)
+
+    assert enemy.current_hp == starting_hp - SYNTHESIS_UPGRADED_DAMAGE
+    assert combat.player.get_power_amount(PowerId.FREE_POWER) == SYNTHESIS_FREE_POWER
+
+
 def test_sweeping_beam_factory_upgrade_increases_all_enemy_damage_and_draws():
     combat = _make_combat(extra_enemies=1)
     enemies = list(combat.enemies)
@@ -579,6 +691,20 @@ def test_thunder_factory_upgrade_increases_power_amount_without_channeling():
     assert combat.orb_queue.orbs == []
 
 
+def test_tesla_coil_factory_upgrade_increases_damage_and_keeps_lightning_passive():
+    combat = _make_combat()
+    enemy = combat.enemies[FIRST_ENEMY_INDEX]
+    enemy.current_hp = enemy.max_hp = TEST_PLAYER_HP
+    starting_hp = enemy.current_hp
+    combat.channel_orb(combat.player, "LIGHTNING")
+    combat.hand = [make_tesla_coil(upgraded=True)]
+    combat.energy = ZERO_COST
+
+    assert combat.play_card(HAND_CARD_INDEX, FIRST_ENEMY_INDEX)
+
+    assert enemy.current_hp == starting_hp - TESLA_COIL_UPGRADED_DAMAGE - 3
+
+
 def test_turbo_factory_upgrade_gains_three_energy_and_keeps_void_discard():
     combat = _make_combat()
     combat.hand = [make_turbo(upgraded=True)]
@@ -590,6 +716,27 @@ def test_turbo_factory_upgrade_gains_three_energy_and_keeps_void_discard():
     assert combat.energy == TURBO_UPGRADED_ENERGY
     assert len(voids) == 1
     assert voids[0].owner is combat.player
+
+
+def test_voltaic_factory_upgrade_removes_exhaust_and_keeps_lightning_count():
+    combat = _make_combat()
+    combat.orb_queue.capacity = 6
+    combat.channel_orb(combat.player, "LIGHTNING")
+    combat.channel_orb(combat.player, "LIGHTNING")
+    card = make_voltaic(upgraded=True)
+    existing_orb_count = len(combat.orb_queue.orbs)
+    combat.hand = [card]
+    combat.energy = TWO_ENERGY
+
+    assert card.exhausts is False
+    assert combat.play_card(HAND_CARD_INDEX)
+
+    expected_new_orbs = TWO_ENERGY * VOLTAIC_CALC_EXTRA
+    assert len(combat.orb_queue.orbs) == existing_orb_count + expected_new_orbs
+    assert [orb.orb_type for orb in combat.orb_queue.orbs[-expected_new_orbs:]] == (
+        [OrbType.LIGHTNING] * expected_new_orbs
+    )
+    assert card in combat.discard_pile
 
 
 def test_uproar_factory_upgrade_increases_each_hit_damage_and_autoplays_attack():

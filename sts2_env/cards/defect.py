@@ -147,6 +147,35 @@ GENETIC_ALGORITHM_BLOCK = 1
 GENETIC_ALGORITHM_INCREASE_KEY = "increase"
 GENETIC_ALGORITHM_INCREASE = 3
 GENETIC_ALGORITHM_UPGRADED_INCREASE = 4
+HELIX_DRILL_DAMAGE = 3
+HELIX_DRILL_UPGRADED_DAMAGE = 5
+HELIX_DRILL_CALC_BASE_KEY = "calc_base"
+HELIX_DRILL_CALC_BASE = 0
+HELIX_DRILL_CALC_EXTRA_KEY = "calc_extra"
+HELIX_DRILL_CALC_EXTRA = 1
+HYPERBEAM_DAMAGE = 26
+HYPERBEAM_UPGRADED_DAMAGE = 34
+HYPERBEAM_FOCUS_KEY = "focus_power"
+HYPERBEAM_FOCUS = 3
+METEOR_STRIKE_DAMAGE = 24
+METEOR_STRIKE_UPGRADED_DAMAGE = 30
+METEOR_STRIKE_PLASMA_ORBS = 3
+MODDED_CARDS_KEY = "cards"
+MODDED_CARDS = 1
+MODDED_UPGRADED_CARDS = 2
+MODDED_ORB_SLOTS = 1
+MODDED_COST_INCREASE = 1
+SHADOW_SHIELD_BLOCK = 11
+SHADOW_SHIELD_UPGRADED_BLOCK = 15
+SYNTHESIS_DAMAGE = 12
+SYNTHESIS_UPGRADED_DAMAGE = 18
+SYNTHESIS_FREE_POWER = 1
+TESLA_COIL_DAMAGE = 3
+TESLA_COIL_UPGRADED_DAMAGE = 6
+VOLTAIC_CALC_BASE_KEY = "calc_base"
+VOLTAIC_CALC_BASE = 0
+VOLTAIC_CALC_EXTRA_KEY = "calc_extra"
+VOLTAIC_CALC_EXTRA = 1
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -809,7 +838,7 @@ def synthesis(card: CardInstance, combat: CombatState, target: Creature | None) 
     assert target is not None
     dmg = calculate_damage(card.base_damage, _owner(card, combat), target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, _owner(card, combat))
-    combat.apply_power_to(_owner(card, combat), PowerId.FREE_POWER, 1)
+    combat.apply_power_to(_owner(card, combat), PowerId.FREE_POWER, SYNTHESIS_FREE_POWER)
 
 
 @register_effect(CardId.TEMPEST)
@@ -982,7 +1011,11 @@ def hyperbeam(card: CardInstance, combat: CombatState, target: Creature | None) 
         dmg = calculate_damage(card.base_damage, _owner(card, combat), enemy, ValueProp.MOVE, combat)
         apply_damage(enemy, dmg, ValueProp.MOVE, combat, _owner(card, combat))
     # Lose Focus
-    combat.apply_power_to(_owner(card, combat), PowerId.FOCUS, -card.effect_vars.get("focus_power", 3))
+    combat.apply_power_to(
+        _owner(card, combat),
+        PowerId.FOCUS,
+        -card.effect_vars.get(HYPERBEAM_FOCUS_KEY, HYPERBEAM_FOCUS),
+    )
 
 
 @register_effect(CardId.ICE_LANCE)
@@ -1015,17 +1048,16 @@ def meteor_strike(card: CardInstance, combat: CombatState, target: Creature | No
     assert target is not None
     dmg = calculate_damage(card.base_damage, _owner(card, combat), target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, _owner(card, combat))
-    _channel_orb(combat, OrbType.PLASMA)
-    _channel_orb(combat, OrbType.PLASMA)
-    _channel_orb(combat, OrbType.PLASMA)
+    for _ in range(METEOR_STRIKE_PLASMA_ORBS):
+        _channel_orb(combat, OrbType.PLASMA)
 
 
 @register_effect(CardId.MODDED)
 def modded(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat._draw_cards(card.effect_vars.get("cards", 1))
-    _add_orb_slot(combat, 1)
+    combat._draw_cards(card.effect_vars.get(MODDED_CARDS_KEY, MODDED_CARDS))
+    _add_orb_slot(combat, MODDED_ORB_SLOTS)
     # Increase cost by 1 this combat
-    card.cost += 1
+    card.cost += MODDED_COST_INCREASE
 
 
 @register_effect(CardId.MULTI_CAST)
@@ -1632,11 +1664,13 @@ def make_scrape() -> CardInstance:
     )
 
 
-def make_shadow_shield() -> CardInstance:
+def make_shadow_shield(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SHADOW_SHIELD, cost=2, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        base_block=11, instance_id=_get_next_id(),
+        base_block=SHADOW_SHIELD_UPGRADED_BLOCK if upgraded else SHADOW_SHIELD_BLOCK,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1693,11 +1727,13 @@ def make_synchronize() -> CardInstance:
     )
 
 
-def make_synthesis() -> CardInstance:
+def make_synthesis(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SYNTHESIS, cost=2, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
-        base_damage=12, instance_id=_get_next_id(),
+        base_damage=SYNTHESIS_UPGRADED_DAMAGE if upgraded else SYNTHESIS_DAMAGE,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1711,11 +1747,13 @@ def make_tempest(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_tesla_coil() -> CardInstance:
+def make_tesla_coil(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.TESLA_COIL, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.UNCOMMON,
-        base_damage=3, instance_id=_get_next_id(),
+        base_damage=TESLA_COIL_UPGRADED_DAMAGE if upgraded else TESLA_COIL_DAMAGE,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1847,20 +1885,28 @@ def make_genetic_algorithm(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_helix_drill() -> CardInstance:
+def make_helix_drill(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.HELIX_DRILL, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.RARE,
-        base_damage=3, effect_vars={"calc_base": 0, "calc_extra": 1},
+        base_damage=HELIX_DRILL_UPGRADED_DAMAGE if upgraded else HELIX_DRILL_DAMAGE,
+        effect_vars={
+            HELIX_DRILL_CALC_BASE_KEY: HELIX_DRILL_CALC_BASE,
+            HELIX_DRILL_CALC_EXTRA_KEY: HELIX_DRILL_CALC_EXTRA,
+        },
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
 
-def make_hyperbeam() -> CardInstance:
+def make_hyperbeam(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.HYPERBEAM, cost=2, card_type=CardType.ATTACK,
         target_type=TargetType.ALL_ENEMIES, rarity=CardRarity.RARE,
-        base_damage=26, effect_vars={"focus_power": 3}, instance_id=_get_next_id(),
+        base_damage=HYPERBEAM_UPGRADED_DAMAGE if upgraded else HYPERBEAM_DAMAGE,
+        effect_vars={HYPERBEAM_FOCUS_KEY: HYPERBEAM_FOCUS},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1895,19 +1941,23 @@ def make_machine_learning(upgraded: bool = False) -> CardInstance:
     )
 
 
-def make_meteor_strike() -> CardInstance:
+def make_meteor_strike(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.METEOR_STRIKE, cost=5, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.RARE,
-        base_damage=24, instance_id=_get_next_id(),
+        base_damage=METEOR_STRIKE_UPGRADED_DAMAGE if upgraded else METEOR_STRIKE_DAMAGE,
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
-def make_modded() -> CardInstance:
+def make_modded(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.MODDED, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
-        effect_vars={"cards": 1}, instance_id=_get_next_id(),
+        effect_vars={MODDED_CARDS_KEY: MODDED_UPGRADED_CARDS if upgraded else MODDED_CARDS},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
@@ -1981,12 +2031,17 @@ def make_trash_to_treasure() -> CardInstance:
     )
 
 
-def make_voltaic() -> CardInstance:
+def make_voltaic(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.VOLTAIC, cost=2, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
-        keywords=frozenset({"exhaust"}),
-        effect_vars={"calc_base": 0, "calc_extra": 1}, instance_id=_get_next_id(),
+        keywords=frozenset() if upgraded else frozenset({"exhaust"}),
+        effect_vars={
+            VOLTAIC_CALC_BASE_KEY: VOLTAIC_CALC_BASE,
+            VOLTAIC_CALC_EXTRA_KEY: VOLTAIC_CALC_EXTRA,
+        },
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
     )
 
 
