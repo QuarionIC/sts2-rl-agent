@@ -106,7 +106,7 @@ def _make_combat(*, extra_enemies: int = 0) -> CombatState:
     return combat
 
 
-class TestNecrobinderParityExtra4:
+class TestNecrobinderCardEffectsReferenceParity:
     def test_strike_necrobinder_deals_single_target_damage(self):
         combat = _make_combat()
         enemy = combat.enemies[0]

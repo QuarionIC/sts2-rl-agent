@@ -45,7 +45,7 @@ def _make_combat() -> CombatState:
     return combat
 
 
-class TestNecrobinderParityExtra:
+class TestNecrobinderSoulAndDoomParity:
     def test_drain_power_attacks_then_upgrades_random_upgradable_discard_cards(self):
         """Matches DrainPower.cs: attack target, then upgrade random upgradable discard cards."""
         combat = _make_combat()

@@ -33,7 +33,7 @@ def _make_combat() -> CombatState:
     return combat
 
 
-class TestNecrobinderParityExtra2:
+class TestNecrobinderScytheXCostAndDebuffParity:
     def test_defile_upgraded_deals_expected_damage(self):
         """Matches Defile.cs: pure single-target attack, upgraded by +4 damage."""
         combat = _make_combat()
