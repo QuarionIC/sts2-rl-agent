@@ -7,7 +7,13 @@ Each card has a registered effect function and a make_*() factory.
 from __future__ import annotations
 
 from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage
-from sts2_env.cards.registry import register_before_hand_draw_hook, register_effect, register_playability_hook
+from sts2_env.cards.registry import (
+    register_after_card_entered_combat_hook,
+    register_before_card_played_hook,
+    register_before_hand_draw_hook,
+    register_effect,
+    register_playability_hook,
+)
 from sts2_env.core.enums import (
     CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, CombatSide,
 )
@@ -1413,6 +1419,31 @@ def make_stampede(upgraded: bool = False) -> CardInstance:
 @register_effect(CardId.STOMP)
 def stomp(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     _deal_damage_all_enemies(card, combat)
+
+
+@register_after_card_entered_combat_hook(CardId.STOMP)
+def stomp_after_card_entered_combat(
+    card: CardInstance,
+    entered_card: CardInstance,
+    owner: Creature,
+    combat: CombatState,
+) -> None:
+    if entered_card is not card or card.combat_vars.get("_is_clone"):
+        return
+    amount = combat.count_card_plays_finished_this_turn(owner, card_type=CardType.ATTACK)
+    if amount > 0:
+        card.set_temporary_cost_for_turn(max(0, card.cost - amount))
+
+
+@register_before_card_played_hook(CardId.STOMP)
+def stomp_before_card_played(
+    card: CardInstance,
+    played_card: CardInstance,
+    owner: Creature,
+    combat: CombatState,
+) -> None:
+    if played_card.card_type == CardType.ATTACK:
+        card.set_temporary_cost_for_turn(max(0, card.cost - 1))
 
 
 def make_stomp(upgraded: bool = False) -> CardInstance:

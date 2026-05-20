@@ -38,7 +38,10 @@ from sts2_env.cards.factory import (
     eligible_transform_cards,
 )
 from sts2_env.cards.registry import (
+    fire_card_after_card_entered_combat,
+    fire_card_after_card_played,
     fire_card_after_turn_end,
+    fire_card_before_card_played,
     fire_card_before_hand_draw,
     fire_card_late_effects,
     fire_card_turn_end_in_hand,
@@ -999,20 +1002,11 @@ class CombatState:
             return
         if card.is_shiv and owner.get_power_amount(PowerId.PHANTOM_BLADES) > 0:
             card.keywords = frozenset(set(card.keywords) | {"retain"})
-        if card.card_id == CardId.STOMP:
-            amount = self.count_card_plays_finished_this_turn(owner, card_type=CardType.ATTACK)
-        elif card.card_id == CardId.PINPOINT:
-            amount = self.count_card_plays_finished_this_turn(owner, card_type=CardType.SKILL)
-        elif card.card_id == CardId.BANSHEES_CRY:
-            amount = sum(
-                1
-                for entry in self._card_play_finished_entries_combat
-                if entry.was_ethereal and getattr(entry.card, "owner", None) is owner
-            ) * card.effect_vars.get("energy", 2)
-            if amount > 0:
-                card.set_combat_cost(max(0, card.cost - amount))
-            return
-        elif card.card_id == CardId.FLATTEN:
+        state = self.combat_player_state_for(owner)
+        if state is not None:
+            for listener_card in self.unique_cards_in_piles(state.all_piles):
+                fire_card_after_card_entered_combat(listener_card, card, owner, self)
+        if card.card_id == CardId.FLATTEN:
             if any(
                 getattr(dealer, "is_osty", False)
                 and getattr(dealer, "pet_owner", None) is owner
@@ -1021,10 +1015,6 @@ class CombatState:
             ):
                 card.set_temporary_cost_for_turn(0)
             return
-        else:
-            return
-        if amount > 0:
-            card.set_temporary_cost_for_turn(max(0, card.cost - amount))
 
     def _apply_card_after_card_generated_for_combat(
         self,
@@ -1120,45 +1110,17 @@ class CombatState:
 
     def _apply_card_before_card_played(self, played_card: CardInstance, owner: Creature) -> None:
         state = self.combat_player_state_for(owner)
-        if state is None or played_card.card_type != CardType.ATTACK:
+        if state is None:
             return
-        seen_ids: set[int] = set()
-        for pile in state.all_piles:
-            for card in pile:
-                instance_id = getattr(card, "instance_id", 0) or id(card)
-                if instance_id in seen_ids:
-                    continue
-                seen_ids.add(instance_id)
-                if card.card_id == CardId.STOMP:
-                    card.set_temporary_cost_for_turn(max(0, card.cost - 1))
+        for card in self.unique_cards_in_piles(state.all_piles):
+            fire_card_before_card_played(card, played_card, owner, self)
 
     def _apply_card_after_card_played(self, played_card: CardInstance, owner: Creature) -> None:
         state = self.combat_player_state_for(owner)
-        if state is None or not played_card.is_ethereal:
+        if state is None:
             return
-        seen_ids: set[int] = set()
-        for pile in state.all_piles:
-            for card in pile:
-                instance_id = getattr(card, "instance_id", 0) or id(card)
-                if instance_id in seen_ids:
-                    continue
-                seen_ids.add(instance_id)
-                if card.card_id == CardId.BANSHEES_CRY:
-                    card.set_combat_cost(max(0, card.cost - card.effect_vars.get("energy", 2)))
-
-    def _apply_card_after_skill_played(self, played_card: CardInstance, owner: Creature) -> None:
-        state = self.combat_player_state_for(owner)
-        if state is None or played_card.card_type != CardType.SKILL:
-            return
-        seen_ids: set[int] = set()
-        for pile in state.all_piles:
-            for card in pile:
-                instance_id = getattr(card, "instance_id", 0) or id(card)
-                if instance_id in seen_ids:
-                    continue
-                seen_ids.add(instance_id)
-                if card.card_id == CardId.PINPOINT:
-                    card.set_temporary_cost_for_turn(max(0, card.cost - 1))
+        for card in self.unique_cards_in_piles(state.all_piles):
+            fire_card_after_card_played(card, played_card, owner, self)
 
     def _apply_flatten_after_osty_attack(self, dealer: Creature | None, props: ValueProp) -> None:
         if dealer is None or not getattr(dealer, "is_osty", False) or not props.is_powered_attack():
@@ -1477,7 +1439,6 @@ class CombatState:
                 self._finish_card_play(card, owner)
                 with self.acting_player_view(owner):
                     fire_after_card_played(card, self)
-                    self._apply_card_after_skill_played(card, owner)
                     self._apply_card_after_card_played(card, owner)
                     apply_enchantment_on_card_played(card, self)
                     apply_enchantment_after_card_played(card)
@@ -1531,7 +1492,6 @@ class CombatState:
             self._finish_card_play(card, owner)
             with self.acting_player_view(owner):
                 fire_after_card_played(card, self)
-                self._apply_card_after_skill_played(card, owner)
                 self._apply_card_after_card_played(card, owner)
                 apply_enchantment_on_card_played(card, self)
                 apply_enchantment_after_card_played(card)

@@ -7,7 +7,13 @@ Rare (26), Ancient (2).
 from __future__ import annotations
 
 from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage, new_card_instance_id
-from sts2_env.cards.registry import register_effect, register_late_effect, register_playability_hook
+from sts2_env.cards.registry import (
+    register_after_card_entered_combat_hook,
+    register_after_card_played_hook,
+    register_effect,
+    register_late_effect,
+    register_playability_hook,
+)
 from sts2_env.core.enums import (
     CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, PowerType, PowerStackType,
 )
@@ -693,6 +699,35 @@ def veilpiercer(card: CardInstance, combat: CombatState, target: Creature | None
 @register_effect(CardId.BANSHEES_CRY)
 def banshees_cry(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     _deal_damage_all(card, combat)
+
+
+@register_after_card_entered_combat_hook(CardId.BANSHEES_CRY)
+def banshees_cry_after_card_entered_combat(
+    card: CardInstance,
+    entered_card: CardInstance,
+    owner: Creature,
+    combat: CombatState,
+) -> None:
+    if entered_card is not card or card.combat_vars.get("_is_clone"):
+        return
+    amount = sum(
+        1
+        for entry in combat._card_play_finished_entries_combat
+        if entry.was_ethereal and getattr(entry.card, "owner", None) is owner
+    ) * card.effect_vars.get("energy", 2)
+    if amount > 0:
+        card.set_combat_cost(max(0, card.cost - amount))
+
+
+@register_after_card_played_hook(CardId.BANSHEES_CRY)
+def banshees_cry_after_card_played(
+    card: CardInstance,
+    played_card: CardInstance,
+    owner: Creature,
+    combat: CombatState,
+) -> None:
+    if played_card.is_ethereal:
+        card.set_combat_cost(max(0, card.cost - card.effect_vars.get("energy", 2)))
 
 
 @register_effect(CardId.CALL_OF_THE_VOID)

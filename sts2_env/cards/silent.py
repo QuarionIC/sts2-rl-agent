@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from sts2_env.cards.base import CardInstance, _get_next_id
-from sts2_env.cards.registry import register_effect, register_playability_hook
+from sts2_env.cards.registry import (
+    register_after_card_entered_combat_hook,
+    register_after_card_played_hook,
+    register_effect,
+    register_playability_hook,
+)
 from sts2_env.core.enums import (
     CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, RoomType,
 )
@@ -564,6 +569,31 @@ def pinpoint(card: CardInstance, combat: CombatState, target: Creature | None) -
     owner = _owner(card, combat)
     dmg = calculate_damage(card.base_damage, owner, target, ValueProp.MOVE, combat)
     apply_damage(target, dmg, ValueProp.MOVE, combat, owner)
+
+
+@register_after_card_entered_combat_hook(CardId.PINPOINT)
+def pinpoint_after_card_entered_combat(
+    card: CardInstance,
+    entered_card: CardInstance,
+    owner: Creature,
+    combat: CombatState,
+) -> None:
+    if entered_card is not card or card.combat_vars.get("_is_clone"):
+        return
+    amount = combat.count_card_plays_finished_this_turn(owner, card_type=CardType.SKILL)
+    if amount > 0:
+        card.set_temporary_cost_for_turn(max(0, card.cost - amount))
+
+
+@register_after_card_played_hook(CardId.PINPOINT)
+def pinpoint_after_card_played(
+    card: CardInstance,
+    played_card: CardInstance,
+    owner: Creature,
+    combat: CombatState,
+) -> None:
+    if played_card.card_type == CardType.SKILL:
+        card.set_temporary_cost_for_turn(max(0, card.cost - 1))
 
 
 @register_effect(CardId.POUNCE)
