@@ -1861,34 +1861,45 @@ class TabletOfTruth(EventModel):
     event_id = "TabletOfTruth"
 
     _DECIPHER_COSTS = [3, 6, 12, 24]
+    SMASH_HP_GAIN = 20
+    FIRST_DECIPHER_COUNT = 0
+    FINAL_DECIPHER_COUNT = 4
+    FINISHED_DECIPHER_COUNT = 5
+    FATAL_DECIPHER_MAX_HP_REMAINING = 1
+    RANDOM_UPGRADE_COUNT = 1
 
     def __init__(self) -> None:
-        self._decipher_count = 0
+        self._decipher_count = self.FIRST_DECIPHER_COUNT
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
-        self._decipher_count = 0
-        cost = self._DECIPHER_COSTS[0]
+        self._decipher_count = self.FIRST_DECIPHER_COUNT
+        cost = self._DECIPHER_COSTS[self.FIRST_DECIPHER_COUNT]
         return [
             EventOption("decipher", "Decipher",
                          f"Lose {cost} Max HP, upgrade a card"),
-            EventOption("smash", "Smash", "Heal 20 HP"),
+            EventOption("smash", "Smash", f"Heal {self.SMASH_HP_GAIN} HP"),
         ]
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "smash":
-            run_state.player.heal(20)
-            return EventResult(finished=True, description="Smashed tablet, healed 20 HP.")
+            run_state.player.heal(self.SMASH_HP_GAIN)
+            return EventResult(
+                finished=True,
+                description=f"Smashed tablet, healed {self.SMASH_HP_GAIN} HP.",
+            )
         if option_id == "give_up":
             return EventResult(finished=True, description="Stopped deciphering the tablet.")
 
         # Decipher
-        final_decipher = self._decipher_count >= 4
+        final_decipher = self._decipher_count >= self.FINAL_DECIPHER_COUNT
         if self._decipher_count < len(self._DECIPHER_COSTS):
             cost = self._DECIPHER_COSTS[self._decipher_count]
         else:
-            cost = run_state.player.max_hp - 1
+            cost = run_state.player.max_hp - self.FATAL_DECIPHER_MAX_HP_REMAINING
         if cost >= run_state.player.max_hp:
-            run_state.player.lose_max_hp(run_state.player.max_hp - 1)
+            run_state.player.lose_max_hp(
+                run_state.player.max_hp - self.FATAL_DECIPHER_MAX_HP_REMAINING
+            )
             run_state.player.current_hp = 0
             run_state.lose_run()
             return EventResult(finished=True, description=f"Lost {cost} Max HP and died deciphering.")
@@ -1897,17 +1908,21 @@ class TabletOfTruth(EventModel):
             for card in run_state.player.upgradable_deck_cards():
                 run_state.player.upgrade_card_instance(card)
         else:
-            _upgrade_n_cards(run_state, 1, rng=self.get_rng(run_state))
+            _upgrade_n_cards(
+                run_state,
+                self.RANDOM_UPGRADE_COUNT,
+                rng=self.get_rng(run_state),
+            )
         self._decipher_count += 1
 
-        if self._decipher_count >= 5:
+        if self._decipher_count >= self.FINISHED_DECIPHER_COUNT:
             return EventResult(finished=True,
                                description=f"Lost {cost} Max HP, upgraded ALL cards.")
 
         if self._decipher_count < len(self._DECIPHER_COSTS):
             next_cost = self._DECIPHER_COSTS[self._decipher_count]
         else:
-            next_cost = run_state.player.max_hp - 1
+            next_cost = run_state.player.max_hp - self.FATAL_DECIPHER_MAX_HP_REMAINING
 
         return EventResult(
             finished=False,
