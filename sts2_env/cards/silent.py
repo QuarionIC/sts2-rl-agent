@@ -233,8 +233,8 @@ def prepared(card: CardInstance, combat: CombatState, target: Creature | None) -
 @register_effect(CardId.RICOCHET)
 def ricochet(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     owner = _owner(card, combat)
-    hits = card.effect_vars.get("hits", 3)
-    for _ in range(hits):
+    repeat = card.effect_vars.get("repeat", 4)
+    for _ in range(repeat):
         if owner.is_dead:
             break
         alive = combat.hittable_enemies
@@ -302,9 +302,9 @@ def blur(card: CardInstance, combat: CombatState, target: Creature | None) -> No
 
 @register_effect(CardId.BOUNCING_FLASK)
 def bouncing_flask(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    hits = card.effect_vars.get("hits", 3)
+    repeat = card.effect_vars.get("repeat", 3)
     poison_amt = card.effect_vars.get("poison_power", 3)
-    for _ in range(hits):
+    for _ in range(repeat):
         alive = combat.hittable_enemies
         if not alive:
             break
@@ -1086,7 +1086,7 @@ def make_ricochet(upgraded: bool = False) -> CardInstance:
         card_id=CardId.RICOCHET, cost=2, card_type=CardType.ATTACK,
         target_type=TargetType.RANDOM_ENEMY, rarity=CardRarity.COMMON,
         base_damage=3, keywords=frozenset({"sly"}),
-        effect_vars={"hits": 5 if upgraded else 4},
+        effect_vars={"repeat": 5 if upgraded else 4},
         upgraded=upgraded, instance_id=_get_next_id(),
     )
 
@@ -1159,7 +1159,7 @@ def make_bouncing_flask(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.BOUNCING_FLASK, cost=2, card_type=CardType.SKILL,
         target_type=TargetType.RANDOM_ENEMY, rarity=CardRarity.UNCOMMON,
-        effect_vars={"poison_power": 3, "hits": 4 if upgraded else 3},
+        effect_vars={"poison_power": 3, "repeat": 4 if upgraded else 3},
         upgraded=upgraded, instance_id=_get_next_id(),
     )
 

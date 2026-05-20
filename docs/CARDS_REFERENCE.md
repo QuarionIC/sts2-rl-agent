@@ -1337,7 +1337,7 @@
 - **Target:** RandomEnemy
 - **Keywords:** Sly
 - **Tags:** None
-- **Vars:** {Damage: 3}
+- **Vars:** {Damage: 3, Repeat: 4}
 - **Effect:** Deal Damage to target enemy multiple times
 - **Upgrade:** Repeat+1
 ### Slice
@@ -1433,7 +1433,7 @@
 - **Target:** RandomEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {PoisonPower: 3}
+- **Vars:** {PoisonPower: 3, Repeat: 3}
 - **Effect:** Apply Poison to self
 - **Upgrade:** Repeat+1
 ### BubbleBubble
@@ -1965,7 +1965,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** None
+- **Vars:** {Shivs: 4}
 - **Effect:** Apply FanOfKnives to self; Create Shiv(s) in hand
 - **Upgrade:** Shivs+1
 ### GrandFinale
