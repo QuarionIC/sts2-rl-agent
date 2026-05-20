@@ -1186,17 +1186,7 @@ class CombatState:
 
         if not card.is_playable_by_card_logic(owner_state, self, owner):
             return False
-        if (
-            card.card_id != CardId.ENTHRALLED
-            and any(hand_card.card_id == CardId.ENTHRALLED for hand_card in owner_state.hand)
-        ):
-            return False
-        normality_limits = [
-            int(hand_card.effect_vars.get("calc_base", 3))
-            for hand_card in owner_state.hand
-            if hand_card.card_id == CardId.NORMALITY
-        ]
-        if any(self.count_card_play_starts_this_turn(owner) >= limit for limit in normality_limits):
+        if any(not hand_card.allows_hand_card_play(card, owner_state, self, owner) for hand_card in owner_state.hand):
             return False
         if card.target_type == TargetType.ANY_ALLY and not self.get_player_allies_of(owner):
             return False

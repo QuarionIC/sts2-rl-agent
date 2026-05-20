@@ -27,6 +27,7 @@ BASE_CONSTRUCTOR_RE = re.compile(
 )
 SHOULD_SHOW_IN_CARD_LIBRARY_FALSE_RE = re.compile(r"shouldShowInCardLibrary\s*:\s*false")
 CUSTOM_PLAYABILITY_RE = re.compile(r"protected\s+override\s+bool\s+IsPlayable\s*=>")
+CUSTOM_SHOULD_PLAY_RE = re.compile(r"public\s+override\s+bool\s+ShouldPlay\s*\(")
 ENERGY_X_RE = re.compile(r"override\s+bool\s+HasEnergyCostX\s*=>\s*true\s*;")
 STAR_X_RE = re.compile(r"override\s+bool\s+HasStarCostX\s*=>\s*true\s*;")
 STAR_COST_RE = re.compile(r"override\s+int\s+CanonicalStarCost\s*=>\s*(?P<star_cost>-?\d+)\s*;")
@@ -178,6 +179,7 @@ class ReferenceCardStaticMetadata:
     visual_card_pool: CardPoolId | None
     should_show_in_card_library: bool
     has_custom_playability: bool
+    has_custom_should_play: bool
     multiplayer_constraint: str
 
 
@@ -288,6 +290,7 @@ def reference_metadata_from_source(path: Path) -> ReferenceCardStaticMetadata:
         ),
         should_show_in_card_library=SHOULD_SHOW_IN_CARD_LIBRARY_FALSE_RE.search(source) is None,
         has_custom_playability=CUSTOM_PLAYABILITY_RE.search(source) is not None,
+        has_custom_should_play=CUSTOM_SHOULD_PLAY_RE.search(source) is not None,
         multiplayer_constraint=(
             multiplayer_constraint_match.group("constraint")
             if multiplayer_constraint_match is not None

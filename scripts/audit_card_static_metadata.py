@@ -58,6 +58,7 @@ def _collect_mismatches_for_upgrade_state(
             "orb_evoke_type": reference.orb_evoke_type,
             "should_show_in_card_library": reference.should_show_in_card_library,
             "has_custom_playability": reference.has_custom_playability,
+            "has_custom_should_play": reference.has_custom_should_play,
             "multiplayer_constraint": reference.multiplayer_constraint,
         }
         if reference.visual_card_pool is not None:
@@ -81,6 +82,7 @@ def _collect_mismatches_for_upgrade_state(
             "visual_card_pool": card.visual_card_pool,
             "should_show_in_card_library": card.should_show_in_card_library,
             "has_custom_playability": card.has_custom_playability,
+            "has_custom_should_play": card.has_custom_should_play,
             "multiplayer_constraint": card_metadata(reference.card_id).multiplayer_constraint,
         }
         for field_name, expected_value in expected.items():

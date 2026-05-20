@@ -127,6 +127,13 @@ def reference_has_custom_playability(card_id: CardId) -> bool:
     return metadata.has_custom_playability if metadata is not None else False
 
 
+def reference_has_custom_should_play(card_id: CardId) -> bool:
+    from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+
+    metadata = reference_metadata_by_card_id().get(card_id)
+    return metadata.has_custom_should_play if metadata is not None else False
+
+
 def reference_canonical_tags(card_id: CardId) -> frozenset[CardTag]:
     from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
 
@@ -221,6 +228,10 @@ class CardInstance:
     def has_custom_playability(self) -> bool:
         return reference_has_custom_playability(self.card_id)
 
+    @property
+    def has_custom_should_play(self) -> bool:
+        return reference_has_custom_should_play(self.card_id)
+
     def is_playable_by_card_logic(self, owner_state: object, combat: object, owner: object) -> bool:
         if self.card_id == CardId.CLASH:
             return all(hand_card.card_type == CardType.ATTACK for hand_card in owner_state.hand)
@@ -231,6 +242,13 @@ class CardInstance:
             return not owner_state.draw
         if self.card_id == CardId.PACTS_END:
             return len(owner_state.exhaust) >= self.effect_vars["cards"]
+        return True
+
+    def allows_hand_card_play(self, card: CardInstance, owner_state: object, combat: object, owner: object) -> bool:
+        if self.card_id == CardId.ENTHRALLED:
+            return card.card_id == CardId.ENTHRALLED
+        if self.card_id == CardId.NORMALITY:
+            return combat.count_card_play_starts_this_turn(owner) < self.effect_vars["calc_base"]
         return True
 
     @property

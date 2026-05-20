@@ -453,6 +453,18 @@ class TestStatusParityExtra:
         assert combat.can_play_card(shiv_d) is False
         assert combat.play_card(1, 0) is False
 
+    def test_normality_uses_card_dynamic_limit_for_should_play(self):
+        combat = _make_combat()
+        normality = make_normality()
+        normality.effect_vars["calc_base"] = 1
+        first = make_shiv()
+        second = make_shiv()
+        combat.hand = [normality, first, second]
+        combat.energy = 10
+
+        assert combat.play_card(1, 0)
+        assert combat.can_play_card(second) is False
+
     def test_upgraded_peck_hits_four_times(self):
         combat = _make_combat()
         enemy = combat.enemies[0]
