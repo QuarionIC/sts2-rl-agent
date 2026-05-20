@@ -58,7 +58,14 @@ from sts2_env.run.rest_site import RestSiteOption, generate_rest_site_options
 from sts2_env.run.rewards import generate_combat_reward_cards
 from sts2_env.run.rooms import CombatRoom, Room, RoomVisitContext, create_room
 from sts2_env.run.run_state import RunState
-from sts2_env.run.shop import ShopInventory, card_removal_cost, generate_shop_inventory, refill_shop_entry
+from sts2_env.run.shop import (
+    SHOP_ENTRY_SOLD_OUT_PRICE,
+    ShopInventory,
+    card_removal_cost,
+    generate_shop_inventory,
+    is_shop_entry_available,
+    refill_shop_entry,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -694,7 +701,7 @@ class RunManager:
             return
         player = self._run_state.player
         for entry in list(inv.cards) + list(inv.colorless_cards):
-            if getattr(entry, "price", 0) >= 999999:
+            if not is_shop_entry_available(entry):
                 continue
             if entry.card is not None:
                 player.add_card_instance_to_deck(player.clone_card_for_deck(entry.card))
@@ -702,14 +709,14 @@ class RunManager:
                 player.add_card_to_deck(entry.card_id)
             self._handle_post_shop_purchase("card", entry, gold_spent=0)
         for entry in list(inv.relics):
-            if getattr(entry, "price", 0) >= 999999:
+            if not is_shop_entry_available(entry):
                 continue
             if entry.relic_id:
                 with self._deferred_followup_rewards():
                     player.obtain_relic(entry.relic_id)
             self._handle_post_shop_purchase("relic", entry, gold_spent=0)
         for entry in list(inv.potions):
-            if getattr(entry, "price", 0) >= 999999:
+            if not is_shop_entry_available(entry):
                 continue
             if entry.potion_id and player.procure_potion(entry.potion_id):
                 self._handle_post_shop_purchase("potion", entry, gold_spent=0)
@@ -1705,7 +1712,7 @@ class RunManager:
             return
 
         if hasattr(entry, "price"):
-            entry.price = 999999
+            entry.price = SHOP_ENTRY_SOLD_OUT_PRICE
 
     def _do_event_choice(self, action: dict) -> dict:
         option_id = action.get("option_id", "leave")

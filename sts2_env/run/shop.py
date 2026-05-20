@@ -90,7 +90,12 @@ def roll_potion_rarity(rng: Rng) -> PotionRarity:
 
 # ── Shop Inventory ────────────────────────────────────────────────────
 
+SHOP_ENTRY_SOLD_OUT_PRICE = 999999
 SHOP_BLACKLISTED_RELICS = {"TheCourier", "THE_COURIER", "OldCoin", "OLD_COIN"}
+
+
+def is_shop_entry_available(entry: object) -> bool:
+    return getattr(entry, "price", 0) < SHOP_ENTRY_SOLD_OUT_PRICE
 
 
 @dataclass

@@ -7,6 +7,7 @@ from sts2_env.core.enums import CardId, CardRarity, PotionRarity, RelicRarity, R
 from sts2_env.run.modifiers import HoarderModifier
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.shop import (
+    SHOP_ENTRY_SOLD_OUT_PRICE,
     ShopCardEntry,
     ShopInventory,
     ShopPotionEntry,
@@ -42,7 +43,7 @@ def test_the_courier_refills_bought_shop_card_slot():
 
     assert "Bought card" in result["description"]
     refilled_entry = mgr._shop_inventory.cards[0]
-    assert refilled_entry.price < 999999
+    assert refilled_entry.price < SHOP_ENTRY_SOLD_OUT_PRICE
     assert refilled_entry.card_id
     assert len(mgr.run_state.player.deck) > 0
     assert refilled_entry is not original_entry or refilled_entry.card_id != original_card_id
@@ -105,9 +106,9 @@ def test_lords_parasol_auto_purchases_shop_inventory_for_free(monkeypatch):
     assert len(mgr.run_state.player.deck) == starting_deck_size + 1
     assert "STRAWBERRY" in mgr.run_state.player.relics
     assert [p.potion_id for p in mgr.run_state.player.held_potions()] == ["FirePotion"]
-    assert inventory.cards[0].price == 999999
-    assert inventory.relics[0].price == 999999
-    assert inventory.potions[0].price == 999999
+    assert inventory.cards[0].price == SHOP_ENTRY_SOLD_OUT_PRICE
+    assert inventory.relics[0].price == SHOP_ENTRY_SOLD_OUT_PRICE
+    assert inventory.potions[0].price == SHOP_ENTRY_SOLD_OUT_PRICE
     assert mgr.run_state.pending_choice is not None
 
     mgr.take_action({"action": "choose", "index": 0})
