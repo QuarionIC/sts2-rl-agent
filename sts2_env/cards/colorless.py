@@ -1118,7 +1118,6 @@ def make_fasten(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.FASTEN, cost=1, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        tags=frozenset({CardTag.DEFEND}),
         effect_vars={
             FASTEN_EXTRA_BLOCK_KEY: (
                 FASTEN_UPGRADED_EXTRA_BLOCK if upgraded else FASTEN_EXTRA_BLOCK

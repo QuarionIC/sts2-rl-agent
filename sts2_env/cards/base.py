@@ -62,7 +62,6 @@ _MINION_TAG_CARD_IDS = {
 }
 
 _SHIV_TAG_CARD_IDS = {
-    CardId.KNIFE_TRAP,
     CardId.SHIV,
 }
 
@@ -199,7 +198,7 @@ class CardInstance:
 
     @property
     def is_unplayable(self) -> bool:
-        return self.cost < 0 or "unplayable" in self.keywords
+        return (self.cost < 0 and not self.has_energy_cost_x) or "unplayable" in self.keywords
 
     @property
     def is_ethereal(self) -> bool:

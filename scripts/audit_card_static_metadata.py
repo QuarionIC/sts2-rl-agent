@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""Audit card static metadata against decompiled card models."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from sts2_env.cards.factory import create_card
+from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+from sts2_env.core.enums import CardId
+
+
+RUNTIME_ONLY_CARD_IDS = frozenset({CardId.GENERIC})
+
+
+def collect_static_metadata_mismatches() -> list[str]:
+    mismatches: list[str] = []
+    for reference in reference_metadata_by_card_id().values():
+        if reference.card_id in RUNTIME_ONLY_CARD_IDS:
+            continue
+        card = create_card(reference.card_id)
+        expected = {
+            "cost": reference.cost,
+            "card_type": reference.card_type,
+            "target_type": reference.target_type,
+            "rarity": reference.rarity,
+            "keywords": reference.keywords,
+            "tags": reference.tags,
+            "has_energy_cost_x": reference.has_energy_cost_x,
+            "star_cost": reference.star_cost,
+            "has_star_cost_x": reference.has_star_cost_x,
+        }
+        actual = {
+            "cost": card.cost,
+            "card_type": card.card_type,
+            "target_type": card.target_type,
+            "rarity": card.rarity,
+            "keywords": card.keywords,
+            "tags": card.tags,
+            "has_energy_cost_x": card.has_energy_cost_x,
+            "star_cost": card.star_cost,
+            "has_star_cost_x": card.has_star_cost_x,
+        }
+        for field_name, expected_value in expected.items():
+            actual_value = actual[field_name]
+            if actual_value != expected_value:
+                mismatches.append(
+                    f"{reference.card_id.name}.{field_name}: "
+                    f"{actual_value!r} != {expected_value!r}"
+                )
+    return mismatches
+
+
+def main() -> int:
+    mismatches = collect_static_metadata_mismatches()
+    for mismatch in mismatches:
+        print(mismatch)
+    if mismatches:
+        print(f"{len(mismatches)} card static metadata mismatch(es) found")
+        return 1
+    print("card static metadata audit passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

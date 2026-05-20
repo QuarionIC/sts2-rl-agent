@@ -21,6 +21,7 @@ from sts2_env.cards.base import CardInstance
 from sts2_env.cards.factory import (
     _build_reference_effect_vars,
     _coerce_reference_rarity,
+    _static_metadata_override,
     _factory_registry,
     _reference_definition,
     create_card,
@@ -328,15 +329,24 @@ def test_factory_backed_cards_match_reference_core_metadata():
         card = create_card(card_id)
         cost_text = definition.cost.split("|", 1)[0].strip()
         ref_x_cost = cost_text == "X"
-        ref_cost = -1 if cost_text == "Unplayable" else (0 if ref_x_cost else int(cost_text))
+        static_metadata = _static_metadata_override(card_id)
+        if static_metadata is not None:
+            ref_cost = static_metadata.cost
+            ref_x_cost = static_metadata.has_energy_cost_x
+            ref_keywords = frozenset(static_metadata.keywords)
+            ref_tags = frozenset(static_metadata.tags)
+        else:
+            ref_cost = -1 if cost_text == "Unplayable" else (0 if ref_x_cost else int(cost_text))
+            ref_keywords = frozenset(definition.keywords)
+            ref_tags = frozenset(definition.tags)
         expected = {
             "cost": ref_cost,
             "x_cost": ref_x_cost,
             "type": CardType[definition.card_type.upper()],
             "target": TargetType[_camel_to_snake(definition.target).upper()],
             "rarity": _coerce_reference_rarity(definition.rarity),
-            "keywords": frozenset(definition.keywords),
-            "tags": frozenset(definition.tags),
+            "keywords": ref_keywords,
+            "tags": ref_tags,
         }
         actual = {
             "cost": card.cost,
@@ -414,7 +424,6 @@ def test_docs_backed_colorless_cards_still_participate_in_registered_colorless_p
     [
         (CardId.BONE_SHARDS, {CardTag.OSTY_ATTACK}),
         (CardId.DEFEND_IRONCLAD, {CardTag.DEFEND}),
-        (CardId.KNIFE_TRAP, {CardTag.SHIV}),
         (CardId.MINION_STRIKE, {CardTag.MINION, CardTag.STRIKE}),
         (CardId.POKE, {CardTag.OSTY_ATTACK}),
     ],

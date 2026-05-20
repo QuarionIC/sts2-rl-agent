@@ -1650,7 +1650,7 @@ def cascade(card: CardInstance, combat: CombatState, target: Creature | None) ->
 def make_cascade(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.CASCADE,
-        cost=0,
+        cost=-1,
         card_type=CardType.SKILL,
         target_type=TargetType.SELF,
         rarity=CardRarity.RARE,

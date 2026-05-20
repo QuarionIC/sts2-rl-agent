@@ -209,6 +209,17 @@ class TestIroncladParity:
         assert enemy.current_hp == start
         assert card in combat.discard_pile
 
+    def test_cascade_reference_cost_remains_playable_as_x_cost(self):
+        """Matches Cascade.cs: base cost is -1 but HasEnergyCostX makes it playable."""
+        combat = _make_combat()
+        card = make_cascade()
+        combat.hand = [card]
+        combat.energy = 0
+
+        assert card.cost == -1
+        assert card.is_unplayable is False
+        assert combat.can_play_card(card) is True
+
     def test_whirlwind_uses_modified_x_value_from_chemical_x(self):
         """Matches Whirlwind.cs + ChemicalX.cs: resolved X value includes X-value hooks."""
         combat = _make_combat(enemies=2, relics=["ChemicalX"])

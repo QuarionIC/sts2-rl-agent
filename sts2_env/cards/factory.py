@@ -267,6 +267,17 @@ def _reference_definition(card_id: CardId) -> ReferenceCardDefinition | None:
     return None
 
 
+@lru_cache(maxsize=1)
+def _decompiled_card_static_metadata():
+    from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+
+    return reference_metadata_by_card_id()
+
+
+def _static_metadata_override(card_id: CardId):
+    return _decompiled_card_static_metadata().get(card_id)
+
+
 def _coerce_reference_rarity(rarity_name: str) -> CardRarity:
     normalized = rarity_name.upper()
     if normalized == "TOKEN":
@@ -334,6 +345,7 @@ def _build_reference_card(
     if definition is None:
         raise KeyError(f"No reference card definition for {card_id!r}")
 
+    static_metadata = _static_metadata_override(card_id)
     cost_text = definition.cost.split("|", 1)[0].strip()
     star_cost = 0
     star_cost_match = re.search(r"StarCost:\s*(-?\d+)", definition.cost)
@@ -341,10 +353,14 @@ def _build_reference_card(
         star_cost = int(star_cost_match.group(1))
 
     has_energy_cost_x = cost_text == "X"
-    if cost_text == "Unplayable":
-        cost = -1
+    if static_metadata is not None:
+        cost = static_metadata.cost
+        has_energy_cost_x = static_metadata.has_energy_cost_x
     else:
-        cost = 0 if has_energy_cost_x else int(cost_text)
+        if cost_text == "Unplayable":
+            cost = -1
+        else:
+            cost = 0 if has_energy_cost_x else int(cost_text)
     effect_vars = _build_reference_effect_vars(definition.vars_text)
     card_type = CardType[definition.card_type.upper()]
     base_damage = effect_vars.get("damage", effect_vars.get("calc_base"))
@@ -364,11 +380,12 @@ def _build_reference_card(
         base_damage=base_damage,
         base_block=base_block,
         upgraded=upgraded and can_upgrade,
-        keywords=frozenset(definition.keywords),
-        tags=frozenset(definition.tags),
+        keywords=frozenset(static_metadata.keywords if static_metadata is not None else definition.keywords),
+        tags=frozenset(static_metadata.tags if static_metadata is not None else definition.tags),
         effect_vars=effect_vars,
         has_energy_cost_x=has_energy_cost_x,
         star_cost=star_cost,
+        has_star_cost_x=static_metadata.has_star_cost_x if static_metadata is not None else False,
     )
     if upgraded and can_upgrade:
         _apply_upgrade_text(card, effect_vars, definition.upgrade_text)
