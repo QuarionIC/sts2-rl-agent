@@ -1061,6 +1061,18 @@ class TestPowerAmountChangedHooks:
         fire_after_turn_end(CombatSide.ENEMY, simple_combat)
         assert enemy.get_power_amount(PowerId.STRENGTH) == 3
 
+    def test_enemy_ritual_does_not_skip_again_when_existing_ritual_stacks(self, simple_combat):
+        enemy = simple_combat.enemies[0]
+
+        enemy.apply_power(PowerId.RITUAL, 3)
+        fire_after_turn_end(CombatSide.ENEMY, simple_combat)
+        enemy.apply_power(PowerId.RITUAL, 2)
+
+        fire_after_turn_end(CombatSide.ENEMY, simple_combat)
+
+        assert enemy.get_power_amount(PowerId.RITUAL) == 5
+        assert enemy.get_power_amount(PowerId.STRENGTH) == 5
+
     def test_tank_applies_guarded_to_other_player_teammates(self, simple_combat):
         ally_state = PlayerState(player_id=2, character_id="Ironclad", max_hp=70, current_hp=70)
         ally = simple_combat.add_ally_player(ally_state)

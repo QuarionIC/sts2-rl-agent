@@ -70,6 +70,7 @@ class RitualPower(PowerInstance):
 
     def __init__(self, amount: int):
         super().__init__(PowerId.RITUAL, amount)
+        self._initial_skip_set: bool = False
 
     def after_power_amount_changed(
         self,
@@ -81,8 +82,15 @@ class RitualPower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is target and power_id == PowerId.RITUAL and amount > 0 and owner.side == CombatSide.ENEMY:
+        if (
+            owner is target
+            and power_id == PowerId.RITUAL
+            and amount > 0
+            and owner.side == CombatSide.ENEMY
+            and not self._initial_skip_set
+        ):
             self.skip_next_tick = True
+            self._initial_skip_set = True
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side == owner.side:
