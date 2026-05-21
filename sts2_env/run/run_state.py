@@ -1162,6 +1162,7 @@ class PlayerState:
             generation_context=None,
             roll_upgrade=False,
             allow_rarity_modifications=False,
+            card_pool_rarity_filter=rarity,
         )
         for relic in self.get_relic_objects():
             options = relic.modify_card_reward_creation_options(

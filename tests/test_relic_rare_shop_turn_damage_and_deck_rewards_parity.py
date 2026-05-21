@@ -5,10 +5,11 @@ import sts2_env.powers  # noqa: F401
 from sts2_env.cards.ironclad import create_ironclad_starter_deck, make_inflame
 from sts2_env.cards.ironclad_basic import make_bash, make_strike_ironclad
 from sts2_env.core.combat import CombatState
-from sts2_env.core.enums import PowerId, ValueProp
+from sts2_env.core.enums import CardRarity, PowerId, ValueProp
 from sts2_env.powers.base import PowerInstance
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle, create_twig_slime_s
+from sts2_env.characters.all import get_character
 from sts2_env.run.reward_objects import AddCardsReward, RemoveCardReward
 from sts2_env.run.run_state import RunState
 
@@ -207,6 +208,24 @@ def test_arcane_scroll_deferred_followup_queues_add_card_reward():
     assert len(add_rewards) == 1
     assert len(add_rewards[0].cards) == 1
     assert add_rewards[0].cards[0].rarity.name == "RARE"
+
+
+def test_arcane_scroll_applies_dingy_rug_card_pool_hook():
+    class LastChoiceRng:
+        def choice(self, values):
+            return list(values)[-1]
+
+    run_state = RunState(seed=907, character_id="Ironclad")
+    run_state.rng.rewards = LastChoiceRng()
+    starting_deck_size = len(run_state.player.deck)
+
+    assert run_state.player.obtain_relic("DINGY_RUG")
+    assert run_state.player.obtain_relic("ARCANE_SCROLL")
+
+    assert len(run_state.player.deck) == starting_deck_size + 1
+    added = run_state.player.deck[-1]
+    assert added.rarity not in {CardRarity.BASIC, CardRarity.ANCIENT}
+    assert added.card_id not in set(get_character("Ironclad").card_pool)
 
 
 def test_precarious_shears_deck_choice_mode_queues_remove_reward_and_applies_damage():

@@ -306,6 +306,7 @@ class DingyRug(RelicInstance):
             allow_hook_upgrades=options.allow_hook_upgrades,
             has_custom_card_pool=True,
             custom_card_ids=tuple(dict.fromkeys((*custom_card_ids, *colorless_ids))),
+            card_pool_rarity_filter=options.card_pool_rarity_filter,
         )
 
 
@@ -874,15 +875,47 @@ class ArcaneScroll(RelicInstance):
     pool = RelicPool.EVENT
 
     def after_obtained(self, owner: Creature) -> None:
-        if getattr(owner.run_state, "defer_followup_rewards", False):
-            from sts2_env.cards.factory import create_card, eligible_character_cards
+        from sts2_env.run.rewards import (
+            CARD_CREATION_SOURCE_OTHER,
+            CardRewardGenerationOptions,
+            generate_uniform_noncombat_reward_cards_with_options,
+        )
 
-            candidates = eligible_character_cards(owner.character_id, rarity="rare", generation_context="modifier")
-            if candidates:
-                card = create_card(owner.run_state.rng.rewards.choice(candidates))
-                owner.offer_add_cards_reward([card])
-                return
-        owner.add_random_card_to_deck("rare")
+        options = CardRewardGenerationOptions(
+            num_cards=1,
+            card_creation_source=CARD_CREATION_SOURCE_OTHER,
+            generation_context=None,
+            roll_upgrade=False,
+            card_pool_rarity_filter=CardRarity.RARE,
+        )
+        for relic in owner.get_relic_objects():
+            options = relic.modify_card_reward_creation_options(
+                owner,
+                options,
+                None,
+                None,
+                owner.run_state,
+            )
+        for modifier in owner.run_state.modifiers:
+            options = modifier.modify_card_reward_creation_options(
+                owner,
+                options,
+                None,
+                None,
+                owner.run_state,
+            )
+        cards = generate_uniform_noncombat_reward_cards_with_options(
+            owner.run_state,
+            options,
+            default_character_id=owner.character_id,
+            num_cards=1,
+        )
+        if not cards:
+            return
+        if getattr(owner.run_state, "defer_followup_rewards", False):
+            owner.offer_add_cards_reward(cards)
+            return
+        owner.add_card_instance_to_deck(cards[0])
 
 
 @register_relic
@@ -2925,6 +2958,7 @@ class PrismaticGem(RelicInstance):
             allow_hook_upgrades=options.allow_hook_upgrades,
             has_custom_card_pool=options.has_custom_card_pool,
             custom_card_ids=options.custom_card_ids,
+            card_pool_rarity_filter=options.card_pool_rarity_filter,
         )
 
 

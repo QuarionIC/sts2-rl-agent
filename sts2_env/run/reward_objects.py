@@ -292,6 +292,7 @@ class CardReward(Reward):
             allow_hook_upgrades=self.allow_hook_upgrades,
             has_custom_card_pool=self.has_custom_card_pool,
             custom_card_ids=self.custom_card_ids,
+            card_pool_rarity_filter=None,
         )
         for relic in player.get_relic_objects():
             options = relic.modify_card_reward_creation_options(

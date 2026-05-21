@@ -48,6 +48,7 @@ class CardRewardGenerationOptions:
     allow_hook_upgrades: bool = True
     has_custom_card_pool: bool = False
     custom_card_ids: tuple[CardId, ...] = field(default_factory=tuple)
+    card_pool_rarity_filter: CardRarity | None = None
 
     @property
     def rarity_modifications_allowed(self) -> bool:
@@ -121,7 +122,7 @@ def card_reward_candidate_ids(
         for card_id in eligible_character_cards(
             character_id,
             card_type=card_type,
-            rarity=rarity,
+            rarity=rarity or options.card_pool_rarity_filter,
             generation_context=generation_context,
             is_multiplayer=_is_multiplayer_run(run_state),
         ):
@@ -135,7 +136,7 @@ def card_reward_candidate_ids(
         for card_id in eligible_registered_cards(
             card_pool=CardPoolId.COLORLESS,
             card_type=card_type,
-            rarity=rarity,
+            rarity=rarity or options.card_pool_rarity_filter,
             generation_context=generation_context,
             is_multiplayer=_is_multiplayer_run(run_state),
         ):
@@ -515,4 +516,37 @@ def generate_uniform_noncombat_cards(
         cards.append(card)
         if distinct:
             available.remove(chosen_id)
+    return cards
+
+
+def generate_uniform_noncombat_reward_cards_with_options(
+    run_state: RunState,
+    options: CardRewardGenerationOptions,
+    *,
+    default_character_id: str,
+    num_cards: int | None = None,
+) -> list[CardInstance]:
+    candidate_ids = card_reward_candidate_ids(
+        run_state,
+        options,
+        default_character_id=default_character_id,
+        card_type=options.card_type,
+        generation_context=options.generation_context,
+    )
+    filtered_ids = [
+        card_id
+        for card_id in candidate_ids
+        if card_metadata(card_id).rarity not in UNIFORM_REWARD_EXCLUDED_RARITIES
+    ]
+    if not filtered_ids:
+        return []
+    chosen_ids: set[CardId] = set()
+    cards: list[CardInstance] = []
+    for _ in range(num_cards if num_cards is not None else options.num_cards):
+        available_ids = [card_id for card_id in filtered_ids if card_id not in chosen_ids]
+        if not available_ids:
+            break
+        card_id = run_state.rng.rewards.choice(available_ids)
+        chosen_ids.add(card_id)
+        cards.append(create_card(card_id, upgraded=False))
     return cards

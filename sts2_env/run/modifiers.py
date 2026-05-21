@@ -337,6 +337,7 @@ class BigGameHunterModifier(ModifierModel):
             allow_hook_upgrades=options.allow_hook_upgrades,
             has_custom_card_pool=True,
             custom_card_ids=rare_ids,
+            card_pool_rarity_filter=options.card_pool_rarity_filter,
         )
 
 
@@ -386,6 +387,7 @@ class CharacterCardsModifier(ModifierModel):
             allow_hook_upgrades=options.allow_hook_upgrades,
             has_custom_card_pool=True,
             custom_card_ids=tuple(dict.fromkeys(custom_card_ids)),
+            card_pool_rarity_filter=options.card_pool_rarity_filter,
         )
 
     def modify_merchant_card_character_ids(self, player, character_ids, run_state):
