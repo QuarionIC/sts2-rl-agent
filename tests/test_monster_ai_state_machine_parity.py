@@ -45,6 +45,9 @@ from sts2_env.encounters.act3 import (
 from sts2_env.encounters.act4 import (
     setup_corpse_slugs_normal,
     setup_corpse_slugs_weak,
+    setup_cultists_normal,
+    setup_fossil_stalker_normal,
+    setup_gremlin_merc_normal,
     setup_lagavulin_matriarch_boss,
     setup_phantasmal_gardeners_elite,
     setup_seapunk_weak,
@@ -86,10 +89,28 @@ from sts2_env.monsters.act1_weak import create_leaf_slime_m
 from sts2_env.monsters.act1_weak import create_twig_slime_s
 from sts2_env.monsters.act1_weak import create_twig_slime_m
 from sts2_env.monsters.act4 import (
+    CALCIFIED_CULTIST_MONSTER_ID,
+    CULTIST_DARK_STRIKE_MOVE,
+    CULTIST_INCANTATION_MOVE,
+    DAMP_CULTIST_MONSTER_ID,
+    FAT_GREMLIN_FLEE_MOVE,
+    FAT_GREMLIN_MONSTER_ID,
+    FOSSIL_STALKER_LASH_MOVE,
+    FOSSIL_STALKER_LATCH_MOVE,
+    FOSSIL_STALKER_MONSTER_ID,
+    FOSSIL_STALKER_RANDOM_STATE,
+    FOSSIL_STALKER_TACKLE_MOVE,
+    GREMLIN_MERC_DOUBLE_SMASH_MOVE,
+    GREMLIN_MERC_GIMME_MOVE,
+    GREMLIN_MERC_HEHE_MOVE,
+    GREMLIN_MERC_MONSTER_ID,
+    GREMLIN_SPAWNED_MOVE,
+    GREMLIN_TACKLE_MOVE,
     SEAPUNK_BUBBLE_BURP_MOVE,
     SEAPUNK_MONSTER_ID,
     SEAPUNK_SEA_KICK_MOVE,
     SEAPUNK_SPINNING_KICK_MOVE,
+    SNEAKY_GREMLIN_MONSTER_ID,
     SLUDGE_SPINNER_OIL_SPRAY_MOVE,
     SLUDGE_SPINNER_RANDOM_STATE,
     SLUDGE_SPINNER_RAGE_MOVE,
@@ -659,6 +680,32 @@ SLUDGE_SPINNER_OIL_SPRAY_WEAK = 1
 SLUDGE_SPINNER_SLAM_DAMAGE_A9 = 12
 SLUDGE_SPINNER_RAGE_DAMAGE_A9 = 7
 SLUDGE_SPINNER_RAGE_STRENGTH = 3
+CALCIFIED_CULTIST_A8_HP_RANGE = (39, 42)
+CALCIFIED_CULTIST_DARK_STRIKE_DAMAGE_A9 = 11
+CALCIFIED_CULTIST_RITUAL = 2
+DAMP_CULTIST_A8_HP_RANGE = (52, 54)
+DAMP_CULTIST_DARK_STRIKE_DAMAGE_A9 = 3
+DAMP_CULTIST_RITUAL_A9 = 6
+FOSSIL_STALKER_A8_HP_RANGE = (54, 56)
+FOSSIL_STALKER_TACKLE_DAMAGE_A9 = 11
+FOSSIL_STALKER_TACKLE_FRAIL = 1
+FOSSIL_STALKER_LATCH_DAMAGE_A9 = 14
+FOSSIL_STALKER_LASH_DAMAGE_A9 = 4
+FOSSIL_STALKER_LASH_HITS = 2
+FOSSIL_STALKER_SUCK = 3
+GREMLIN_MERC_A8_HP_RANGE = (51, 53)
+GREMLIN_MERC_GIMME_DAMAGE_A8 = 8
+GREMLIN_MERC_GIMME_HITS = 2
+GREMLIN_MERC_DOUBLE_SMASH_DAMAGE_A8 = 7
+GREMLIN_MERC_DOUBLE_SMASH_HITS = 2
+GREMLIN_MERC_DOUBLE_SMASH_WEAK = 2
+GREMLIN_MERC_HEHE_DAMAGE_A8 = 9
+GREMLIN_MERC_HEHE_STRENGTH = 2
+GREMLIN_MERC_SURPRISE = 1
+GREMLIN_MERC_THIEVERY = 20
+SNEAKY_GREMLIN_A8_HP_RANGE = (11, 15)
+SNEAKY_GREMLIN_TACKLE_DAMAGE_A9 = 10
+FAT_GREMLIN_A8_HP_RANGE = (14, 18)
 FABRICATOR_BASE_HP = 150
 FABRICATOR_A8_HP = 155
 FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9 = 21
@@ -5658,6 +5705,169 @@ class TestFixedRotation:
         encounter_sludge_ai = encounter_sludge_combat.enemy_ais[encounter_sludge.combat_id]
         assert encounter_sludge.max_hp >= SLUDGE_SPINNER_A8_HP_RANGE[0]
         assert encounter_sludge_ai.states[SLUDGE_SPINNER_RAGE_MOVE].intents[0].damage == SLUDGE_SPINNER_RAGE_DAMAGE_A9
+
+    def test_act4_normal_cultist_fossil_and_gremlin_ascension_scaling_matches_csharp(self):
+        rng_seed = 1317
+
+        calcified_combat = _make_combat(rng_seed)
+        calcified_combat.ascension_level = 9
+        calcified, calcified_ai = create_calcified_cultist(Rng(rng_seed), ascension_level=9)
+        calcified_combat.add_enemy(calcified, calcified_ai)
+        assert CALCIFIED_CULTIST_A8_HP_RANGE[0] <= calcified.max_hp <= CALCIFIED_CULTIST_A8_HP_RANGE[1]
+        assert calcified_ai.current_move.state_id == CULTIST_INCANTATION_MOVE
+        calcified_ai.states[CULTIST_INCANTATION_MOVE].perform(calcified_combat)
+        assert calcified.get_power_amount(PowerId.RITUAL) == CALCIFIED_CULTIST_RITUAL
+        calcified_dark_strike = calcified_ai.states[CULTIST_DARK_STRIKE_MOVE]
+        assert calcified_dark_strike.intents[0].damage == CALCIFIED_CULTIST_DARK_STRIKE_DAMAGE_A9
+        player_hp_before_calcified = calcified_combat.player.current_hp
+        calcified_dark_strike.perform(calcified_combat)
+        assert calcified_combat.player.current_hp == player_hp_before_calcified - CALCIFIED_CULTIST_DARK_STRIKE_DAMAGE_A9
+
+        damp_combat = _make_combat(rng_seed)
+        damp_combat.ascension_level = 9
+        damp, damp_ai = create_damp_cultist(Rng(rng_seed), ascension_level=9)
+        damp_combat.add_enemy(damp, damp_ai)
+        assert DAMP_CULTIST_A8_HP_RANGE[0] <= damp.max_hp <= DAMP_CULTIST_A8_HP_RANGE[1]
+        damp_ai.states[CULTIST_INCANTATION_MOVE].perform(damp_combat)
+        assert damp.get_power_amount(PowerId.RITUAL) == DAMP_CULTIST_RITUAL_A9
+        damp_dark_strike = damp_ai.states[CULTIST_DARK_STRIKE_MOVE]
+        assert damp_dark_strike.intents[0].damage == DAMP_CULTIST_DARK_STRIKE_DAMAGE_A9
+        player_hp_before_damp = damp_combat.player.current_hp
+        damp_dark_strike.perform(damp_combat)
+        assert damp_combat.player.current_hp == player_hp_before_damp - DAMP_CULTIST_DARK_STRIKE_DAMAGE_A9
+
+        fossil_combat = _make_combat(rng_seed)
+        fossil_combat.ascension_level = 9
+        fossil, fossil_ai = create_fossil_stalker(Rng(rng_seed), ascension_level=9)
+        fossil_combat.add_enemy(fossil, fossil_ai)
+        assert FOSSIL_STALKER_A8_HP_RANGE[0] <= fossil.max_hp <= FOSSIL_STALKER_A8_HP_RANGE[1]
+        assert fossil.get_power_amount(PowerId.SUCK) == FOSSIL_STALKER_SUCK
+        assert fossil_ai.current_move.state_id == FOSSIL_STALKER_LATCH_MOVE
+        assert {
+            FOSSIL_STALKER_RANDOM_STATE,
+            FOSSIL_STALKER_TACKLE_MOVE,
+            FOSSIL_STALKER_LATCH_MOVE,
+            FOSSIL_STALKER_LASH_MOVE,
+        }.issubset(fossil_ai.states)
+
+        tackle = fossil_ai.states[FOSSIL_STALKER_TACKLE_MOVE]
+        assert tackle.intents[0].damage == FOSSIL_STALKER_TACKLE_DAMAGE_A9
+        player_hp_before_tackle = fossil_combat.player.current_hp
+        tackle.perform(fossil_combat)
+        assert fossil_combat.player.current_hp == player_hp_before_tackle - FOSSIL_STALKER_TACKLE_DAMAGE_A9
+        assert fossil_combat.player.get_power_amount(PowerId.FRAIL) == FOSSIL_STALKER_TACKLE_FRAIL
+
+        fossil_combat = _make_combat(rng_seed)
+        fossil_combat.ascension_level = 9
+        fossil, fossil_ai = create_fossil_stalker(Rng(rng_seed), ascension_level=9)
+        fossil_combat.add_enemy(fossil, fossil_ai)
+        latch = fossil_ai.states[FOSSIL_STALKER_LATCH_MOVE]
+        assert latch.intents[0].damage == FOSSIL_STALKER_LATCH_DAMAGE_A9
+        player_hp_before_latch = fossil_combat.player.current_hp
+        latch.perform(fossil_combat)
+        assert fossil_combat.player.current_hp == player_hp_before_latch - FOSSIL_STALKER_LATCH_DAMAGE_A9
+
+        fossil_combat = _make_combat(rng_seed)
+        fossil_combat.ascension_level = 9
+        fossil, fossil_ai = create_fossil_stalker(Rng(rng_seed), ascension_level=9)
+        fossil_combat.add_enemy(fossil, fossil_ai)
+        lash = fossil_ai.states[FOSSIL_STALKER_LASH_MOVE]
+        assert lash.intents[0].damage == FOSSIL_STALKER_LASH_DAMAGE_A9
+        assert lash.intents[0].hits == FOSSIL_STALKER_LASH_HITS
+        player_hp_before_lash = fossil_combat.player.current_hp
+        lash.perform(fossil_combat)
+        assert fossil_combat.player.current_hp == (
+            player_hp_before_lash - FOSSIL_STALKER_LASH_DAMAGE_A9 * FOSSIL_STALKER_LASH_HITS
+        )
+
+        merc_combat = _make_combat(rng_seed)
+        merc_combat.ascension_level = 9
+        merc, merc_ai = create_gremlin_merc(Rng(rng_seed), ascension_level=9)
+        merc_combat.add_enemy(merc, merc_ai)
+        assert GREMLIN_MERC_A8_HP_RANGE[0] <= merc.max_hp <= GREMLIN_MERC_A8_HP_RANGE[1]
+        assert merc.get_power_amount(PowerId.SURPRISE) == GREMLIN_MERC_SURPRISE
+        assert merc.get_power_amount(PowerId.THIEVERY) == GREMLIN_MERC_THIEVERY
+
+        gimme = merc_ai.states[GREMLIN_MERC_GIMME_MOVE]
+        assert gimme.intents[0].damage == GREMLIN_MERC_GIMME_DAMAGE_A8
+        assert gimme.intents[0].hits == GREMLIN_MERC_GIMME_HITS
+        player_hp_before_gimme = merc_combat.player.current_hp
+        gimme.perform(merc_combat)
+        assert merc_combat.player.current_hp == (
+            player_hp_before_gimme - GREMLIN_MERC_GIMME_DAMAGE_A8 * GREMLIN_MERC_GIMME_HITS
+        )
+
+        double_smash = merc_ai.states[GREMLIN_MERC_DOUBLE_SMASH_MOVE]
+        assert double_smash.intents[0].damage == GREMLIN_MERC_DOUBLE_SMASH_DAMAGE_A8
+        assert double_smash.intents[0].hits == GREMLIN_MERC_DOUBLE_SMASH_HITS
+        player_hp_before_smash = merc_combat.player.current_hp
+        double_smash.perform(merc_combat)
+        assert merc_combat.player.current_hp == (
+            player_hp_before_smash - GREMLIN_MERC_DOUBLE_SMASH_DAMAGE_A8 * GREMLIN_MERC_DOUBLE_SMASH_HITS
+        )
+        assert merc_combat.player.get_power_amount(PowerId.WEAK) == GREMLIN_MERC_DOUBLE_SMASH_WEAK
+        merc_combat.player.powers.pop(PowerId.WEAK, None)
+
+        hehe = merc_ai.states[GREMLIN_MERC_HEHE_MOVE]
+        assert hehe.intents[0].damage == GREMLIN_MERC_HEHE_DAMAGE_A8
+        player_hp_before_hehe = merc_combat.player.current_hp
+        hehe.perform(merc_combat)
+        assert merc_combat.player.current_hp == player_hp_before_hehe - GREMLIN_MERC_HEHE_DAMAGE_A8
+        assert merc.get_power_amount(PowerId.STRENGTH) == GREMLIN_MERC_HEHE_STRENGTH
+
+        sneaky_combat = _make_combat(rng_seed)
+        sneaky_combat.ascension_level = 9
+        sneaky, sneaky_ai = create_sneaky_gremlin(Rng(rng_seed), ascension_level=9)
+        sneaky_combat.add_enemy(sneaky, sneaky_ai)
+        assert SNEAKY_GREMLIN_A8_HP_RANGE[0] <= sneaky.max_hp <= SNEAKY_GREMLIN_A8_HP_RANGE[1]
+        assert sneaky_ai.current_move.state_id == GREMLIN_SPAWNED_MOVE
+        sneaky_tackle = sneaky_ai.states[GREMLIN_TACKLE_MOVE]
+        assert sneaky_tackle.intents[0].damage == SNEAKY_GREMLIN_TACKLE_DAMAGE_A9
+        player_hp_before_sneaky = sneaky_combat.player.current_hp
+        sneaky_tackle.perform(sneaky_combat)
+        assert sneaky_combat.player.current_hp == player_hp_before_sneaky - SNEAKY_GREMLIN_TACKLE_DAMAGE_A9
+
+        fat, fat_ai = create_fat_gremlin(Rng(rng_seed), ascension_level=9)
+        assert FAT_GREMLIN_A8_HP_RANGE[0] <= fat.max_hp <= FAT_GREMLIN_A8_HP_RANGE[1]
+        assert fat_ai.current_move.state_id == GREMLIN_SPAWNED_MOVE
+        assert FAT_GREMLIN_FLEE_MOVE in fat_ai.states
+
+        cultist_encounter = _make_combat(rng_seed)
+        cultist_encounter.ascension_level = 9
+        setup_cultists_normal(cultist_encounter, Rng(rng_seed))
+        assert [enemy.monster_id for enemy in cultist_encounter.enemies] == [
+            CALCIFIED_CULTIST_MONSTER_ID,
+            DAMP_CULTIST_MONSTER_ID,
+        ]
+        encounter_calcified = cultist_encounter.enemies[0]
+        encounter_damp = cultist_encounter.enemies[1]
+        assert encounter_calcified.max_hp >= CALCIFIED_CULTIST_A8_HP_RANGE[0]
+        assert encounter_damp.max_hp >= DAMP_CULTIST_A8_HP_RANGE[0]
+
+        fossil_encounter = _make_combat(rng_seed)
+        fossil_encounter.ascension_level = 9
+        setup_fossil_stalker_normal(fossil_encounter, Rng(rng_seed))
+        encounter_fossil = fossil_encounter.enemies[0]
+        encounter_fossil_ai = fossil_encounter.enemy_ais[encounter_fossil.combat_id]
+        assert encounter_fossil.max_hp >= FOSSIL_STALKER_A8_HP_RANGE[0]
+        assert encounter_fossil_ai.states[FOSSIL_STALKER_LASH_MOVE].intents[0].damage == FOSSIL_STALKER_LASH_DAMAGE_A9
+
+        merc_encounter = _make_combat(rng_seed)
+        merc_encounter.ascension_level = 9
+        setup_gremlin_merc_normal(merc_encounter, Rng(rng_seed))
+        assert [enemy.monster_id for enemy in merc_encounter.enemies] == [
+            GREMLIN_MERC_MONSTER_ID,
+            SNEAKY_GREMLIN_MONSTER_ID,
+            FAT_GREMLIN_MONSTER_ID,
+        ]
+        encounter_merc = merc_encounter.enemies[0]
+        encounter_sneaky = merc_encounter.enemies[1]
+        encounter_fat = merc_encounter.enemies[2]
+        encounter_merc_ai = merc_encounter.enemy_ais[encounter_merc.combat_id]
+        assert encounter_merc.max_hp >= GREMLIN_MERC_A8_HP_RANGE[0]
+        assert encounter_sneaky.max_hp >= SNEAKY_GREMLIN_A8_HP_RANGE[0]
+        assert encounter_fat.max_hp >= FAT_GREMLIN_A8_HP_RANGE[0]
+        assert encounter_merc_ai.states[GREMLIN_MERC_HEHE_MOVE].intents[0].damage == GREMLIN_MERC_HEHE_DAMAGE_A8
 
     def test_act4_weak_monsters_use_original_move_ids_and_stats(self):
         slug, slug_ai = create_corpse_slug(Rng(50), starter_idx=0)

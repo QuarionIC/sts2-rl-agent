@@ -366,138 +366,351 @@ def create_toadpole(rng: Rng, slot: str = "first") -> tuple[Creature, MonsterAI]
 
 # ---- CalcifiedCultist (HP 38-41 / 39-42 asc) ----
 
-def create_calcified_cultist(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(38, 41)
-    creature = Creature(max_hp=hp, monster_id="CALCIFIED_CULTIST")
-    dark_strike_dmg = 9
+CULTIST_INCANTATION_MOVE = "INCANTATION_MOVE"
+CULTIST_DARK_STRIKE_MOVE = "DARK_STRIKE_MOVE"
+CALCIFIED_CULTIST_MONSTER_ID = "CALCIFIED_CULTIST"
+CALCIFIED_CULTIST_BASE_MIN_HP = 38
+CALCIFIED_CULTIST_BASE_MAX_HP = 41
+CALCIFIED_CULTIST_TOUGH_MIN_HP = 39
+CALCIFIED_CULTIST_TOUGH_MAX_HP = 42
+CALCIFIED_CULTIST_BASE_DARK_STRIKE_DAMAGE = 9
+CALCIFIED_CULTIST_DEADLY_DARK_STRIKE_DAMAGE = 11
+CALCIFIED_CULTIST_INCANTATION_RITUAL = 2
+
+
+def create_calcified_cultist(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        CALCIFIED_CULTIST_TOUGH_MIN_HP,
+        CALCIFIED_CULTIST_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        CALCIFIED_CULTIST_TOUGH_MAX_HP,
+        CALCIFIED_CULTIST_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=CALCIFIED_CULTIST_MONSTER_ID)
 
     def incantation(combat: CombatState) -> None:
-        creature.apply_power(PowerId.RITUAL, 2)
+        creature.apply_power(PowerId.RITUAL, CALCIFIED_CULTIST_INCANTATION_RITUAL)
 
     def dark_strike(combat: CombatState) -> None:
+        dark_strike_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CALCIFIED_CULTIST_DEADLY_DARK_STRIKE_DAMAGE,
+            CALCIFIED_CULTIST_BASE_DARK_STRIKE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, dark_strike_dmg)
 
+    dark_strike_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        CALCIFIED_CULTIST_DEADLY_DARK_STRIKE_DAMAGE,
+        CALCIFIED_CULTIST_BASE_DARK_STRIKE_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "INCANTATION_MOVE": MoveState(
-            "INCANTATION_MOVE",
+        CULTIST_INCANTATION_MOVE: MoveState(
+            CULTIST_INCANTATION_MOVE,
             incantation,
             [buff_intent()],
-            follow_up_id="DARK_STRIKE_MOVE",
+            follow_up_id=CULTIST_DARK_STRIKE_MOVE,
         ),
-        "DARK_STRIKE_MOVE": MoveState(
-            "DARK_STRIKE_MOVE",
+        CULTIST_DARK_STRIKE_MOVE: MoveState(
+            CULTIST_DARK_STRIKE_MOVE,
             dark_strike,
-            [attack_intent(dark_strike_dmg)],
-            follow_up_id="DARK_STRIKE_MOVE",
+            [attack_intent(dark_strike_intent_damage)],
+            follow_up_id=CULTIST_DARK_STRIKE_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "INCANTATION_MOVE")
+    return creature, MonsterAI(states, CULTIST_INCANTATION_MOVE)
 
 
 # ---- DampCultist (HP 51-53 / 52-54 asc) ----
 
-def create_damp_cultist(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(51, 53)
-    creature = Creature(max_hp=hp, monster_id="DAMP_CULTIST")
-    dark_strike_dmg = 1
+DAMP_CULTIST_MONSTER_ID = "DAMP_CULTIST"
+DAMP_CULTIST_BASE_MIN_HP = 51
+DAMP_CULTIST_BASE_MAX_HP = 53
+DAMP_CULTIST_TOUGH_MIN_HP = 52
+DAMP_CULTIST_TOUGH_MAX_HP = 54
+DAMP_CULTIST_BASE_DARK_STRIKE_DAMAGE = 1
+DAMP_CULTIST_DEADLY_DARK_STRIKE_DAMAGE = 3
+DAMP_CULTIST_BASE_INCANTATION_RITUAL = 5
+DAMP_CULTIST_DEADLY_INCANTATION_RITUAL = 6
+
+
+def create_damp_cultist(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        DAMP_CULTIST_TOUGH_MIN_HP,
+        DAMP_CULTIST_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        DAMP_CULTIST_TOUGH_MAX_HP,
+        DAMP_CULTIST_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=DAMP_CULTIST_MONSTER_ID)
 
     def incantation(combat: CombatState) -> None:
-        creature.apply_power(PowerId.RITUAL, 5)
+        ritual = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            DAMP_CULTIST_DEADLY_INCANTATION_RITUAL,
+            DAMP_CULTIST_BASE_INCANTATION_RITUAL,
+        )
+        creature.apply_power(PowerId.RITUAL, ritual)
 
     def dark_strike(combat: CombatState) -> None:
+        dark_strike_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            DAMP_CULTIST_DEADLY_DARK_STRIKE_DAMAGE,
+            DAMP_CULTIST_BASE_DARK_STRIKE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, dark_strike_dmg)
 
+    dark_strike_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        DAMP_CULTIST_DEADLY_DARK_STRIKE_DAMAGE,
+        DAMP_CULTIST_BASE_DARK_STRIKE_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "INCANTATION_MOVE": MoveState(
-            "INCANTATION_MOVE",
+        CULTIST_INCANTATION_MOVE: MoveState(
+            CULTIST_INCANTATION_MOVE,
             incantation,
             [buff_intent()],
-            follow_up_id="DARK_STRIKE_MOVE",
+            follow_up_id=CULTIST_DARK_STRIKE_MOVE,
         ),
-        "DARK_STRIKE_MOVE": MoveState(
-            "DARK_STRIKE_MOVE",
+        CULTIST_DARK_STRIKE_MOVE: MoveState(
+            CULTIST_DARK_STRIKE_MOVE,
             dark_strike,
-            [attack_intent(dark_strike_dmg)],
-            follow_up_id="DARK_STRIKE_MOVE",
+            [attack_intent(dark_strike_intent_damage)],
+            follow_up_id=CULTIST_DARK_STRIKE_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "INCANTATION_MOVE")
+    return creature, MonsterAI(states, CULTIST_INCANTATION_MOVE)
 
 
 # ---- FossilStalker (HP 51-53 / 54-56 asc) ----
 
-def create_fossil_stalker(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(51, 53)
-    creature = Creature(max_hp=hp, monster_id="FOSSIL_STALKER")
-    tackle_dmg = 9
-    tackle_frail = 1
-    latch_dmg = 12
-    lash_dmg = 3
+FOSSIL_STALKER_MONSTER_ID = "FOSSIL_STALKER"
+FOSSIL_STALKER_BASE_MIN_HP = 51
+FOSSIL_STALKER_BASE_MAX_HP = 53
+FOSSIL_STALKER_TOUGH_MIN_HP = 54
+FOSSIL_STALKER_TOUGH_MAX_HP = 56
+FOSSIL_STALKER_BASE_TACKLE_DAMAGE = 9
+FOSSIL_STALKER_DEADLY_TACKLE_DAMAGE = 11
+FOSSIL_STALKER_TACKLE_FRAIL = 1
+FOSSIL_STALKER_BASE_LATCH_DAMAGE = 12
+FOSSIL_STALKER_DEADLY_LATCH_DAMAGE = 14
+FOSSIL_STALKER_BASE_LASH_DAMAGE = 3
+FOSSIL_STALKER_DEADLY_LASH_DAMAGE = 4
+FOSSIL_STALKER_LASH_REPEAT = 2
+FOSSIL_STALKER_SUCK = 3
+FOSSIL_STALKER_RANDOM_STATE = "RAND"
+FOSSIL_STALKER_TACKLE_MOVE = "TACKLE_MOVE"
+FOSSIL_STALKER_LATCH_MOVE = "LATCH_MOVE"
+FOSSIL_STALKER_LASH_MOVE = "LASH_MOVE"
+FOSSIL_STALKER_MOVE_WEIGHT = 2.0
+
+
+def create_fossil_stalker(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        FOSSIL_STALKER_TOUGH_MIN_HP,
+        FOSSIL_STALKER_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        FOSSIL_STALKER_TOUGH_MAX_HP,
+        FOSSIL_STALKER_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=FOSSIL_STALKER_MONSTER_ID)
 
     def tackle(combat: CombatState) -> None:
+        tackle_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FOSSIL_STALKER_DEADLY_TACKLE_DAMAGE,
+            FOSSIL_STALKER_BASE_TACKLE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, tackle_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.FRAIL, tackle_frail, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.FRAIL,
+            FOSSIL_STALKER_TACKLE_FRAIL,
+            applier=creature,
+        )
 
     def latch(combat: CombatState) -> None:
+        latch_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FOSSIL_STALKER_DEADLY_LATCH_DAMAGE,
+            FOSSIL_STALKER_BASE_LATCH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, latch_dmg)
 
     def lash(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, lash_dmg, hits=2)
+        lash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FOSSIL_STALKER_DEADLY_LASH_DAMAGE,
+            FOSSIL_STALKER_BASE_LASH_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, lash_dmg, hits=FOSSIL_STALKER_LASH_REPEAT)
 
-    rand = RandomBranchState("RAND")
-    rand.add_branch("LATCH_MOVE", weight=2.0)
-    rand.add_branch("TACKLE_MOVE", weight=2.0)
-    rand.add_branch("LASH_MOVE", weight=2.0)
+    tackle_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FOSSIL_STALKER_DEADLY_TACKLE_DAMAGE,
+        FOSSIL_STALKER_BASE_TACKLE_DAMAGE,
+    )
+    latch_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FOSSIL_STALKER_DEADLY_LATCH_DAMAGE,
+        FOSSIL_STALKER_BASE_LATCH_DAMAGE,
+    )
+    lash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FOSSIL_STALKER_DEADLY_LASH_DAMAGE,
+        FOSSIL_STALKER_BASE_LASH_DAMAGE,
+    )
+
+    rand = RandomBranchState(FOSSIL_STALKER_RANDOM_STATE)
+    rand.add_branch(FOSSIL_STALKER_LATCH_MOVE, weight=FOSSIL_STALKER_MOVE_WEIGHT)
+    rand.add_branch(FOSSIL_STALKER_TACKLE_MOVE, weight=FOSSIL_STALKER_MOVE_WEIGHT)
+    rand.add_branch(FOSSIL_STALKER_LASH_MOVE, weight=FOSSIL_STALKER_MOVE_WEIGHT)
 
     states: dict[str, MonsterState] = {
-        "RAND": rand,
-        "TACKLE_MOVE": MoveState(
-            "TACKLE_MOVE",
+        FOSSIL_STALKER_RANDOM_STATE: rand,
+        FOSSIL_STALKER_TACKLE_MOVE: MoveState(
+            FOSSIL_STALKER_TACKLE_MOVE,
             tackle,
-            [attack_intent(tackle_dmg), debuff_intent()],
-            follow_up_id="RAND",
+            [attack_intent(tackle_intent_damage), debuff_intent()],
+            follow_up_id=FOSSIL_STALKER_RANDOM_STATE,
         ),
-        "LATCH_MOVE": MoveState("LATCH_MOVE", latch, [attack_intent(latch_dmg)], follow_up_id="RAND"),
-        "LASH_MOVE": MoveState("LASH_MOVE", lash, [multi_attack_intent(lash_dmg, 2)], follow_up_id="RAND"),
+        FOSSIL_STALKER_LATCH_MOVE: MoveState(
+            FOSSIL_STALKER_LATCH_MOVE,
+            latch,
+            [attack_intent(latch_intent_damage)],
+            follow_up_id=FOSSIL_STALKER_RANDOM_STATE,
+        ),
+        FOSSIL_STALKER_LASH_MOVE: MoveState(
+            FOSSIL_STALKER_LASH_MOVE,
+            lash,
+            [multi_attack_intent(lash_intent_damage, FOSSIL_STALKER_LASH_REPEAT)],
+            follow_up_id=FOSSIL_STALKER_RANDOM_STATE,
+        ),
     }
 
-    creature.apply_power(PowerId.SUCK, 3)
-    return creature, MonsterAI(states, "LATCH_MOVE")
+    creature.apply_power(PowerId.SUCK, FOSSIL_STALKER_SUCK)
+    return creature, MonsterAI(states, FOSSIL_STALKER_LATCH_MOVE)
 
 
 # ---- GremlinMerc (HP 47-49 / 51-53 asc) + SneakyGremlin + FatGremlin ----
 
-def create_sneaky_gremlin(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(10, 14)
-    creature = Creature(max_hp=hp, monster_id="SNEAKY_GREMLIN")
-    tackle_dmg = 9
+GREMLIN_SPAWNED_MOVE = "SPAWNED_MOVE"
+GREMLIN_TACKLE_MOVE = "TACKLE_MOVE"
+SNEAKY_GREMLIN_MONSTER_ID = "SNEAKY_GREMLIN"
+SNEAKY_GREMLIN_BASE_MIN_HP = 10
+SNEAKY_GREMLIN_BASE_MAX_HP = 14
+SNEAKY_GREMLIN_TOUGH_MIN_HP = 11
+SNEAKY_GREMLIN_TOUGH_MAX_HP = 15
+SNEAKY_GREMLIN_BASE_TACKLE_DAMAGE = 9
+SNEAKY_GREMLIN_DEADLY_TACKLE_DAMAGE = 10
+
+
+def create_sneaky_gremlin(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SNEAKY_GREMLIN_TOUGH_MIN_HP,
+        SNEAKY_GREMLIN_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SNEAKY_GREMLIN_TOUGH_MAX_HP,
+        SNEAKY_GREMLIN_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=SNEAKY_GREMLIN_MONSTER_ID)
 
     def spawned(combat: CombatState) -> None:
         pass
 
     def tackle(combat: CombatState) -> None:
+        tackle_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SNEAKY_GREMLIN_DEADLY_TACKLE_DAMAGE,
+            SNEAKY_GREMLIN_BASE_TACKLE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, tackle_dmg)
 
+    tackle_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SNEAKY_GREMLIN_DEADLY_TACKLE_DAMAGE,
+        SNEAKY_GREMLIN_BASE_TACKLE_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "SPAWNED_MOVE": MoveState(
-            "SPAWNED_MOVE",
+        GREMLIN_SPAWNED_MOVE: MoveState(
+            GREMLIN_SPAWNED_MOVE,
             spawned,
             [Intent(IntentType.STUN)],
-            follow_up_id="TACKLE_MOVE",
+            follow_up_id=GREMLIN_TACKLE_MOVE,
         ),
-        "TACKLE_MOVE": MoveState(
-            "TACKLE_MOVE",
+        GREMLIN_TACKLE_MOVE: MoveState(
+            GREMLIN_TACKLE_MOVE,
             tackle,
-            [attack_intent(tackle_dmg)],
-            follow_up_id="TACKLE_MOVE",
+            [attack_intent(tackle_intent_damage)],
+            follow_up_id=GREMLIN_TACKLE_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "SPAWNED_MOVE")
+    return creature, MonsterAI(states, GREMLIN_SPAWNED_MOVE)
 
 
-def create_fat_gremlin(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(13, 17)
-    creature = Creature(max_hp=hp, monster_id="FAT_GREMLIN")
+FAT_GREMLIN_MONSTER_ID = "FAT_GREMLIN"
+FAT_GREMLIN_BASE_MIN_HP = 13
+FAT_GREMLIN_BASE_MAX_HP = 17
+FAT_GREMLIN_TOUGH_MIN_HP = 14
+FAT_GREMLIN_TOUGH_MAX_HP = 18
+FAT_GREMLIN_FLEE_MOVE = "FLEE_MOVE"
+
+
+def create_fat_gremlin(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        FAT_GREMLIN_TOUGH_MIN_HP,
+        FAT_GREMLIN_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        FAT_GREMLIN_TOUGH_MAX_HP,
+        FAT_GREMLIN_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=FAT_GREMLIN_MONSTER_ID)
 
     def spawned(combat: CombatState) -> None:
         pass
@@ -506,65 +719,137 @@ def create_fat_gremlin(rng: Rng) -> tuple[Creature, MonsterAI]:
         combat.escape_creature(creature)
 
     states: dict[str, MonsterState] = {
-        "SPAWNED_MOVE": MoveState(
-            "SPAWNED_MOVE",
+        GREMLIN_SPAWNED_MOVE: MoveState(
+            GREMLIN_SPAWNED_MOVE,
             spawned,
             [Intent(IntentType.STUN)],
-            follow_up_id="FLEE_MOVE",
+            follow_up_id=FAT_GREMLIN_FLEE_MOVE,
         ),
-        "FLEE_MOVE": MoveState(
-            "FLEE_MOVE",
+        FAT_GREMLIN_FLEE_MOVE: MoveState(
+            FAT_GREMLIN_FLEE_MOVE,
             flee,
             [Intent(IntentType.ESCAPE)],
-            follow_up_id="FLEE_MOVE",
+            follow_up_id=FAT_GREMLIN_FLEE_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "SPAWNED_MOVE")
+    return creature, MonsterAI(states, GREMLIN_SPAWNED_MOVE)
 
 
-def create_gremlin_merc(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(47, 49)
-    creature = Creature(max_hp=hp, monster_id="GREMLIN_MERC")
-    gimme_dmg = 7
-    double_smash_dmg = 6
-    double_smash_weak = 2
-    hehe_dmg = 8
+GREMLIN_MERC_MONSTER_ID = "GREMLIN_MERC"
+GREMLIN_MERC_BASE_MIN_HP = 47
+GREMLIN_MERC_BASE_MAX_HP = 49
+GREMLIN_MERC_TOUGH_MIN_HP = 51
+GREMLIN_MERC_TOUGH_MAX_HP = 53
+GREMLIN_MERC_BASE_GIMME_DAMAGE = 7
+GREMLIN_MERC_TOUGH_GIMME_DAMAGE = 8
+GREMLIN_MERC_GIMME_REPEAT = 2
+GREMLIN_MERC_BASE_DOUBLE_SMASH_DAMAGE = 6
+GREMLIN_MERC_TOUGH_DOUBLE_SMASH_DAMAGE = 7
+GREMLIN_MERC_DOUBLE_SMASH_REPEAT = 2
+GREMLIN_MERC_DOUBLE_SMASH_WEAK = 2
+GREMLIN_MERC_BASE_HEHE_DAMAGE = 8
+GREMLIN_MERC_TOUGH_HEHE_DAMAGE = 9
+GREMLIN_MERC_HEHE_STRENGTH = 2
+GREMLIN_MERC_SURPRISE = 1
+GREMLIN_MERC_THIEVERY = 20
+GREMLIN_MERC_GIMME_MOVE = "GIMME_MOVE"
+GREMLIN_MERC_DOUBLE_SMASH_MOVE = "DOUBLE_SMASH_MOVE"
+GREMLIN_MERC_HEHE_MOVE = "HEHE_MOVE"
+
+
+def create_gremlin_merc(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        GREMLIN_MERC_TOUGH_MIN_HP,
+        GREMLIN_MERC_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        GREMLIN_MERC_TOUGH_MAX_HP,
+        GREMLIN_MERC_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=GREMLIN_MERC_MONSTER_ID)
 
     def gimme(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, gimme_dmg, hits=2)
+        gimme_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            GREMLIN_MERC_TOUGH_GIMME_DAMAGE,
+            GREMLIN_MERC_BASE_GIMME_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, gimme_dmg, hits=GREMLIN_MERC_GIMME_REPEAT)
 
     def double_smash(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, double_smash_dmg, hits=2)
-        apply_power_to_living_player_targets(combat, PowerId.WEAK, double_smash_weak, applier=creature)
+        double_smash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            GREMLIN_MERC_TOUGH_DOUBLE_SMASH_DAMAGE,
+            GREMLIN_MERC_BASE_DOUBLE_SMASH_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, double_smash_dmg, hits=GREMLIN_MERC_DOUBLE_SMASH_REPEAT)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.WEAK,
+            GREMLIN_MERC_DOUBLE_SMASH_WEAK,
+            applier=creature,
+        )
 
     def hehe(combat: CombatState) -> None:
+        hehe_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            GREMLIN_MERC_TOUGH_HEHE_DAMAGE,
+            GREMLIN_MERC_BASE_HEHE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, hehe_dmg)
-        combat.apply_power_to(creature, PowerId.STRENGTH, 2, applier=creature)
+        combat.apply_power_to(creature, PowerId.STRENGTH, GREMLIN_MERC_HEHE_STRENGTH, applier=creature)
+
+    gimme_intent_damage = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        GREMLIN_MERC_TOUGH_GIMME_DAMAGE,
+        GREMLIN_MERC_BASE_GIMME_DAMAGE,
+    )
+    double_smash_intent_damage = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        GREMLIN_MERC_TOUGH_DOUBLE_SMASH_DAMAGE,
+        GREMLIN_MERC_BASE_DOUBLE_SMASH_DAMAGE,
+    )
+    hehe_intent_damage = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        GREMLIN_MERC_TOUGH_HEHE_DAMAGE,
+        GREMLIN_MERC_BASE_HEHE_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "GIMME_MOVE": MoveState(
-            "GIMME_MOVE",
+        GREMLIN_MERC_GIMME_MOVE: MoveState(
+            GREMLIN_MERC_GIMME_MOVE,
             gimme,
-            [multi_attack_intent(gimme_dmg, 2)],
-            follow_up_id="DOUBLE_SMASH_MOVE",
+            [multi_attack_intent(gimme_intent_damage, GREMLIN_MERC_GIMME_REPEAT)],
+            follow_up_id=GREMLIN_MERC_DOUBLE_SMASH_MOVE,
         ),
-        "DOUBLE_SMASH_MOVE": MoveState(
-            "DOUBLE_SMASH_MOVE",
+        GREMLIN_MERC_DOUBLE_SMASH_MOVE: MoveState(
+            GREMLIN_MERC_DOUBLE_SMASH_MOVE,
             double_smash,
-            [multi_attack_intent(double_smash_dmg, 2), debuff_intent()],
-            follow_up_id="HEHE_MOVE",
+            [multi_attack_intent(double_smash_intent_damage, GREMLIN_MERC_DOUBLE_SMASH_REPEAT), debuff_intent()],
+            follow_up_id=GREMLIN_MERC_HEHE_MOVE,
         ),
-        "HEHE_MOVE": MoveState(
-            "HEHE_MOVE",
+        GREMLIN_MERC_HEHE_MOVE: MoveState(
+            GREMLIN_MERC_HEHE_MOVE,
             hehe,
-            [attack_intent(hehe_dmg), buff_intent()],
-            follow_up_id="GIMME_MOVE",
+            [attack_intent(hehe_intent_damage), buff_intent()],
+            follow_up_id=GREMLIN_MERC_GIMME_MOVE,
         ),
     }
 
-    creature.apply_power(PowerId.SURPRISE, 1)
-    creature.apply_power(PowerId.THIEVERY, 20)
-    return creature, MonsterAI(states, "GIMME_MOVE")
+    creature.apply_power(PowerId.SURPRISE, GREMLIN_MERC_SURPRISE)
+    creature.apply_power(PowerId.THIEVERY, GREMLIN_MERC_THIEVERY)
+    return creature, MonsterAI(states, GREMLIN_MERC_GIMME_MOVE)
 
 
 # ---- HauntedShip (HP 63 / 67 asc) ----

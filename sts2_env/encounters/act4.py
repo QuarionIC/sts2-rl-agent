@@ -80,24 +80,23 @@ def setup_corpse_slugs_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_cultists_normal(combat: CombatState, rng: Rng) -> None:
-    c1, a1 = create_calcified_cultist(rng)
+    c1, a1 = create_calcified_cultist(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(c1, a1)
-    c2, a2 = create_damp_cultist(rng)
+    c2, a2 = create_damp_cultist(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(c2, a2)
 
 
 def setup_fossil_stalker_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_fossil_stalker(rng)
+    creature, ai = create_fossil_stalker(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
 def setup_gremlin_merc_normal(combat: CombatState, rng: Rng) -> None:
-    merc, merc_ai = create_gremlin_merc(rng)
+    merc, merc_ai = create_gremlin_merc(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(merc, merc_ai)
-    # Spawn minions
-    sg, sg_ai = create_sneaky_gremlin(rng)
+    sg, sg_ai = create_sneaky_gremlin(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(sg, sg_ai)
-    fg, fg_ai = create_fat_gremlin(rng)
+    fg, fg_ai = create_fat_gremlin(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(fg, fg_ai)
 
 
@@ -122,7 +121,7 @@ def setup_sewer_clam_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_toadpoles_normal(combat: CombatState, rng: Rng) -> None:
-    cultist, cultist_ai = create_calcified_cultist(rng)
+    cultist, cultist_ai = create_calcified_cultist(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(cultist, cultist_ai)
     creature, ai = create_toadpole(rng, slot="back")
     combat.add_enemy(creature, ai)
