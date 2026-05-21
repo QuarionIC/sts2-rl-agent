@@ -43,6 +43,10 @@ def _upgrade_reward_cards(owner: Creature, cards: list[CardInstance], card_type:
     return cards
 
 
+def _can_upgrade_reward_cards(reward: CardReward) -> bool:
+    return getattr(reward, "allow_hook_upgrades", True)
+
+
 @register_relic
 class ArtOfWar(RelicInstance):
     """If no attacks played last turn, gain 1 energy."""
@@ -266,6 +270,8 @@ class FrozenEgg(RelicInstance):
         room: Room | None,
         run_state: RunState,
     ) -> list[CardInstance]:
+        if not _can_upgrade_reward_cards(reward):
+            return cards
         return _upgrade_reward_cards(owner, cards, CardType.POWER)
 
     def modify_card_being_added_to_deck(self, owner: Creature, card: CardInstance) -> CardInstance:
@@ -644,6 +650,8 @@ class MoltenEgg(RelicInstance):
         room: Room | None,
         run_state: RunState,
     ) -> list[CardInstance]:
+        if not _can_upgrade_reward_cards(reward):
+            return cards
         return _upgrade_reward_cards(owner, cards, CardType.ATTACK)
 
     def modify_card_being_added_to_deck(self, owner: Creature, card: CardInstance) -> CardInstance:
@@ -997,6 +1005,8 @@ class ToxicEgg(RelicInstance):
         room: Room | None,
         run_state: RunState,
     ) -> list[CardInstance]:
+        if not _can_upgrade_reward_cards(reward):
+            return cards
         return _upgrade_reward_cards(owner, cards, CardType.SKILL)
 
     def modify_card_being_added_to_deck(self, owner: Creature, card: CardInstance) -> CardInstance:

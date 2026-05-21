@@ -51,6 +51,20 @@ def test_frozen_egg_upgrades_only_power_cards_for_reward_deck_and_merchant_paths
     assert not merchant_skill.upgraded
 
 
+def test_frozen_egg_respects_no_hook_upgrades_card_reward_flag():
+    run_state = RunState(seed=805, character_id="Ironclad")
+    assert run_state.player.obtain_relic("FROZEN_EGG")
+
+    reward = CardReward(
+        run_state.player.player_id,
+        cards=[create_card(CardId.INFLAME)],
+        allow_hook_upgrades=False,
+    )
+    reward.populate(run_state, create_room(RoomType.MONSTER))
+
+    assert not reward.cards[0].upgraded
+
+
 def test_toxic_egg_upgrades_only_skill_cards_for_reward_deck_and_merchant_paths():
     run_state = RunState(seed=802, character_id="Ironclad")
     assert run_state.player.obtain_relic("TOXIC_EGG")

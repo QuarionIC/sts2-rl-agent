@@ -42,6 +42,7 @@ class CardRewardGenerationOptions:
     card_creation_source: str = "encounter"
     allow_card_pool_modifications: bool = True
     allow_rarity_modifications: bool = True
+    allow_hook_upgrades: bool = True
     has_custom_card_pool: bool = False
     custom_card_ids: tuple[CardId, ...] = field(default_factory=tuple)
 
