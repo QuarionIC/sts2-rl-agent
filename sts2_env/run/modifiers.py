@@ -102,6 +102,12 @@ class ModifierModel:
     def modify_card_reward_creation_options(self, player, options, reward, room, run_state):
         return options
 
+    def modify_card_reward_options(self, player, cards, reward, room, run_state):
+        return cards
+
+    def modify_card_reward_options_late(self, player, cards, reward, room, run_state):
+        return cards
+
     def modify_merchant_card_character_ids(self, player, character_ids, run_state):
         return character_ids
 

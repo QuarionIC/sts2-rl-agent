@@ -643,12 +643,31 @@ def test_lasting_candy_adds_extra_power_reward_every_second_combat():
 
     reward = CardReward(
         run_state.player.player_id,
-        cards=[create_card(CardId.ANGER), create_card(CardId.SHRUG_IT_OFF)],
+        option_count=2,
+        forced_rarities=(CardRarity.COMMON, CardRarity.COMMON),
     )
     reward.populate(run_state, create_room(RoomType.MONSTER))
 
     assert len(reward.cards) == 3
     assert any(card.card_type.name == "POWER" for card in reward.cards)
+
+
+def test_lasting_candy_extra_power_is_visible_to_late_reward_modifiers():
+    run_state = RunState(seed=218, character_id="Ironclad")
+    assert run_state.player.obtain_relic("FROZEN_EGG")
+    assert run_state.player.obtain_relic("LASTING_CANDY")
+    relic = next(relic for relic in run_state.player.get_relic_objects() if relic.relic_id.name == "LASTING_CANDY")
+    relic._combats_seen = 2
+
+    reward = CardReward(
+        run_state.player.player_id,
+        option_count=2,
+        forced_rarities=(CardRarity.COMMON, CardRarity.COMMON),
+    )
+    reward.populate(run_state, create_room(RoomType.MONSTER))
+
+    added_power = next(card for card in reward.cards if card.card_type == CardType.POWER)
+    assert added_power.upgraded
 
 
 def test_lasting_candy_does_not_modify_other_source_card_rewards():
@@ -684,6 +703,26 @@ def test_lasting_candy_does_not_duplicate_existing_power_reward_options():
 
     assert len(reward.cards) == len(existing_powers)
     assert len({card.card_id for card in reward.cards}) == len(existing_powers)
+
+
+def test_lasting_candy_stays_inside_custom_card_reward_pool():
+    run_state = RunState(seed=218, character_id="Ironclad")
+    assert run_state.player.obtain_relic("LASTING_CANDY")
+    relic = next(relic for relic in run_state.player.get_relic_objects() if relic.relic_id.name == "LASTING_CANDY")
+    relic._combats_seen = 2
+
+    reward = CardReward(
+        run_state.player.player_id,
+        option_count=2,
+        forced_rarities=(CardRarity.COMMON, CardRarity.COMMON),
+        use_default_character_pool=False,
+        has_custom_card_pool=True,
+        custom_card_ids=(CardId.ANGER, CardId.SHRUG_IT_OFF),
+    )
+    reward.populate(run_state, create_room(RoomType.MONSTER))
+
+    assert len(reward.cards) == 2
+    assert {card.card_id for card in reward.cards} <= {CardId.ANGER, CardId.SHRUG_IT_OFF}
 
 
 def test_wing_charm_enchants_one_random_reward_card_with_swift():

@@ -15,6 +15,9 @@ from sts2_env.relics.base import RelicId, RelicPool, RelicRarity
 from sts2_env.relics.registry import RELIC_REGISTRY, load_all_relics
 from sts2_env.run.rooms import CombatRoom, TreasureRoom
 from sts2_env.run.rewards import (
+    CARD_CREATION_SOURCE_ENCOUNTER,
+    CARD_CREATION_SOURCE_OTHER,
+    CARD_GENERATION_CONTEXT_COMBAT,
     CardRewardGenerationOptions,
     DEFAULT_CARD_REWARD_OPTION_COUNT,
     generate_combat_reward_cards,
@@ -195,14 +198,14 @@ class CardReward(Reward):
     option_count: int = 3
     cards_to_pick: int = 1
     cards_picked: int = 0
-    generation_context: str | None = "combat"
+    generation_context: str | None = CARD_GENERATION_CONTEXT_COMBAT
     roll_upgrade: bool = True
     card_type: CardType | None = None
     character_ids: tuple[str, ...] = field(default_factory=tuple)
     forced_rarities: tuple[CardRarity, ...] = field(default_factory=tuple)
     include_colorless: bool = False
     use_default_character_pool: bool = True
-    card_creation_source: str = "encounter"
+    card_creation_source: str = CARD_CREATION_SOURCE_ENCOUNTER
     allow_card_pool_modifications: bool = True
     allow_rarity_modifications: bool = True
     allow_hook_upgrades: bool = True
@@ -222,7 +225,7 @@ class CardReward(Reward):
         cards_to_pick: int = 1,
         *,
         skippable: bool = True,
-        generation_context: str | None = "combat",
+        generation_context: str | None = CARD_GENERATION_CONTEXT_COMBAT,
         roll_upgrade: bool = True,
         card_type: CardType | None = None,
         character_ids: tuple[str, ...] | None = None,
@@ -257,7 +260,9 @@ class CardReward(Reward):
         self.forced_rarities = resolved_rarities
         self.include_colorless = include_colorless
         self.use_default_character_pool = use_default_character_pool
-        self.card_creation_source = card_creation_source or ("other" if generation_context is None else "encounter")
+        self.card_creation_source = card_creation_source or (
+            CARD_CREATION_SOURCE_OTHER if generation_context is None else CARD_CREATION_SOURCE_ENCOUNTER
+        )
         self.allow_card_pool_modifications = allow_card_pool_modifications
         self.allow_rarity_modifications = allow_rarity_modifications
         self.allow_hook_upgrades = allow_hook_upgrades
@@ -306,7 +311,7 @@ class CardReward(Reward):
             )
         if not self.cards:
             character_ids = None if options.use_default_character_pool and not options.character_ids else options.character_ids
-            if options.card_creation_source == "other":
+            if options.card_creation_source == CARD_CREATION_SOURCE_OTHER:
                 self.cards = generate_noncombat_reward_cards(
                     run_state,
                     num_cards=options.num_cards,
@@ -326,6 +331,7 @@ class CardReward(Reward):
                     include_colorless=options.include_colorless,
                     generation_context=options.generation_context,
                     roll_upgrade=options.roll_upgrade,
+                    update_rarity_odds=options.card_creation_source == CARD_CREATION_SOURCE_ENCOUNTER,
                     card_type=options.card_type,
                     custom_card_ids=options.custom_card_ids,
                 )
@@ -340,8 +346,23 @@ class CardReward(Reward):
         self.allow_hook_upgrades = options.allow_hook_upgrades
         self.has_custom_card_pool = options.has_custom_card_pool
         self.custom_card_ids = options.custom_card_ids
-        for relic in player.get_relic_objects():
-            self.cards = relic.modify_card_reward_options_late(
+        listeners = [*player.get_relic_objects(), *run_state.modifiers]
+        for listener in listeners:
+            modify_card_reward_options = getattr(listener, "modify_card_reward_options", None)
+            if not callable(modify_card_reward_options):
+                continue
+            self.cards = modify_card_reward_options(
+                player,
+                self.cards,
+                self,
+                room,
+                run_state,
+            )
+        for listener in listeners:
+            modify_card_reward_options_late = getattr(listener, "modify_card_reward_options_late", None)
+            if not callable(modify_card_reward_options_late):
+                continue
+            self.cards = modify_card_reward_options_late(
                 player,
                 self.cards,
                 self,
@@ -844,8 +865,6 @@ TUTORIAL_FIRE_POTION_ID = "FirePotion"
 TUTORIAL_STRENGTH_POTION_ID = "StrengthPotion"
 TUTORIAL_ENERGY_POTION_ID = "EnergyPotion"
 TUTORIAL_BLOCK_POTION_ID = "BlockPotion"
-CARD_CREATION_SOURCE_ENCOUNTER = "encounter"
-CARD_GENERATION_CONTEXT_COMBAT = "combat"
 TUTORIAL_MONSTER_CARD_REWARDS: tuple[tuple[CardId, CardId, CardId], ...] = (
     (CardId.SETUP_STRIKE_CARD, CardId.TREMBLE, CardId.BLOOD_WALL),
     (CardId.BREAKTHROUGH, CardId.INFLAME, CardId.ANGER),

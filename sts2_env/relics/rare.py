@@ -12,6 +12,16 @@ from sts2_env.core.creature import _power_type_for_amount, get_power_class
 from sts2_env.core.enums import (
     RelicRarity, CombatSide, CardType, PowerId, PowerType, RoomType, ValueProp,
 )
+from sts2_env.cards.factory import (
+    card_metadata,
+    eligible_character_cards,
+    eligible_registered_cards,
+)
+from sts2_env.core.card_pools import CardPoolId
+from sts2_env.run.rewards import (
+    CARD_CREATION_SOURCE_ENCOUNTER,
+    CARD_GENERATION_CONTEXT_COMBAT,
+)
 from sts2_env.relics.base import RelicId, RelicPool, RelicInstance
 from sts2_env.relics.registry import register_relic
 
@@ -476,7 +486,7 @@ class LastingCandy(RelicInstance):
         super().__init__(relic_id)
         self._combats_seen: int = 0
 
-    def modify_card_reward_options_late(
+    def modify_card_reward_options(
         self,
         owner: Creature,
         cards: list[CardInstance],
@@ -484,29 +494,65 @@ class LastingCandy(RelicInstance):
         room: Room | None,
         run_state: RunState,
     ) -> list[CardInstance]:
-        from sts2_env.cards.factory import create_cards_from_ids, eligible_character_cards
+        from sts2_env.run.rewards import generate_combat_reward_cards
 
         if self._combats_seen <= 0 or self._combats_seen % 2 != 0:
             return cards
-        if getattr(reward, "card_creation_source", "encounter") != "encounter":
+        if getattr(reward, "card_creation_source", CARD_CREATION_SOURCE_ENCOUNTER) != CARD_CREATION_SOURCE_ENCOUNTER:
             return cards
         if getattr(reward, "_lasting_candy_added", False):
             return cards
         existing_ids = {card.card_id for card in cards}
-        eligible = [
+        custom_card_ids = tuple(
             card_id
-            for card_id in eligible_character_cards(
-                owner.character_id,
-                card_type=CardType.POWER,
-                generation_context="modifier",
-            )
-            if card_id not in existing_ids
-        ]
-        generated = create_cards_from_ids(
-            eligible,
-            run_state.rng.rewards,
-            1,
-            distinct=True,
+            for card_id in getattr(reward, "custom_card_ids", ())
+            if card_id not in existing_ids and card_metadata(card_id).card_type == CardType.POWER
+        )
+        if custom_card_ids:
+            character_ids: tuple[str, ...] = ()
+        elif getattr(reward, "has_custom_card_pool", False):
+            return cards
+        elif not getattr(reward, "_can_regenerate", True):
+            return cards
+        else:
+            character_ids = getattr(reward, "character_ids", ())
+            if getattr(reward, "use_default_character_pool", True) and not character_ids:
+                character_ids = (owner.character_id,)
+            custom_pool = []
+            seen_ids = set(existing_ids)
+            for character_id in character_ids:
+                for card_id in eligible_character_cards(
+                    character_id,
+                    card_type=CardType.POWER,
+                    generation_context=getattr(reward, "generation_context", CARD_GENERATION_CONTEXT_COMBAT),
+                    is_multiplayer=len(run_state.players) > 1,
+                ):
+                    if card_id in seen_ids:
+                        continue
+                    seen_ids.add(card_id)
+                    custom_pool.append(card_id)
+            if getattr(reward, "include_colorless", False):
+                for card_id in eligible_registered_cards(
+                    card_pool=CardPoolId.COLORLESS,
+                    card_type=CardType.POWER,
+                    generation_context=getattr(reward, "generation_context", CARD_GENERATION_CONTEXT_COMBAT),
+                    is_multiplayer=len(run_state.players) > 1,
+                ):
+                    if card_id in seen_ids:
+                        continue
+                    seen_ids.add(card_id)
+                    custom_pool.append(card_id)
+            custom_card_ids = tuple(custom_pool)
+        generated = generate_combat_reward_cards(
+            run_state,
+            context=getattr(reward, "context", "regular"),
+            num_cards=1,
+            character_ids=character_ids,
+            generation_context=getattr(reward, "generation_context", CARD_GENERATION_CONTEXT_COMBAT),
+            roll_upgrade=True,
+            update_rarity_odds=False,
+            card_type=CardType.POWER,
+            custom_card_ids=custom_card_ids,
         )
         if generated:
             reward._lasting_candy_added = True

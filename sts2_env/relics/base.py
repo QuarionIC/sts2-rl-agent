@@ -854,6 +854,16 @@ class RelicInstance:
     ) -> CardRewardGenerationOptions:
         return options
 
+    def modify_card_reward_options(
+        self,
+        owner: Creature,
+        cards: list[CardInstance],
+        reward: CardReward,
+        room: Room | None,
+        run_state: RunState,
+    ) -> list[CardInstance]:
+        return cards
+
     def modify_card_reward_options_late(
         self,
         owner: Creature,

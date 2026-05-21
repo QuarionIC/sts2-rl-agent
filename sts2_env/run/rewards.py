@@ -20,6 +20,9 @@ if TYPE_CHECKING:
 
 
 DEFAULT_CARD_REWARD_OPTION_COUNT = 3
+CARD_CREATION_SOURCE_ENCOUNTER = "encounter"
+CARD_CREATION_SOURCE_OTHER = "other"
+CARD_GENERATION_CONTEXT_COMBAT = "combat"
 COMBAT_CARD_UPGRADE_BASE_CHANCE = 0.0
 MERCHANT_CARD_UPGRADE_SUPPRESSION_BASE_CHANCE = -999999999
 UNIFORM_REWARD_EXCLUDED_RARITIES = frozenset({CardRarity.BASIC, CardRarity.ANCIENT})
@@ -36,10 +39,10 @@ class CardRewardGenerationOptions:
     forced_rarities: tuple[CardRarity, ...] = field(default_factory=tuple)
     include_colorless: bool = False
     use_default_character_pool: bool = True
-    generation_context: str | None = "combat"
+    generation_context: str | None = CARD_GENERATION_CONTEXT_COMBAT
     roll_upgrade: bool = True
     card_type: CardType | None = None
-    card_creation_source: str = "encounter"
+    card_creation_source: str = CARD_CREATION_SOURCE_ENCOUNTER
     allow_card_pool_modifications: bool = True
     allow_rarity_modifications: bool = True
     allow_hook_upgrades: bool = True
@@ -164,7 +167,7 @@ def _pick_reward_card(
     *,
     character_ids: tuple[str, ...],
     include_colorless: bool = False,
-    generation_context: str | None = "combat",
+    generation_context: str | None = CARD_GENERATION_CONTEXT_COMBAT,
     roll_upgrade: bool = True,
     card_type: CardType | None = None,
     cost: int | None = None,
@@ -302,8 +305,9 @@ def generate_combat_reward_cards(
     character_ids: tuple[str, ...] | None = None,
     forced_rarities: tuple[CardRarity, ...] = (),
     include_colorless: bool = False,
-    generation_context: str | None = "combat",
+    generation_context: str | None = CARD_GENERATION_CONTEXT_COMBAT,
     roll_upgrade: bool = True,
+    update_rarity_odds: bool = True,
     card_type: CardType | None = None,
     cost: int | None = None,
     costs_x: bool | None = None,
@@ -312,7 +316,15 @@ def generate_combat_reward_cards(
     """Generate concrete card reward options for a post-combat reward screen."""
     if character_ids is None:
         character_ids = (run_state.player.character_id,)
-    rarities = list(forced_rarities) if forced_rarities else generate_card_reward(run_state, context=context, num_cards=num_cards)
+    if forced_rarities:
+        rarities = list(forced_rarities)
+    elif update_rarity_odds:
+        rarities = generate_card_reward(run_state, context=context, num_cards=num_cards)
+    else:
+        rarities = [
+            run_state.card_rarity_odds.roll_with_base_odds(run_state.rng.rewards, context=context)
+            for _ in range(num_cards)
+        ]
     chosen_ids: set = set()
     cards: list[CardInstance] = []
     for rarity in rarities:
