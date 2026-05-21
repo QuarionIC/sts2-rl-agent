@@ -37,6 +37,7 @@ from sts2_env.encounters.act3 import (
     setup_owl_magistrate_normal,
     setup_queen_boss,
     setup_slimed_berserker_normal,
+    setup_soul_nexus_elite,
     setup_the_lost_and_forgotten_normal,
     setup_turret_operator_weak,
 )
@@ -260,6 +261,10 @@ from sts2_env.monsters.act3 import (
     SLIMED_BERSERKER_MONSTER_ID,
     SLIMED_BERSERKER_SMOTHER_MOVE,
     SLIMED_BERSERKER_VOMIT_ICHOR_MOVE,
+    SOUL_NEXUS_DRAIN_LIFE_MOVE,
+    SOUL_NEXUS_MAELSTROM_MOVE,
+    SOUL_NEXUS_MONSTER_ID,
+    SOUL_NEXUS_SOUL_BURN_MOVE,
     SPECTRAL_KNIGHT_HEX_MOVE,
     SPECTRAL_KNIGHT_MONSTER_ID,
     SPECTRAL_KNIGHT_SOUL_FLAME_MOVE,
@@ -544,6 +549,13 @@ MECHA_KNIGHT_WINDUP_BLOCK = 15
 MECHA_KNIGHT_BURNS = 4
 MECHA_KNIGHT_WINDUP_STRENGTH = 5
 MECHA_KNIGHT_ARTIFACT = 3
+SOUL_NEXUS_BASE_HP = 234
+SOUL_NEXUS_A8_HP = 254
+SOUL_NEXUS_SOUL_BURN_DAMAGE_A9 = 31
+SOUL_NEXUS_MAELSTROM_DAMAGE_A9 = 7
+SOUL_NEXUS_MAELSTROM_HITS = 4
+SOUL_NEXUS_DRAIN_LIFE_DAMAGE_A9 = 19
+SOUL_NEXUS_DRAIN_LIFE_DEBUFF = 2
 FABRICATOR_BASE_HP = 150
 FABRICATOR_A8_HP = 155
 FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9 = 21
@@ -5129,21 +5141,67 @@ class TestFixedRotation:
         creature, ai = create_soul_nexus(Rng(38))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 234
-        assert ai.current_move.state_id == "SOUL_BURN_MOVE"
+        assert creature.max_hp == SOUL_NEXUS_BASE_HP
+        assert ai.current_move.state_id == SOUL_NEXUS_SOUL_BURN_MOVE
 
-        ai.states["SOUL_BURN_MOVE"].perform(combat)
+        ai.states[SOUL_NEXUS_SOUL_BURN_MOVE].perform(combat)
         assert combat.player.current_hp == 51
 
         combat.player.current_hp = 80
-        ai.states["MAELSTROM_MOVE"].perform(combat)
+        ai.states[SOUL_NEXUS_MAELSTROM_MOVE].perform(combat)
         assert combat.player.current_hp == 56
 
         combat.player.current_hp = 80
-        ai.states["DRAIN_LIFE_MOVE"].perform(combat)
+        ai.states[SOUL_NEXUS_DRAIN_LIFE_MOVE].perform(combat)
         assert combat.player.current_hp == 62
-        assert combat.player.get_power_amount(PowerId.VULNERABLE) == 2
-        assert combat.player.get_power_amount(PowerId.WEAK) == 2
+        assert combat.player.get_power_amount(PowerId.VULNERABLE) == SOUL_NEXUS_DRAIN_LIFE_DEBUFF
+        assert combat.player.get_power_amount(PowerId.WEAK) == SOUL_NEXUS_DRAIN_LIFE_DEBUFF
+
+    def test_soul_nexus_ascension_scaling_matches_csharp(self):
+        rng_seed = 1294
+        player_hp = 250
+        combat = _make_combat(rng_seed)
+        combat.player.max_hp = player_hp
+        combat.player.current_hp = player_hp
+        combat.ascension_level = 9
+        creature, ai = create_soul_nexus(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(creature, ai)
+
+        assert creature.max_hp == SOUL_NEXUS_A8_HP
+
+        soul_burn = ai.states[SOUL_NEXUS_SOUL_BURN_MOVE]
+        assert soul_burn.intents[0].damage == SOUL_NEXUS_SOUL_BURN_DAMAGE_A9
+        player_hp_before_soul_burn = combat.player.current_hp
+        soul_burn.perform(combat)
+        assert combat.player.current_hp == player_hp_before_soul_burn - SOUL_NEXUS_SOUL_BURN_DAMAGE_A9
+
+        maelstrom = ai.states[SOUL_NEXUS_MAELSTROM_MOVE]
+        assert maelstrom.intents[0].damage == SOUL_NEXUS_MAELSTROM_DAMAGE_A9
+        assert maelstrom.intents[0].hits == SOUL_NEXUS_MAELSTROM_HITS
+        player_hp_before_maelstrom = combat.player.current_hp
+        maelstrom.perform(combat)
+        assert combat.player.current_hp == (
+            player_hp_before_maelstrom - SOUL_NEXUS_MAELSTROM_DAMAGE_A9 * SOUL_NEXUS_MAELSTROM_HITS
+        )
+
+        drain_life = ai.states[SOUL_NEXUS_DRAIN_LIFE_MOVE]
+        assert drain_life.intents[0].damage == SOUL_NEXUS_DRAIN_LIFE_DAMAGE_A9
+        player_hp_before_drain = combat.player.current_hp
+        drain_life.perform(combat)
+        assert combat.player.current_hp == player_hp_before_drain - SOUL_NEXUS_DRAIN_LIFE_DAMAGE_A9
+        assert combat.player.get_power_amount(PowerId.VULNERABLE) == SOUL_NEXUS_DRAIN_LIFE_DEBUFF
+        assert combat.player.get_power_amount(PowerId.WEAK) == SOUL_NEXUS_DRAIN_LIFE_DEBUFF
+
+        encounter_combat = _make_combat(rng_seed)
+        encounter_combat.ascension_level = 9
+        setup_soul_nexus_elite(encounter_combat, Rng(rng_seed))
+        encounter_soul_nexus = encounter_combat.enemies[0]
+        encounter_soul_nexus_ai = encounter_combat.enemy_ais[encounter_soul_nexus.combat_id]
+        assert encounter_soul_nexus.monster_id == SOUL_NEXUS_MONSTER_ID
+        assert encounter_soul_nexus.max_hp == SOUL_NEXUS_A8_HP
+        assert encounter_soul_nexus_ai.states[SOUL_NEXUS_MAELSTROM_MOVE].intents[0].damage == (
+            SOUL_NEXUS_MAELSTROM_DAMAGE_A9
+        )
 
     def test_queen_boss_uses_amalgam_and_original_opening_sequence(self):
         combat = _make_combat(39)

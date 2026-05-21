@@ -1694,7 +1694,7 @@ def create_mecha_knight(rng: Rng, ascension_level: int = 0) -> tuple[Creature, M
     return creature, MonsterAI(states, MECHA_KNIGHT_CHARGE_MOVE)
 
 
-# ---- SoulNexus (HP 155 / 165 asc) + Osty ----
+# ---- SoulNexus + Osty ----
 
 def create_osty(rng: Rng) -> tuple[Creature, MonsterAI]:
     creature = Creature(max_hp=1, monster_id="OSTY")
@@ -1708,37 +1708,107 @@ def create_osty(rng: Rng) -> tuple[Creature, MonsterAI]:
     return creature, MonsterAI(states, "NOTHING_MOVE")
 
 
-def create_soul_nexus(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 234
-    creature = Creature(max_hp=hp, monster_id="SOUL_NEXUS")
-    soul_burn_dmg = 29
-    maelstrom_dmg = 6
-    drain_life_dmg = 18
-    drain_life_debuff = 2
+SOUL_NEXUS_MONSTER_ID = "SOUL_NEXUS"
+SOUL_NEXUS_BASE_HP = 234
+SOUL_NEXUS_TOUGH_HP = 254
+SOUL_NEXUS_BASE_SOUL_BURN_DAMAGE = 29
+SOUL_NEXUS_DEADLY_SOUL_BURN_DAMAGE = 31
+SOUL_NEXUS_BASE_MAELSTROM_DAMAGE = 6
+SOUL_NEXUS_DEADLY_MAELSTROM_DAMAGE = 7
+SOUL_NEXUS_MAELSTROM_REPEAT = 4
+SOUL_NEXUS_BASE_DRAIN_LIFE_DAMAGE = 18
+SOUL_NEXUS_DEADLY_DRAIN_LIFE_DAMAGE = 19
+SOUL_NEXUS_DRAIN_LIFE_DEBUFF = 2
+SOUL_NEXUS_RANDOM_STATE = "RAND"
+SOUL_NEXUS_SOUL_BURN_MOVE = "SOUL_BURN_MOVE"
+SOUL_NEXUS_MAELSTROM_MOVE = "MAELSTROM_MOVE"
+SOUL_NEXUS_DRAIN_LIFE_MOVE = "DRAIN_LIFE_MOVE"
+
+
+def create_soul_nexus(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SOUL_NEXUS_TOUGH_HP,
+        SOUL_NEXUS_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=SOUL_NEXUS_MONSTER_ID)
 
     def soul_burn(combat: CombatState) -> None:
+        soul_burn_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SOUL_NEXUS_DEADLY_SOUL_BURN_DAMAGE,
+            SOUL_NEXUS_BASE_SOUL_BURN_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, soul_burn_dmg)
 
     def maelstrom(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, maelstrom_dmg, hits=4)
+        maelstrom_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SOUL_NEXUS_DEADLY_MAELSTROM_DAMAGE,
+            SOUL_NEXUS_BASE_MAELSTROM_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, maelstrom_dmg, hits=SOUL_NEXUS_MAELSTROM_REPEAT)
 
     def drain_life(combat: CombatState) -> None:
+        drain_life_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SOUL_NEXUS_DEADLY_DRAIN_LIFE_DAMAGE,
+            SOUL_NEXUS_BASE_DRAIN_LIFE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, drain_life_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.VULNERABLE, drain_life_debuff, applier=creature)
-        apply_power_to_living_player_targets(combat, PowerId.WEAK, drain_life_debuff, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.VULNERABLE, SOUL_NEXUS_DRAIN_LIFE_DEBUFF, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.WEAK, SOUL_NEXUS_DRAIN_LIFE_DEBUFF, applier=creature)
 
-    rand = RandomBranchState("RAND")
-    rand.add_branch("SOUL_BURN_MOVE", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("MAELSTROM_MOVE", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("DRAIN_LIFE_MOVE", MoveRepeatType.CANNOT_REPEAT)
+    soul_burn_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SOUL_NEXUS_DEADLY_SOUL_BURN_DAMAGE,
+        SOUL_NEXUS_BASE_SOUL_BURN_DAMAGE,
+    )
+    maelstrom_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SOUL_NEXUS_DEADLY_MAELSTROM_DAMAGE,
+        SOUL_NEXUS_BASE_MAELSTROM_DAMAGE,
+    )
+    drain_life_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SOUL_NEXUS_DEADLY_DRAIN_LIFE_DAMAGE,
+        SOUL_NEXUS_BASE_DRAIN_LIFE_DAMAGE,
+    )
+
+    rand = RandomBranchState(SOUL_NEXUS_RANDOM_STATE)
+    rand.add_branch(SOUL_NEXUS_SOUL_BURN_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(SOUL_NEXUS_MAELSTROM_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(SOUL_NEXUS_DRAIN_LIFE_MOVE, MoveRepeatType.CANNOT_REPEAT)
 
     states: dict[str, MonsterState] = {
-        "RAND": rand,
-        "SOUL_BURN_MOVE": MoveState("SOUL_BURN_MOVE", soul_burn, [attack_intent(soul_burn_dmg)], follow_up_id="RAND"),
-        "MAELSTROM_MOVE": MoveState("MAELSTROM_MOVE", maelstrom, [multi_attack_intent(maelstrom_dmg, 4)], follow_up_id="RAND"),
-        "DRAIN_LIFE_MOVE": MoveState("DRAIN_LIFE_MOVE", drain_life, [attack_intent(drain_life_dmg), strong_debuff_intent()], follow_up_id="RAND"),
+        SOUL_NEXUS_RANDOM_STATE: rand,
+        SOUL_NEXUS_SOUL_BURN_MOVE: MoveState(
+            SOUL_NEXUS_SOUL_BURN_MOVE,
+            soul_burn,
+            [attack_intent(soul_burn_intent_damage)],
+            follow_up_id=SOUL_NEXUS_RANDOM_STATE,
+        ),
+        SOUL_NEXUS_MAELSTROM_MOVE: MoveState(
+            SOUL_NEXUS_MAELSTROM_MOVE,
+            maelstrom,
+            [multi_attack_intent(maelstrom_intent_damage, SOUL_NEXUS_MAELSTROM_REPEAT)],
+            follow_up_id=SOUL_NEXUS_RANDOM_STATE,
+        ),
+        SOUL_NEXUS_DRAIN_LIFE_MOVE: MoveState(
+            SOUL_NEXUS_DRAIN_LIFE_MOVE,
+            drain_life,
+            [attack_intent(drain_life_intent_damage), strong_debuff_intent()],
+            follow_up_id=SOUL_NEXUS_RANDOM_STATE,
+        ),
     }
-    return creature, MonsterAI(states, "SOUL_BURN_MOVE")
+    return creature, MonsterAI(states, SOUL_NEXUS_SOUL_BURN_MOVE)
 
 
 # ========================================================================
