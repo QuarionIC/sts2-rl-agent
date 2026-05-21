@@ -1723,41 +1723,58 @@ class SelfHelpBook(EventModel):
     """Enchant a card: Sharp +2 (Attack), Nimble +2 (Skill), or Swift +2 (Power)."""
 
     event_id = "SelfHelpBook"
+    OPTION_READ_BACK = "read_back"
+    OPTION_READ_PASSAGE = "read_passage"
+    OPTION_READ_ENTIRE = "read_entire"
+    OPTION_SKIP = "skip_book"
+
+    ENCHANTMENT_SHARP = "Sharp"
+    ENCHANTMENT_NIMBLE = "Nimble"
+    ENCHANTMENT_SWIFT = "Swift"
+    SHARP_AMOUNT = 2
+    NIMBLE_AMOUNT = 2
+    SWIFT_AMOUNT = 2
+
+    READ_BACK_DESCRIPTION = "Enchanted an Attack with Sharp +2."
+    READ_PASSAGE_DESCRIPTION = "Enchanted a Skill with Nimble +2."
+    READ_ENTIRE_DESCRIPTION = "Enchanted a Power with Swift +2."
+    SKIP_DESCRIPTION = "Closed the book without learning anything."
+
+    CHOICES = {
+        OPTION_READ_BACK: (ENCHANTMENT_SHARP, SHARP_AMOUNT, CardType.ATTACK, "Attack", READ_BACK_DESCRIPTION),
+        OPTION_READ_PASSAGE: (ENCHANTMENT_NIMBLE, NIMBLE_AMOUNT, CardType.SKILL, "Skill", READ_PASSAGE_DESCRIPTION),
+        OPTION_READ_ENTIRE: (ENCHANTMENT_SWIFT, SWIFT_AMOUNT, CardType.POWER, "Power", READ_ENTIRE_DESCRIPTION),
+    }
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         attack_available = any(
-            card.card_type == CardType.ATTACK and can_enchant_card(card, "Sharp")
+            card.card_type == CardType.ATTACK and can_enchant_card(card, self.ENCHANTMENT_SHARP)
             for card in run_state.player.deck
         )
         skill_available = any(
-            card.card_type == CardType.SKILL and can_enchant_card(card, "Nimble")
+            card.card_type == CardType.SKILL and can_enchant_card(card, self.ENCHANTMENT_NIMBLE)
             for card in run_state.player.deck
         )
         power_available = any(
-            card.card_type == CardType.POWER and can_enchant_card(card, "Swift")
+            card.card_type == CardType.POWER and can_enchant_card(card, self.ENCHANTMENT_SWIFT)
             for card in run_state.player.deck
         )
         if not any((attack_available, skill_available, power_available)):
-            return [EventOption("skip_book", "No Options", "No valid cards")]
+            return [EventOption(self.OPTION_SKIP, "No Options", "No valid cards")]
         return [
-            EventOption("read_back", "Read the Back", "Enchant an Attack with Sharp +2", enabled=attack_available),
-            EventOption("read_passage", "Read a Passage", "Enchant a Skill with Nimble +2", enabled=skill_available),
-            EventOption("read_entire", "Read Entire Book", "Enchant a Power with Swift +2", enabled=power_available),
+            EventOption(self.OPTION_READ_BACK, "Read the Back", "Enchant an Attack with Sharp +2", enabled=attack_available),
+            EventOption(self.OPTION_READ_PASSAGE, "Read a Passage", "Enchant a Skill with Nimble +2", enabled=skill_available),
+            EventOption(self.OPTION_READ_ENTIRE, "Read Entire Book", "Enchant a Power with Swift +2", enabled=power_available),
         ]
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
-        mapping = {
-            "read_back": ("Sharp", 2, "ATTACK", "Enchanted an Attack with Sharp +2."),
-            "read_passage": ("Nimble", 2, "SKILL", "Enchanted a Skill with Nimble +2."),
-            "read_entire": ("Swift", 2, "POWER", "Enchanted a Power with Swift +2."),
-        }
-        enchantment, amount, card_type_name, description = mapping.get(
+        if option_id == self.OPTION_SKIP:
+            return EventResult(finished=True, description=self.SKIP_DESCRIPTION)
+        enchantment, amount, card_type, card_type_label, description = self.CHOICES.get(
             option_id,
-            ("Swift", 2, "POWER", "Enchanted a Power with Swift +2."),
+            self.CHOICES[self.OPTION_READ_ENTIRE],
         )
-        if option_id == "skip_book":
-            return EventResult(finished=True, description="Closed the book without learning anything.")
-        candidates = [card for card in run_state.player.deck if card.card_type.name == card_type_name]
+        candidates = [card for card in run_state.player.deck if card.card_type == card_type]
         candidates = [card for card in candidates if can_enchant_card(card, enchantment)]
         if _should_defer_event_rewards(run_state):
             return _event_result_with_rewards(
@@ -1765,7 +1782,7 @@ class SelfHelpBook(EventModel):
                 [EnchantCardsReward(run_state.player.player_id, enchantment=enchantment, amount=amount, count=1, cards=candidates)],
             )
         return self.request_card_choice(
-            prompt=f"Choose a {card_type_name.title()} to enchant",
+            prompt=f"Choose a {card_type_label} to enchant",
             cards=candidates,
             source_pile="deck",
             resolver=lambda selected: (
