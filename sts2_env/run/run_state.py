@@ -1394,6 +1394,7 @@ class RunState:
         self.map_point_history: list[MapPointHistoryEntry] = []
         self.act_floor: int = 0
         self.total_floor: int = 0
+        self._rooms_generated = False
 
         # Event tracking
         self.visited_event_ids: set[str] = set()
@@ -1473,8 +1474,17 @@ class RunState:
             player.populate_relic_grab_bag()
         for modifier in self.modifiers:
             modifier.after_relic_grab_bags_populated(self)
+        self._generate_rooms()
         self.generate_map()
         self._fire_after_act_entered()
+
+    def _generate_rooms(self) -> None:
+        if self._rooms_generated:
+            return
+        for act in self.acts:
+            self.rng.up_front.shuffle(act.event_ids)
+            act.events_visited = 0
+        self._rooms_generated = True
 
     def _apply_ascension_effects(self) -> None:
         """Apply all ascension effects matching AscensionManager.ApplyEffectsTo

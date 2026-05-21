@@ -1,6 +1,7 @@
 """Run act configuration parity tests."""
 
 from sts2_env.events.act2 import LuminousChoir, RanwidTheElder
+from sts2_env.map.acts import ALL_ACTS
 from sts2_env.potions.base import create_potion
 from sts2_env.relics.base import RelicId
 from sts2_env.run.events import pick_event
@@ -10,6 +11,30 @@ RUN_SEED = 42
 ACT_TWO_INDEX = 1
 ENTRY_BLOCKED_GOLD = LuminousChoir.ENTRY_GOLD_COST - 1
 FIRE_POTION_ID = "FirePotion"
+
+
+def test_initialize_run_generates_shuffled_act_event_rooms_like_csharp_runmanager():
+    run_state = RunState(seed=RUN_SEED)
+    static_event_ids = [event_id for act in ALL_ACTS for event_id in act.event_ids]
+
+    run_state.initialize_run()
+
+    generated_event_ids = [event_id for act in run_state.acts for event_id in act.event_ids]
+    assert sorted(generated_event_ids) == sorted(static_event_ids)
+    assert generated_event_ids != static_event_ids
+    assert run_state.rng.up_front.counter == len(static_event_ids) - len(run_state.acts)
+
+
+def test_initialize_run_does_not_regenerate_event_rooms_after_first_initialization():
+    run_state = RunState(seed=RUN_SEED)
+    run_state.initialize_run()
+    event_ids_by_act = [list(act.event_ids) for act in run_state.acts]
+    up_front_counter = run_state.rng.up_front.counter
+
+    run_state.initialize_run()
+
+    assert [act.event_ids for act in run_state.acts] == event_ids_by_act
+    assert run_state.rng.up_front.counter == up_front_counter
 
 
 def test_run_state_uses_mutable_act_copies_like_csharp_runstate():
