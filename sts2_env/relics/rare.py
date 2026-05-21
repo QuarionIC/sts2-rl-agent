@@ -478,6 +478,8 @@ class LastingCandy(RelicInstance):
     relic_id = RelicId.LASTING_CANDY
     rarity = RelicRarity.RARE
     pool = RelicPool.SHARED
+    COMBATS = 2
+    CARDS = 1
 
     def is_allowed(self, run_state: RunState) -> bool:
         return self.is_before_act3_treasure_chest(run_state)
@@ -496,7 +498,7 @@ class LastingCandy(RelicInstance):
     ) -> list[CardInstance]:
         from sts2_env.run.rewards import generate_combat_reward_cards
 
-        if self._combats_seen <= 0 or self._combats_seen % 2 != 0:
+        if self._combats_seen <= 0 or self._combats_seen % self.COMBATS != 0:
             return cards
         if getattr(reward, "card_creation_source", CARD_CREATION_SOURCE_ENCOUNTER) != CARD_CREATION_SOURCE_ENCOUNTER:
             return cards
@@ -546,7 +548,7 @@ class LastingCandy(RelicInstance):
         generated = generate_combat_reward_cards(
             run_state,
             context=getattr(reward, "context", "regular"),
-            num_cards=1,
+            num_cards=self.CARDS,
             character_ids=character_ids,
             generation_context=getattr(reward, "generation_context", CARD_GENERATION_CONTEXT_COMBAT),
             roll_upgrade=True,
