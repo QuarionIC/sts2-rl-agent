@@ -14,6 +14,7 @@ from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import CardId, CardType, CombatSide, ValueProp
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
+from sts2_env.relics.common import BookOfFiveRings
 from sts2_env.run.rest_site import HealOption
 from sts2_env.run.reward_objects import PotionReward
 from sts2_env.run.run_state import RunState
@@ -204,20 +205,24 @@ class TestRelicStarterCommonRestUpgradeHooksParity:
         upgraded = {card.card_id for card in run_state.player.deck if card.upgraded}
         assert upgraded == {CardId.BLOOD_WALL, CardId.DEFEND_IRONCLAD}
 
-    def test_book_of_five_rings_heals_on_every_fifth_card_added_and_resets_counter(self):
-        """Matches BookOfFiveRings.cs: heal 15 each time 5 cards are added."""
+    def test_book_of_five_rings_heals_on_every_fifth_card_added_and_keeps_total_counter(self):
+        """Matches BookOfFiveRings.cs: CardsAdded is cumulative; trigger uses modulo 5."""
         run_state = RunState(seed=1608, character_id="Ironclad")
         run_state.player.max_hp = 80
         run_state.player.current_hp = 20
         assert run_state.player.obtain_relic("BOOK_OF_FIVE_RINGS")
+        relic = next(relic for relic in run_state.player.get_relic_objects() if relic.relic_id.name == "BOOK_OF_FIVE_RINGS")
 
         for _ in range(4):
             run_state.player.add_card_instance_to_deck(make_strike_ironclad())
         assert run_state.player.current_hp == 20
+        assert relic._cards_added == BookOfFiveRings.CARDS_THRESHOLD - 1
 
         run_state.player.add_card_instance_to_deck(make_strike_ironclad())
         assert run_state.player.current_hp == 35
+        assert relic._cards_added == BookOfFiveRings.CARDS_THRESHOLD
 
         for _ in range(5):
             run_state.player.add_card_instance_to_deck(make_strike_ironclad())
         assert run_state.player.current_hp == 50
+        assert relic._cards_added == BookOfFiveRings.CARDS_THRESHOLD * 2

@@ -546,7 +546,6 @@ class BookOfFiveRings(RelicInstance):
         source: object | None = None,
     ) -> None:
         self._cards_added += 1
-        if self._cards_added >= self.CARDS_THRESHOLD:
-            self._cards_added = 0
+        if self._cards_added % self.CARDS_THRESHOLD == 0:
             if owner.current_hp > 0:
                 owner.heal(self.HEAL)
