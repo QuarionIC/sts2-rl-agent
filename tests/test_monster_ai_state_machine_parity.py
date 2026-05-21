@@ -596,6 +596,29 @@ class TestFixedRotation:
         piercing_gaze.perform(combat)
         assert ally.current_hp == ally_hp_before_piercing_gaze - 11
 
+    def test_mawler_ascension_scaling_matches_csharp(self):
+        rng_seed = 1274
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=70)
+        mawler, mawler_ai = create_mawler(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(mawler, mawler_ai)
+
+        rip_and_tear = mawler_ai.states["RIP_AND_TEAR_MOVE"]
+        assert rip_and_tear.intents[0].damage == 16
+        ally_hp_before_rip = ally.current_hp
+        rip_and_tear.perform(combat)
+        assert ally.current_hp == ally_hp_before_rip - 16
+
+        claw = mawler_ai.states["CLAW_MOVE"]
+        assert claw.intents[0].damage == 5
+        ally_hp_before_claw = ally.current_hp
+        claw.perform(combat)
+        assert ally.current_hp == ally_hp_before_claw - 10
+
+        mawler_ai.states["ROAR_MOVE"].perform(combat)
+        assert ally.get_power_amount(PowerId.VULNERABLE) == 3
+
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle
 

@@ -354,6 +354,14 @@ class TestAct1NormalEncounters:
         setup_mawler_normal(combat, Rng(42))
         assert len(combat.enemies) == 1
 
+    def test_mawler_tough_ascension_hp_matches_csharp(self):
+        combat = _make_combat()
+        combat.ascension_level = 8
+        setup_mawler_normal(combat, Rng(42))
+        assert len(combat.enemies) == 1
+        assert combat.enemies[0].monster_id == "MAWLER"
+        assert combat.enemies[0].max_hp == 76
+
     def test_nibbits_normal_count(self):
         combat = _make_combat()
         setup_nibbits_normal(combat, Rng(42))

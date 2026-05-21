@@ -112,7 +112,7 @@ def setup_inklets_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_mawler_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_mawler(rng)
+    creature, ai = create_mawler(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 

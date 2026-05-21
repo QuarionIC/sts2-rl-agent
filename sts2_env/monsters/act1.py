@@ -539,40 +539,90 @@ def create_inklet(
 
 # ---- Mawler (HP 72 / 76 asc) ----
 
-def create_mawler(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 72
+MAWLER_BASE_HP = 72
+MAWLER_TOUGH_HP = 76
+MAWLER_BASE_RIP_AND_TEAR_DAMAGE = 14
+MAWLER_DEADLY_RIP_AND_TEAR_DAMAGE = 16
+MAWLER_BASE_CLAW_DAMAGE = 4
+MAWLER_DEADLY_CLAW_DAMAGE = 5
+MAWLER_CLAW_HITS = 2
+MAWLER_ROAR_VULNERABLE = 3
+MAWLER_RANDOM_MOVE = "RAND"
+MAWLER_RIP_AND_TEAR_MOVE = "RIP_AND_TEAR_MOVE"
+MAWLER_ROAR_MOVE = "ROAR_MOVE"
+MAWLER_CLAW_MOVE = "CLAW_MOVE"
+
+
+def create_mawler(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        MAWLER_TOUGH_HP,
+        MAWLER_BASE_HP,
+    )
     creature = Creature(max_hp=hp, monster_id="MAWLER")
 
-    rip_dmg = 14
-    claw_dmg = 4
-    roar_vulnerable = 3
-
     def rip_and_tear(combat: CombatState) -> None:
+        rip_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            MAWLER_DEADLY_RIP_AND_TEAR_DAMAGE,
+            MAWLER_BASE_RIP_AND_TEAR_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, rip_dmg)
 
     def roar(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.VULNERABLE, roar_vulnerable, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.VULNERABLE, MAWLER_ROAR_VULNERABLE, applier=creature)
 
     def claw(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, claw_dmg, hits=2)
+        claw_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            MAWLER_DEADLY_CLAW_DAMAGE,
+            MAWLER_BASE_CLAW_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, claw_dmg, hits=MAWLER_CLAW_HITS)
 
-    rand = RandomBranchState("RAND")
-    rand.add_branch("RIP_AND_TEAR_MOVE", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("ROAR_MOVE", MoveRepeatType.USE_ONLY_ONCE)
-    rand.add_branch("CLAW_MOVE", MoveRepeatType.CANNOT_REPEAT)
+    rip_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        MAWLER_DEADLY_RIP_AND_TEAR_DAMAGE,
+        MAWLER_BASE_RIP_AND_TEAR_DAMAGE,
+    )
+    claw_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        MAWLER_DEADLY_CLAW_DAMAGE,
+        MAWLER_BASE_CLAW_DAMAGE,
+    )
+
+    rand = RandomBranchState(MAWLER_RANDOM_MOVE)
+    rand.add_branch(MAWLER_RIP_AND_TEAR_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(MAWLER_ROAR_MOVE, MoveRepeatType.USE_ONLY_ONCE)
+    rand.add_branch(MAWLER_CLAW_MOVE, MoveRepeatType.CANNOT_REPEAT)
 
     states: dict[str, MonsterState] = {
-        "RAND": rand,
-        "RIP_AND_TEAR_MOVE": MoveState(
-            "RIP_AND_TEAR_MOVE",
+        MAWLER_RANDOM_MOVE: rand,
+        MAWLER_RIP_AND_TEAR_MOVE: MoveState(
+            MAWLER_RIP_AND_TEAR_MOVE,
             rip_and_tear,
-            [attack_intent(rip_dmg)],
-            follow_up_id="RAND",
+            [attack_intent(rip_intent_damage)],
+            follow_up_id=MAWLER_RANDOM_MOVE,
         ),
-        "ROAR_MOVE": MoveState("ROAR_MOVE", roar, [debuff_intent()], follow_up_id="RAND"),
-        "CLAW_MOVE": MoveState("CLAW_MOVE", claw, [multi_attack_intent(claw_dmg, 2)], follow_up_id="RAND"),
+        MAWLER_ROAR_MOVE: MoveState(
+            MAWLER_ROAR_MOVE,
+            roar,
+            [debuff_intent()],
+            follow_up_id=MAWLER_RANDOM_MOVE,
+        ),
+        MAWLER_CLAW_MOVE: MoveState(
+            MAWLER_CLAW_MOVE,
+            claw,
+            [multi_attack_intent(claw_intent_damage, MAWLER_CLAW_HITS)],
+            follow_up_id=MAWLER_RANDOM_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "CLAW_MOVE")
+    return creature, MonsterAI(states, MAWLER_CLAW_MOVE)
 
 
 # ---- VineShambler (HP 61 / 64 asc) ----
