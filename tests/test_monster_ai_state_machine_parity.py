@@ -235,6 +235,21 @@ KIN_FOLLOWER_BOOMERANG_DAMAGE = 2
 KIN_FOLLOWER_BOOMERANG_HITS = 2
 KIN_FOLLOWER_DANCE_STRENGTH_A9 = 3
 KIN_FOLLOWER_MINION = 1
+THIEVING_HOPPER_THIEVERY_MOVE = "THIEVERY_MOVE"
+THIEVING_HOPPER_FLUTTER_MOVE = "FLUTTER_MOVE"
+THIEVING_HOPPER_HAT_TRICK_MOVE = "HAT_TRICK_MOVE"
+THIEVING_HOPPER_NAB_MOVE = "NAB_MOVE"
+THIEVING_HOPPER_THEFT_DAMAGE_A9 = 19
+THIEVING_HOPPER_HAT_TRICK_DAMAGE_A9 = 23
+THIEVING_HOPPER_NAB_DAMAGE_A9 = 16
+THIEVING_HOPPER_FLUTTER = 5
+TUNNELER_BITE_MOVE = "BITE_MOVE"
+TUNNELER_BURROW_MOVE = "BURROW_MOVE"
+TUNNELER_BELOW_MOVE = "BELOW_MOVE_1"
+TUNNELER_BITE_DAMAGE_A9 = 15
+TUNNELER_BURROW_BLOCK_A9 = 37
+TUNNELER_BELOW_DAMAGE_A9 = 26
+TUNNELER_BURROWED = 1
 BOWLBUG_EGG_BITE_MOVE = "BITE_MOVE"
 BOWLBUG_EGG_BITE_DAMAGE_A9 = 8
 BOWLBUG_EGG_PROTECT_BLOCK_A9 = 8
@@ -250,6 +265,14 @@ BOWLBUG_SILK_TOXIC_SPIT_MOVE = "TOXIC_SPIT_MOVE"
 BOWLBUG_SILK_THRASH_DAMAGE_A9 = 5
 BOWLBUG_SILK_THRASH_HITS = 2
 BOWLBUG_SILK_TOXIC_SPIT_WEAK = 1
+EXOSKELETON_SKITTER_MOVE = "SKITTER_MOVE"
+EXOSKELETON_MANDIBLE_MOVE = "MANDIBLE_MOVE"
+EXOSKELETON_ENRAGE_MOVE = "ENRAGE_MOVE"
+EXOSKELETON_SKITTER_DAMAGE = 1
+EXOSKELETON_SKITTER_HITS_A9 = 4
+EXOSKELETON_MANDIBLE_DAMAGE_A9 = 9
+EXOSKELETON_ENRAGE_STRENGTH = 2
+EXOSKELETON_HARD_TO_KILL = 9
 TOUGH_EGG_INITIAL_HP = 16
 TOUGH_EGG_HATCHLING_HP = 20
 MULTIPLAYER_TEST_PLAYER_COUNT = 2
@@ -2159,6 +2182,71 @@ class TestFixedRotation:
 
         _, silk_ai = create_bowlbug_silk(Rng(27))
         assert _run_ai(silk_ai, Rng(27), 3) == ["TOXIC_SPIT_MOVE", "TRASH_MOVE", "TOXIC_SPIT_MOVE"]
+
+    def test_thieving_hopper_tunneler_and_exoskeleton_ascension_scaling_matches_csharp(self):
+        rng_seed = 1284
+
+        hopper_combat = _make_combat(rng_seed)
+        hopper_combat.ascension_level = 9
+        hopper, hopper_ai = create_thieving_hopper(Rng(rng_seed), ascension_level=9)
+        hopper_combat.add_enemy(hopper, hopper_ai)
+        thievery = hopper_ai.states[THIEVING_HOPPER_THIEVERY_MOVE]
+        assert thievery.intents[0].damage == THIEVING_HOPPER_THEFT_DAMAGE_A9
+        player_hp_before_thievery = hopper_combat.player.current_hp
+        thievery.perform(hopper_combat)
+        assert hopper_combat.player.current_hp == player_hp_before_thievery - THIEVING_HOPPER_THEFT_DAMAGE_A9
+        hopper_ai.states[THIEVING_HOPPER_FLUTTER_MOVE].perform(hopper_combat)
+        assert hopper.get_power_amount(PowerId.FLUTTER) == THIEVING_HOPPER_FLUTTER
+        hopper.powers.pop(PowerId.FLUTTER)
+        hat_trick = hopper_ai.states[THIEVING_HOPPER_HAT_TRICK_MOVE]
+        assert hat_trick.intents[0].damage == THIEVING_HOPPER_HAT_TRICK_DAMAGE_A9
+        player_hp_before_hat_trick = hopper_combat.player.current_hp
+        hat_trick.perform(hopper_combat)
+        assert hopper_combat.player.current_hp == player_hp_before_hat_trick - THIEVING_HOPPER_HAT_TRICK_DAMAGE_A9
+        nab = hopper_ai.states[THIEVING_HOPPER_NAB_MOVE]
+        assert nab.intents[0].damage == THIEVING_HOPPER_NAB_DAMAGE_A9
+        player_hp_before_nab = hopper_combat.player.current_hp
+        nab.perform(hopper_combat)
+        assert hopper_combat.player.current_hp == player_hp_before_nab - THIEVING_HOPPER_NAB_DAMAGE_A9
+
+        tunneler_combat = _make_combat(rng_seed)
+        tunneler_combat.ascension_level = 9
+        tunneler, tunneler_ai = create_tunneler(Rng(rng_seed), ascension_level=9)
+        tunneler_combat.add_enemy(tunneler, tunneler_ai)
+        bite = tunneler_ai.states[TUNNELER_BITE_MOVE]
+        assert bite.intents[0].damage == TUNNELER_BITE_DAMAGE_A9
+        player_hp_before_bite = tunneler_combat.player.current_hp
+        bite.perform(tunneler_combat)
+        assert tunneler_combat.player.current_hp == player_hp_before_bite - TUNNELER_BITE_DAMAGE_A9
+        tunneler_ai.states[TUNNELER_BURROW_MOVE].perform(tunneler_combat)
+        assert tunneler.get_power_amount(PowerId.BURROWED) == TUNNELER_BURROWED
+        assert tunneler.block == TUNNELER_BURROW_BLOCK_A9
+        below = tunneler_ai.states[TUNNELER_BELOW_MOVE]
+        assert below.intents[0].damage == TUNNELER_BELOW_DAMAGE_A9
+        player_hp_before_below = tunneler_combat.player.current_hp
+        below.perform(tunneler_combat)
+        assert tunneler_combat.player.current_hp == player_hp_before_below - TUNNELER_BELOW_DAMAGE_A9
+
+        exo_combat = _make_combat(rng_seed)
+        exo_combat.ascension_level = 9
+        exo, exo_ai = create_exoskeleton(Rng(rng_seed), ascension_level=9)
+        exo_combat.add_enemy(exo, exo_ai)
+        skitter = exo_ai.states[EXOSKELETON_SKITTER_MOVE]
+        assert exo.get_power_amount(PowerId.HARD_TO_KILL) == EXOSKELETON_HARD_TO_KILL
+        assert skitter.intents[0].damage == EXOSKELETON_SKITTER_DAMAGE
+        assert skitter.intents[0].hits == EXOSKELETON_SKITTER_HITS_A9
+        player_hp_before_skitter = exo_combat.player.current_hp
+        skitter.perform(exo_combat)
+        assert exo_combat.player.current_hp == (
+            player_hp_before_skitter - EXOSKELETON_SKITTER_DAMAGE * EXOSKELETON_SKITTER_HITS_A9
+        )
+        mandible = exo_ai.states[EXOSKELETON_MANDIBLE_MOVE]
+        assert mandible.intents[0].damage == EXOSKELETON_MANDIBLE_DAMAGE_A9
+        player_hp_before_mandible = exo_combat.player.current_hp
+        mandible.perform(exo_combat)
+        assert exo_combat.player.current_hp == player_hp_before_mandible - EXOSKELETON_MANDIBLE_DAMAGE_A9
+        exo_ai.states[EXOSKELETON_ENRAGE_MOVE].perform(exo_combat)
+        assert exo.get_power_amount(PowerId.STRENGTH) == EXOSKELETON_ENRAGE_STRENGTH
 
     def test_bowlbugs_ascension_scaling_matches_csharp(self):
         rng_seed = 1283

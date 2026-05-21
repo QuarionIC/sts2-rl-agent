@@ -154,91 +154,222 @@ def _deal_damage_to_targets(
 
 # ---- ThievingHopper (HP 79 / 84 asc) ----
 
-def create_thieving_hopper(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 79
-    creature = Creature(max_hp=hp, monster_id="THIEVING_HOPPER")
-    theft_dmg = 17
-    hat_trick_dmg = 21
-    nab_dmg = 14
+THIEVING_HOPPER_MONSTER_ID = "THIEVING_HOPPER"
+THIEVING_HOPPER_BASE_HP = 79
+THIEVING_HOPPER_TOUGH_HP = 84
+THIEVING_HOPPER_BASE_THEFT_DAMAGE = 17
+THIEVING_HOPPER_DEADLY_THEFT_DAMAGE = 19
+THIEVING_HOPPER_BASE_HAT_TRICK_DAMAGE = 21
+THIEVING_HOPPER_DEADLY_HAT_TRICK_DAMAGE = 23
+THIEVING_HOPPER_BASE_NAB_DAMAGE = 14
+THIEVING_HOPPER_DEADLY_NAB_DAMAGE = 16
+THIEVING_HOPPER_ESCAPE_ARTIST_AMOUNT = 5
+THIEVING_HOPPER_FLUTTER_AMOUNT = 5
+THIEVING_HOPPER_THIEVERY_MOVE = "THIEVERY_MOVE"
+THIEVING_HOPPER_FLUTTER_MOVE = "FLUTTER_MOVE"
+THIEVING_HOPPER_HAT_TRICK_MOVE = "HAT_TRICK_MOVE"
+THIEVING_HOPPER_NAB_MOVE = "NAB_MOVE"
+THIEVING_HOPPER_ESCAPE_MOVE = "ESCAPE_MOVE"
+
+
+def create_thieving_hopper(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        THIEVING_HOPPER_TOUGH_HP,
+        THIEVING_HOPPER_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=THIEVING_HOPPER_MONSTER_ID)
 
     def thievery(combat: CombatState) -> None:
         targets = _thieving_hopper_targets(combat, creature)
         for target in targets:
             _steal_card_with_swipe(combat, creature, target)
+        theft_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            THIEVING_HOPPER_DEADLY_THEFT_DAMAGE,
+            THIEVING_HOPPER_BASE_THEFT_DAMAGE,
+        )
         _deal_damage_to_targets(combat, creature, targets, theft_dmg)
 
     def flutter(combat: CombatState) -> None:
-        creature.apply_power(PowerId.FLUTTER, 5)
+        creature.apply_power(PowerId.FLUTTER, THIEVING_HOPPER_FLUTTER_AMOUNT)
 
     def hat_trick(combat: CombatState) -> None:
+        hat_trick_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            THIEVING_HOPPER_DEADLY_HAT_TRICK_DAMAGE,
+            THIEVING_HOPPER_BASE_HAT_TRICK_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, hat_trick_dmg)
 
     def nab(combat: CombatState) -> None:
+        nab_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            THIEVING_HOPPER_DEADLY_NAB_DAMAGE,
+            THIEVING_HOPPER_BASE_NAB_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, nab_dmg)
 
     def escape(combat: CombatState) -> None:
         combat.escape_creature(creature)
 
+    theft_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        THIEVING_HOPPER_DEADLY_THEFT_DAMAGE,
+        THIEVING_HOPPER_BASE_THEFT_DAMAGE,
+    )
+    hat_trick_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        THIEVING_HOPPER_DEADLY_HAT_TRICK_DAMAGE,
+        THIEVING_HOPPER_BASE_HAT_TRICK_DAMAGE,
+    )
+    nab_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        THIEVING_HOPPER_DEADLY_NAB_DAMAGE,
+        THIEVING_HOPPER_BASE_NAB_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "THIEVERY_MOVE": MoveState(
-            "THIEVERY_MOVE",
+        THIEVING_HOPPER_THIEVERY_MOVE: MoveState(
+            THIEVING_HOPPER_THIEVERY_MOVE,
             thievery,
-            [attack_intent(theft_dmg), Intent(IntentType.CARD_DEBUFF)],
-            follow_up_id="FLUTTER_MOVE",
+            [attack_intent(theft_intent_damage), Intent(IntentType.CARD_DEBUFF)],
+            follow_up_id=THIEVING_HOPPER_FLUTTER_MOVE,
         ),
-        "FLUTTER_MOVE": MoveState("FLUTTER_MOVE", flutter, [buff_intent()], follow_up_id="HAT_TRICK_MOVE"),
-        "HAT_TRICK_MOVE": MoveState(
-            "HAT_TRICK_MOVE",
+        THIEVING_HOPPER_FLUTTER_MOVE: MoveState(
+            THIEVING_HOPPER_FLUTTER_MOVE,
+            flutter,
+            [buff_intent()],
+            follow_up_id=THIEVING_HOPPER_HAT_TRICK_MOVE,
+        ),
+        THIEVING_HOPPER_HAT_TRICK_MOVE: MoveState(
+            THIEVING_HOPPER_HAT_TRICK_MOVE,
             hat_trick,
-            [attack_intent(hat_trick_dmg)],
-            follow_up_id="NAB_MOVE",
+            [attack_intent(hat_trick_intent_damage)],
+            follow_up_id=THIEVING_HOPPER_NAB_MOVE,
         ),
-        "NAB_MOVE": MoveState("NAB_MOVE", nab, [attack_intent(nab_dmg)], follow_up_id="ESCAPE_MOVE"),
-        "ESCAPE_MOVE": MoveState("ESCAPE_MOVE", escape, [Intent(IntentType.ESCAPE)], follow_up_id="ESCAPE_MOVE"),
+        THIEVING_HOPPER_NAB_MOVE: MoveState(
+            THIEVING_HOPPER_NAB_MOVE,
+            nab,
+            [attack_intent(nab_intent_damage)],
+            follow_up_id=THIEVING_HOPPER_ESCAPE_MOVE,
+        ),
+        THIEVING_HOPPER_ESCAPE_MOVE: MoveState(
+            THIEVING_HOPPER_ESCAPE_MOVE,
+            escape,
+            [Intent(IntentType.ESCAPE)],
+            follow_up_id=THIEVING_HOPPER_ESCAPE_MOVE,
+        ),
     }
-    creature.apply_power(PowerId.ESCAPE_ARTIST, 5)
-    return creature, MonsterAI(states, "THIEVERY_MOVE")
+    creature.apply_power(PowerId.ESCAPE_ARTIST, THIEVING_HOPPER_ESCAPE_ARTIST_AMOUNT)
+    return creature, MonsterAI(states, THIEVING_HOPPER_THIEVERY_MOVE)
 
 
 # ---- Tunneler (HP 87 / 92 asc) ----
 
-def create_tunneler(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 87
-    creature = Creature(max_hp=hp, monster_id="TUNNELER")
-    bite_dmg = 13
-    burrow_block = 32
-    below_dmg = 23
+TUNNELER_MONSTER_ID = "TUNNELER"
+TUNNELER_BASE_HP = 87
+TUNNELER_TOUGH_HP = 92
+TUNNELER_BASE_BITE_DAMAGE = 13
+TUNNELER_DEADLY_BITE_DAMAGE = 15
+TUNNELER_BASE_BURROW_BLOCK = 32
+TUNNELER_TOUGH_BURROW_BLOCK = 37
+TUNNELER_BASE_BELOW_DAMAGE = 23
+TUNNELER_DEADLY_BELOW_DAMAGE = 26
+TUNNELER_BURROWED_AMOUNT = 1
+TUNNELER_BITE_MOVE = "BITE_MOVE"
+TUNNELER_BURROW_MOVE = "BURROW_MOVE"
+TUNNELER_BELOW_MOVE = "BELOW_MOVE_1"
+TUNNELER_DIZZY_MOVE = "DIZZY_MOVE"
+
+
+def create_tunneler(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TUNNELER_TOUGH_HP,
+        TUNNELER_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=TUNNELER_MONSTER_ID)
 
     def burrow(combat: CombatState) -> None:
-        creature.apply_power(PowerId.BURROWED, 1)
+        burrow_block = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            TUNNELER_TOUGH_BURROW_BLOCK,
+            TUNNELER_BASE_BURROW_BLOCK,
+        )
+        creature.apply_power(PowerId.BURROWED, TUNNELER_BURROWED_AMOUNT)
         _gain_block(creature, burrow_block, combat)
 
     def bite(combat: CombatState) -> None:
+        bite_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TUNNELER_DEADLY_BITE_DAMAGE,
+            TUNNELER_BASE_BITE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, bite_dmg)
 
     def below(combat: CombatState) -> None:
+        below_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TUNNELER_DEADLY_BELOW_DAMAGE,
+            TUNNELER_BASE_BELOW_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, below_dmg)
 
     def dizzy(combat: CombatState) -> None:
         return
 
+    bite_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TUNNELER_DEADLY_BITE_DAMAGE,
+        TUNNELER_BASE_BITE_DAMAGE,
+    )
+    below_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TUNNELER_DEADLY_BELOW_DAMAGE,
+        TUNNELER_BASE_BELOW_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "BITE_MOVE": MoveState("BITE_MOVE", bite, [attack_intent(bite_dmg)], follow_up_id="BURROW_MOVE"),
-        "BURROW_MOVE": MoveState(
-            "BURROW_MOVE",
+        TUNNELER_BITE_MOVE: MoveState(
+            TUNNELER_BITE_MOVE,
+            bite,
+            [attack_intent(bite_intent_damage)],
+            follow_up_id=TUNNELER_BURROW_MOVE,
+        ),
+        TUNNELER_BURROW_MOVE: MoveState(
+            TUNNELER_BURROW_MOVE,
             burrow,
             [buff_intent(), defend_intent()],
-            follow_up_id="BELOW_MOVE_1",
+            follow_up_id=TUNNELER_BELOW_MOVE,
         ),
-        "BELOW_MOVE_1": MoveState(
-            "BELOW_MOVE_1",
+        TUNNELER_BELOW_MOVE: MoveState(
+            TUNNELER_BELOW_MOVE,
             below,
-            [attack_intent(below_dmg)],
-            follow_up_id="BELOW_MOVE_1",
+            [attack_intent(below_intent_damage)],
+            follow_up_id=TUNNELER_BELOW_MOVE,
         ),
-        "DIZZY_MOVE": MoveState("DIZZY_MOVE", dizzy, [Intent(IntentType.STUN)], follow_up_id="BITE_MOVE"),
+        TUNNELER_DIZZY_MOVE: MoveState(
+            TUNNELER_DIZZY_MOVE,
+            dizzy,
+            [Intent(IntentType.STUN)],
+            follow_up_id=TUNNELER_BITE_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "BITE_MOVE")
+    return creature, MonsterAI(states, TUNNELER_BITE_MOVE)
 
 
 # ---- Bowlbugs ----
@@ -513,52 +644,113 @@ def create_bowlbug_silk(rng: Rng, ascension_level: int = 0) -> tuple[Creature, M
 
 # ---- Exoskeleton (HP 24-28 / 25-29 asc) ----
 
-def create_exoskeleton(rng: Rng, slot: str = "first") -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(24, 28)
-    creature = Creature(max_hp=hp, monster_id="EXOSKELETON")
-    skitter_dmg = 1
-    skitter_hits = 3
-    mandible_dmg = 8
+EXOSKELETON_MONSTER_ID = "EXOSKELETON"
+EXOSKELETON_BASE_MIN_HP = 24
+EXOSKELETON_BASE_MAX_HP = 28
+EXOSKELETON_TOUGH_MIN_HP = 25
+EXOSKELETON_TOUGH_MAX_HP = 29
+EXOSKELETON_SKITTER_DAMAGE = 1
+EXOSKELETON_BASE_SKITTER_HITS = 3
+EXOSKELETON_DEADLY_SKITTER_HITS = 4
+EXOSKELETON_BASE_MANDIBLE_DAMAGE = 8
+EXOSKELETON_DEADLY_MANDIBLE_DAMAGE = 9
+EXOSKELETON_ENRAGE_STRENGTH = 2
+EXOSKELETON_HARD_TO_KILL = 9
+EXOSKELETON_FIRST_SLOT = "first"
+EXOSKELETON_SECOND_SLOT = "second"
+EXOSKELETON_THIRD_SLOT = "third"
+EXOSKELETON_FOURTH_SLOT = "fourth"
+EXOSKELETON_RANDOM_STATE = "RAND"
+EXOSKELETON_SKITTER_MOVE = "SKITTER_MOVE"
+EXOSKELETON_MANDIBLE_MOVE = "MANDIBLE_MOVE"
+EXOSKELETON_ENRAGE_MOVE = "ENRAGE_MOVE"
+
+
+def create_exoskeleton(rng: Rng, slot: str = EXOSKELETON_FIRST_SLOT, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        EXOSKELETON_TOUGH_MIN_HP,
+        EXOSKELETON_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        EXOSKELETON_TOUGH_MAX_HP,
+        EXOSKELETON_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=EXOSKELETON_MONSTER_ID)
 
     def skitter(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, skitter_dmg, hits=skitter_hits)
+        skitter_hits = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            EXOSKELETON_DEADLY_SKITTER_HITS,
+            EXOSKELETON_BASE_SKITTER_HITS,
+        )
+        _deal_damage_to_player(combat, creature, EXOSKELETON_SKITTER_DAMAGE, hits=skitter_hits)
 
     def mandible(combat: CombatState) -> None:
+        mandible_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            EXOSKELETON_DEADLY_MANDIBLE_DAMAGE,
+            EXOSKELETON_BASE_MANDIBLE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, mandible_dmg)
 
     def enrage(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, 2)
+        creature.apply_power(PowerId.STRENGTH, EXOSKELETON_ENRAGE_STRENGTH)
 
-    rand = RandomBranchState("RAND")
-    rand.add_branch("SKITTER_MOVE", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("MANDIBLE_MOVE", MoveRepeatType.CANNOT_REPEAT)
+    skitter_intent_hits = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        EXOSKELETON_DEADLY_SKITTER_HITS,
+        EXOSKELETON_BASE_SKITTER_HITS,
+    )
+    mandible_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        EXOSKELETON_DEADLY_MANDIBLE_DAMAGE,
+        EXOSKELETON_BASE_MANDIBLE_DAMAGE,
+    )
+
+    rand = RandomBranchState(EXOSKELETON_RANDOM_STATE)
+    rand.add_branch(EXOSKELETON_SKITTER_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(EXOSKELETON_MANDIBLE_MOVE, MoveRepeatType.CANNOT_REPEAT)
 
     states: dict[str, MonsterState] = {
-        "RAND": rand,
-        "SKITTER_MOVE": MoveState(
-            "SKITTER_MOVE",
+        EXOSKELETON_RANDOM_STATE: rand,
+        EXOSKELETON_SKITTER_MOVE: MoveState(
+            EXOSKELETON_SKITTER_MOVE,
             skitter,
-            [multi_attack_intent(skitter_dmg, skitter_hits)],
-            follow_up_id="RAND",
+            [multi_attack_intent(EXOSKELETON_SKITTER_DAMAGE, skitter_intent_hits)],
+            follow_up_id=EXOSKELETON_RANDOM_STATE,
         ),
-        "MANDIBLE_MOVE": MoveState(
-            "MANDIBLE_MOVE",
+        EXOSKELETON_MANDIBLE_MOVE: MoveState(
+            EXOSKELETON_MANDIBLE_MOVE,
             mandible,
-            [attack_intent(mandible_dmg)],
-            follow_up_id="ENRAGE_MOVE",
+            [attack_intent(mandible_intent_damage)],
+            follow_up_id=EXOSKELETON_ENRAGE_MOVE,
         ),
-        "ENRAGE_MOVE": MoveState("ENRAGE_MOVE", enrage, [buff_intent()], follow_up_id="RAND"),
+        EXOSKELETON_ENRAGE_MOVE: MoveState(
+            EXOSKELETON_ENRAGE_MOVE,
+            enrage,
+            [buff_intent()],
+            follow_up_id=EXOSKELETON_RANDOM_STATE,
+        ),
     }
 
     slot_map = {
-        "first": "SKITTER_MOVE",
-        "second": "MANDIBLE_MOVE",
-        "third": "ENRAGE_MOVE",
-        "fourth": "RAND",
+        EXOSKELETON_FIRST_SLOT: EXOSKELETON_SKITTER_MOVE,
+        EXOSKELETON_SECOND_SLOT: EXOSKELETON_MANDIBLE_MOVE,
+        EXOSKELETON_THIRD_SLOT: EXOSKELETON_ENRAGE_MOVE,
+        EXOSKELETON_FOURTH_SLOT: EXOSKELETON_RANDOM_STATE,
     }
-    initial = slot_map.get(slot, "RAND")
+    initial = slot_map.get(slot, EXOSKELETON_RANDOM_STATE)
 
-    creature.apply_power(PowerId.HARD_TO_KILL, 9)
+    creature.apply_power(PowerId.HARD_TO_KILL, EXOSKELETON_HARD_TO_KILL)
     return creature, MonsterAI(states, initial, rng)
 
 

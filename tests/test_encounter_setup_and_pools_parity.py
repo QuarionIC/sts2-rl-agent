@@ -76,6 +76,7 @@ from sts2_env.encounters.act2 import (
     setup_the_insatiable_boss,
     setup_the_obscura_normal,
     setup_thieving_hopper_weak,
+    setup_tunneler_normal,
     setup_tunneler_weak,
 )
 
@@ -136,6 +137,10 @@ CEREMONIAL_BEAST_TOUGH_HP = 262
 KIN_FOLLOWER_TOUGH_MIN_HP = 62
 KIN_FOLLOWER_TOUGH_MAX_HP = 63
 KIN_PRIEST_TOUGH_HP = 199
+THIEVING_HOPPER_MONSTER_ID = "THIEVING_HOPPER"
+THIEVING_HOPPER_TOUGH_HP = 84
+TUNNELER_MONSTER_ID = "TUNNELER"
+TUNNELER_TOUGH_HP = 92
 BOWLBUG_EGG_MONSTER_ID = "BOWLBUG_EGG"
 BOWLBUG_EGG_TOUGH_MIN_HP = 23
 BOWLBUG_EGG_TOUGH_MAX_HP = 24
@@ -148,6 +153,9 @@ BOWLBUG_ROCK_TOUGH_MAX_HP = 49
 BOWLBUG_SILK_MONSTER_ID = "BOWLBUG_SILK"
 BOWLBUG_SILK_TOUGH_MIN_HP = 41
 BOWLBUG_SILK_TOUGH_MAX_HP = 44
+EXOSKELETON_MONSTER_ID = "EXOSKELETON"
+EXOSKELETON_TOUGH_MIN_HP = 25
+EXOSKELETON_TOUGH_MAX_HP = 29
 
 
 class _ExclusiveHighRng:
@@ -705,6 +713,51 @@ class TestAct2Pools:
         ]
         assert [combat.enemy_ais[enemy.combat_id].current_move.state_id for enemy in combat.enemies] == expected_openers
 
+    def test_act2_weak_tough_ascension_hp_matches_csharp(self):
+        for seed in range(5):
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_thieving_hopper_weak(combat, Rng(seed))
+
+            assert len(combat.enemies) == 1
+            assert combat.enemies[0].monster_id == THIEVING_HOPPER_MONSTER_ID
+            assert combat.enemies[0].max_hp == THIEVING_HOPPER_TOUGH_HP
+
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_tunneler_weak(combat, Rng(seed))
+
+            assert len(combat.enemies) == 1
+            assert combat.enemies[0].monster_id == TUNNELER_MONSTER_ID
+            assert combat.enemies[0].max_hp == TUNNELER_TOUGH_HP
+
+    def test_exoskeletons_tough_ascension_hp_matches_csharp(self):
+        for seed in range(5):
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_exoskeletons_weak(combat, Rng(seed))
+
+            assert [enemy.monster_id for enemy in combat.enemies] == [
+                EXOSKELETON_MONSTER_ID,
+                EXOSKELETON_MONSTER_ID,
+            ]
+            assert all(EXOSKELETON_TOUGH_MIN_HP <= enemy.max_hp <= EXOSKELETON_TOUGH_MAX_HP for enemy in combat.enemies)
+
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_exoskeletons_normal(combat, Rng(seed))
+
+            assert [enemy.monster_id for enemy in combat.enemies] == [
+                EXOSKELETON_MONSTER_ID,
+                EXOSKELETON_MONSTER_ID,
+                EXOSKELETON_MONSTER_ID,
+            ]
+            assert all(EXOSKELETON_TOUGH_MIN_HP <= enemy.max_hp <= EXOSKELETON_TOUGH_MAX_HP for enemy in combat.enemies)
+
     def test_bowlbugs_weak_tough_ascension_hp_matches_csharp(self):
         for seed in range(5):
             combat = _make_combat(seed)
@@ -736,6 +789,17 @@ class TestAct2Pools:
             assert BOWLBUG_EGG_TOUGH_MIN_HP <= egg.max_hp <= BOWLBUG_EGG_TOUGH_MAX_HP
             assert BOWLBUG_ROCK_TOUGH_MIN_HP <= rock.max_hp <= BOWLBUG_ROCK_TOUGH_MAX_HP
             assert BOWLBUG_SILK_TOUGH_MIN_HP <= silk.max_hp <= BOWLBUG_SILK_TOUGH_MAX_HP
+
+    def test_tunneler_normal_tough_ascension_hp_matches_csharp(self):
+        for seed in range(5):
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_tunneler_normal(combat, Rng(seed))
+
+            assert len(combat.enemies) == 2
+            assert combat.enemies[1].monster_id == TUNNELER_MONSTER_ID
+            assert combat.enemies[1].max_hp == TUNNELER_TOUGH_HP
 
     def test_weak_encounter_count(self):
         assert len(ACT2_WEAK) == 4

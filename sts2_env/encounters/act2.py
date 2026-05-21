@@ -10,6 +10,9 @@ from sts2_env.core.rng import Rng
 if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
 from sts2_env.monsters.act2 import (
+    EXOSKELETON_FIRST_SLOT,
+    EXOSKELETON_SECOND_SLOT,
+    EXOSKELETON_THIRD_SLOT,
     apply_decimillipede_segment_room_setup,
     create_thieving_hopper,
     create_tunneler,
@@ -41,12 +44,12 @@ EncounterSetup = Callable[..., None]
 # ---- Weak Encounters ----
 
 def setup_thieving_hopper_weak(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_thieving_hopper(rng)
+    creature, ai = create_thieving_hopper(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
 def setup_tunneler_weak(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_tunneler(rng)
+    creature, ai = create_tunneler(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
@@ -59,9 +62,10 @@ def setup_bowlbugs_weak(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_exoskeletons_weak(combat: CombatState, rng: Rng) -> None:
-    c1, a1 = create_exoskeleton(rng, slot="first")
+    ascension_level = getattr(combat, "ascension_level", 0)
+    c1, a1 = create_exoskeleton(rng, slot=EXOSKELETON_FIRST_SLOT, ascension_level=ascension_level)
     combat.add_enemy(c1, a1)
-    c2, a2 = create_exoskeleton(rng, slot="second")
+    c2, a2 = create_exoskeleton(rng, slot=EXOSKELETON_SECOND_SLOT, ascension_level=ascension_level)
     combat.add_enemy(c2, a2)
 
 
@@ -91,8 +95,9 @@ def setup_chompers_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_exoskeletons_normal(combat: CombatState, rng: Rng) -> None:
-    for i, slot in enumerate(["first", "second", "third"]):
-        creature, ai = create_exoskeleton(rng, slot=slot)
+    ascension_level = getattr(combat, "ascension_level", 0)
+    for slot in [EXOSKELETON_FIRST_SLOT, EXOSKELETON_SECOND_SLOT, EXOSKELETON_THIRD_SLOT]:
+        creature, ai = create_exoskeleton(rng, slot=slot, ascension_level=ascension_level)
         combat.add_enemy(creature, ai)
 
 
@@ -137,7 +142,7 @@ def setup_tunneler_normal(combat: CombatState, rng: Rng) -> None:
     bug_creator = rng.choice([create_bowlbug_egg, create_bowlbug_silk])
     bug, bug_ai = bug_creator(rng, ascension_level=ascension_level)
     combat.add_enemy(bug, bug_ai)
-    creature, ai = create_tunneler(rng)
+    creature, ai = create_tunneler(rng, ascension_level=ascension_level)
     combat.add_enemy(creature, ai)
 
 
