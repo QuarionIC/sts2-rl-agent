@@ -30,8 +30,12 @@ from sts2_env.encounters.act3 import (
     setup_doormaker_boss,
     setup_devoted_sculptor_weak,
     setup_fabricator_normal,
+    setup_frog_knight_normal,
+    setup_globe_head_normal,
     setup_knights_elite,
+    setup_owl_magistrate_normal,
     setup_queen_boss,
+    setup_slimed_berserker_normal,
     setup_turret_operator_weak,
 )
 from sts2_env.encounters.act4 import (
@@ -213,11 +217,32 @@ from sts2_env.monsters.act3 import (
     FABRICATOR_FABRICATE_MOVE,
     FABRICATOR_FABRICATING_STRIKE_MOVE,
     FABRICATOR_MONSTER_ID,
+    FROG_KNIGHT_BEETLE_CHARGE_MOVE,
+    FROG_KNIGHT_FOR_THE_QUEEN_MOVE,
+    FROG_KNIGHT_HALF_HEALTH_BRANCH,
+    FROG_KNIGHT_MONSTER_ID,
+    FROG_KNIGHT_STRIKE_DOWN_EVIL_MOVE,
+    FROG_KNIGHT_TONGUE_LASH_MOVE,
+    GLOBE_HEAD_GALVANIC_AMOUNT,
+    GLOBE_HEAD_GALVANIC_BURST_MOVE,
+    GLOBE_HEAD_MONSTER_ID,
+    GLOBE_HEAD_SHOCKING_SLAP_MOVE,
+    GLOBE_HEAD_THUNDER_STRIKE_MOVE,
     GUARDBOT_GUARD_BLOCK,
     GUARDBOT_GUARD_MOVE,
     GUARDBOT_MONSTER_ID,
     NOISEBOT_MONSTER_ID,
     NOISEBOT_NOISE_MOVE,
+    OWL_MAGISTRATE_JUDICIAL_FLIGHT_MOVE,
+    OWL_MAGISTRATE_MONSTER_ID,
+    OWL_MAGISTRATE_PECK_ASSAULT_MOVE,
+    OWL_MAGISTRATE_SCRUTINY_MOVE,
+    OWL_MAGISTRATE_VERDICT_MOVE,
+    SLIMED_BERSERKER_FURIOUS_PUMMELING_MOVE,
+    SLIMED_BERSERKER_LEECHING_HUG_MOVE,
+    SLIMED_BERSERKER_MONSTER_ID,
+    SLIMED_BERSERKER_SMOTHER_MOVE,
+    SLIMED_BERSERKER_VOMIT_ICHOR_MOVE,
     STABBOT_MONSTER_ID,
     STABBOT_STAB_MOVE,
     TURRET_OPERATOR_MONSTER_ID,
@@ -472,6 +497,39 @@ STABBOT_STAB_DAMAGE_A9 = 12
 STABBOT_STAB_FRAIL = 1
 GUARDBOT_A8_HP_RANGE = (22, 26)
 NOISEBOT_A8_HP_RANGE = (24, 29)
+FROG_KNIGHT_BASE_HP = 191
+FROG_KNIGHT_A8_HP = 199
+FROG_KNIGHT_BASE_PLATING = 15
+FROG_KNIGHT_A8_PLATING = 19
+FROG_KNIGHT_TONGUE_LASH_DAMAGE_A9 = 14
+FROG_KNIGHT_TONGUE_LASH_FRAIL = 2
+FROG_KNIGHT_STRIKE_DOWN_EVIL_DAMAGE_A9 = 23
+FROG_KNIGHT_BEETLE_CHARGE_DAMAGE_A9 = 40
+FROG_KNIGHT_FOR_THE_QUEEN_STRENGTH = 5
+GLOBE_HEAD_BASE_HP = 148
+GLOBE_HEAD_A8_HP = 158
+GLOBE_HEAD_SHOCKING_SLAP_DAMAGE_A9 = 14
+GLOBE_HEAD_SHOCKING_SLAP_FRAIL = 2
+GLOBE_HEAD_THUNDER_STRIKE_DAMAGE_A9 = 7
+GLOBE_HEAD_THUNDER_STRIKE_HITS = 3
+GLOBE_HEAD_GALVANIC_BURST_DAMAGE_A9 = 17
+GLOBE_HEAD_GALVANIC_BURST_STRENGTH = 2
+OWL_MAGISTRATE_BASE_HP = 234
+OWL_MAGISTRATE_A8_HP = 243
+OWL_MAGISTRATE_SCRUTINY_DAMAGE_A9 = 17
+OWL_MAGISTRATE_PECK_ASSAULT_DAMAGE = 4
+OWL_MAGISTRATE_PECK_ASSAULT_HITS = 6
+OWL_MAGISTRATE_VERDICT_DAMAGE_A9 = 36
+OWL_MAGISTRATE_SOAR = 1
+OWL_MAGISTRATE_VERDICT_VULNERABLE = 4
+SLIMED_BERSERKER_BASE_HP = 266
+SLIMED_BERSERKER_A8_HP = 276
+SLIMED_BERSERKER_PUMMELING_DAMAGE_A9 = 5
+SLIMED_BERSERKER_PUMMELING_HITS = 4
+SLIMED_BERSERKER_SLIMED = 10
+SLIMED_BERSERKER_LEECHING_HUG_WEAK = 3
+SLIMED_BERSERKER_LEECHING_HUG_STRENGTH = 3
+SLIMED_BERSERKER_SMOTHER_DAMAGE_A9 = 33
 TOUGH_EGG_MULTIPLAYER_INITIAL_HP = 16
 TOUGH_EGG_MULTIPLAYER_HATCHLING_HP = 20
 TOUGH_EGG_BASE_INITIAL_HP_RANGE = (14, 18)
@@ -3763,38 +3821,42 @@ class TestFixedRotation:
         creature, ai = create_frog_knight(Rng(46))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 191
-        assert creature.get_power_amount(PowerId.PLATING) == 15
-        assert ai.current_move.state_id == "TONGUE_LASH"
-        assert "HALF_HEALTH" in ai.states
+        assert creature.max_hp == FROG_KNIGHT_BASE_HP
+        assert creature.get_power_amount(PowerId.PLATING) == FROG_KNIGHT_BASE_PLATING
+        assert ai.current_move.state_id == FROG_KNIGHT_TONGUE_LASH_MOVE
+        assert FROG_KNIGHT_HALF_HEALTH_BRANCH in ai.states
 
         ai.current_move.perform(combat)
         assert combat.player.current_hp == 67
-        assert combat.player.get_power_amount(PowerId.FRAIL) == 2
+        assert combat.player.get_power_amount(PowerId.FRAIL) == FROG_KNIGHT_TONGUE_LASH_FRAIL
 
         ai.on_move_performed()
         ai.roll_move(Rng(46))
-        assert ai.current_move.state_id == "STRIKE_DOWN_EVIL"
+        assert ai.current_move.state_id == FROG_KNIGHT_STRIKE_DOWN_EVIL_MOVE
 
         ai.on_move_performed()
         ai.roll_move(Rng(46))
-        assert ai.current_move.state_id == "FOR_THE_QUEEN"
+        assert ai.current_move.state_id == FROG_KNIGHT_FOR_THE_QUEEN_MOVE
 
         creature.current_hp = 90
         ai.on_move_performed()
         ai.roll_move(Rng(46))
-        assert ai.current_move.state_id == "BEETLE_CHARGE"
+        assert ai.current_move.state_id == FROG_KNIGHT_BEETLE_CHARGE_MOVE
 
     def test_globe_head_uses_original_fixed_cycle(self):
         combat = _make_combat(47)
         creature, ai = create_globe_head(Rng(47))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 148
-        assert creature.get_power_amount(PowerId.GALVANIC) == 6
-        assert ai.current_move.state_id == "SHOCKING_SLAP"
+        assert creature.max_hp == GLOBE_HEAD_BASE_HP
+        assert creature.get_power_amount(PowerId.GALVANIC) == GLOBE_HEAD_GALVANIC_AMOUNT
+        assert ai.current_move.state_id == GLOBE_HEAD_SHOCKING_SLAP_MOVE
 
-        expected_moves = ["THUNDER_STRIKE", "GALVANIC_BURST", "SHOCKING_SLAP"]
+        expected_moves = [
+            GLOBE_HEAD_THUNDER_STRIKE_MOVE,
+            GLOBE_HEAD_GALVANIC_BURST_MOVE,
+            GLOBE_HEAD_SHOCKING_SLAP_MOVE,
+        ]
         actual_moves = []
         for _ in expected_moves:
             ai.on_move_performed()
@@ -3807,7 +3869,7 @@ class TestFixedRotation:
         lethal_creature, lethal_ai = create_globe_head(Rng(147))
         lethal_combat.add_enemy(lethal_creature, lethal_ai)
         lethal_combat.player.current_hp = 16
-        lethal_ai.states["GALVANIC_BURST"].perform(lethal_combat)
+        lethal_ai.states[GLOBE_HEAD_GALVANIC_BURST_MOVE].perform(lethal_combat)
         assert lethal_combat.is_over
         assert lethal_combat.player_won is False
         assert lethal_creature.get_power_amount(PowerId.STRENGTH) == 0
@@ -3971,78 +4033,248 @@ class TestFixedRotation:
         creature, ai = create_owl_magistrate(Rng(27))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 234
-        assert ai.current_move.state_id == "MAGISTRATE_SCRUTINY"
+        assert creature.max_hp == OWL_MAGISTRATE_BASE_HP
+        assert ai.current_move.state_id == OWL_MAGISTRATE_SCRUTINY_MOVE
 
         ai.current_move.perform(combat)
         assert combat.player.current_hp == 64
 
         ai.on_move_performed()
         ai.roll_move(Rng(27))
-        assert ai.current_move.state_id == "PECK_ASSAULT"
+        assert ai.current_move.state_id == OWL_MAGISTRATE_PECK_ASSAULT_MOVE
 
         ai.current_move.perform(combat)
         assert combat.player.current_hp == 40
 
         ai.on_move_performed()
         ai.roll_move(Rng(27))
-        assert ai.current_move.state_id == "JUDICIAL_FLIGHT"
+        assert ai.current_move.state_id == OWL_MAGISTRATE_JUDICIAL_FLIGHT_MOVE
 
         ai.current_move.perform(combat)
-        assert creature.get_power_amount(PowerId.SOAR) == 1
+        assert creature.get_power_amount(PowerId.SOAR) == OWL_MAGISTRATE_SOAR
 
         ai.on_move_performed()
         ai.roll_move(Rng(27))
-        assert ai.current_move.state_id == "VERDICT"
+        assert ai.current_move.state_id == OWL_MAGISTRATE_VERDICT_MOVE
 
         ai.current_move.perform(combat)
         assert combat.player.current_hp == 7
-        assert combat.player.get_power_amount(PowerId.VULNERABLE) == 4
+        assert combat.player.get_power_amount(PowerId.VULNERABLE) == OWL_MAGISTRATE_VERDICT_VULNERABLE
         assert creature.get_power_amount(PowerId.SOAR) == 0
 
         ai.on_move_performed()
         ai.roll_move(Rng(27))
-        assert ai.current_move.state_id == "MAGISTRATE_SCRUTINY"
+        assert ai.current_move.state_id == OWL_MAGISTRATE_SCRUTINY_MOVE
 
     def test_slimed_berserker_uses_original_ichor_hug_smother_cycle(self):
         combat = _make_combat(28)
         creature, ai = create_slimed_berserker(Rng(28))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 266
-        assert ai.current_move.state_id == "VOMIT_ICHOR_MOVE"
+        assert creature.max_hp == SLIMED_BERSERKER_BASE_HP
+        assert ai.current_move.state_id == SLIMED_BERSERKER_VOMIT_ICHOR_MOVE
 
         rocket_punch = create_card(CardId.ROCKET_PUNCH)
         combat.hand = [rocket_punch]
         ai.current_move.perform(combat)
-        assert [card.card_id for card in combat.discard_pile] == [CardId.SLIMED] * 10
+        assert [card.card_id for card in combat.discard_pile] == [CardId.SLIMED] * SLIMED_BERSERKER_SLIMED
         assert rocket_punch.cost == 0
 
         ai.on_move_performed()
         ai.roll_move(Rng(28))
-        assert ai.current_move.state_id == "FURIOUS_PUMMELING_MOVE"
+        assert ai.current_move.state_id == SLIMED_BERSERKER_FURIOUS_PUMMELING_MOVE
 
         ai.current_move.perform(combat)
         assert combat.player.current_hp == 64
 
         ai.on_move_performed()
         ai.roll_move(Rng(28))
-        assert ai.current_move.state_id == "LEECHING_HUG_MOVE"
+        assert ai.current_move.state_id == SLIMED_BERSERKER_LEECHING_HUG_MOVE
 
         ai.current_move.perform(combat)
-        assert combat.player.get_power_amount(PowerId.WEAK) == 3
-        assert creature.get_power_amount(PowerId.STRENGTH) == 3
+        assert combat.player.get_power_amount(PowerId.WEAK) == SLIMED_BERSERKER_LEECHING_HUG_WEAK
+        assert creature.get_power_amount(PowerId.STRENGTH) == SLIMED_BERSERKER_LEECHING_HUG_STRENGTH
 
         ai.on_move_performed()
         ai.roll_move(Rng(28))
-        assert ai.current_move.state_id == "SMOTHER_MOVE"
+        assert ai.current_move.state_id == SLIMED_BERSERKER_SMOTHER_MOVE
 
         ai.current_move.perform(combat)
         assert combat.player.current_hp == 31
 
         ai.on_move_performed()
         ai.roll_move(Rng(28))
-        assert ai.current_move.state_id == "VOMIT_ICHOR_MOVE"
+        assert ai.current_move.state_id == SLIMED_BERSERKER_VOMIT_ICHOR_MOVE
+
+    def test_act3_normal_ascension_scaling_matches_csharp(self):
+        rng_seed = 1291
+        player_hp = 250
+
+        frog_combat = _make_combat(rng_seed)
+        frog_combat.player.max_hp = player_hp
+        frog_combat.player.current_hp = player_hp
+        frog_combat.ascension_level = 9
+        frog, frog_ai = create_frog_knight(Rng(rng_seed), ascension_level=9)
+        frog_combat.add_enemy(frog, frog_ai)
+        assert frog.max_hp == FROG_KNIGHT_A8_HP
+        assert frog.get_power_amount(PowerId.PLATING) == FROG_KNIGHT_A8_PLATING
+
+        tongue_lash = frog_ai.states[FROG_KNIGHT_TONGUE_LASH_MOVE]
+        assert tongue_lash.intents[0].damage == FROG_KNIGHT_TONGUE_LASH_DAMAGE_A9
+        player_hp_before_tongue_lash = frog_combat.player.current_hp
+        tongue_lash.perform(frog_combat)
+        assert frog_combat.player.current_hp == player_hp_before_tongue_lash - FROG_KNIGHT_TONGUE_LASH_DAMAGE_A9
+        assert frog_combat.player.get_power_amount(PowerId.FRAIL) == FROG_KNIGHT_TONGUE_LASH_FRAIL
+
+        strike = frog_ai.states[FROG_KNIGHT_STRIKE_DOWN_EVIL_MOVE]
+        assert strike.intents[0].damage == FROG_KNIGHT_STRIKE_DOWN_EVIL_DAMAGE_A9
+        player_hp_before_strike = frog_combat.player.current_hp
+        strike.perform(frog_combat)
+        assert frog_combat.player.current_hp == player_hp_before_strike - FROG_KNIGHT_STRIKE_DOWN_EVIL_DAMAGE_A9
+
+        frog_ai.states[FROG_KNIGHT_FOR_THE_QUEEN_MOVE].perform(frog_combat)
+        assert frog.get_power_amount(PowerId.STRENGTH) == FROG_KNIGHT_FOR_THE_QUEEN_STRENGTH
+
+        beetle_charge = frog_ai.states[FROG_KNIGHT_BEETLE_CHARGE_MOVE]
+        assert beetle_charge.intents[0].damage == FROG_KNIGHT_BEETLE_CHARGE_DAMAGE_A9
+        player_hp_before_charge = frog_combat.player.current_hp
+        beetle_charge.perform(frog_combat)
+        expected_charge_damage = FROG_KNIGHT_BEETLE_CHARGE_DAMAGE_A9 + FROG_KNIGHT_FOR_THE_QUEEN_STRENGTH
+        assert frog_combat.player.current_hp == player_hp_before_charge - expected_charge_damage
+
+        frog_encounter_combat = _make_combat(rng_seed)
+        frog_encounter_combat.ascension_level = 9
+        setup_frog_knight_normal(frog_encounter_combat, Rng(rng_seed))
+        encounter_frog = frog_encounter_combat.enemies[0]
+        encounter_frog_ai = frog_encounter_combat.enemy_ais[encounter_frog.combat_id]
+        assert encounter_frog.monster_id == FROG_KNIGHT_MONSTER_ID
+        assert encounter_frog.max_hp == FROG_KNIGHT_A8_HP
+        assert encounter_frog.get_power_amount(PowerId.PLATING) == FROG_KNIGHT_A8_PLATING
+        assert encounter_frog_ai.states[FROG_KNIGHT_BEETLE_CHARGE_MOVE].intents[0].damage == (
+            FROG_KNIGHT_BEETLE_CHARGE_DAMAGE_A9
+        )
+
+        globe_combat = _make_combat(rng_seed)
+        globe_combat.player.max_hp = player_hp
+        globe_combat.player.current_hp = player_hp
+        globe_combat.ascension_level = 9
+        globe, globe_ai = create_globe_head(Rng(rng_seed), ascension_level=9)
+        globe_combat.add_enemy(globe, globe_ai)
+        assert globe.max_hp == GLOBE_HEAD_A8_HP
+        assert globe.get_power_amount(PowerId.GALVANIC) == GLOBE_HEAD_GALVANIC_AMOUNT
+
+        slap = globe_ai.states[GLOBE_HEAD_SHOCKING_SLAP_MOVE]
+        assert slap.intents[0].damage == GLOBE_HEAD_SHOCKING_SLAP_DAMAGE_A9
+        player_hp_before_slap = globe_combat.player.current_hp
+        slap.perform(globe_combat)
+        assert globe_combat.player.current_hp == player_hp_before_slap - GLOBE_HEAD_SHOCKING_SLAP_DAMAGE_A9
+        assert globe_combat.player.get_power_amount(PowerId.FRAIL) == GLOBE_HEAD_SHOCKING_SLAP_FRAIL
+
+        thunder = globe_ai.states[GLOBE_HEAD_THUNDER_STRIKE_MOVE]
+        assert thunder.intents[0].damage == GLOBE_HEAD_THUNDER_STRIKE_DAMAGE_A9
+        assert thunder.intents[0].hits == GLOBE_HEAD_THUNDER_STRIKE_HITS
+        player_hp_before_thunder = globe_combat.player.current_hp
+        thunder.perform(globe_combat)
+        assert globe_combat.player.current_hp == (
+            player_hp_before_thunder - GLOBE_HEAD_THUNDER_STRIKE_DAMAGE_A9 * GLOBE_HEAD_THUNDER_STRIKE_HITS
+        )
+
+        burst = globe_ai.states[GLOBE_HEAD_GALVANIC_BURST_MOVE]
+        assert burst.intents[0].damage == GLOBE_HEAD_GALVANIC_BURST_DAMAGE_A9
+        player_hp_before_burst = globe_combat.player.current_hp
+        burst.perform(globe_combat)
+        assert globe_combat.player.current_hp == player_hp_before_burst - GLOBE_HEAD_GALVANIC_BURST_DAMAGE_A9
+        assert globe.get_power_amount(PowerId.STRENGTH) == GLOBE_HEAD_GALVANIC_BURST_STRENGTH
+
+        globe_encounter_combat = _make_combat(rng_seed)
+        globe_encounter_combat.ascension_level = 9
+        setup_globe_head_normal(globe_encounter_combat, Rng(rng_seed))
+        encounter_globe = globe_encounter_combat.enemies[0]
+        encounter_globe_ai = globe_encounter_combat.enemy_ais[encounter_globe.combat_id]
+        assert encounter_globe.monster_id == GLOBE_HEAD_MONSTER_ID
+        assert encounter_globe.max_hp == GLOBE_HEAD_A8_HP
+        assert encounter_globe_ai.states[GLOBE_HEAD_THUNDER_STRIKE_MOVE].intents[0].damage == (
+            GLOBE_HEAD_THUNDER_STRIKE_DAMAGE_A9
+        )
+
+        owl_combat = _make_combat(rng_seed)
+        owl_combat.player.max_hp = player_hp
+        owl_combat.player.current_hp = player_hp
+        owl_combat.ascension_level = 9
+        owl, owl_ai = create_owl_magistrate(Rng(rng_seed), ascension_level=9)
+        owl_combat.add_enemy(owl, owl_ai)
+        assert owl.max_hp == OWL_MAGISTRATE_A8_HP
+
+        scrutiny = owl_ai.states[OWL_MAGISTRATE_SCRUTINY_MOVE]
+        assert scrutiny.intents[0].damage == OWL_MAGISTRATE_SCRUTINY_DAMAGE_A9
+        player_hp_before_scrutiny = owl_combat.player.current_hp
+        scrutiny.perform(owl_combat)
+        assert owl_combat.player.current_hp == player_hp_before_scrutiny - OWL_MAGISTRATE_SCRUTINY_DAMAGE_A9
+
+        peck = owl_ai.states[OWL_MAGISTRATE_PECK_ASSAULT_MOVE]
+        assert peck.intents[0].damage == OWL_MAGISTRATE_PECK_ASSAULT_DAMAGE
+        assert peck.intents[0].hits == OWL_MAGISTRATE_PECK_ASSAULT_HITS
+
+        owl_ai.states[OWL_MAGISTRATE_JUDICIAL_FLIGHT_MOVE].perform(owl_combat)
+        assert owl.get_power_amount(PowerId.SOAR) == OWL_MAGISTRATE_SOAR
+
+        verdict = owl_ai.states[OWL_MAGISTRATE_VERDICT_MOVE]
+        assert verdict.intents[0].damage == OWL_MAGISTRATE_VERDICT_DAMAGE_A9
+        player_hp_before_verdict = owl_combat.player.current_hp
+        verdict.perform(owl_combat)
+        assert owl_combat.player.current_hp == player_hp_before_verdict - OWL_MAGISTRATE_VERDICT_DAMAGE_A9
+        assert owl_combat.player.get_power_amount(PowerId.VULNERABLE) == OWL_MAGISTRATE_VERDICT_VULNERABLE
+        assert owl.get_power_amount(PowerId.SOAR) == 0
+
+        owl_encounter_combat = _make_combat(rng_seed)
+        owl_encounter_combat.ascension_level = 9
+        setup_owl_magistrate_normal(owl_encounter_combat, Rng(rng_seed))
+        encounter_owl = owl_encounter_combat.enemies[0]
+        encounter_owl_ai = owl_encounter_combat.enemy_ais[encounter_owl.combat_id]
+        assert encounter_owl.monster_id == OWL_MAGISTRATE_MONSTER_ID
+        assert encounter_owl.max_hp == OWL_MAGISTRATE_A8_HP
+        assert encounter_owl_ai.states[OWL_MAGISTRATE_VERDICT_MOVE].intents[0].damage == (
+            OWL_MAGISTRATE_VERDICT_DAMAGE_A9
+        )
+
+        berserker_combat = _make_combat(rng_seed)
+        berserker_combat.player.max_hp = player_hp
+        berserker_combat.player.current_hp = player_hp
+        berserker_combat.ascension_level = 9
+        berserker, berserker_ai = create_slimed_berserker(Rng(rng_seed), ascension_level=9)
+        berserker_combat.add_enemy(berserker, berserker_ai)
+        assert berserker.max_hp == SLIMED_BERSERKER_A8_HP
+
+        pummeling = berserker_ai.states[SLIMED_BERSERKER_FURIOUS_PUMMELING_MOVE]
+        assert pummeling.intents[0].damage == SLIMED_BERSERKER_PUMMELING_DAMAGE_A9
+        assert pummeling.intents[0].hits == SLIMED_BERSERKER_PUMMELING_HITS
+        player_hp_before_pummeling = berserker_combat.player.current_hp
+        pummeling.perform(berserker_combat)
+        assert berserker_combat.player.current_hp == (
+            player_hp_before_pummeling - SLIMED_BERSERKER_PUMMELING_DAMAGE_A9 * SLIMED_BERSERKER_PUMMELING_HITS
+        )
+
+        berserker_ai.states[SLIMED_BERSERKER_LEECHING_HUG_MOVE].perform(berserker_combat)
+        assert berserker_combat.player.get_power_amount(PowerId.WEAK) == SLIMED_BERSERKER_LEECHING_HUG_WEAK
+        assert berserker.get_power_amount(PowerId.STRENGTH) == SLIMED_BERSERKER_LEECHING_HUG_STRENGTH
+
+        smother = berserker_ai.states[SLIMED_BERSERKER_SMOTHER_MOVE]
+        assert smother.intents[0].damage == SLIMED_BERSERKER_SMOTHER_DAMAGE_A9
+        player_hp_before_smother = berserker_combat.player.current_hp
+        smother.perform(berserker_combat)
+        expected_smother_damage = SLIMED_BERSERKER_SMOTHER_DAMAGE_A9 + SLIMED_BERSERKER_LEECHING_HUG_STRENGTH
+        assert berserker_combat.player.current_hp == player_hp_before_smother - expected_smother_damage
+
+        berserker_encounter_combat = _make_combat(rng_seed)
+        berserker_encounter_combat.ascension_level = 9
+        setup_slimed_berserker_normal(berserker_encounter_combat, Rng(rng_seed))
+        encounter_berserker = berserker_encounter_combat.enemies[0]
+        encounter_berserker_ai = berserker_encounter_combat.enemy_ais[encounter_berserker.combat_id]
+        assert encounter_berserker.monster_id == SLIMED_BERSERKER_MONSTER_ID
+        assert encounter_berserker.max_hp == SLIMED_BERSERKER_A8_HP
+        assert encounter_berserker_ai.states[SLIMED_BERSERKER_SMOTHER_MOVE].intents[0].damage == (
+            SLIMED_BERSERKER_SMOTHER_DAMAGE_A9
+        )
 
     def test_the_lost_steals_strength_and_restores_it_on_death(self):
         combat = _make_combat(29)

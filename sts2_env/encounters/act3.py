@@ -90,17 +90,17 @@ def setup_fabricator_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_frog_knight_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_frog_knight(rng)
+    creature, ai = create_frog_knight(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
 def setup_globe_head_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_globe_head(rng)
+    creature, ai = create_globe_head(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
 def setup_owl_magistrate_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_owl_magistrate(rng)
+    creature, ai = create_owl_magistrate(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
@@ -114,7 +114,7 @@ def setup_scrolls_of_biting_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_slimed_berserker_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_slimed_berserker(rng)
+    creature, ai = create_slimed_berserker(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 

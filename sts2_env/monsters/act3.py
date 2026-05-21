@@ -619,131 +619,374 @@ def create_fabricator(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Mon
 
 # ---- FrogKnight (HP 191 / 199 asc) ----
 
-def create_frog_knight(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 191
-    creature = Creature(max_hp=hp, monster_id="FROG_KNIGHT")
-    strike_down_evil_dmg = 21
-    tongue_lash_dmg = 13
-    tongue_lash_frail = 2
-    beetle_charge_dmg = 35
-    for_the_queen_strength = 5
+FROG_KNIGHT_MONSTER_ID = "FROG_KNIGHT"
+FROG_KNIGHT_BASE_HP = 191
+FROG_KNIGHT_TOUGH_HP = 199
+FROG_KNIGHT_BASE_STRIKE_DOWN_EVIL_DAMAGE = 21
+FROG_KNIGHT_DEADLY_STRIKE_DOWN_EVIL_DAMAGE = 23
+FROG_KNIGHT_BASE_TONGUE_LASH_DAMAGE = 13
+FROG_KNIGHT_DEADLY_TONGUE_LASH_DAMAGE = 14
+FROG_KNIGHT_TONGUE_LASH_FRAIL = 2
+FROG_KNIGHT_BASE_BEETLE_CHARGE_DAMAGE = 35
+FROG_KNIGHT_DEADLY_BEETLE_CHARGE_DAMAGE = 40
+FROG_KNIGHT_FOR_THE_QUEEN_STRENGTH = 5
+FROG_KNIGHT_BASE_PLATING = 15
+FROG_KNIGHT_TOUGH_PLATING = 19
+FROG_KNIGHT_BEETLE_CHARGED_KEY = "beetle_charged"
+FROG_KNIGHT_TONGUE_LASH_MOVE = "TONGUE_LASH"
+FROG_KNIGHT_STRIKE_DOWN_EVIL_MOVE = "STRIKE_DOWN_EVIL"
+FROG_KNIGHT_FOR_THE_QUEEN_MOVE = "FOR_THE_QUEEN"
+FROG_KNIGHT_HALF_HEALTH_BRANCH = "HALF_HEALTH"
+FROG_KNIGHT_BEETLE_CHARGE_MOVE = "BEETLE_CHARGE"
 
-    _state = {"beetle_charged": False}
+
+def create_frog_knight(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        FROG_KNIGHT_TOUGH_HP,
+        FROG_KNIGHT_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=FROG_KNIGHT_MONSTER_ID)
+
+    _state = {FROG_KNIGHT_BEETLE_CHARGED_KEY: False}
 
     def tongue_lash(combat: CombatState) -> None:
+        tongue_lash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FROG_KNIGHT_DEADLY_TONGUE_LASH_DAMAGE,
+            FROG_KNIGHT_BASE_TONGUE_LASH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, tongue_lash_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.FRAIL, tongue_lash_frail, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, FROG_KNIGHT_TONGUE_LASH_FRAIL, applier=creature)
 
     def strike_down_evil(combat: CombatState) -> None:
+        strike_down_evil_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FROG_KNIGHT_DEADLY_STRIKE_DOWN_EVIL_DAMAGE,
+            FROG_KNIGHT_BASE_STRIKE_DOWN_EVIL_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, strike_down_evil_dmg)
 
     def for_the_queen(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, for_the_queen_strength)
+        creature.apply_power(PowerId.STRENGTH, FROG_KNIGHT_FOR_THE_QUEEN_STRENGTH)
 
     def beetle_charge(combat: CombatState) -> None:
+        beetle_charge_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FROG_KNIGHT_DEADLY_BEETLE_CHARGE_DAMAGE,
+            FROG_KNIGHT_BASE_BEETLE_CHARGE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, beetle_charge_dmg)
-        _state["beetle_charged"] = True
+        _state[FROG_KNIGHT_BEETLE_CHARGED_KEY] = True
 
     # After for_the_queen, check HP for beetle charge
-    charge_check = ConditionalBranchState("HALF_HEALTH")
+    charge_check = ConditionalBranchState(FROG_KNIGHT_HALF_HEALTH_BRANCH)
     charge_check.add_branch(
-        lambda: not _state["beetle_charged"] and creature.current_hp < creature.max_hp // 2,
-        "BEETLE_CHARGE"
+        lambda: not _state[FROG_KNIGHT_BEETLE_CHARGED_KEY] and creature.current_hp < creature.max_hp // 2,
+        FROG_KNIGHT_BEETLE_CHARGE_MOVE,
     )
-    charge_check.add_branch(lambda: True, "TONGUE_LASH")
+    charge_check.add_branch(lambda: True, FROG_KNIGHT_TONGUE_LASH_MOVE)
+
+    tongue_lash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FROG_KNIGHT_DEADLY_TONGUE_LASH_DAMAGE,
+        FROG_KNIGHT_BASE_TONGUE_LASH_DAMAGE,
+    )
+    strike_down_evil_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FROG_KNIGHT_DEADLY_STRIKE_DOWN_EVIL_DAMAGE,
+        FROG_KNIGHT_BASE_STRIKE_DOWN_EVIL_DAMAGE,
+    )
+    beetle_charge_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FROG_KNIGHT_DEADLY_BEETLE_CHARGE_DAMAGE,
+        FROG_KNIGHT_BASE_BEETLE_CHARGE_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "TONGUE_LASH": MoveState("TONGUE_LASH", tongue_lash, [attack_intent(tongue_lash_dmg), debuff_intent()], follow_up_id="STRIKE_DOWN_EVIL"),
-        "STRIKE_DOWN_EVIL": MoveState("STRIKE_DOWN_EVIL", strike_down_evil, [attack_intent(strike_down_evil_dmg)], follow_up_id="FOR_THE_QUEEN"),
-        "FOR_THE_QUEEN": MoveState("FOR_THE_QUEEN", for_the_queen, [buff_intent()], follow_up_id="HALF_HEALTH"),
-        "HALF_HEALTH": charge_check,
-        "BEETLE_CHARGE": MoveState("BEETLE_CHARGE", beetle_charge, [attack_intent(beetle_charge_dmg)], follow_up_id="TONGUE_LASH"),
+        FROG_KNIGHT_TONGUE_LASH_MOVE: MoveState(
+            FROG_KNIGHT_TONGUE_LASH_MOVE,
+            tongue_lash,
+            [attack_intent(tongue_lash_intent_damage), debuff_intent()],
+            follow_up_id=FROG_KNIGHT_STRIKE_DOWN_EVIL_MOVE,
+        ),
+        FROG_KNIGHT_STRIKE_DOWN_EVIL_MOVE: MoveState(
+            FROG_KNIGHT_STRIKE_DOWN_EVIL_MOVE,
+            strike_down_evil,
+            [attack_intent(strike_down_evil_intent_damage)],
+            follow_up_id=FROG_KNIGHT_FOR_THE_QUEEN_MOVE,
+        ),
+        FROG_KNIGHT_FOR_THE_QUEEN_MOVE: MoveState(
+            FROG_KNIGHT_FOR_THE_QUEEN_MOVE,
+            for_the_queen,
+            [buff_intent()],
+            follow_up_id=FROG_KNIGHT_HALF_HEALTH_BRANCH,
+        ),
+        FROG_KNIGHT_HALF_HEALTH_BRANCH: charge_check,
+        FROG_KNIGHT_BEETLE_CHARGE_MOVE: MoveState(
+            FROG_KNIGHT_BEETLE_CHARGE_MOVE,
+            beetle_charge,
+            [attack_intent(beetle_charge_intent_damage)],
+            follow_up_id=FROG_KNIGHT_TONGUE_LASH_MOVE,
+        ),
     }
 
-    creature.apply_power(PowerId.PLATING, 15)
-    return creature, MonsterAI(states, "TONGUE_LASH")
+    plating_amount = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        FROG_KNIGHT_TOUGH_PLATING,
+        FROG_KNIGHT_BASE_PLATING,
+    )
+    creature.apply_power(PowerId.PLATING, plating_amount)
+    return creature, MonsterAI(states, FROG_KNIGHT_TONGUE_LASH_MOVE)
 
 
 # ---- GlobeHead (HP 148 / 158 asc) ----
 
-def create_globe_head(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 148
-    creature = Creature(max_hp=hp, monster_id="GLOBE_HEAD")
-    shocking_slap_dmg = 13
-    shocking_slap_frail = 2
-    thunder_strike_dmg = 6
-    galvanic_burst_dmg = 16
-    galvanic_burst_strength = 2
+GLOBE_HEAD_MONSTER_ID = "GLOBE_HEAD"
+GLOBE_HEAD_BASE_HP = 148
+GLOBE_HEAD_TOUGH_HP = 158
+GLOBE_HEAD_BASE_SHOCKING_SLAP_DAMAGE = 13
+GLOBE_HEAD_DEADLY_SHOCKING_SLAP_DAMAGE = 14
+GLOBE_HEAD_SHOCKING_SLAP_FRAIL = 2
+GLOBE_HEAD_BASE_THUNDER_STRIKE_DAMAGE = 6
+GLOBE_HEAD_DEADLY_THUNDER_STRIKE_DAMAGE = 7
+GLOBE_HEAD_THUNDER_STRIKE_REPEAT = 3
+GLOBE_HEAD_BASE_GALVANIC_BURST_DAMAGE = 16
+GLOBE_HEAD_DEADLY_GALVANIC_BURST_DAMAGE = 17
+GLOBE_HEAD_GALVANIC_BURST_STRENGTH = 2
+GLOBE_HEAD_GALVANIC_AMOUNT = 6
+GLOBE_HEAD_SHOCKING_SLAP_MOVE = "SHOCKING_SLAP"
+GLOBE_HEAD_THUNDER_STRIKE_MOVE = "THUNDER_STRIKE"
+GLOBE_HEAD_GALVANIC_BURST_MOVE = "GALVANIC_BURST"
+
+
+def create_globe_head(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        GLOBE_HEAD_TOUGH_HP,
+        GLOBE_HEAD_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=GLOBE_HEAD_MONSTER_ID)
 
     def shocking_slap(combat: CombatState) -> None:
+        shocking_slap_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            GLOBE_HEAD_DEADLY_SHOCKING_SLAP_DAMAGE,
+            GLOBE_HEAD_BASE_SHOCKING_SLAP_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, shocking_slap_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.FRAIL, shocking_slap_frail, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, GLOBE_HEAD_SHOCKING_SLAP_FRAIL, applier=creature)
 
     def thunder_strike(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, thunder_strike_dmg, hits=3)
+        thunder_strike_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            GLOBE_HEAD_DEADLY_THUNDER_STRIKE_DAMAGE,
+            GLOBE_HEAD_BASE_THUNDER_STRIKE_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, thunder_strike_dmg, hits=GLOBE_HEAD_THUNDER_STRIKE_REPEAT)
 
     def galvanic_burst(combat: CombatState) -> None:
+        galvanic_burst_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            GLOBE_HEAD_DEADLY_GALVANIC_BURST_DAMAGE,
+            GLOBE_HEAD_BASE_GALVANIC_BURST_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, galvanic_burst_dmg)
-        combat.apply_power_to(creature, PowerId.STRENGTH, galvanic_burst_strength, applier=creature)
+        combat.apply_power_to(creature, PowerId.STRENGTH, GLOBE_HEAD_GALVANIC_BURST_STRENGTH, applier=creature)
+
+    shocking_slap_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        GLOBE_HEAD_DEADLY_SHOCKING_SLAP_DAMAGE,
+        GLOBE_HEAD_BASE_SHOCKING_SLAP_DAMAGE,
+    )
+    thunder_strike_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        GLOBE_HEAD_DEADLY_THUNDER_STRIKE_DAMAGE,
+        GLOBE_HEAD_BASE_THUNDER_STRIKE_DAMAGE,
+    )
+    galvanic_burst_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        GLOBE_HEAD_DEADLY_GALVANIC_BURST_DAMAGE,
+        GLOBE_HEAD_BASE_GALVANIC_BURST_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "SHOCKING_SLAP": MoveState("SHOCKING_SLAP", shocking_slap, [attack_intent(shocking_slap_dmg), debuff_intent()], follow_up_id="THUNDER_STRIKE"),
-        "THUNDER_STRIKE": MoveState("THUNDER_STRIKE", thunder_strike, [multi_attack_intent(thunder_strike_dmg, 3)], follow_up_id="GALVANIC_BURST"),
-        "GALVANIC_BURST": MoveState("GALVANIC_BURST", galvanic_burst, [attack_intent(galvanic_burst_dmg), buff_intent()], follow_up_id="SHOCKING_SLAP"),
+        GLOBE_HEAD_SHOCKING_SLAP_MOVE: MoveState(
+            GLOBE_HEAD_SHOCKING_SLAP_MOVE,
+            shocking_slap,
+            [attack_intent(shocking_slap_intent_damage), debuff_intent()],
+            follow_up_id=GLOBE_HEAD_THUNDER_STRIKE_MOVE,
+        ),
+        GLOBE_HEAD_THUNDER_STRIKE_MOVE: MoveState(
+            GLOBE_HEAD_THUNDER_STRIKE_MOVE,
+            thunder_strike,
+            [multi_attack_intent(thunder_strike_intent_damage, GLOBE_HEAD_THUNDER_STRIKE_REPEAT)],
+            follow_up_id=GLOBE_HEAD_GALVANIC_BURST_MOVE,
+        ),
+        GLOBE_HEAD_GALVANIC_BURST_MOVE: MoveState(
+            GLOBE_HEAD_GALVANIC_BURST_MOVE,
+            galvanic_burst,
+            [attack_intent(galvanic_burst_intent_damage), buff_intent()],
+            follow_up_id=GLOBE_HEAD_SHOCKING_SLAP_MOVE,
+        ),
     }
 
-    creature.apply_power(PowerId.GALVANIC, 6)
-    return creature, MonsterAI(states, "SHOCKING_SLAP")
+    creature.apply_power(PowerId.GALVANIC, GLOBE_HEAD_GALVANIC_AMOUNT)
+    return creature, MonsterAI(states, GLOBE_HEAD_SHOCKING_SLAP_MOVE)
 
 
 # ---- OwlMagistrate (HP 82 / 86 asc) ----
 
-def create_owl_magistrate(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 234
-    creature = Creature(max_hp=hp, monster_id="OWL_MAGISTRATE")
-    scrutiny_dmg = 16
-    peck_assault_dmg = 4
-    verdict_dmg = 33
-    judicial_flight_soar = 1
-    verdict_vulnerable = 4
+OWL_MAGISTRATE_MONSTER_ID = "OWL_MAGISTRATE"
+OWL_MAGISTRATE_BASE_HP = 234
+OWL_MAGISTRATE_TOUGH_HP = 243
+OWL_MAGISTRATE_BASE_SCRUTINY_DAMAGE = 16
+OWL_MAGISTRATE_DEADLY_SCRUTINY_DAMAGE = 17
+OWL_MAGISTRATE_PECK_ASSAULT_DAMAGE = 4
+OWL_MAGISTRATE_PECK_ASSAULT_REPEAT = 6
+OWL_MAGISTRATE_BASE_VERDICT_DAMAGE = 33
+OWL_MAGISTRATE_DEADLY_VERDICT_DAMAGE = 36
+OWL_MAGISTRATE_JUDICIAL_FLIGHT_SOAR = 1
+OWL_MAGISTRATE_VERDICT_VULNERABLE = 4
+OWL_MAGISTRATE_SCRUTINY_MOVE = "MAGISTRATE_SCRUTINY"
+OWL_MAGISTRATE_PECK_ASSAULT_MOVE = "PECK_ASSAULT"
+OWL_MAGISTRATE_JUDICIAL_FLIGHT_MOVE = "JUDICIAL_FLIGHT"
+OWL_MAGISTRATE_VERDICT_MOVE = "VERDICT"
+
+
+def create_owl_magistrate(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        OWL_MAGISTRATE_TOUGH_HP,
+        OWL_MAGISTRATE_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=OWL_MAGISTRATE_MONSTER_ID)
 
     def magistrate_scrutiny(combat: CombatState) -> None:
+        scrutiny_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            OWL_MAGISTRATE_DEADLY_SCRUTINY_DAMAGE,
+            OWL_MAGISTRATE_BASE_SCRUTINY_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, scrutiny_dmg)
 
     def peck_assault(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, peck_assault_dmg, hits=6)
+        _deal_damage_to_player(
+            combat,
+            creature,
+            OWL_MAGISTRATE_PECK_ASSAULT_DAMAGE,
+            hits=OWL_MAGISTRATE_PECK_ASSAULT_REPEAT,
+        )
 
     def judicial_flight(combat: CombatState) -> None:
-        creature.apply_power(PowerId.SOAR, judicial_flight_soar, applier=creature)
+        creature.apply_power(PowerId.SOAR, OWL_MAGISTRATE_JUDICIAL_FLIGHT_SOAR, applier=creature)
 
     def verdict(combat: CombatState) -> None:
+        verdict_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            OWL_MAGISTRATE_DEADLY_VERDICT_DAMAGE,
+            OWL_MAGISTRATE_BASE_VERDICT_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, verdict_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.VULNERABLE, verdict_vulnerable, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.VULNERABLE,
+            OWL_MAGISTRATE_VERDICT_VULNERABLE,
+            applier=creature,
+        )
         creature.powers.pop(PowerId.SOAR, None)
 
+    scrutiny_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        OWL_MAGISTRATE_DEADLY_SCRUTINY_DAMAGE,
+        OWL_MAGISTRATE_BASE_SCRUTINY_DAMAGE,
+    )
+    verdict_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        OWL_MAGISTRATE_DEADLY_VERDICT_DAMAGE,
+        OWL_MAGISTRATE_BASE_VERDICT_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "MAGISTRATE_SCRUTINY": MoveState("MAGISTRATE_SCRUTINY", magistrate_scrutiny, [attack_intent(scrutiny_dmg)], follow_up_id="PECK_ASSAULT"),
-        "PECK_ASSAULT": MoveState("PECK_ASSAULT", peck_assault, [multi_attack_intent(peck_assault_dmg, 6)], follow_up_id="JUDICIAL_FLIGHT"),
-        "JUDICIAL_FLIGHT": MoveState("JUDICIAL_FLIGHT", judicial_flight, [buff_intent()], follow_up_id="VERDICT"),
-        "VERDICT": MoveState("VERDICT", verdict, [attack_intent(verdict_dmg), debuff_intent()], follow_up_id="MAGISTRATE_SCRUTINY"),
+        OWL_MAGISTRATE_SCRUTINY_MOVE: MoveState(
+            OWL_MAGISTRATE_SCRUTINY_MOVE,
+            magistrate_scrutiny,
+            [attack_intent(scrutiny_intent_damage)],
+            follow_up_id=OWL_MAGISTRATE_PECK_ASSAULT_MOVE,
+        ),
+        OWL_MAGISTRATE_PECK_ASSAULT_MOVE: MoveState(
+            OWL_MAGISTRATE_PECK_ASSAULT_MOVE,
+            peck_assault,
+            [multi_attack_intent(OWL_MAGISTRATE_PECK_ASSAULT_DAMAGE, OWL_MAGISTRATE_PECK_ASSAULT_REPEAT)],
+            follow_up_id=OWL_MAGISTRATE_JUDICIAL_FLIGHT_MOVE,
+        ),
+        OWL_MAGISTRATE_JUDICIAL_FLIGHT_MOVE: MoveState(
+            OWL_MAGISTRATE_JUDICIAL_FLIGHT_MOVE,
+            judicial_flight,
+            [buff_intent()],
+            follow_up_id=OWL_MAGISTRATE_VERDICT_MOVE,
+        ),
+        OWL_MAGISTRATE_VERDICT_MOVE: MoveState(
+            OWL_MAGISTRATE_VERDICT_MOVE,
+            verdict,
+            [attack_intent(verdict_intent_damage), debuff_intent()],
+            follow_up_id=OWL_MAGISTRATE_SCRUTINY_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "MAGISTRATE_SCRUTINY")
+    return creature, MonsterAI(states, OWL_MAGISTRATE_SCRUTINY_MOVE)
 
 
 # ---- SlimedBerserker (HP 60-65 / 64-69 asc) ----
 
-def create_slimed_berserker(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 266
-    creature = Creature(max_hp=hp, monster_id="SLIMED_BERSERKER")
-    pummeling_dmg = 4
-    vomit_ichor_slimed = 10
-    leeching_hug_weak = 3
-    leeching_hug_strength = 3
-    smother_dmg = 30
+SLIMED_BERSERKER_MONSTER_ID = "SLIMED_BERSERKER"
+SLIMED_BERSERKER_BASE_HP = 266
+SLIMED_BERSERKER_TOUGH_HP = 276
+SLIMED_BERSERKER_BASE_PUMMELING_DAMAGE = 4
+SLIMED_BERSERKER_DEADLY_PUMMELING_DAMAGE = 5
+SLIMED_BERSERKER_PUMMELING_REPEAT = 4
+SLIMED_BERSERKER_VOMIT_ICHOR_SLIMED = 10
+SLIMED_BERSERKER_LEECHING_HUG_WEAK = 3
+SLIMED_BERSERKER_LEECHING_HUG_STRENGTH = 3
+SLIMED_BERSERKER_BASE_SMOTHER_DAMAGE = 30
+SLIMED_BERSERKER_DEADLY_SMOTHER_DAMAGE = 33
+SLIMED_BERSERKER_VOMIT_ICHOR_MOVE = "VOMIT_ICHOR_MOVE"
+SLIMED_BERSERKER_FURIOUS_PUMMELING_MOVE = "FURIOUS_PUMMELING_MOVE"
+SLIMED_BERSERKER_LEECHING_HUG_MOVE = "LEECHING_HUG_MOVE"
+SLIMED_BERSERKER_SMOTHER_MOVE = "SMOTHER_MOVE"
+
+
+def create_slimed_berserker(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SLIMED_BERSERKER_TOUGH_HP,
+        SLIMED_BERSERKER_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=SLIMED_BERSERKER_MONSTER_ID)
 
     def vomit_ichor(combat: CombatState) -> None:
         for target in living_player_targets(combat):
-            for _ in range(vomit_ichor_slimed):
+            for _ in range(SLIMED_BERSERKER_VOMIT_ICHOR_SLIMED):
                 combat.add_generated_card_to_creature_discard(
                     target,
                     make_slimed(),
@@ -751,22 +994,72 @@ def create_slimed_berserker(rng: Rng) -> tuple[Creature, MonsterAI]:
                 )
 
     def furious_pummeling(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, pummeling_dmg, hits=4)
+        pummeling_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SLIMED_BERSERKER_DEADLY_PUMMELING_DAMAGE,
+            SLIMED_BERSERKER_BASE_PUMMELING_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, pummeling_dmg, hits=SLIMED_BERSERKER_PUMMELING_REPEAT)
 
     def leeching_hug(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.WEAK, leeching_hug_weak, applier=creature)
-        creature.apply_power(PowerId.STRENGTH, leeching_hug_strength)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.WEAK,
+            SLIMED_BERSERKER_LEECHING_HUG_WEAK,
+            applier=creature,
+        )
+        creature.apply_power(PowerId.STRENGTH, SLIMED_BERSERKER_LEECHING_HUG_STRENGTH)
 
     def smother(combat: CombatState) -> None:
+        smother_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SLIMED_BERSERKER_DEADLY_SMOTHER_DAMAGE,
+            SLIMED_BERSERKER_BASE_SMOTHER_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, smother_dmg)
 
+    pummeling_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SLIMED_BERSERKER_DEADLY_PUMMELING_DAMAGE,
+        SLIMED_BERSERKER_BASE_PUMMELING_DAMAGE,
+    )
+    smother_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SLIMED_BERSERKER_DEADLY_SMOTHER_DAMAGE,
+        SLIMED_BERSERKER_BASE_SMOTHER_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "VOMIT_ICHOR_MOVE": MoveState("VOMIT_ICHOR_MOVE", vomit_ichor, [status_intent()], follow_up_id="FURIOUS_PUMMELING_MOVE"),
-        "FURIOUS_PUMMELING_MOVE": MoveState("FURIOUS_PUMMELING_MOVE", furious_pummeling, [multi_attack_intent(pummeling_dmg, 4)], follow_up_id="LEECHING_HUG_MOVE"),
-        "LEECHING_HUG_MOVE": MoveState("LEECHING_HUG_MOVE", leeching_hug, [debuff_intent(), buff_intent()], follow_up_id="SMOTHER_MOVE"),
-        "SMOTHER_MOVE": MoveState("SMOTHER_MOVE", smother, [attack_intent(smother_dmg)], follow_up_id="VOMIT_ICHOR_MOVE"),
+        SLIMED_BERSERKER_VOMIT_ICHOR_MOVE: MoveState(
+            SLIMED_BERSERKER_VOMIT_ICHOR_MOVE,
+            vomit_ichor,
+            [status_intent()],
+            follow_up_id=SLIMED_BERSERKER_FURIOUS_PUMMELING_MOVE,
+        ),
+        SLIMED_BERSERKER_FURIOUS_PUMMELING_MOVE: MoveState(
+            SLIMED_BERSERKER_FURIOUS_PUMMELING_MOVE,
+            furious_pummeling,
+            [multi_attack_intent(pummeling_intent_damage, SLIMED_BERSERKER_PUMMELING_REPEAT)],
+            follow_up_id=SLIMED_BERSERKER_LEECHING_HUG_MOVE,
+        ),
+        SLIMED_BERSERKER_LEECHING_HUG_MOVE: MoveState(
+            SLIMED_BERSERKER_LEECHING_HUG_MOVE,
+            leeching_hug,
+            [debuff_intent(), buff_intent()],
+            follow_up_id=SLIMED_BERSERKER_SMOTHER_MOVE,
+        ),
+        SLIMED_BERSERKER_SMOTHER_MOVE: MoveState(
+            SLIMED_BERSERKER_SMOTHER_MOVE,
+            smother,
+            [attack_intent(smother_intent_damage)],
+            follow_up_id=SLIMED_BERSERKER_VOMIT_ICHOR_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "VOMIT_ICHOR_MOVE")
+    return creature, MonsterAI(states, SLIMED_BERSERKER_VOMIT_ICHOR_MOVE)
 
 
 # ---- TheLost + TheForgotten ----
