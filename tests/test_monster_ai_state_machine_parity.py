@@ -217,6 +217,7 @@ VANTOM_DISMEMBER_WOUNDS = 3
 VANTOM_PREPARE_STRENGTH = 2
 VANTOM_SLIPPERY = 9
 VANTOM_MULTIPLAYER_SLIPPERY = 27
+PARAFRIGHT_SLAM_DAMAGE_A9 = 17
 CEREMONIAL_BEAST_PLOW_AMOUNT_A9 = 160
 CEREMONIAL_BEAST_PLOW_DAMAGE_A9 = 20
 CEREMONIAL_BEAST_PLOW_STRENGTH = 2
@@ -883,6 +884,20 @@ class TestFixedRotation:
 
         vantom_ai.states["PREPARE_MOVE"].perform(combat)
         assert vantom.get_power_amount(PowerId.STRENGTH) == VANTOM_PREPARE_STRENGTH
+
+    def test_parafright_ascension_scaling_matches_csharp(self):
+        rng_seed = 1283
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=100)
+        parafright, parafright_ai = create_parafright(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(parafright, parafright_ai)
+
+        slam = parafright_ai.states["SLAM_MOVE"]
+        assert slam.intents[0].damage == PARAFRIGHT_SLAM_DAMAGE_A9
+        ally_hp_before_slam = ally.current_hp
+        slam.perform(combat)
+        assert ally.current_hp == ally_hp_before_slam - PARAFRIGHT_SLAM_DAMAGE_A9
 
     def test_ceremonial_beast_ascension_scaling_matches_csharp(self):
         rng_seed = 1281
@@ -2437,6 +2452,23 @@ class TestFixedRotation:
         obscura_ai.states["HARDENING_STRIKE_MOVE"].perform(combat)
         assert obscura.block == 6
         assert combat.player.current_hp == 74
+
+    def test_act2_obscura_summoned_parafright_uses_combat_ascension(self):
+        combat = _make_combat(1284)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=100)
+        obscura, obscura_ai = create_the_obscura(Rng(1284))
+        combat.add_enemy(obscura, obscura_ai)
+
+        obscura_ai.current_move.perform(combat)
+
+        summoned = combat.enemies[1]
+        assert summoned.monster_id == "PARAFRIGHT"
+        summoned_ai = combat.enemy_ais[summoned.combat_id]
+        assert summoned_ai.current_move.intents[0].damage == PARAFRIGHT_SLAM_DAMAGE_A9
+        ally_hp_before_slam = ally.current_hp
+        summoned_ai.current_move.perform(combat)
+        assert ally.current_hp == ally_hp_before_slam - PARAFRIGHT_SLAM_DAMAGE_A9
 
     def test_act2_elites_use_original_move_ids_and_entomancer_buff(self):
         assert create_decimillipede_segment(Rng(40), starter_idx=0)[1].current_move.state_id == "WRITHE_MOVE"

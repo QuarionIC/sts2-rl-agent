@@ -1473,7 +1473,8 @@ def create_phrog_parasite(rng: Rng, ascension_level: int = 0) -> tuple[Creature,
 # ---- Vantom (HP 173 / 183 asc) ----
 
 PARAFRIGHT_HP = 21
-PARAFRIGHT_SLAM_DAMAGE = 16
+PARAFRIGHT_BASE_SLAM_DAMAGE = 16
+PARAFRIGHT_DEADLY_SLAM_DAMAGE = 17
 PARAFRIGHT_ILLUSION = 1
 PARAFRIGHT_MINION = 1
 PARAFRIGHT_ID = "PARAFRIGHT"
@@ -1497,17 +1498,31 @@ VANTOM_INKY_LANCE_MOVE = "INKY_LANCE_MOVE"
 VANTOM_DISMEMBER_MOVE = "DISMEMBER_MOVE"
 VANTOM_PREPARE_MOVE = "PREPARE_MOVE"
 
-def create_parafright(rng: Rng) -> tuple[Creature, MonsterAI]:
+
+def create_parafright(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
     creature = Creature(max_hp=PARAFRIGHT_HP, monster_id=PARAFRIGHT_ID)
 
     def slam(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, PARAFRIGHT_SLAM_DAMAGE)
+        slam_damage = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            PARAFRIGHT_DEADLY_SLAM_DAMAGE,
+            PARAFRIGHT_BASE_SLAM_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, slam_damage)
+
+    slam_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        PARAFRIGHT_DEADLY_SLAM_DAMAGE,
+        PARAFRIGHT_BASE_SLAM_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
         PARAFRIGHT_SLAM_MOVE: MoveState(
             PARAFRIGHT_SLAM_MOVE,
             slam,
-            [attack_intent(PARAFRIGHT_SLAM_DAMAGE)],
+            [attack_intent(slam_intent_damage)],
             follow_up_id=PARAFRIGHT_SLAM_MOVE,
         ),
     }

@@ -791,7 +791,7 @@ def create_the_obscura(rng: Rng) -> tuple[Creature, MonsterAI]:
     def illusion(combat: CombatState) -> None:
         from sts2_env.monsters.act1 import create_parafright
 
-        parafright, parafright_ai = create_parafright(rng)
+        parafright, parafright_ai = create_parafright(rng, ascension_level=getattr(combat, "ascension_level", 0))
         combat.add_enemy(parafright, parafright_ai)
 
     def piercing_gaze(combat: CombatState) -> None:
