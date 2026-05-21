@@ -9,6 +9,7 @@ from sts2_env.cards.status import make_bad_luck, make_spore_mind
 from sts2_env.core.enums import CardId
 from sts2_env.events.act2 import RelicTrader, SlipperyBridge, Symbiote
 from sts2_env.events.shared import LostWisp, Reflections
+from sts2_env.run.run_manager import RunManager
 from sts2_env.run.run_state import PlayerState, RunState
 
 
@@ -212,6 +213,25 @@ def test_slippery_bridge_hold_on_rerolls_away_from_previous_card_type():
     assert result.finished is False
     assert event.rng.choice_calls == 2
     assert event._random_card_to_lose is bash  # noqa: SLF001
+
+
+def test_slippery_bridge_hold_on_damage_can_end_run_before_next_options():
+    mgr = RunManager(seed=9221, character_id="Ironclad")
+    mgr.run_state.total_floor = 7
+    mgr.run_state.player.deck = [create_card(CardId.STRIKE_IRONCLAD)]
+    mgr.run_state.player.current_hp = 3
+    mgr._phase = RunManager.PHASE_EVENT
+    event = SlipperyBridge()
+    mgr._event_model = event
+    mgr._event_started = True
+    mgr._event_options = event.generate_initial_options(mgr.run_state)
+
+    result = mgr._do_event_choice({"option_id": "hold_on"})
+
+    assert result["phase"] == RunManager.PHASE_RUN_OVER
+    assert mgr.run_state.is_over
+    assert mgr.run_state.player.current_hp == 0
+    assert mgr._event_options[1].description == "Take 3 damage, reroll card"
 
 
 def test_slippery_bridge_requires_all_players_to_have_removable_cards():

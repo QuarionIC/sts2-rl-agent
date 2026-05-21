@@ -1764,6 +1764,14 @@ class RunManager:
             event.on_event_finished(self._run_state)
             self._event_started = False
 
+        if self._run_state.is_over:
+            self._phase = self.PHASE_RUN_OVER
+            return {"phase": self.PHASE_RUN_OVER, "description": description}
+        if self._run_state.player.is_dead:
+            self._run_state.lose_run()
+            self._phase = self.PHASE_RUN_OVER
+            return {"phase": self.PHASE_RUN_OVER, "description": description}
+
         if not result.finished and result.next_options:
             if reward_objects:
                 def _resume_event_options_after_rewards() -> None:
@@ -1815,14 +1823,6 @@ class RunManager:
                 "description": result.description,
                 "finished": False,
             }
-
-        if self._run_state.is_over:
-            self._phase = self.PHASE_RUN_OVER
-            return {"phase": self.PHASE_RUN_OVER, "description": description}
-        if self._run_state.player.is_dead:
-            self._run_state.lose_run()
-            self._phase = self.PHASE_RUN_OVER
-            return {"phase": self.PHASE_RUN_OVER, "description": description}
 
         event_combat_setup = result.event_combat_setup or result.rewards.get("event_combat_setup")
         post_combat_phase = result.post_combat_phase or result.rewards.get("post_combat_phase")
