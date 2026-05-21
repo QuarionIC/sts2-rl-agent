@@ -189,8 +189,8 @@ class TestRelicEventObtainOpeningRestHooksParity:
         assert result == "Choose 2 cards to remove"
         assert run_state.pending_choice is not None
         assert [option.card.card_id for option in run_state.pending_choice.options] == [
-            make_wound().card_id,
             make_clumsy().card_id,
+            make_wound().card_id,
         ]
 
     def test_fiddle_adds_two_to_opening_hand_draw(self):

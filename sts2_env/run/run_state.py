@@ -514,7 +514,9 @@ class PlayerState:
         return [card for card in self.deck if card.card_type != CardType.QUEST]
 
     def removable_deck_cards(self) -> list[CardInstance]:
-        return [card for card in self.deck if card.is_removable]
+        curses = [card for card in self.deck if card.card_type == CardType.CURSE and card.is_removable]
+        others = [card for card in self.deck if card.card_type != CardType.CURSE and card.is_removable]
+        return curses + others
 
     def transformable_deck_cards(self) -> list[CardInstance]:
         return [

@@ -162,8 +162,27 @@ def test_remove_card_reward_can_remove_quest_cards():
     assert mgr.run_state.player.deck == []
 
 
-def test_shop_remove_card_can_choose_quest_cards():
+def test_remove_card_reward_prioritizes_curses_like_original_selector():
     mgr = RunManager(seed=806, character_id="Ironclad")
+    strike = create_card(CardId.STRIKE_IRONCLAD)
+    debt = make_debt()
+    mgr.run_state.player.deck = [strike, debt]
+    reward = RemoveCardReward(mgr.run_state.player.player_id, count=1)
+
+    result = reward.select(mgr)
+
+    assert result["pending_choice"] is True
+    assert mgr.run_state.pending_choice is not None
+    assert [option.card.card_id for option in mgr.run_state.pending_choice.options] == [
+        CardId.DEBT,
+        CardId.STRIKE_IRONCLAD,
+    ]
+    mgr.take_action({"action": "choose", "index": 0})
+    assert mgr.run_state.player.deck == [strike]
+
+
+def test_shop_remove_card_can_choose_quest_cards():
+    mgr = RunManager(seed=807, character_id="Ironclad")
     quest = create_card(CardId.BYRDONIS_EGG)
     mgr.run_state.player.deck = [quest, create_card(CardId.STRIKE_IRONCLAD)]
     mgr.run_state.player.gold = 999
