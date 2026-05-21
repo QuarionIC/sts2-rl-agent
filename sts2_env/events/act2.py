@@ -220,6 +220,21 @@ class EndlessConveyor(EventModel):
     """
 
     event_id = "EndlessConveyor"
+    GRAB_GOLD = 35
+    REQUIRED_GOLD = 105
+    GOLDEN_FYSH_GOLD = 75
+    CLAM_ROLL_HEAL = 10
+    CAVIAR_MAX_HP = 4
+    FORCED_SEAPUNK_INTERVAL = 5
+    BASE_DISH_WEIGHTS = (
+        ("caviar", 6.0),
+        ("spicy_snappy", 3.0),
+        ("jelly_liver", 3.0),
+        ("fried_eel", 3.0),
+    )
+    SUSPICIOUS_CONDIMENT_WEIGHT = 3.0
+    CLAM_ROLL_WEIGHT = 6.0
+    GOLDEN_FYSH_WEIGHT = 1.0
 
     def __init__(self) -> None:
         self._grabs = 0
@@ -227,7 +242,7 @@ class EndlessConveyor(EventModel):
         self._last_dish: str = ""
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return all(player.gold >= 105 for player in run_state.players)
+        return all(player.gold >= self.REQUIRED_GOLD for player in run_state.players)
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         self._grabs = 0
@@ -247,9 +262,9 @@ class EndlessConveyor(EventModel):
             return EventResult(finished=True, description="Left the conveyor.")
 
         # grab
-        if run_state.player.gold >= 35:
+        if run_state.player.gold >= self.GRAB_GOLD:
             if self._current_dish != "golden_fysh":
-                run_state.player.lose_gold(35)
+                run_state.player.lose_gold(self.GRAB_GOLD)
             self._apply_dish(run_state)
             self._grabs += 1
             self._roll_dish(run_state)
@@ -267,34 +282,30 @@ class EndlessConveyor(EventModel):
         return EventResult(finished=True, description="Cannot afford more food.")
 
     def _grab_option(self, run_state: RunState, *, initial: bool) -> EventOption:
-        label = "Grab Something (35g)" if initial else "Grab Another (35g)"
-        if run_state.player.gold >= 35:
+        label = f"Grab Something ({self.GRAB_GOLD}g)" if initial else f"Grab Another ({self.GRAB_GOLD}g)"
+        if run_state.player.gold >= self.GRAB_GOLD:
             return EventOption("grab", label, "Random dish")
         return EventOption("grab", "Locked", "Cannot afford another dish", enabled=False)
 
     def _roll_dish(self, run_state: RunState) -> None:
-        if (self._grabs + 1) % 5 == 0:
+        if (self._grabs + 1) % self.FORCED_SEAPUNK_INTERVAL == 0:
             self._last_dish = "seapunk_salad"
             self._current_dish = "seapunk_salad"
             return
-        weighted = [
-            ("caviar", 6.0),
-            ("spicy_snappy", 3.0),
-            ("jelly_liver", 3.0),
-            ("fried_eel", 3.0),
-        ]
+        weighted = list(self.BASE_DISH_WEIGHTS)
         if len(run_state.player.held_potions()) < run_state.player.max_potion_slots:
-            weighted.append(("suspicious_condiment", 3.0))
+            weighted.append(("suspicious_condiment", self.SUSPICIOUS_CONDIMENT_WEIGHT))
         if run_state.player.current_hp != run_state.player.max_hp:
-            weighted.append(("clam_roll", 6.0))
+            weighted.append(("clam_roll", self.CLAM_ROLL_WEIGHT))
         if self._grabs >= 1:
-            weighted.append(("golden_fysh", 1.0))
+            weighted.append(("golden_fysh", self.GOLDEN_FYSH_WEIGHT))
         weighted = [(dish, weight) for dish, weight in weighted if dish != self._last_dish]
         total = sum(weight for _, weight in weighted)
         roll = self.get_rng(run_state).next_float() * total
+        cumulative = 0.0
         for dish, weight in weighted:
-            roll -= weight
-            if roll <= 0:
+            cumulative += weight
+            if roll < cumulative:
                 self._last_dish = dish
                 self._current_dish = dish
                 return
@@ -304,9 +315,9 @@ class EndlessConveyor(EventModel):
     def _apply_dish(self, run_state: RunState) -> None:
         dish = self._current_dish
         if dish == "caviar":
-            run_state.player.gain_max_hp(4)
+            run_state.player.gain_max_hp(self.CAVIAR_MAX_HP)
         elif dish == "clam_roll":
-            run_state.player.heal(10)
+            run_state.player.heal(self.CLAM_ROLL_HEAL)
         elif dish == "spicy_snappy":
             _upgrade_n_cards(run_state, 1, rng=self.get_rng(run_state))
         elif dish == "jelly_liver":
@@ -323,7 +334,7 @@ class EndlessConveyor(EventModel):
             if cards:
                 run_state.player.add_card_instance_to_deck(cards[0])
         elif dish == "golden_fysh":
-            run_state.player.gain_gold(75)
+            run_state.player.gain_gold(self.GOLDEN_FYSH_GOLD)
         elif dish == "seapunk_salad":
             if _should_defer_event_rewards(run_state):
                 run_state.pending_rewards.append(AddCardsReward(run_state.player.player_id, [make_feeding_frenzy()]))

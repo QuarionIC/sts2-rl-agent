@@ -65,6 +65,14 @@ class _LastFloatRng:
         return 0.999
 
 
+class _FixedFloatRng:
+    def __init__(self, value: float) -> None:
+        self.value = value
+
+    def next_float(self) -> float:
+        return self.value
+
+
 def test_the_architect_is_pool_disabled_and_has_single_proceed_option():
     run_state = _make_run_state(901)
     event = TheArchitect()
@@ -167,14 +175,14 @@ def test_endless_conveyor_observe_and_targeted_dishes_apply_expected_effects():
     gold_before = run_state.player.gold
     golden = event.choose(run_state, "grab")
     assert not golden.finished
-    assert run_state.player.gold == gold_before + 75
+    assert run_state.player.gold == gold_before + EndlessConveyor.GOLDEN_FYSH_GOLD
 
     event._current_dish = "caviar"  # noqa: SLF001
-    run_state.player.gold = 35
+    run_state.player.gold = EndlessConveyor.GRAB_GOLD
     max_hp_before = run_state.player.max_hp
     caviar = event.choose(run_state, "grab")
     assert not caviar.finished
-    assert run_state.player.max_hp == max_hp_before + 4
+    assert run_state.player.max_hp == max_hp_before + EndlessConveyor.CAVIAR_MAX_HP
     assert run_state.player.gold == 0
     assert [option.option_id for option in caviar.next_options] == ["grab", "leave"]
     assert [option.enabled for option in caviar.next_options] == [False, True]
@@ -196,13 +204,13 @@ def test_endless_conveyor_observe_and_targeted_dishes_apply_expected_effects():
 
 def test_endless_conveyor_requires_all_players_to_have_initial_gold():
     run_state = _make_run_state(9061)
-    run_state.player.gold = 105
-    ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent", gold=104))
+    run_state.player.gold = EndlessConveyor.REQUIRED_GOLD
+    ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent", gold=EndlessConveyor.REQUIRED_GOLD - 1))
     event = EndlessConveyor()
 
     assert event.is_allowed(run_state) is False
 
-    ally.gold = 105
+    ally.gold = EndlessConveyor.REQUIRED_GOLD
     assert event.is_allowed(run_state) is True
 
 
@@ -217,6 +225,19 @@ def test_endless_conveyor_excludes_the_dish_it_just_rolled_next_time():
     event._roll_dish(run_state)
 
     assert first_dish == "caviar"
+    assert event._current_dish == "spicy_snappy"
+
+
+def test_endless_conveyor_weight_boundary_uses_reference_strict_less_than():
+    run_state = _make_run_state(90621)
+    run_state.player.gold = 200
+    run_state.player.current_hp = run_state.player.max_hp
+    run_state.player.potions = [None] * run_state.player.max_potion_slots
+    event = EndlessConveyor()
+    event.rng = _FixedFloatRng(EndlessConveyor.BASE_DISH_WEIGHTS[0][1] / sum(weight for _, weight in EndlessConveyor.BASE_DISH_WEIGHTS))
+
+    event._roll_dish(run_state)
+
     assert event._current_dish == "spicy_snappy"
 
 
@@ -237,11 +258,11 @@ def test_endless_conveyor_forced_seapunk_counts_as_last_dish():
     run_state.player.gold = 200
     event = EndlessConveyor()
     event.rng = _SwapFirstTwoRng()
-    event._grabs = 4
+    event._grabs = EndlessConveyor.FORCED_SEAPUNK_INTERVAL - 1
 
     event._roll_dish(run_state)
     assert event._current_dish == "seapunk_salad"
-    event._grabs = 5
+    event._grabs = EndlessConveyor.FORCED_SEAPUNK_INTERVAL
     event._roll_dish(run_state)
 
     assert event._current_dish != "seapunk_salad"
