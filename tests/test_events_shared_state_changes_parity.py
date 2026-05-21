@@ -390,6 +390,43 @@ def test_event_specific_potion_rewards_are_rolled_before_reward_population():
     assert run_state.rng.rewards.choice_calls == 2
 
 
+def test_event_specific_potion_options_follow_unlocked_epoch_filtering():
+    locked_state = RunState(seed=1911, character_id="Ironclad")
+    locked_state.initialize_run()
+    locked_state.player.unlock_state["unlocked_epochs"] = []
+
+    locked_ids = [model.potion_id for model in _event_potion_options(locked_state)]
+
+    assert "BloodPotion" not in locked_ids
+    assert "SoldiersStew" not in locked_ids
+    assert "Ashwater" not in locked_ids
+    assert "BeetleJuice" not in locked_ids
+    assert "MazalethsGift" not in locked_ids
+    assert "DropletOfPrecognition" not in locked_ids
+    assert "PowderedDemise" not in locked_ids
+    assert "ShipInABottle" not in locked_ids
+    assert "TouchOfInsanity" not in locked_ids
+    assert "AttackPotion" in locked_ids
+
+    unlocked_state = RunState(seed=1912, character_id="Ironclad")
+    unlocked_state.initialize_run()
+    unlocked_state.player.unlock_state["unlocked_epochs"] = [
+        "IRONCLAD4_EPOCH",
+        "POTION1_EPOCH",
+        "POTION2_EPOCH",
+    ]
+
+    unlocked_ids = [model.potion_id for model in _event_potion_options(unlocked_state)]
+
+    assert unlocked_ids[:3] == ["BloodPotion", "SoldiersStew", "Ashwater"]
+    assert "BeetleJuice" in unlocked_ids
+    assert "MazalethsGift" in unlocked_ids
+    assert "DropletOfPrecognition" in unlocked_ids
+    assert "PowderedDemise" in unlocked_ids
+    assert "ShipInABottle" in unlocked_ids
+    assert "TouchOfInsanity" in unlocked_ids
+
+
 def test_battleworn_dummy_setting_two_uses_niche_rng_for_upgrade_selection():
     run_state = RunState(seed=1911, character_id="Ironclad")
     run_state.initialize_run()

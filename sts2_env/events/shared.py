@@ -104,6 +104,29 @@ _CHARACTER_POTION_IDS: dict[str, tuple[str, ...]] = {
     "Necrobinder": ("PotionOfDoom", "PotOfGhouls", "BoneBrew"),
 }
 
+_CHARACTER_POTION_EPOCH_IDS: dict[str, str] = {
+    "Ironclad": "IRONCLAD4_EPOCH",
+    "Silent": "SILENT4_EPOCH",
+    "Defect": "DEFECT4_EPOCH",
+    "Regent": "REGENT4_EPOCH",
+    "Necrobinder": "NECROBINDER4_EPOCH",
+}
+
+_UNLOCKED_EPOCHS_KEY = "unlocked_epochs"
+_DISCOVERED_EPOCHS_KEY = "discovered_epochs"
+_POTION1_EPOCH_ID = "POTION1_EPOCH"
+_POTION2_EPOCH_ID = "POTION2_EPOCH"
+_POTION1_EPOCH_POTION_IDS = frozenset({
+    "BeetleJuice",
+    "MazalethsGift",
+    "DropletOfPrecognition",
+})
+_POTION2_EPOCH_POTION_IDS = frozenset({
+    "PowderedDemise",
+    "ShipInABottle",
+    "TouchOfInsanity",
+})
+
 _SHARED_POTION_IDS: tuple[str, ...] = (
     "AttackPotion",
     "BeetleJuice",
@@ -153,16 +176,47 @@ _SHARED_POTION_IDS: tuple[str, ...] = (
 )
 
 
+def _explicit_unlocked_epoch_ids(run_state: RunState) -> frozenset[str] | None:
+    unlock_state = getattr(run_state.player, "unlock_state", {})
+    if _UNLOCKED_EPOCHS_KEY in unlock_state:
+        return frozenset(unlock_state[_UNLOCKED_EPOCHS_KEY])
+    if _DISCOVERED_EPOCHS_KEY in unlock_state:
+        return frozenset(unlock_state[_DISCOVERED_EPOCHS_KEY])
+    discovered = getattr(run_state.player, "discovered_epochs", ())
+    if discovered:
+        return frozenset(discovered)
+    return None
+
+
+def _event_character_potion_ids(run_state: RunState, unlocked_epochs: frozenset[str] | None) -> tuple[str, ...]:
+    character_id = run_state.player.character_id
+    if unlocked_epochs is not None and _CHARACTER_POTION_EPOCH_IDS.get(character_id) not in unlocked_epochs:
+        return ()
+    return _CHARACTER_POTION_IDS.get(character_id, ())
+
+
+def _event_shared_potion_ids(unlocked_epochs: frozenset[str] | None) -> tuple[str, ...]:
+    if unlocked_epochs is None:
+        return _SHARED_POTION_IDS
+    excluded: set[str] = set()
+    if _POTION1_EPOCH_ID not in unlocked_epochs:
+        excluded.update(_POTION1_EPOCH_POTION_IDS)
+    if _POTION2_EPOCH_ID not in unlocked_epochs:
+        excluded.update(_POTION2_EPOCH_POTION_IDS)
+    return tuple(potion_id for potion_id in _SHARED_POTION_IDS if potion_id not in excluded)
+
+
 def _event_potion_options(run_state: RunState):
     by_id = {model.potion_id: model for model in all_potion_models()}
+    unlocked_epochs = _explicit_unlocked_epoch_ids(run_state)
     character = [
         by_id[potion_id]
-        for potion_id in _CHARACTER_POTION_IDS.get(run_state.player.character_id, ())
+        for potion_id in _event_character_potion_ids(run_state, unlocked_epochs)
         if potion_id in by_id
     ]
     shared = [
         by_id[potion_id]
-        for potion_id in _SHARED_POTION_IDS
+        for potion_id in _event_shared_potion_ids(unlocked_epochs)
         if potion_id in by_id
     ]
     return [*character, *shared]
