@@ -2034,6 +2034,7 @@ class GlassEye(RelicInstance):
 
     def after_obtained(self, owner: Creature) -> None:
         from sts2_env.run.reward_objects import CardReward
+        from sts2_env.run.rewards import CARD_CREATION_SOURCE_OTHER
 
         for rarity in (
             CardRarity.COMMON,
@@ -2046,9 +2047,12 @@ class GlassEye(RelicInstance):
                 CardReward(
                     owner.player_id,
                     option_count=self.OPTIONS_PER_REWARD,
-                    forced_rarities=(rarity, rarity, rarity),
                     generation_context=None,
                     roll_upgrade=False,
+                    card_creation_source=CARD_CREATION_SOURCE_OTHER,
+                    allow_rarity_modifications=False,
+                    card_pool_rarity_filter=rarity,
+                    use_uniform_noncombat_odds=True,
                 )
             )
 
@@ -3182,22 +3186,46 @@ class SeaGlass(RelicInstance):
         self._character_id: str | None = None
 
     def after_obtained(self, owner: Creature) -> None:
+        from sts2_env.run.rewards import (
+            CARD_CREATION_SOURCE_OTHER,
+            CardRewardGenerationOptions,
+            generate_uniform_noncombat_reward_cards_with_options,
+        )
+
         if self._character_id is None:
             self._character_id = self.DEFAULT_CHARACTER_ID
         cards_per_rarity = self.CARDS // self.RARITY_GROUPS
+        cards = []
+        for rarity in (CardRarity.COMMON, CardRarity.UNCOMMON, CardRarity.RARE):
+            options = CardRewardGenerationOptions(
+                num_cards=cards_per_rarity,
+                character_ids=(self._character_id,),
+                use_default_character_pool=False,
+                generation_context=None,
+                roll_upgrade=False,
+                card_creation_source=CARD_CREATION_SOURCE_OTHER,
+                allow_card_pool_modifications=False,
+                allow_rarity_modifications=False,
+                card_pool_rarity_filter=rarity,
+            )
+            cards.extend(
+                generate_uniform_noncombat_reward_cards_with_options(
+                    owner.run_state,
+                    options,
+                    default_character_id=owner.character_id,
+                    num_cards=cards_per_rarity,
+                )
+            )
         owner.offer_custom_card_reward(
             option_count=self.CARDS,
             cards_to_pick=self.CARDS,
             character_ids=(self._character_id,),
-            forced_rarities=(
-                (CardRarity.COMMON,) * cards_per_rarity
-                + (CardRarity.UNCOMMON,) * cards_per_rarity
-                + (CardRarity.RARE,) * cards_per_rarity
-            ),
             generation_context=None,
             roll_upgrade=False,
-            card_creation_source="other",
+            card_creation_source=CARD_CREATION_SOURCE_OTHER,
             allow_card_pool_modifications=False,
+            allow_rarity_modifications=False,
+            cards=cards,
         )
 
 

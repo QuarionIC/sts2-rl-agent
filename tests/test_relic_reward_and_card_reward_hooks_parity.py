@@ -20,6 +20,7 @@ from sts2_env.run.rooms import create_room
 from sts2_env.run.shop import generate_shop_inventory
 from sts2_env.run.run_state import RunState
 from sts2_env.run.run_manager import RunManager
+from sts2_env.run.rewards import CARD_CREATION_SOURCE_OTHER
 
 
 def test_prayer_wheel_adds_one_extra_card_reward_only_once():
@@ -96,9 +97,13 @@ def test_glass_eye_enqueues_five_single_rarity_card_rewards():
         CardRarity.RARE,
     )
     for reward, rarity in zip(run_state.pending_rewards, expected_rarities):
-        assert reward.forced_rarities == (rarity, rarity, rarity)
+        assert reward.forced_rarities == ()
         assert reward.generation_context is None
         assert reward.roll_upgrade is False
+        assert reward.card_creation_source == CARD_CREATION_SOURCE_OTHER
+        assert reward.allow_rarity_modifications is False
+        assert reward.card_pool_rarity_filter is rarity
+        assert reward.use_uniform_noncombat_odds is True
         reward.populate(run_state, None)
         assert len(reward.cards) == 3
         assert all(card.rarity == rarity for card in reward.cards)
@@ -423,16 +428,17 @@ def test_sea_glass_enqueues_fifteen_cards_from_assigned_character_pool():
     assert reward.character_ids == (sea_glass._character_id,)
     assert reward.generation_context is None
     assert reward.roll_upgrade is False
-    assert reward.forced_rarities == (
-        (CardRarity.COMMON,) * 5
-        + (CardRarity.UNCOMMON,) * 5
-        + (CardRarity.RARE,) * 5
-    )
+    assert reward.forced_rarities == ()
+    assert reward.card_creation_source == CARD_CREATION_SOURCE_OTHER
+    assert reward.allow_card_pool_modifications is False
 
     reward.populate(run_state, None)
     assigned_pool = set(get_character(sea_glass._character_id).card_pool)
     assert len(reward.cards) == 15
     assert all(card.card_id in assigned_pool for card in reward.cards)
+    assert [card.rarity for card in reward.cards].count(CardRarity.COMMON) == 5
+    assert [card.rarity for card in reward.cards].count(CardRarity.UNCOMMON) == 5
+    assert [card.rarity for card in reward.cards].count(CardRarity.RARE) == 5
 
 
 def test_sea_glass_card_reward_can_pick_multiple_cards_before_skip():

@@ -969,8 +969,11 @@ class PlayerState:
         roll_upgrade: bool = True,
         card_creation_source: str | None = None,
         allow_card_pool_modifications: bool = True,
+        allow_rarity_modifications: bool = True,
         has_custom_card_pool: bool = False,
         custom_card_ids: tuple[CardId, ...] | None = None,
+        card_pool_rarity_filter: CardRarity | None = None,
+        use_uniform_noncombat_odds: bool = False,
         cards: list[CardInstance] | None = None,
     ) -> None:
         from sts2_env.run.reward_objects import CardReward
@@ -989,8 +992,11 @@ class PlayerState:
             roll_upgrade=roll_upgrade,
             card_creation_source=card_creation_source,
             allow_card_pool_modifications=allow_card_pool_modifications,
+            allow_rarity_modifications=allow_rarity_modifications,
             has_custom_card_pool=has_custom_card_pool,
             custom_card_ids=custom_card_ids,
+            card_pool_rarity_filter=card_pool_rarity_filter,
+            use_uniform_noncombat_odds=use_uniform_noncombat_odds,
             cards=cards,
         )
         self.run_state.pending_rewards.append(reward)
