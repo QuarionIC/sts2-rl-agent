@@ -268,6 +268,32 @@ def test_endless_conveyor_forced_seapunk_counts_as_last_dish():
     assert event._current_dish != "seapunk_salad"
 
 
+def test_endless_conveyor_roll_dish_increments_grab_counter_like_reference():
+    run_state = _make_run_state(90641)
+    run_state.player.gold = 200
+    event = EndlessConveyor()
+    event.rng = _SwapFirstTwoRng()
+
+    event._roll_dish(run_state)
+
+    assert event._grabs == 1
+
+
+def test_endless_conveyor_fourth_grab_roll_forces_fifth_dish_to_seapunk_salad():
+    run_state = _make_run_state(90642)
+    run_state.player.gold = 500
+    event = EndlessConveyor()
+    event.rng = _SwapFirstTwoRng()
+    event.generate_initial_options(run_state)
+
+    for _ in range(4):
+        result = event.choose(run_state, "grab")
+        assert result.finished is False
+
+    assert event._grabs == EndlessConveyor.FORCED_SEAPUNK_INTERVAL
+    assert event._current_dish == "seapunk_salad"
+
+
 def test_endless_conveyor_observe_uses_event_rng_for_upgrade_selection():
     run_state = _make_run_state(9051)
     run_state.player.gold = 200

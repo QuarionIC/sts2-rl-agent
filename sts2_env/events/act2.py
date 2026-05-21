@@ -267,7 +267,7 @@ class EndlessConveyor(EventModel):
             if self._current_dish != "golden_fysh":
                 run_state.player.lose_gold(self.GRAB_GOLD)
             self._apply_dish(run_state)
-            self._grabs += 1
+            grabbed_dish_number = self._grabs
             self._roll_dish(run_state)
 
             next_opts = [
@@ -277,7 +277,7 @@ class EndlessConveyor(EventModel):
 
             return EventResult(
                 finished=False,
-                description=f"Grabbed dish #{self._grabs} from the conveyor.",
+                description=f"Grabbed dish #{grabbed_dish_number} from the conveyor.",
                 next_options=next_opts,
             )
         return EventResult(finished=True, description="Cannot afford more food.")
@@ -289,7 +289,8 @@ class EndlessConveyor(EventModel):
         return EventOption("grab", "Locked", "Cannot afford another dish", enabled=False)
 
     def _roll_dish(self, run_state: RunState) -> None:
-        if (self._grabs + 1) % self.FORCED_SEAPUNK_INTERVAL == 0:
+        self._grabs += 1
+        if self._grabs % self.FORCED_SEAPUNK_INTERVAL == 0:
             self._last_dish = "seapunk_salad"
             self._current_dish = "seapunk_salad"
             return
@@ -298,7 +299,7 @@ class EndlessConveyor(EventModel):
             weighted.append(("suspicious_condiment", self.SUSPICIOUS_CONDIMENT_WEIGHT))
         if run_state.player.current_hp != run_state.player.max_hp:
             weighted.append(("clam_roll", self.CLAM_ROLL_WEIGHT))
-        if self._grabs >= 1:
+        if self._grabs > 1:
             weighted.append(("golden_fysh", self.GOLDEN_FYSH_WEIGHT))
         weighted = [(dish, weight) for dish, weight in weighted if dish != self._last_dish]
         total = sum(weight for _, weight in weighted)
