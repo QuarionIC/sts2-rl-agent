@@ -19,6 +19,7 @@ from sts2_env.events.shared import (
     WoodCarvings,
     ZenWeaver,
 )
+from sts2_env.run.run_manager import RunManager
 from sts2_env.run.run_state import PlayerState, RunState
 
 
@@ -336,6 +337,52 @@ def test_zen_weaver_applies_gold_card_gain_and_card_removal_costs():
     assert acupuncture_final.finished
     assert acupuncture_state.player.gold == acupuncture_gold - 250
     assert len(acupuncture_state.player.deck) == acupuncture_size - 2
+
+
+def test_zen_weaver_deferred_remove_options_charge_gold_after_card_selection():
+    mgr = RunManager(seed=5152, character_id="Ironclad")
+    mgr.run_state.player.gold = 300
+    mgr._phase = RunManager.PHASE_EVENT
+    event = ZenWeaver()
+    mgr._event_model = event
+    mgr._event_options = event.generate_initial_options(mgr.run_state)
+    starting_gold = mgr.run_state.player.gold
+    starting_deck = len(mgr.run_state.player.deck)
+
+    result = mgr._do_event_choice({"option_id": "emotional"})
+
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert mgr.run_state.pending_choice is not None
+    assert mgr.run_state.player.gold == starting_gold
+
+    final = mgr.take_action({"action": "choose", "index": 0})
+
+    assert final["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert mgr.run_state.player.gold == starting_gold - 125
+    assert len(mgr.run_state.player.deck) == starting_deck - 1
+
+    mgr = RunManager(seed=5153, character_id="Ironclad")
+    mgr.run_state.player.gold = 300
+    mgr._phase = RunManager.PHASE_EVENT
+    event = ZenWeaver()
+    mgr._event_model = event
+    mgr._event_options = event.generate_initial_options(mgr.run_state)
+    starting_gold = mgr.run_state.player.gold
+    starting_deck = len(mgr.run_state.player.deck)
+
+    result = mgr._do_event_choice({"option_id": "acupuncture"})
+
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert mgr.run_state.pending_choice is not None
+    assert mgr.run_state.player.gold == starting_gold
+
+    mgr.take_action({"action": "choose", "index": 0})
+    mgr.take_action({"action": "choose", "index": 1})
+    final = mgr.take_action({"action": "confirm_choice"})
+
+    assert final["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert mgr.run_state.player.gold == starting_gold - 250
+    assert len(mgr.run_state.player.deck) == starting_deck - 2
 
 
 def test_zen_weaver_requires_all_players_to_have_emotional_awareness_gold():

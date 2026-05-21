@@ -40,7 +40,6 @@ from sts2_env.run.reward_objects import (
     AddCardsReward,
     CardReward,
     EnchantCardsReward,
-    LoseGoldReward,
     PotionReward,
     RelicReward,
     RemoveCardReward,
@@ -2880,8 +2879,10 @@ class ZenWeaver(EventModel):
                             run_state.player.player_id,
                             count=self.EMOTIONAL_AWARENESS_REMOVE_COUNT,
                             cards=candidates,
+                            after_selected=lambda: run_state.player.lose_gold(
+                                self.EMOTIONAL_AWARENESS_COST
+                            ),
                         ),
-                        LoseGoldReward(run_state.player.player_id, self.EMOTIONAL_AWARENESS_COST),
                     ],
                 )
             return self.request_card_choice(
@@ -2925,8 +2926,14 @@ class ZenWeaver(EventModel):
                         f"{self.ARACHNID_ACUPUNCTURE_REMOVE_COUNT} cards."
                     ),
                     [
-                        RemoveCardReward(run_state.player.player_id, count=remove_count, cards=candidates),
-                        LoseGoldReward(run_state.player.player_id, self.ARACHNID_ACUPUNCTURE_COST),
+                        RemoveCardReward(
+                            run_state.player.player_id,
+                            count=remove_count,
+                            cards=candidates,
+                            after_selected=lambda: run_state.player.lose_gold(
+                                self.ARACHNID_ACUPUNCTURE_COST
+                            ),
+                        ),
                     ],
                 )
             return self.request_card_choice(
