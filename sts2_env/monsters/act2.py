@@ -616,14 +616,22 @@ def create_myte(rng: Rng, slot: str = "first") -> tuple[Creature, MonsterAI]:
 # ---- Ovicopter (HP 67-72 / 70-75 asc) + ToughEgg ----
 
 def create_tough_egg(rng: Rng, combat: CombatState | None = None) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(14, 18)
+    initial_min_hp = 14
+    initial_max_hp = 18
+    hatchling_min_hp = 19
+    hatchling_max_hp = 22
+    hp = rng.next_int(initial_min_hp, initial_max_hp)
     creature = Creature(max_hp=hp, monster_id="TOUGH_EGG")
     nibble_dmg = 4
 
     def hatch(combat: CombatState) -> None:
-        hatchling_hp = rng.next_int(19, 22)
+        from sts2_env.core.hooks import scaled_multiplayer_enemy_max_hp
+
+        hatchling_hp = rng.next_int(hatchling_min_hp, hatchling_max_hp)
         creature.max_hp = hatchling_hp
-        creature.current_hp = hatchling_hp
+        scaled_hp = scaled_multiplayer_enemy_max_hp(creature, combat)
+        creature.max_hp = scaled_hp
+        creature.current_hp = scaled_hp
         creature.powers.pop(PowerId.HATCH, None)
 
     def nibble(combat: CombatState) -> None:

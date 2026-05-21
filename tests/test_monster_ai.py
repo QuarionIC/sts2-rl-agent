@@ -179,10 +179,22 @@ from sts2_env.run.run_state import PlayerState
 STARTING_ACT_INDEX = 0
 NIBBIT_SLICE_MOVE_ID = "SLICE_MOVE"
 NIBBIT_SLICE_MOVE_BLOCK = 5
+TOUGH_EGG_INITIAL_HP = 16
+TOUGH_EGG_HATCHLING_HP = 20
 
 
 def _expected_starting_act_multiplayer_enemy_hp(combat: CombatState, base_hp: int) -> int:
     return int(base_hp * len(combat.combat_player_states) * MULTIPLAYER_ACT_SCALING[STARTING_ACT_INDEX])
+
+
+class _FixedIntsRng:
+    def __init__(self, values: list[int]):
+        self.values = list(values)
+
+    def next_int(self, low: int, high: int) -> int:
+        value = self.values.pop(0)
+        assert low <= value <= high
+        return value
 
 
 class _BlockHookCounterPower(PowerInstance):
@@ -1546,6 +1558,20 @@ class TestFixedRotation:
         assert 19 <= egg.max_hp <= 22
         assert egg.current_hp == egg.max_hp
         assert egg.get_power_amount(PowerId.HATCH) == 0
+
+        multiplayer_combat = _make_combat(37)
+        _add_test_ally(multiplayer_combat)
+        multiplayer_egg, multiplayer_egg_ai = create_tough_egg(
+            _FixedIntsRng([TOUGH_EGG_INITIAL_HP, TOUGH_EGG_HATCHLING_HP])
+        )
+        multiplayer_combat.add_enemy(multiplayer_egg, multiplayer_egg_ai)
+        multiplayer_egg_ai.current_move.perform(multiplayer_combat)
+        expected_hatchling_hp = _expected_starting_act_multiplayer_enemy_hp(
+            multiplayer_combat,
+            TOUGH_EGG_HATCHLING_HP,
+        )
+        assert multiplayer_egg.max_hp == expected_hatchling_hp
+        assert multiplayer_egg.current_hp == expected_hatchling_hp
 
         combat = _make_combat(36)
         ovicopter, ovicopter_ai = create_ovicopter(Rng(36))
