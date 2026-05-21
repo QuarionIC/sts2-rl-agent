@@ -1,11 +1,14 @@
 """Tests for monster AI state machine."""
 
+import math
+
 import pytest
 
 from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck, make_battle_trance, make_thunderclap
 from sts2_env.cards.ironclad_basic import make_strike_ironclad
 from sts2_env.cards.status import make_disintegration
+from sts2_env.core.constants import MULTIPLAYER_ACT_SCALING
 from sts2_env.core.combat import CombatState
 from sts2_env.core.damage import apply_damage
 from sts2_env.core.enums import CardId, CombatSide, PowerId, RoomType, ValueProp
@@ -172,6 +175,11 @@ from sts2_env.run.run_state import PlayerState
 
 
 # ---- Helpers ----
+
+STARTING_ACT_INDEX = 0
+NIBBIT_SLICE_MOVE_ID = "SLICE_MOVE"
+NIBBIT_SLICE_MOVE_BLOCK = 5
+
 
 class _BlockHookCounterPower(PowerInstance):
     def __init__(self):
@@ -972,7 +980,7 @@ class TestFixedRotation:
         from sts2_env.monsters.act1_weak import create_nibbit
 
         cases = [
-            (create_nibbit(Rng(1)), "SLICE_MOVE", 5),
+            (create_nibbit(Rng(1)), NIBBIT_SLICE_MOVE_ID, NIBBIT_SLICE_MOVE_BLOCK),
             (create_slithering_strangler(Rng(2)), "TWACK", 5),
             (create_axe_ruby_raider(Rng(3)), "SWING_1", 5),
             (create_crossbow_ruby_raider(Rng(4)), "RELOAD_MOVE", 3),
@@ -990,6 +998,38 @@ class TestFixedRotation:
 
             assert creature.block == expected_block
             assert counter.calls == [expected_block]
+
+    def test_multiplayer_monster_move_block_uses_original_enemy_scaling(self):
+        from sts2_env.monsters.act1_weak import create_nibbit
+
+        combat = _make_combat(120)
+        _add_test_ally(combat)
+        creature, ai = create_nibbit(Rng(1))
+        combat.add_enemy(creature, ai)
+        counter = _BlockHookCounterPower()
+        creature.powers[PowerId.JUGGERNAUT] = counter
+
+        ai.states[NIBBIT_SLICE_MOVE_ID].perform(combat)
+
+        expected_block = math.floor(
+            NIBBIT_SLICE_MOVE_BLOCK
+            * len(combat.combat_player_states)
+            * MULTIPLAYER_ACT_SCALING[STARTING_ACT_INDEX]
+        )
+        assert creature.block == expected_block
+        assert counter.calls == [expected_block]
+
+    def test_multiplayer_unpowered_monster_block_stays_unscaled(self):
+        from sts2_env.monsters.act3 import _gain_unpowered_block
+
+        combat = _make_combat(120)
+        _add_test_ally(combat)
+        creature, ai = create_guardbot(Rng(1))
+        combat.add_enemy(creature, ai)
+
+        _gain_unpowered_block(creature, NIBBIT_SLICE_MOVE_BLOCK, combat)
+
+        assert creature.block == NIBBIT_SLICE_MOVE_BLOCK
 
     def test_act1_attack_block_move_does_not_gain_block_after_killing_player(self):
         creature, ai = create_axe_ruby_raider(Rng(3))

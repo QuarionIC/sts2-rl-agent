@@ -19,6 +19,7 @@ from sts2_env.monsters.intents import (
 from sts2_env.monsters.state_machine import (
     ConditionalBranchState, MonsterAI, MonsterState, MoveState, RandomBranchState,
 )
+from sts2_env.monsters.block import gain_move_block
 from sts2_env.monsters.targets import (
     add_generated_cards_to_living_player_discards,
     apply_power_to_living_player_targets,
@@ -58,15 +59,7 @@ def _deal_damage_to_player(combat: CombatState, creature: Creature, base_dmg: in
 
 
 def _gain_block(creature: Creature, amount: int, combat: CombatState) -> None:
-    if combat.is_over:
-        return
-    before = creature.block
-    creature.gain_block(amount)
-    gained = creature.block - before
-    if gained > 0:
-        from sts2_env.core.hooks import fire_after_block_gained
-
-        fire_after_block_gained(creature, gained, combat, ValueProp.MOVE, None)
+    gain_move_block(creature, amount, combat)
 
 
 def _thieving_hopper_targets(combat: CombatState, creature: Creature) -> list[Creature]:

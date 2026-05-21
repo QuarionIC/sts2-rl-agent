@@ -28,6 +28,7 @@ _MULTIPLAYER_CHARGE_SCALED_POWER_IDS = frozenset({
     PowerId.PLATING,
     PowerId.SLIPPERY,
 })
+_NO_MULTIPLAYER_BLOCK_SCALING = 1.0
 
 if TYPE_CHECKING:
     from sts2_env.core.creature import Creature
@@ -90,6 +91,19 @@ def _is_multiplayer_scaled_enemy(creature: Creature) -> bool:
     return creature.side == CombatSide.ENEMY
 
 
+def _multiplayer_enemy_block_multiplier(target: Creature, props: ValueProp, combat: CombatState) -> float:
+    from sts2_env.core.constants import SOLO_PLAYER_COUNT
+
+    if not _is_multiplayer_scaled_enemy(target):
+        return _NO_MULTIPLAYER_BLOCK_SCALING
+    if not props.is_powered_card_or_monster_move_block():
+        return _NO_MULTIPLAYER_BLOCK_SCALING
+    player_count = len(combat.combat_player_states)
+    if player_count == SOLO_PLAYER_COUNT:
+        return _NO_MULTIPLAYER_BLOCK_SCALING
+    return player_count * _multiplayer_enemy_scaling_factor(combat)
+
+
 def _should_scale_power_in_multiplayer(power_id: PowerId) -> bool:
     from sts2_env.core.creature import get_power_class
 
@@ -103,17 +117,25 @@ def scaled_multiplayer_power_amount(
     target: Creature | None,
     combat: CombatState,
 ) -> int:
-    from sts2_env.core.constants import MULTIPLAYER_CHARGE_EXTRA_PER_ADDITIONAL_PLAYER
+    from sts2_env.core.constants import (
+        MULTIPLAYER_BASE_CHARGE_MULTIPLIER,
+        MULTIPLAYER_CHARGE_EXTRA_PER_ADDITIONAL_PLAYER,
+        SOLO_PLAYER_COUNT,
+    )
 
     if target is None or not _is_multiplayer_scaled_enemy(target):
         return amount
     if not _should_scale_power_in_multiplayer(power_id):
         return amount
     player_count = len(combat.combat_player_states)
-    if player_count == 1:
+    if player_count == SOLO_PLAYER_COUNT:
         return amount
     if power_id in _MULTIPLAYER_CHARGE_SCALED_POWER_IDS:
-        multiplier = (player_count - 1) * MULTIPLAYER_CHARGE_EXTRA_PER_ADDITIONAL_PLAYER + 1
+        multiplier = (
+            (player_count - SOLO_PLAYER_COUNT)
+            * MULTIPLAYER_CHARGE_EXTRA_PER_ADDITIONAL_PLAYER
+            + MULTIPLAYER_BASE_CHARGE_MULTIPLIER
+        )
         return amount * multiplier
     scaled = amount * player_count * _multiplayer_enemy_scaling_factor(combat)
     return int(scaled)
@@ -338,6 +360,7 @@ def modify_block(
         block *= multiplier
         if multiplier != 1.0:
             modifier_ids.add(id(relic))
+    block *= _multiplayer_enemy_block_multiplier(target, props, combat)
 
     modified_block = max(0, math.floor(block))
     if modifier_ids:

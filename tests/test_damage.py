@@ -3,10 +3,38 @@
 import math
 import pytest
 
+from sts2_env.core.constants import MULTIPLAYER_ACT_SCALING
 from sts2_env.core.creature import Creature
 from sts2_env.core.damage import calculate_damage, calculate_block, apply_damage
 from sts2_env.core.enums import CombatSide, PowerId, ValueProp
 from sts2_env.powers.base import PowerInstance
+from sts2_env.run.run_state import PlayerState
+
+
+STARTING_ACT_INDEX = 0
+MULTIPLAYER_BLOCK_BASE = 10
+MULTIPLAYER_ALLY_CHARACTER_ID = "Ironclad"
+MULTIPLAYER_ALLY_PLAYER_ID = 2
+MULTIPLAYER_ALLY_HP = 70
+
+
+def _add_multiplayer_ally(combat):
+    combat.add_ally_player(
+        PlayerState(
+            player_id=MULTIPLAYER_ALLY_PLAYER_ID,
+            character_id=MULTIPLAYER_ALLY_CHARACTER_ID,
+            max_hp=MULTIPLAYER_ALLY_HP,
+            current_hp=MULTIPLAYER_ALLY_HP,
+        )
+    )
+
+
+def _starting_act_enemy_block(combat, base_block: int) -> int:
+    return math.floor(
+        base_block
+        * len(combat.combat_player_states)
+        * MULTIPLAYER_ACT_SCALING[STARTING_ACT_INDEX]
+    )
 
 
 class _RecordingDamagePower(PowerInstance):
@@ -220,3 +248,26 @@ class TestBlockPipeline:
         player.apply_power(PowerId.DEXTERITY, -10)
         block = calculate_block(5, player, ValueProp.MOVE, [player])
         assert block == 0  # 5 + (-10) = -5, clamped to 0
+
+    def test_multiplayer_enemy_powered_block_scales_like_original(self, simple_combat):
+        _add_multiplayer_ally(simple_combat)
+        enemy = simple_combat.enemies[0]
+
+        block = calculate_block(MULTIPLAYER_BLOCK_BASE, enemy, ValueProp.MOVE, simple_combat)
+
+        assert block == _starting_act_enemy_block(simple_combat, MULTIPLAYER_BLOCK_BASE)
+
+    def test_multiplayer_block_scaling_skips_players_and_unpowered_block(self, simple_combat):
+        _add_multiplayer_ally(simple_combat)
+        enemy = simple_combat.enemies[0]
+
+        player_block = calculate_block(MULTIPLAYER_BLOCK_BASE, simple_combat.player, ValueProp.MOVE, simple_combat)
+        unpowered_enemy_block = calculate_block(
+            MULTIPLAYER_BLOCK_BASE,
+            enemy,
+            ValueProp.MOVE | ValueProp.UNPOWERED,
+            simple_combat,
+        )
+
+        assert player_block == MULTIPLAYER_BLOCK_BASE
+        assert unpowered_enemy_block == MULTIPLAYER_BLOCK_BASE
