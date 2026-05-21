@@ -359,16 +359,18 @@ class EndlessConveyor(EventModel):
             else:
                 _transform_n_cards(run_state, self.JELLY_LIVER_TRANSFORM_COUNT, rng=self.get_rng(run_state))
         elif dish == self.DISH_FRIED_EEL:
-            from sts2_env.run.rewards import generate_noncombat_reward_cards
-
-            cards = generate_noncombat_reward_cards(
-                run_state,
-                num_cards=1,
-                character_ids=(),
+            reward = CardReward(
+                run_state.player.player_id,
+                option_count=1,
+                generation_context=None,
+                roll_upgrade=False,
+                use_default_character_pool=False,
                 include_colorless=True,
+                card_creation_source=CARD_CREATION_SOURCE_OTHER,
             )
-            if cards:
-                run_state.player.add_card_instance_to_deck(cards[0])
+            reward.populate(run_state, None)
+            if reward.cards:
+                run_state.player.add_card_instance_to_deck(reward.cards[0], source=reward)
         elif dish == self.DISH_GOLDEN_FYSH:
             run_state.player.gain_gold(self.GOLDEN_FYSH_GOLD)
         elif dish == self.DISH_SEAPUNK_SALAD:

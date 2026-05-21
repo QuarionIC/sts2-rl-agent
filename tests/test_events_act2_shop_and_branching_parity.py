@@ -16,6 +16,8 @@ from sts2_env.events.act2 import (
 )
 from sts2_env.events.act3 import TheArchitect
 from sts2_env.potions.base import create_potion
+from sts2_env.run.modifiers import ModifierModel
+from sts2_env.run.rewards import CardRewardGenerationOptions
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.run_state import PlayerState, RunState
 
@@ -78,6 +80,38 @@ class _FixedFloatRng:
 
     def next_float(self) -> float:
         return self.value
+
+
+class _EndlessConveyorFriedEelRewardModifier(ModifierModel):
+    def __init__(self) -> None:
+        super().__init__("endless_conveyor_fried_eel_reward")
+        self.creation_options_seen = False
+        self.options_seen = False
+
+    def modify_card_reward_creation_options(self, player, options, reward, room, run_state):
+        self.creation_options_seen = True
+        return CardRewardGenerationOptions(
+            context=options.context,
+            num_cards=options.num_cards,
+            character_ids=options.character_ids,
+            forced_rarities=options.forced_rarities,
+            include_colorless=options.include_colorless,
+            use_default_character_pool=options.use_default_character_pool,
+            generation_context=options.generation_context,
+            roll_upgrade=options.roll_upgrade,
+            card_type=options.card_type,
+            card_creation_source=options.card_creation_source,
+            allow_card_pool_modifications=options.allow_card_pool_modifications,
+            allow_rarity_modifications=options.allow_rarity_modifications,
+            allow_hook_upgrades=options.allow_hook_upgrades,
+            has_custom_card_pool=True,
+            custom_card_ids=(CardId.DARK_SHACKLES,),
+            card_pool_rarity_filter=options.card_pool_rarity_filter,
+        )
+
+    def modify_card_reward_options(self, player, cards, reward, room, run_state):
+        self.options_seen = True
+        return cards
 
 
 def test_the_architect_is_pool_disabled_and_has_single_proceed_option():
@@ -207,6 +241,22 @@ def test_endless_conveyor_observe_and_targeted_dishes_apply_expected_effects():
     eel = event.choose(run_state, "grab")
     assert not eel.finished
     assert len(run_state.player.deck) == deck_before + 1
+
+
+def test_endless_conveyor_fried_eel_uses_card_reward_hooks():
+    run_state = _make_run_state(90601)
+    run_state.player.gold = ENDLESS_CONVEYOR_STARTING_GOLD
+    modifier = _EndlessConveyorFriedEelRewardModifier()
+    run_state.modifiers = [modifier]
+    event = EndlessConveyor()
+    event._current_dish = EndlessConveyor.DISH_FRIED_EEL  # noqa: SLF001
+
+    result = event.choose(run_state, EndlessConveyor.OPTION_GRAB)
+
+    assert result.finished is False
+    assert modifier.creation_options_seen is True
+    assert modifier.options_seen is True
+    assert run_state.player.deck[-1].card_id == CardId.DARK_SHACKLES
 
 
 def test_endless_conveyor_requires_all_players_to_have_initial_gold():
