@@ -2725,7 +2725,8 @@ class PaelsTooth(RelicInstance):
         return len(selected)
 
     def after_obtained(self, owner: Creature) -> None:
-        candidates = owner.upgradable_deck_cards()
+        upgradable_ids = {id(card) for card in owner.upgradable_deck_cards()}
+        candidates = [card for card in owner.removable_deck_cards() if id(card) in upgradable_ids]
         max_count = min(self.CARDS, len(candidates))
         if max_count > 0 and owner.request_deck_choice(
             prompt=f"Choose {max_count} cards for Pael's Tooth",

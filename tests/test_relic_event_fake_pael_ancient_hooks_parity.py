@@ -372,6 +372,16 @@ class TestRelicEventFakePaelAncientHooksParity:
         assert run_state.pending_choice is None
         assert len(run_state.player.deck) == starting_deck - 5
 
+    def test_paels_tooth_ignores_upgradable_eternal_cards(self):
+        run_state = RunState(seed=997, character_id="Ironclad")
+        grimoire = create_card(CardId.FORBIDDEN_GRIMOIRE)
+        strike = create_card(CardId.STRIKE_IRONCLAD)
+        run_state.player.deck = [grimoire, strike]
+
+        assert run_state.player.obtain_relic("PAELS_TOOTH")
+
+        assert run_state.player.deck == [grimoire]
+
     def test_paels_legion_doubles_block_then_enters_two_turn_cooldown(self):
         combat = _make_combat(["PaelsLegion"], seed=998)
         pet = _event_pet(combat, "PAELS_LEGION")
