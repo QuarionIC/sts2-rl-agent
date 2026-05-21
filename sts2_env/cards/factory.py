@@ -238,7 +238,7 @@ def _reference_candidates(card_id: CardId) -> list[str]:
         candidates.append(card_id.name[:-5])
     if card_id.name.endswith("_STATUS"):
         candidates.append(card_id.name[:-7])
-    if card_id.name == "NULL_CARD":
+    if card_id == CardId.NULL_CARD:
         candidates.append("NULL")
     return candidates
 
@@ -649,7 +649,7 @@ def eligible_registered_cards(
             continue
         if card_id in _REGISTERED_POOL_EXCLUDED_CARD_IDS:
             continue
-        if card_id.name == "GENERIC":
+        if card_id == CardId.GENERIC:
             continue
         source_module = registry.get(card_id, (None, None, _reference_source_module(card_id)))[2]
         if source_module is None:
