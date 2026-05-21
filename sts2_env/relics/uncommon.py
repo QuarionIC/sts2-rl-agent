@@ -138,9 +138,10 @@ class Candelabra(RelicInstance):
     rarity = RelicRarity.UNCOMMON
     pool = RelicPool.SHARED
     ENERGY = 2
+    ENERGY_ROUND = 2
 
     def after_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
-        if side == CombatSide.PLAYER and combat.round_number == 2:
+        if side == CombatSide.PLAYER and combat.round_number == self.ENERGY_ROUND:
             combat.gain_energy(owner, self.ENERGY)
 
 

@@ -2578,9 +2578,10 @@ class PaelsFlesh(RelicInstance):
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
     ENERGY = 1
+    START_ROUND = 3
 
     def after_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
-        if side == CombatSide.PLAYER and combat.round_number >= 3:
+        if side == CombatSide.PLAYER and combat.round_number >= self.START_ROUND:
             combat.gain_energy(owner, self.ENERGY)
 
 
