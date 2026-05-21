@@ -302,10 +302,10 @@ All currently counted relic classes now have direct implementation and test refe
   - [tests/test_parity_helpers.py](../tests/test_parity_helpers.py)
   - [tests/test_events_shared.py](../tests/test_events_shared.py)
   - [tests/test_events_act2.py](../tests/test_events_act2.py)
-  - [tests/test_reward_relic_hooks.py](../tests/test_reward_relic_hooks.py)
-  - [tests/test_rest_site_relic_hooks.py](../tests/test_rest_site_relic_hooks.py)
+  - [tests/test_relic_reward_and_card_reward_hooks_parity.py](../tests/test_relic_reward_and_card_reward_hooks_parity.py)
+  - [tests/test_relic_rest_site_hooks_parity.py](../tests/test_relic_rest_site_hooks_parity.py)
   - [tests/test_shop_relic_hooks.py](../tests/test_shop_relic_hooks.py)
-  - [tests/test_shop_event_relic_combat_hooks.py](../tests/test_shop_event_relic_combat_hooks.py)
+  - [tests/test_relic_shop_event_combat_reward_hooks_parity.py](../tests/test_relic_shop_event_combat_reward_hooks_parity.py)
   - [tests/test_action_space_potions.py](../tests/test_action_space_potions.py)
   - [tests/test_bridge_state_adapter.py](../tests/test_bridge_state_adapter.py)
 - Verification status for the parity-focused suites above:
