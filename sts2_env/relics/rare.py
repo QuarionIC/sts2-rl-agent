@@ -579,6 +579,10 @@ class LizardTail(RelicInstance):
         super().__init__(relic_id)
         self._was_used: bool = False
 
+    @property
+    def is_used_up(self) -> bool:
+        return self._was_used
+
     def should_die_late(self, owner: Creature, combat: CombatState) -> bool | None:
         if not self._was_used:
             self._was_used = True
@@ -610,6 +614,7 @@ class Mango(RelicInstance):
     relic_id = RelicId.MANGO
     rarity = RelicRarity.RARE
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
     MAX_HP = 14
 
     def after_obtained(self, owner: Creature) -> None:
@@ -758,6 +763,7 @@ class OldCoin(RelicInstance):
     relic_id = RelicId.OLD_COIN
     rarity = RelicRarity.RARE
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
     GOLD = 300
 
     def is_allowed(self, run_state: RunState) -> bool:

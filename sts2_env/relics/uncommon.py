@@ -564,6 +564,7 @@ class Pear(RelicInstance):
     relic_id = RelicId.PEAR
     rarity = RelicRarity.UNCOMMON
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
     MAX_HP = 10
 
     def after_obtained(self, owner: Creature) -> None:

@@ -284,6 +284,41 @@ def test_ranwid_uses_the_randomly_selected_potion_and_relic_targets():
     assert "VAJRA" not in relic_state.player.relics
 
 
+def test_ranwid_uses_reference_tradable_relic_rules():
+    blocked = RunState(seed=3107, character_id="Ironclad")
+    blocked.initialize_run()
+    blocked.current_act_index = 1
+    blocked.player.gold = 200
+    blocked.player.add_potion(create_potion("FirePotion"))
+    blocked.player.obtain_relic("PEAR")
+    blocked_event = RanwidTheElder()
+
+    assert blocked_event.is_allowed(blocked) is False
+
+    run_state = RunState(seed=3108, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.current_act_index = 1
+    run_state.player.gold = 200
+    run_state.player.add_potion(create_potion("FirePotion"))
+    for relic_id in ("PEAR", "LEES_WAFFLE", "ANCHOR", "LIZARD_TAIL"):
+        run_state.player.obtain_relic(relic_id)
+    lizard_tail = next(relic for relic in run_state.player.relic_objects if relic.relic_id.name == "LIZARD_TAIL")
+    lizard_tail._was_used = True  # noqa: SLF001
+    event = RanwidTheElder()
+    event.rng = _LastChoiceRng()
+
+    options = event.generate_initial_options(run_state)
+    result = event.choose(run_state, "relic")
+
+    assert [option.enabled for option in options] == [True, True, True]
+    assert event._relic_id == "ANCHOR"
+    assert result.finished
+    assert "ANCHOR" not in run_state.player.relics
+    assert "PEAR" in run_state.player.relics
+    assert "LEES_WAFFLE" in run_state.player.relics
+    assert "LIZARD_TAIL" in run_state.player.relics
+
+
 def test_ranwid_uses_event_rng_without_advancing_up_front_rng():
     run_state = RunState(seed=3104, character_id="Ironclad")
     run_state.initialize_run()
@@ -558,7 +593,7 @@ def test_doll_room_and_relic_trader_apply_real_relic_changes():
     assert result.finished
     assert len(run_state.player.relics) == starting_relics + 1
 
-    for relic_id in ("ANCHOR", "VAJRA", "PEAR", "JUZU_BRACELET", "LANTERN"):
+    for relic_id in ("ANCHOR", "VAJRA", "BONE_FLUTE", "JUZU_BRACELET", "LANTERN"):
         run_state.player.obtain_relic(relic_id)
     trader = RelicTrader()
     trader.rng = _NoopShuffleRng()

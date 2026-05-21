@@ -215,6 +215,7 @@ class Cauldron(RelicInstance):
     relic_id = RelicId.CAULDRON
     rarity = RelicRarity.SHOP
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
     POTIONS = 5
 
     def after_obtained(self, owner: Creature) -> None:
@@ -324,6 +325,7 @@ class DollysMirror(RelicInstance):
     relic_id = RelicId.DOLLYS_MIRROR
     rarity = RelicRarity.SHOP
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
 
     def after_obtained(self, owner: Creature) -> None:
         candidates = owner.duplicable_deck_cards()
@@ -416,6 +418,7 @@ class Kifuda(RelicInstance):
     relic_id = RelicId.KIFUDA
     rarity = RelicRarity.SHOP
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
     CARDS = 3
     ADROIT = 3
 
@@ -472,6 +475,7 @@ class LeesWaffle(RelicInstance):
     relic_id = RelicId.LEES_WAFFLE
     rarity = RelicRarity.SHOP
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
     MAX_HP = 7
 
     def after_obtained(self, owner: Creature) -> None:
@@ -559,6 +563,7 @@ class Orrery(RelicInstance):
     relic_id = RelicId.ORRERY
     rarity = RelicRarity.SHOP
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
     CARDS = 5
 
     def after_obtained(self, owner: Creature) -> None:
@@ -572,6 +577,7 @@ class PunchDagger(RelicInstance):
     relic_id = RelicId.PUNCH_DAGGER
     rarity = RelicRarity.SHOP
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
     CARDS = 1
     MOMENTUM = 5
 
@@ -602,6 +608,7 @@ class RoyalStamp(RelicInstance):
     relic_id = RelicId.ROYAL_STAMP
     rarity = RelicRarity.SHOP
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
     CARDS = 1
     ROYALLY_APPROVED = 1
 
@@ -811,6 +818,7 @@ class AlchemicalCoffer(RelicInstance):
     relic_id = RelicId.ALCHEMICAL_COFFER
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     POTION_SLOTS = 4
 
     def _can_procure_potion(self, owner: Creature, combat: CombatState | None) -> bool:
@@ -996,6 +1004,7 @@ class Astrolabe(RelicInstance):
     relic_id = RelicId.ASTROLABE
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     CARDS = 3
 
     def after_obtained(self, owner: Creature) -> None:
@@ -1029,6 +1038,7 @@ class BigMushroom(RelicInstance):
     relic_id = RelicId.BIG_MUSHROOM
     rarity = RelicRarity.EVENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     MAX_HP = 20
     DRAW_PENALTY = 2
 
@@ -1135,6 +1145,7 @@ class BloodSoakedRose(RelicInstance):
     relic_id = RelicId.BLOOD_SOAKED_ROSE
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     ENERGY = 1
 
     def modify_max_energy(self, owner: Creature, energy: int) -> int:
@@ -1162,6 +1173,10 @@ class BoneTea(RelicInstance):
     def __init__(self, relic_id: RelicId):
         super().__init__(relic_id)
         self._combats_left: int = self.COMBATS
+
+    @property
+    def is_used_up(self) -> bool:
+        return self._combats_left <= 0
 
     def after_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if (side == CombatSide.PLAYER and combat.round_number == 1
@@ -1242,6 +1257,8 @@ class Byrdpip(RelicInstance):
     relic_id = RelicId.BYRDPIP
     rarity = RelicRarity.EVENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
+    spawns_pets = True
 
     def after_obtained(self, owner: Creature) -> None:
         from sts2_env.cards.status import (
@@ -1281,6 +1298,7 @@ class CallingBell(RelicInstance):
     relic_id = RelicId.CALLING_BELL
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     RELICS = 3
 
     def after_obtained(self, owner: Creature) -> None:
@@ -1499,6 +1517,7 @@ class DistinguishedCape(RelicInstance):
     relic_id = RelicId.DISTINGUISHED_CAPE
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     HP_LOSS = 9
     CARDS = 3
 
@@ -1633,6 +1652,7 @@ class ElectricShrymp(RelicInstance):
     relic_id = RelicId.ELECTRIC_SHRYMP
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     CARDS = 1
     IMBUED = 1
 
@@ -1657,6 +1677,10 @@ class EmberTea(RelicInstance):
         super().__init__(relic_id)
         self._combats_left: int = self.COMBATS
 
+    @property
+    def is_used_up(self) -> bool:
+        return self._combats_left <= 0
+
     def before_combat_start(self, owner: Creature, combat: CombatState) -> None:
         if self._combats_left > 0:
             self._combats_left -= 1
@@ -1669,6 +1693,7 @@ class EmptyCage(RelicInstance):
     relic_id = RelicId.EMPTY_CAGE
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     CARDS = 2
 
     def after_obtained(self, owner: Creature) -> None:
@@ -1730,6 +1755,7 @@ class FakeLeesWaffle(RelicInstance):
     relic_id = RelicId.FAKE_LEES_WAFFLE
     rarity = RelicRarity.EVENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     HEAL_PCT = 10
 
     def after_obtained(self, owner: Creature) -> None:
@@ -1742,6 +1768,7 @@ class FakeMango(RelicInstance):
     relic_id = RelicId.FAKE_MANGO
     rarity = RelicRarity.EVENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     MAX_HP = 3
 
     def after_obtained(self, owner: Creature) -> None:
@@ -1877,6 +1904,7 @@ class FragrantMushroom(RelicInstance):
     relic_id = RelicId.FRAGRANT_MUSHROOM
     rarity = RelicRarity.EVENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     DAMAGE = 15
     CARDS = 3
 
@@ -2052,6 +2080,7 @@ class GoldenCompass(RelicInstance):
     relic_id = RelicId.GOLDEN_COMPASS
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
 
     def __init__(self, relic_id: RelicId):
         super().__init__(relic_id)
@@ -2090,6 +2119,7 @@ class GoldenPearl(RelicInstance):
     relic_id = RelicId.GOLDEN_PEARL
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     GOLD = 150
 
     def after_obtained(self, owner: Creature) -> None:
@@ -2186,6 +2216,7 @@ class JewelryBox(RelicInstance):
     relic_id = RelicId.JEWELRY_BOX
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
 
     def after_obtained(self, owner: Creature) -> None:
         if getattr(owner.run_state, "defer_followup_rewards", False):
@@ -2298,6 +2329,7 @@ class LoomingFruit(RelicInstance):
     relic_id = RelicId.LOOMING_FRUIT
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     MAX_HP = 31
 
     def after_obtained(self, owner: Creature) -> None:
@@ -2325,6 +2357,7 @@ class LostCoffer(RelicInstance):
     relic_id = RelicId.LOST_COFFER
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
 
     def after_obtained(self, owner: Creature) -> None:
         owner.offer_card_reward()
@@ -2373,6 +2406,10 @@ class MawBank(RelicInstance):
     def __init__(self, relic_id: RelicId):
         super().__init__(relic_id)
         self._purchased: bool = False
+
+    @property
+    def is_used_up(self) -> bool:
+        return self._purchased
 
     def after_room_entered(self, owner: Creature, room_type: object) -> None:
         if not self._purchased:
@@ -2463,6 +2500,7 @@ class NeowsTorment(RelicInstance):
     relic_id = RelicId.NEOWS_TORMENT
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
 
     def after_obtained(self, owner: Creature) -> None:
         if getattr(owner.run_state, "defer_followup_rewards", False):
@@ -2478,6 +2516,7 @@ class NewLeaf(RelicInstance):
     relic_id = RelicId.NEW_LEAF
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
 
     def after_obtained(self, owner: Creature) -> None:
         candidates = owner.transformable_deck_cards()
@@ -2493,6 +2532,7 @@ class NutritiousOyster(RelicInstance):
     relic_id = RelicId.NUTRITIOUS_OYSTER
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     MAX_HP = 11
 
     def after_obtained(self, owner: Creature) -> None:
@@ -2733,6 +2773,7 @@ class PaelsTooth(RelicInstance):
     relic_id = RelicId.PAELS_TOOTH
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     CARDS = 5
 
     def __init__(self, relic_id: RelicId):
@@ -2807,6 +2848,7 @@ class PandorasBox(RelicInstance):
     relic_id = RelicId.PANDORAS_BOX
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
 
     def after_obtained(self, owner: Creature) -> None:
         cards = owner.basic_strike_defend_cards()
@@ -2889,6 +2931,7 @@ class PrecariousShears(RelicInstance):
     relic_id = RelicId.PRECARIOUS_SHEARS
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     CARDS = 2
     DAMAGE = 13
 
@@ -2907,6 +2950,7 @@ class PreciseScissors(RelicInstance):
     relic_id = RelicId.PRECISE_SCISSORS
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
 
     def after_obtained(self, owner: Creature) -> None:
         candidates = owner.removable_deck_cards()
@@ -3001,6 +3045,7 @@ class PumpkinCandle(RelicInstance):
     relic_id = RelicId.PUMPKIN_CANDLE
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     ENERGY = 1
 
     def __init__(self, relic_id: RelicId):
@@ -3086,6 +3131,7 @@ class SandCastle(RelicInstance):
     relic_id = RelicId.SAND_CASTLE
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     CARDS = 6
 
     def after_obtained(self, owner: Creature) -> None:
@@ -3126,6 +3172,7 @@ class SeaGlass(RelicInstance):
     relic_id = RelicId.SEA_GLASS
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     CARDS = 15
     RARITY_GROUPS = 3
     DEFAULT_CHARACTER_ID = "Ironclad"
@@ -3178,6 +3225,7 @@ class SereTalon(RelicInstance):
     relic_id = RelicId.SERE_TALON
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     CURSES = 2
     WISHES = 3
 
@@ -3227,8 +3275,12 @@ class SilverCrucible(RelicInstance):
         self._times_used: int = 0
         self._treasure_rooms_entered: int = 0
 
+    @property
+    def is_used_up(self) -> bool:
+        return self._times_used >= self.CARD_REWARDS and self._treasure_rooms_entered > 0
+
     def _refresh_enabled(self) -> None:
-        if self._times_used >= self.CARD_REWARDS and self._treasure_rooms_entered > 0:
+        if self.is_used_up:
             self.enabled = False
 
     def after_room_entered(self, owner: Creature, room_type: object) -> None:
@@ -3443,6 +3495,10 @@ class TeaOfDiscourtesy(RelicInstance):
         super().__init__(relic_id)
         self._combats_left: int = self.COMBATS
 
+    @property
+    def is_used_up(self) -> bool:
+        return self._combats_left <= 0
+
     def before_combat_start(self, owner: Creature, combat: CombatState) -> None:
         from sts2_env.cards.factory import create_card
 
@@ -3572,12 +3628,17 @@ class ToyBox(RelicInstance):
     relic_id = RelicId.TOY_BOX
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     RELICS = 4
     COMBATS_PER_MELT = 3
 
     def __init__(self, relic_id: RelicId):
         super().__init__(relic_id)
         self._combats_seen: int = 0
+
+    @property
+    def is_used_up(self) -> bool:
+        return self._combats_seen >= self.COMBATS_PER_MELT * self.RELICS
 
     def after_obtained(self, owner: Creature) -> None:
         from sts2_env.run.reward_objects import RelicReward
@@ -3601,7 +3662,7 @@ class ToyBox(RelicInstance):
                 relic.is_melted = True
                 relic.enabled = False
                 break
-        if self._combats_seen >= self.COMBATS_PER_MELT * self.RELICS:
+        if self.is_used_up:
             self.enabled = False
 
 
@@ -3780,6 +3841,10 @@ class WongosMysteryTicket(RelicInstance):
         self._combats_finished: int = 0
         self._gave_relic: bool = False
 
+    @property
+    def is_used_up(self) -> bool:
+        return self._gave_relic
+
     def modify_rewards(
         self,
         owner: Creature,
@@ -3810,6 +3875,7 @@ class YummyCookie(RelicInstance):
     relic_id = RelicId.YUMMY_COOKIE
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
     CARDS = 4
 
     def after_obtained(self, owner: Creature) -> None:

@@ -824,14 +824,7 @@ class RanwidTheElder(EventModel):
 
     @staticmethod
     def _tradable_relics(player: PlayerState) -> list[str]:
-        return [
-            relic_id
-            for relic_id in player.relics
-            if relic_id not in {
-                "BURNING_BLOOD", "RING_OF_THE_SNAKE", "CRACKED_CORE", "BOUND_PHYLACTERY", "DIVINE_RIGHT",
-                "BLACK_BLOOD", "RING_OF_THE_DRAKE", "INFUSED_CORE", "PHYLACTERY_UNBOUND", "DIVINE_DESTINY",
-            }
-        ]
+        return player.tradable_relics()
 
     def is_allowed(self, run_state: RunState) -> bool:
         return (
@@ -917,12 +910,7 @@ class RelicTrader(EventModel):
 
     @staticmethod
     def _tradable_relics(player: PlayerState) -> list[str]:
-        return [
-            relic_id for relic_id in player.relics if relic_id not in {
-                "BURNING_BLOOD", "RING_OF_THE_SNAKE", "CRACKED_CORE", "BOUND_PHYLACTERY", "DIVINE_RIGHT",
-                "BLACK_BLOOD", "RING_OF_THE_DRAKE", "INFUSED_CORE", "PHYLACTERY_UNBOUND", "DIVINE_DESTINY",
-            }
-        ]
+        return player.tradable_relics()
 
     def is_allowed(self, run_state: RunState) -> bool:
         return (

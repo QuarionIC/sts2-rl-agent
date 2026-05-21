@@ -45,7 +45,7 @@ class _LastChoiceRng:
 def test_relic_trader_excludes_starter_relics_and_swaps_selected_relic():
     run_state = _make_run_state(91)
     run_state.current_act_index = 1
-    for relic_id in ("ANCHOR", "VAJRA", "PEAR", "JUZU_BRACELET", "LANTERN"):
+    for relic_id in ("ANCHOR", "VAJRA", "BONE_FLUTE", "JUZU_BRACELET", "LANTERN"):
         run_state.player.obtain_relic(relic_id)
 
     event = RelicTrader()
@@ -69,7 +69,7 @@ def test_relic_trader_excludes_starter_relics_and_swaps_selected_relic():
 def test_relic_trader_uses_event_rng_without_advancing_up_front_rng():
     run_state = _make_run_state(911)
     run_state.current_act_index = 1
-    for relic_id in ("ANCHOR", "VAJRA", "PEAR", "JUZU_BRACELET", "LANTERN"):
+    for relic_id in ("ANCHOR", "VAJRA", "BONE_FLUTE", "JUZU_BRACELET", "LANTERN"):
         run_state.player.obtain_relic(relic_id)
     event = RelicTrader()
     up_front_counter = run_state.rng.up_front.counter
@@ -83,7 +83,7 @@ def test_relic_trader_uses_event_rng_without_advancing_up_front_rng():
 def test_relic_trader_requires_all_players_to_have_five_tradable_relics():
     run_state = _make_run_state(912)
     run_state.current_act_index = 1
-    for relic_id in ("ANCHOR", "VAJRA", "PEAR", "JUZU_BRACELET", "LANTERN"):
+    for relic_id in ("ANCHOR", "VAJRA", "BONE_FLUTE", "JUZU_BRACELET", "LANTERN"):
         run_state.player.obtain_relic(relic_id)
     ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent"))
     for relic_id in ("BAG_OF_PREPARATION", "AKABEKO", "ART_OF_WAR", "BAG_OF_MARBLES"):
@@ -96,6 +96,38 @@ def test_relic_trader_requires_all_players_to_have_five_tradable_relics():
     ally.obtain_relic("CENTENNIAL_PUZZLE")
 
     assert event.is_allowed(run_state) is True
+
+
+def test_relic_trader_uses_reference_tradable_relic_rules():
+    run_state = _make_run_state(913)
+    run_state.current_act_index = 1
+    for relic_id in (
+        "ANCHOR",
+        "VAJRA",
+        "BONE_FLUTE",
+        "JUZU_BRACELET",
+        "LANTERN",
+        "PEAR",
+        "BYRDPIP",
+        "SEA_GLASS",
+        "LEES_WAFFLE",
+        "LIZARD_TAIL",
+    ):
+        run_state.player.obtain_relic(relic_id)
+    lizard_tail = next(relic for relic in run_state.player.relic_objects if relic.relic_id.name == "LIZARD_TAIL")
+    lizard_tail._was_used = True  # noqa: SLF001
+
+    event = RelicTrader()
+    event.rng = _NoopShuffleRng()
+    options = event.generate_initial_options(run_state)
+
+    assert len(options) == 3
+    assert event._owned_relic_choices == ["ANCHOR", "VAJRA", "BONE_FLUTE"]  # noqa: SLF001
+    assert "PEAR" not in event._owned_relic_choices  # noqa: SLF001
+    assert "BYRDPIP" not in event._owned_relic_choices  # noqa: SLF001
+    assert "SEA_GLASS" not in event._owned_relic_choices  # noqa: SLF001
+    assert "LEES_WAFFLE" not in event._owned_relic_choices  # noqa: SLF001
+    assert "LIZARD_TAIL" not in event._owned_relic_choices  # noqa: SLF001
 
 
 def test_slippery_bridge_hold_on_escalates_damage_and_overcome_removes_card():

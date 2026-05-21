@@ -359,6 +359,14 @@ class RelicInstance:
     rarity: RelicRarity = RelicRarity.COMMON
     pool: RelicPool = RelicPool.SHARED
     is_stackable: bool = False
+    has_upon_pickup_effect: bool = False
+    spawns_pets: bool = False
+    is_melted: bool = False
+    UNTRADABLE_RARITIES = frozenset({
+        RelicRarity.STARTER,
+        RelicRarity.EVENT,
+        RelicRarity.ANCIENT,
+    })
 
     def __init__(self, relic_id: RelicId):
         self.relic_id = relic_id
@@ -366,6 +374,20 @@ class RelicInstance:
 
     def is_allowed(self, run_state: RunState) -> bool:
         return True
+
+    @property
+    def is_used_up(self) -> bool:
+        return False
+
+    @property
+    def is_tradable(self) -> bool:
+        return (
+            not self.is_used_up
+            and not self.has_upon_pickup_effect
+            and not self.is_melted
+            and not self.spawns_pets
+            and self.rarity not in self.UNTRADABLE_RARITIES
+        )
 
     @staticmethod
     def is_before_act3_treasure_chest(run_state: RunState) -> bool:

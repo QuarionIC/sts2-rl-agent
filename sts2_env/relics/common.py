@@ -327,6 +327,7 @@ class PotionBelt(RelicInstance):
     relic_id = RelicId.POTION_BELT
     rarity = RelicRarity.COMMON
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
     POTION_SLOTS = 2
 
     def after_obtained(self, owner: Creature) -> None:
@@ -414,6 +415,7 @@ class Strawberry(RelicInstance):
     relic_id = RelicId.STRAWBERRY
     rarity = RelicRarity.COMMON
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
     MAX_HP = 7
 
     def after_obtained(self, owner: Creature) -> None:
@@ -507,6 +509,7 @@ class WarPaint(RelicInstance):
     relic_id = RelicId.WAR_PAINT
     rarity = RelicRarity.COMMON
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
     CARDS = 2
 
     def after_obtained(self, owner: Creature) -> None:
@@ -522,6 +525,7 @@ class Whetstone(RelicInstance):
     relic_id = RelicId.WHETSTONE
     rarity = RelicRarity.COMMON
     pool = RelicPool.SHARED
+    has_upon_pickup_effect = True
     CARDS = 2
 
     def after_obtained(self, owner: Creature) -> None:

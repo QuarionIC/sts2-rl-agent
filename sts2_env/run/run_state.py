@@ -212,6 +212,23 @@ class PlayerState:
     def get_relic_objects(self) -> list[Any]:
         return self._ensure_relic_objects()
 
+    def tradable_relics(self) -> list[str]:
+        from sts2_env.relics.registry import create_relic_by_name
+
+        if len(self.relic_objects) != len(self.relics):
+            self._ensure_relic_objects()
+        tradable: list[str] = []
+        for index, relic_id in enumerate(self.relics):
+            relic = self.relic_objects[index] if index < len(self.relic_objects) else None
+            if getattr(getattr(relic, "relic_id", None), "name", None) != relic_id:
+                try:
+                    relic = create_relic_by_name(relic_id)
+                except KeyError:
+                    continue
+            if getattr(relic, "is_tradable", False):
+                tradable.append(relic_id)
+        return tradable
+
     def has_event_pet(self) -> bool:
         return any(relic_id in {"BYRDPIP", "PAELS_LEGION"} for relic_id in self.relics)
 
