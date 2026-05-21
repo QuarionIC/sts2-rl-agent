@@ -31,6 +31,9 @@ LASTING_CANDY_RELIC_NAME = "LASTING_CANDY"
 LASTING_CANDY_TRIGGERING_COMBATS_SEEN = 2
 MANUAL_REWARD_PARITY_SEED = 218
 EMPTY_MANUAL_REWARD_CARD_COUNT = 0
+ACTIVE_REWARD_RELIC_UPDATE_SEED = 107
+FRESNEL_LENS_RELIC_NAME = "FRESNEL_LENS"
+FRESNEL_LENS_NIMBLE_AMOUNT = 2
 
 
 def test_prayer_wheel_adds_one_extra_card_reward_only_once():
@@ -253,6 +256,32 @@ def test_fresnel_lens_and_glitter_modify_card_reward_options_late():
     assert "Glam" not in by_id[CardId.SHRUG_IT_OFF].enchantments
     assert "Nimble" not in by_id[CardId.ANGER].enchantments
     assert by_id[CardId.ANGER].enchantments["Glam"] == 1
+
+
+def test_new_relic_updates_already_populated_card_rewards():
+    mgr = RunManager(seed=ACTIVE_REWARD_RELIC_UPDATE_SEED, character_id=IRONCLAD_CHARACTER_ID)
+    card_reward = CardReward(
+        mgr.run_state.player.player_id,
+        option_count=1,
+        forced_rarities=(CardRarity.COMMON,),
+        custom_card_ids=(CardId.SHRUG_IT_OFF,),
+        has_custom_card_pool=True,
+    )
+    card_reward.populate(mgr.run_state, None)
+    mgr._pending_rewards = [card_reward]
+    mgr._current_reward = RelicReward(
+        mgr.run_state.player.player_id,
+        relic_id=FRESNEL_LENS_RELIC_NAME,
+    )
+    mgr._phase = RunManager.PHASE_CARD_REWARD
+    mgr._prime_next_relic_reward()
+
+    assert "Nimble" not in card_reward.cards[0].enchantments
+
+    mgr.take_action({"action": "pick_relic_reward", "relic_id": FRESNEL_LENS_RELIC_NAME})
+
+    assert isinstance(mgr._current_reward, CardReward)
+    assert mgr._offered_cards[0].enchantments["Nimble"] == FRESNEL_LENS_NIMBLE_AMOUNT
 
 
 def test_driftwood_allows_rerolling_card_rewards():

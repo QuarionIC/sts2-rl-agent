@@ -293,9 +293,19 @@ class CardReward(Reward):
         self.max_rerolls = 0
         self.rerolls_used = 0
         self._can_regenerate = not cards_were_manually_set
+        self._populated_room: Room | None = None
+
+    def _register_active_reward(self, run_state: RunState) -> None:
+        if self not in run_state.active_card_rewards:
+            run_state.active_card_rewards.append(self)
+
+    def _unregister_active_reward(self, run_state: RunState) -> None:
+        if self in run_state.active_card_rewards:
+            run_state.active_card_rewards.remove(self)
 
     def populate(self, run_state: RunState, room: Room | None) -> None:
         player = run_state.get_player(self.player_id)
+        self._populated_room = room
         options = CardRewardGenerationOptions(
             context=self.context,
             num_cards=self.option_count,
@@ -408,6 +418,30 @@ class CardReward(Reward):
                     self.max_rerolls = max(self.max_rerolls, 1)
         self.option_count = len(self.cards)
         self.is_populated = True
+        if self._can_regenerate:
+            self._register_active_reward(run_state)
+
+    def on_relic_obtained(self, relic: object, run_state: RunState) -> None:
+        player = run_state.get_player(self.player_id)
+        modify_card_reward_options = getattr(relic, "modify_card_reward_options", None)
+        if callable(modify_card_reward_options):
+            self.cards = modify_card_reward_options(
+                player,
+                self.cards,
+                self,
+                self._populated_room,
+                run_state,
+            )
+        modify_card_reward_options_late = getattr(relic, "modify_card_reward_options_late", None)
+        if callable(modify_card_reward_options_late):
+            self.cards = modify_card_reward_options_late(
+                player,
+                self.cards,
+                self,
+                self._populated_room,
+                run_state,
+            )
+        self.option_count = len(self.cards)
 
     @property
     def rerolls_remaining(self) -> int:
@@ -429,8 +463,14 @@ class CardReward(Reward):
             if self.cards_picked < self.cards_to_pick and self.cards:
                 info["pending_more_picks"] = True
                 info["remaining_picks"] = self.cards_to_pick - self.cards_picked
+            else:
+                self._unregister_active_reward(run_manager.run_state)
             return info
         return {"description": "Invalid card index."}
+
+    def skip(self, run_manager: RunManager) -> dict:
+        self._unregister_active_reward(run_manager.run_state)
+        return super().skip(run_manager)
 
     def reroll(self, run_manager: RunManager) -> dict:
         if self.rerolls_remaining <= 0 or not self._can_regenerate:
