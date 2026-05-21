@@ -646,15 +646,23 @@ class LuminousChoir(EventModel):
     """
 
     event_id = "LuminousChoir"
+    ENTRY_GOLD_COST = 149
+    TRIBUTE_GOLD_VARIANCE_ROLL = 50
 
     def __init__(self) -> None:
-        self._cost = 149
+        self._cost = self.ENTRY_GOLD_COST
 
     def calculate_vars(self, run_state: RunState) -> None:
-        self._cost = 149 - self.get_rng(run_state).next_int_exclusive(0, 50)
+        self._cost = self.ENTRY_GOLD_COST - self.get_rng(run_state).next_int_exclusive(
+            0,
+            self.TRIBUTE_GOLD_VARIANCE_ROLL,
+        )
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return all(player.gold >= 149 and player.has_available_relics() for player in run_state.players)
+        return all(
+            player.gold >= self.ENTRY_GOLD_COST and player.has_available_relics()
+            for player in run_state.players
+        )
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         self.ensure_vars_calculated(run_state)
@@ -819,6 +827,7 @@ class RanwidTheElder(EventModel):
     """
 
     event_id = "RanwidTheElder"
+    ENTRY_GOLD_COST = 100
 
     def __init__(self) -> None:
         self._potion_slot: int | None = None
@@ -831,7 +840,7 @@ class RanwidTheElder(EventModel):
     def is_allowed(self, run_state: RunState) -> bool:
         return (
             run_state.current_act_index > 0
-            and all(player.gold >= 100 for player in run_state.players)
+            and all(player.gold >= self.ENTRY_GOLD_COST for player in run_state.players)
             and all(len(player.held_potions()) > 0 for player in run_state.players)
             and all(bool(self._tradable_relics(player)) for player in run_state.players)
         )
@@ -852,7 +861,7 @@ class RanwidTheElder(EventModel):
         self._relic_id = chosen_relic
         return [
             EventOption("potion", "Give a Potion", "Lose a potion, gain a relic", enabled=bool(run_state.player.held_potions())),
-            EventOption("gold", "Give 100 Gold", "Lose 100g, gain a relic"),
+            EventOption("gold", f"Give {self.ENTRY_GOLD_COST} Gold", f"Lose {self.ENTRY_GOLD_COST}g, gain a relic"),
             EventOption("relic", "Give a Relic", "Lose a relic, gain 2 relics", enabled=bool(tradable_relics)),
         ]
 
@@ -869,15 +878,15 @@ class RanwidTheElder(EventModel):
             return EventResult(finished=True,
                                description="Gave a potion, gained a relic.")
         if option_id == "gold":
-            run_state.player.lose_gold(100)
+            run_state.player.lose_gold(self.ENTRY_GOLD_COST)
             if _should_defer_event_rewards(run_state):
                 return _event_result_with_rewards(
-                    "Paid 100g, gained a relic.",
+                    f"Paid {self.ENTRY_GOLD_COST}g, gained a relic.",
                     _roll_random_relic_rewards(run_state, 1),
                 )
             _obtain_random_relics(run_state, 1)
             return EventResult(finished=True,
-                               description="Paid 100g, gained a relic.")
+                               description=f"Paid {self.ENTRY_GOLD_COST}g, gained a relic.")
         tradable_relics = self._tradable_relics(run_state.player)
         if self._relic_id is not None and self._relic_id in tradable_relics:
             to_remove = self._relic_id

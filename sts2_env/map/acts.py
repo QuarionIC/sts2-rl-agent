@@ -20,6 +20,7 @@ class ActConfig:
     weak_encounter_ids: list[str] = field(default_factory=list)
     strong_encounter_ids: list[str] = field(default_factory=list)
     event_ids: list[str] = field(default_factory=list)
+    events_visited: int = 0
 
     def to_mutable(self) -> "ActConfig":
         return ActConfig(
@@ -31,6 +32,7 @@ class ActConfig:
             weak_encounter_ids=list(self.weak_encounter_ids),
             strong_encounter_ids=list(self.strong_encounter_ids),
             event_ids=list(self.event_ids),
+            events_visited=self.events_visited,
         )
 
 
