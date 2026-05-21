@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sts2_env.core.constants import WEAK_MULTIPLIER
+from sts2_env.core.constants import PERCENT_DENOMINATOR, WEAK_MULTIPLIER
 from sts2_env.core.creature import _power_type_for_amount, get_power_class
 from sts2_env.core.enums import (
     RelicRarity, CombatSide, CardType, PowerId, PowerType, RoomType, ValueProp,
@@ -582,7 +582,7 @@ class LizardTail(RelicInstance):
     def should_die_late(self, owner: Creature, combat: CombatState) -> bool | None:
         if not self._was_used:
             self._was_used = True
-            heal_amount = owner.max_hp * self.HEAL_PCT // 100
+            heal_amount = owner.max_hp * self.HEAL_PCT // PERCENT_DENOMINATOR
             if owner.is_dead:
                 owner.current_hp = min(owner.max_hp, heal_amount)
             else:
@@ -626,7 +626,7 @@ class MeatOnTheBone(RelicInstance):
     HEAL = 12
 
     def after_combat_victory_early(self, owner: Creature, combat: CombatState) -> None:
-        if owner.current_hp <= (owner.max_hp * self.HP_THRESHOLD_PCT // 100):
+        if owner.current_hp <= (owner.max_hp * self.HP_THRESHOLD_PCT // PERCENT_DENOMINATOR):
             owner.heal(self.HEAL)
 
 
@@ -1011,7 +1011,7 @@ class TheCourier(RelicInstance):
         item: object,
         run_state: RunState,
     ) -> int:
-        return max(0, int(round(price * (100 - self.DISCOUNT) / 100)))
+        return max(0, int(round(price * (PERCENT_DENOMINATOR - self.DISCOUNT) / PERCENT_DENOMINATOR)))
 
     def should_refill_merchant_entry(
         self,

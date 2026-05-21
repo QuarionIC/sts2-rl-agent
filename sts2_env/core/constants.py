@@ -4,6 +4,7 @@ MAX_HAND_SIZE = 10
 BLOCK_CAP = 999
 BASE_DRAW = 5
 BASE_ENERGY = 3
+PERCENT_DENOMINATOR = 100
 
 # Power multipliers (from VulnerablePower/WeakPower/FrailPower decompiled values)
 VULNERABLE_MULTIPLIER = 1.5

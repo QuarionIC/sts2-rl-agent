@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sts2_env.core.constants import PERCENT_DENOMINATOR
 from sts2_env.core.enums import (
     RelicRarity, CombatSide, CardType, PowerId, ValueProp, CardTag,
 )
@@ -346,7 +347,7 @@ class RedSkull(RelicInstance):
         self._strength_applied: bool = False
 
     def _check_hp(self, owner: Creature) -> None:
-        low_hp = owner.current_hp <= (owner.max_hp * self.HP_THRESHOLD_PCT // 100)
+        low_hp = owner.current_hp <= (owner.max_hp * self.HP_THRESHOLD_PCT // PERCENT_DENOMINATOR)
         if low_hp and not self._strength_applied:
             owner.apply_power(PowerId.STRENGTH, self.STRENGTH)
             self._strength_applied = True

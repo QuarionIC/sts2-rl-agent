@@ -13,6 +13,7 @@ from sts2_env.cards.enchantments import can_enchant_card
 from sts2_env.cards.factory import reference_card_entry
 from sts2_env.characters.all import ALL_CHARACTERS
 from sts2_env.core.card_pools import CardPoolId
+from sts2_env.core.constants import PERCENT_DENOMINATOR
 from sts2_env.core.enums import (
     CardId, CardRarity, RelicRarity, CombatSide, CardTag, CardType, MapPointType, PowerId, RoomType, TargetType,
     ValueProp,
@@ -489,7 +490,7 @@ class MembershipCard(RelicInstance):
         item: object,
         run_state: RunState,
     ) -> int:
-        return max(0, int(round(price * (100 - self.DISCOUNT) / 100)))
+        return max(0, int(round(price * (PERCENT_DENOMINATOR - self.DISCOUNT) / PERCENT_DENOMINATOR)))
 
 
 @register_relic
