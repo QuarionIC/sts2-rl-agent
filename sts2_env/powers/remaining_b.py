@@ -866,20 +866,40 @@ class MagicBombPower(PowerInstance):
 
     def __init__(self, amount: int):
         super().__init__(PowerId.MAGIC_BOMB, amount)
-        self.applier: Creature | None = None
+        self._instances: list[tuple[int, Creature | None]] = [(amount, None)]
+        self._initial_instance_recorded: bool = False
+
+    def after_power_amount_changed(
+        self,
+        owner: Creature,
+        target: Creature,
+        power_id: PowerId,
+        amount: int,
+        applier: Creature | None,
+        source: object | None,
+        combat: CombatState,
+    ) -> None:
+        if owner is not target or power_id != self.power_id or amount <= 0:
+            return
+        if not self._initial_instance_recorded:
+            self._instances[0] = (self._instances[0][0], applier)
+            self._initial_instance_recorded = True
+            return
+        self._instances.append((amount, applier))
 
     def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side != owner.side:
             return
-        if self.applier is not None and not self.applier.is_alive:
-            self.amount = 0
-            return
-        combat.deal_damage(
-            dealer=owner,
-            target=owner,
-            amount=self.amount,
-            props=ValueProp.UNPOWERED,
-        )
+        for amount, applier in self._instances:
+            if applier is None or not applier.is_alive:
+                continue
+            combat.deal_damage(
+                dealer=owner,
+                target=owner,
+                amount=amount,
+                props=ValueProp.UNPOWERED,
+            )
+        self._instances = []
         self.amount = 0
 
     def after_death(
@@ -889,7 +909,12 @@ class MagicBombPower(PowerInstance):
         combat: CombatState,
         was_removal_prevented: bool = False,
     ) -> None:
-        if not was_removal_prevented and creature is self.applier:
+        if was_removal_prevented:
+            return
+        self._instances = [(amount, applier) for amount, applier in self._instances if creature is not applier]
+        if self._instances:
+            self.amount = sum(amount for amount, _ in self._instances)
+        else:
             owner.powers.pop(self.power_id, None)
 
 

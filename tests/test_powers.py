@@ -1294,6 +1294,37 @@ class TestPowerAmountChangedHooks:
         assert len(simple_combat.hand) == 1
         assert simple_combat.hand[0].card_id == CardId.STRIKE_IRONCLAD
 
+    def test_magic_bomb_without_live_applier_is_removed_without_damage(self, simple_combat):
+        player = simple_combat.player
+        player_start_hp = player.current_hp
+        orphan_bomb_damage = 7
+
+        player.apply_power(PowerId.MAGIC_BOMB, orphan_bomb_damage)
+        fire_after_turn_end(CombatSide.PLAYER, simple_combat)
+
+        assert player.current_hp == player_start_hp
+        assert PowerId.MAGIC_BOMB not in player.powers
+
+    def test_magic_bomb_keeps_multiple_applications_as_separate_instances(self, simple_combat):
+        player = simple_combat.player
+        applier = simple_combat.enemies[0]
+        player_start_hp = player.current_hp
+        first_bomb_damage = 3
+        second_bomb_damage = 4
+
+        simple_combat.apply_power_to(player, PowerId.MAGIC_BOMB, first_bomb_damage, applier=applier)
+        simple_combat.apply_power_to(player, PowerId.MAGIC_BOMB, second_bomb_damage, applier=applier)
+        fire_after_turn_end(CombatSide.PLAYER, simple_combat)
+
+        assert player.current_hp == player_start_hp - first_bomb_damage - second_bomb_damage
+        assert PowerId.MAGIC_BOMB not in player.powers
+        damage_events = [
+            event
+            for event in simple_combat._damage_events_combat
+            if event[0] is player and event[1] is player and event[2] == ValueProp.UNPOWERED
+        ]
+        assert [event[3] for event in damage_events] == [first_bomb_damage, second_bomb_damage]
+
     def test_feral_returns_limited_zero_cost_attacks_to_hand(self, simple_combat):
         simple_combat.hand = [make_feral(), make_beam_cell(), make_beam_cell()]
         simple_combat.energy = 10
