@@ -9,6 +9,7 @@ from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import CardId, CardType, PowerId
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
+from sts2_env.relics.shop_event import Claws
 from sts2_env.run.rest_site import CloneOption
 from sts2_env.run.reward_objects import RelicReward
 from sts2_env.run.run_manager import RunManager
@@ -226,6 +227,50 @@ def test_claws_preserves_upgrade_and_enchantments_when_transforming_to_maul():
     assert transformed.card_id.name == "MAUL"
     assert transformed.upgraded
     assert transformed.has_enchantment("Clone")
+
+
+def test_claws_can_confirm_without_transforming_any_cards():
+    run_state = RunState(seed=103, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.enable_deck_choice_requests = True
+    strike = make_strike_ironclad()
+    defend = make_defend_ironclad()
+    run_state.player.deck = [strike, defend]
+
+    run_state.player.obtain_relic("CLAWS")
+
+    choice = run_state.pending_choice
+    assert choice is not None
+    assert choice.allow_skip is True
+    assert choice.min_choices == 0
+    assert choice.max_choices == min(Claws.CARDS, len(run_state.player.deck))
+
+    assert run_state.resolve_pending_choice(None)
+    assert run_state.pending_choice is None
+    assert run_state.player.deck == [strike, defend]
+    assert all(card.card_id != CardId.MAUL for card in run_state.player.deck)
+
+
+def test_claws_excludes_quest_cards_from_transform_choices():
+    run_state = RunState(seed=107, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.enable_deck_choice_requests = True
+    quest = create_card(CardId.LANTERN_KEY)
+    strike = make_strike_ironclad()
+    run_state.player.deck = [quest, strike]
+
+    run_state.player.obtain_relic("CLAWS")
+
+    choice = run_state.pending_choice
+    assert choice is not None
+    assert [option.card for option in choice.options] == [strike]
+    assert choice.max_choices == 1
+
+    assert run_state.resolve_pending_choice(0)
+    assert run_state.resolve_pending_choice(None)
+    assert run_state.player.deck[0] is quest
+    assert run_state.player.deck[0].card_type == CardType.QUEST
+    assert run_state.player.deck[1].card_id == CardId.MAUL
 
 
 def test_run_level_relic_hooks_fire_for_curse_add_and_potion_procure():
