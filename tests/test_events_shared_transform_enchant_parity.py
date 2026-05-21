@@ -39,6 +39,23 @@ class _SeaGlassRng:
         return seq[0]
 
 
+class _PrismaticGemRng:
+    def __init__(self) -> None:
+        self.choice_inputs = []
+
+    def next_float(self) -> float:
+        return 0.0
+
+    def choice(self, seq):
+        self.choice_inputs.append(list(seq))
+        first = seq[0]
+        if isinstance(first, tuple):
+            for entry in seq:
+                if entry[0] == "PRISMATIC_GEM":
+                    return entry
+        return seq[0]
+
+
 def _make_run_state(seed: int = 501, character_id: str = "Ironclad") -> RunState:
     run_state = RunState(seed=seed, character_id=character_id)
     run_state.initialize_run()
@@ -409,6 +426,17 @@ def test_orobas_assigns_off_character_for_sea_glass_when_selected():
     sea_glass = run_state.player.relic_objects[-1]
     assert sea_glass.relic_id.name == "SEA_GLASS"
     assert sea_glass._character_id != run_state.player.character_id
+
+
+def test_orobas_rolls_off_character_before_prismatic_gem_branch():
+    run_state = _make_run_state(5161)
+    event = Orobas()
+    rng = _PrismaticGemRng()
+    event.rng = rng
+
+    event.generate_initial_options(run_state)
+
+    assert rng.choice_inputs[0] == ["Silent", "Defect", "Regent", "Necrobinder"]
 
 
 def test_orobas_locks_third_option_when_no_setup_relics_apply():

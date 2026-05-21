@@ -1329,10 +1329,11 @@ class Orobas(EventModel):
             (RelicId.SAND_CASTLE.name, {}),
         ]
         off_character_ids = [character.character_id for character in ALL_CHARACTERS if character.character_id != run_state.player.character_id]
+        sea_glass_character_id = rng.choice(off_character_ids) if off_character_ids else run_state.player.character_id
         if rng.next_float() < 0.3333333:
             pool1.append((RelicId.PRISMATIC_GEM.name, {}))
-        elif off_character_ids:
-            pool1.append((RelicId.SEA_GLASS.name, {"_character_id": rng.choice(off_character_ids)}))
+        else:
+            pool1.append((RelicId.SEA_GLASS.name, {"_character_id": sea_glass_character_id}))
         pool2: list[tuple[str, dict[str, object]]] = [
             (RelicId.ALCHEMICAL_COFFER.name, {}),
             (RelicId.DRIFTWOOD.name, {}),
