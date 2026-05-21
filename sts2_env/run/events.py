@@ -206,6 +206,7 @@ class EventResult:
     rewards: dict[str, Any] = field(default_factory=dict)
     event_combat_setup: str | None = None
     post_combat_phase: str | None = None
+    preserve_reward_order: bool = False
 
 
 # ── Event Registry ────────────────────────────────────────────────────

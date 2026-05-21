@@ -1776,7 +1776,10 @@ class RunManager:
                     self._phase = self.PHASE_EVENT
 
                 self._resume_after_reward_chain = _resume_event_options_after_rewards
-                self._current_rewards = RewardsSet(self._run_state.player.player_id).with_custom_rewards(reward_objects)
+                self._current_rewards = RewardsSet(self._run_state.player.player_id).with_custom_rewards(
+                    reward_objects,
+                    preserve_order=result.preserve_reward_order,
+                )
                 self._pending_rewards = self._current_rewards.generate_without_offering(self._run_state)
                 self._phase = self.PHASE_CARD_REWARD
                 self._advance_post_combat_rewards()
@@ -1846,7 +1849,10 @@ class RunManager:
                             self._phase = self.PHASE_EVENT
 
                         self._resume_after_reward_chain = _resume_event_options_after_rewards
-                    self._current_rewards = RewardsSet(self._run_state.player.player_id).with_custom_rewards(reward_objects)
+                    self._current_rewards = RewardsSet(self._run_state.player.player_id).with_custom_rewards(
+                        reward_objects,
+                        preserve_order=result.preserve_reward_order,
+                    )
                     self._pending_rewards = self._current_rewards.generate_without_offering(self._run_state)
                     self._phase = self.PHASE_CARD_REWARD
                     self._advance_post_combat_rewards()
@@ -1888,7 +1894,10 @@ class RunManager:
 
         if reward_objects:
             self._resume_after_reward_chain = self._enter_map_choice
-            self._current_rewards = RewardsSet(self._run_state.player.player_id).with_custom_rewards(reward_objects)
+            self._current_rewards = RewardsSet(self._run_state.player.player_id).with_custom_rewards(
+                reward_objects,
+                preserve_order=result.preserve_reward_order,
+            )
             self._pending_rewards = self._current_rewards.generate_without_offering(self._run_state)
             self._phase = self.PHASE_CARD_REWARD
             self._advance_post_combat_rewards()

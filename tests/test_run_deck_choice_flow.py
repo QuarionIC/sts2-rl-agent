@@ -19,6 +19,7 @@ from sts2_env.run.reward_objects import (
     UpgradeCardsReward,
     DuplicateCardReward,
 )
+from sts2_env.run.modifiers import ModifierModel
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.shop import ShopInventory, ShopRelicEntry
 
@@ -31,6 +32,40 @@ class _FailingChoiceRng:
 class _FirstChoiceRng:
     def choice(self, values):
         return list(values)[0]
+
+
+class _DeckContainsCardOnRelicObtain(ModifierModel):
+    def __init__(self, card_id: CardId) -> None:
+        super().__init__("deck_contains_card_on_relic_obtain")
+        self.card_id = card_id
+        self.seen: list[bool] = []
+
+    def modify_rewards_late(self, player, rewards, room, run_state):
+        wrapped = []
+        for reward in rewards:
+            if isinstance(reward, RelicReward):
+                reward.select = self._wrap_select(player, reward.select)
+            wrapped.append(reward)
+        return wrapped
+
+    def _wrap_select(self, player, select):
+        def wrapped_select(run_manager, **kwargs):
+            self.seen.append(any(card.card_id == self.card_id for card in player.deck))
+            return select(run_manager, **kwargs)
+
+        return wrapped_select
+
+
+class _DeckContainsCardOnGoldGain:
+    def __init__(self, card_id: CardId) -> None:
+        self.card_id = card_id
+        self.seen: list[bool] = []
+
+    def should_gain_gold(self, owner, amount: int) -> bool:
+        return True
+
+    def on_gold_gained(self, owner, amount: int) -> None:
+        self.seen.append(any(card.card_id == self.card_id for card in owner.deck))
 
 
 def test_shop_remove_card_uses_run_level_deck_choice_and_resumes_shop():
@@ -767,6 +802,38 @@ def test_event_random_relic_plus_add_card_surfaces_relic_then_keeps_add_card_pen
     )
 
 
+def test_event_custom_rewards_preserve_original_command_order():
+    mgr = RunManager(seed=4420, character_id="Ironclad")
+    mgr._phase = RunManager.PHASE_EVENT
+
+    class OrderedEvent(EventModel):
+        def generate_initial_options(self, run_state):
+            return [EventOption("take", "Take")]
+
+        def choose(self, run_state, option_id):
+            return EventResult(
+                finished=True,
+                description="Ordered rewards.",
+                rewards={
+                    "reward_objects": [
+                        AddCardsReward(run_state.player.player_id, [create_card(CardId.ANGER)]),
+                        RelicReward(run_state.player.player_id, relic_id="ANCHOR"),
+                    ]
+                },
+                preserve_reward_order=True,
+            )
+
+    mgr._event_model = OrderedEvent()
+    mgr._event_options = mgr._event_model.generate_initial_options(mgr.run_state)
+
+    result = mgr._do_event_choice({"option_id": "take"})
+
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert isinstance(mgr._current_reward, RelicReward)
+    assert mgr._current_reward.relic_id == "ANCHOR"
+    assert any(card.card_id == CardId.ANGER for card in mgr.run_state.player.deck)
+
+
 def test_event_grave_of_the_forgotten_confront_routes_to_enchant_reward_chain():
     mgr = RunManager(seed=836, character_id="Ironclad")
     mgr.run_state.player.deck.append(make_backstab())
@@ -794,6 +861,48 @@ def test_event_trial_merchant_innocent_routes_to_upgrade_reward_chain():
     assert isinstance(mgr._current_reward, UpgradeCardsReward)
     assert mgr.run_state.pending_choice is not None
     assert any(card.card_id.name == "SHAME" for card in mgr.run_state.player.deck)
+
+
+def test_event_trial_merchant_guilty_adds_regret_before_relics():
+    mgr = RunManager(seed=4421, character_id="Ironclad")
+    modifier = _DeckContainsCardOnRelicObtain(CardId.REGRET)
+    mgr.run_state.modifiers = [modifier]
+    mgr._phase = RunManager.PHASE_EVENT
+    mgr._event_model = Trial()
+    mgr._event_options = []
+    relics = iter(["ANCHOR", "BLOOD_VIAL"])
+    mgr.run_state.player.roll_relic_reward_id = lambda **_: next(relics)
+
+    result = mgr._do_event_choice({"option_id": "merchant_guilty"})
+
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert isinstance(mgr._current_reward, RelicReward)
+    assert any(card.card_id == CardId.REGRET for card in mgr.run_state.player.deck)
+
+    mgr.take_action({"action": "pick_relic_reward"})
+    mgr.take_action({"action": "pick_relic_reward"})
+
+    assert modifier.seen == [True, True]
+    assert mgr.run_state.player.relics[-2:] == ["ANCHOR", "BLOOD_VIAL"]
+
+
+def test_event_trial_noble_innocent_adds_regret_before_gold_gain():
+    mgr = RunManager(seed=4422, character_id="Ironclad")
+    recorder = _DeckContainsCardOnGoldGain(CardId.REGRET)
+    relics = [*mgr.run_state.player.get_relic_objects(), recorder]
+    mgr.run_state.player._ensure_relic_objects = lambda: relics  # noqa: SLF001
+    starting_gold = mgr.run_state.player.gold
+    mgr._phase = RunManager.PHASE_EVENT
+    mgr._event_model = Trial()
+    mgr._event_options = []
+
+    result = mgr._do_event_choice({"option_id": "noble_innocent"})
+
+    assert result["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert mgr._current_reward is None
+    assert any(card.card_id == CardId.REGRET for card in mgr.run_state.player.deck)
+    assert mgr.run_state.player.gold == starting_gold + Trial.NOBLE_INNOCENT_GOLD
+    assert recorder.seen == [True]
 
 
 def test_event_trial_nondescript_innocent_routes_to_transform_reward_chain():

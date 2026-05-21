@@ -40,6 +40,7 @@ from sts2_env.run.reward_objects import (
     AddCardsReward,
     CardReward,
     EnchantCardsReward,
+    GoldReward,
     PotionReward,
     RelicReward,
     RemoveCardReward,
@@ -69,8 +70,18 @@ def _should_defer_event_rewards(run_state: RunState) -> bool:
     return getattr(run_state, "defer_followup_rewards", False)
 
 
-def _event_result_with_rewards(description: str, rewards: list[object]) -> EventResult:
-    return EventResult(finished=True, description=description, rewards={"reward_objects": rewards})
+def _event_result_with_rewards(
+    description: str,
+    rewards: list[object],
+    *,
+    preserve_order: bool = False,
+) -> EventResult:
+    return EventResult(
+        finished=True,
+        description=description,
+        rewards={"reward_objects": rewards},
+        preserve_reward_order=preserve_order,
+    )
 
 
 def _roll_random_relic_rewards(run_state: RunState, count: int) -> list[RelicReward]:
@@ -2311,6 +2322,12 @@ class Trial(EventModel):
     """
 
     event_id = "Trial"
+    MERCHANT_GUILTY_RELICS = 2
+    MERCHANT_INNOCENT_UPGRADES = 2
+    NOBLE_GUILTY_HEAL = 10
+    NOBLE_INNOCENT_GOLD = 300
+    NONDESCRIPT_CARD_REWARDS = 2
+    NONDESCRIPT_INNOCENT_TRANSFORMS = 2
 
     def __init__(self) -> None:
         self._trial_variant: str | None = None
@@ -2368,15 +2385,17 @@ class Trial(EventModel):
 
         if option_id == "merchant_guilty":
             if _should_defer_event_rewards(run_state):
+                relic_rewards = _roll_random_relic_rewards(run_state, self.MERCHANT_GUILTY_RELICS)
                 return _event_result_with_rewards(
                     "Condemned the merchant, gained two relics and Regret.",
                     [
-                        *_roll_random_relic_rewards(run_state, 2),
                         AddCardsReward(run_state.player.player_id, [make_regret()]),
+                        *relic_rewards,
                     ],
+                    preserve_order=True,
                 )
             run_state.player.add_card_instance_to_deck(make_regret())
-            _obtain_random_relics(run_state, 2)
+            _obtain_random_relics(run_state, self.MERCHANT_GUILTY_RELICS)
             return EventResult(finished=True, description="Condemned the merchant, gained two relics and Regret.")
         if option_id == "merchant_innocent":
             if _should_defer_event_rewards(run_state):
@@ -2388,7 +2407,7 @@ class Trial(EventModel):
                     rewards.append(
                         UpgradeCardsReward(
                             run_state.player.player_id,
-                            count=min(2, len(candidates)),
+                            count=min(self.MERCHANT_INNOCENT_UPGRADES, len(candidates)),
                             cards=candidates,
                         )
                     )
@@ -2408,22 +2427,25 @@ class Trial(EventModel):
                     _upgrade_selected_cards(selected, run_state),
                     EventResult(finished=True, description="Spared the merchant, gained Shame and upgraded 2 cards."),
                 )[1],
-                min_count=min(2, len(candidates)),
-                max_count=min(2, len(candidates)),
+                min_count=min(self.MERCHANT_INNOCENT_UPGRADES, len(candidates)),
+                max_count=min(self.MERCHANT_INNOCENT_UPGRADES, len(candidates)),
                 description="Choose 2 cards to upgrade.",
             )
         if option_id == "noble_guilty":
-            run_state.player.heal(10)
+            run_state.player.heal(self.NOBLE_GUILTY_HEAL)
             return EventResult(finished=True, description="Condemned the noble and healed 10 HP.")
         if option_id == "noble_innocent":
             if _should_defer_event_rewards(run_state):
-                run_state.player.gain_gold(300)
                 return _event_result_with_rewards(
                     "Freed the noble, gained 300 gold and Regret.",
-                    [AddCardsReward(run_state.player.player_id, [make_regret()])],
+                    [
+                        AddCardsReward(run_state.player.player_id, [make_regret()]),
+                        GoldReward.fixed(run_state.player.player_id, self.NOBLE_INNOCENT_GOLD),
+                    ],
+                    preserve_order=True,
                 )
             run_state.player.add_card_instance_to_deck(make_regret())
-            run_state.player.gain_gold(300)
+            run_state.player.gain_gold(self.NOBLE_INNOCENT_GOLD)
             return EventResult(finished=True, description="Freed the noble, gained 300 gold and Regret.")
         if option_id == "nondescript_guilty":
             if _should_defer_event_rewards(run_state):
@@ -2431,18 +2453,15 @@ class Trial(EventModel):
                     "Condemned the drifter, gained Doubt and two card rewards.",
                     [
                         AddCardsReward(run_state.player.player_id, [make_doubt()]),
-                        CardReward(
-                            run_state.player.player_id,
-                            generation_context=None,
-                            card_creation_source="other",
-                            roll_upgrade=False,
-                        ),
-                        CardReward(
-                            run_state.player.player_id,
-                            generation_context=None,
-                            card_creation_source="other",
-                            roll_upgrade=False,
-                        ),
+                        *[
+                            CardReward(
+                                run_state.player.player_id,
+                                generation_context=None,
+                                card_creation_source="other",
+                                roll_upgrade=False,
+                            )
+                            for _ in range(self.NONDESCRIPT_CARD_REWARDS)
+                        ],
                     ],
                 )
             run_state.player.add_card_instance_to_deck(make_doubt())
@@ -2456,13 +2475,8 @@ class Trial(EventModel):
                             generation_context=None,
                             card_creation_source="other",
                             roll_upgrade=False,
-                        ),
-                        CardReward(
-                            run_state.player.player_id,
-                            generation_context=None,
-                            card_creation_source="other",
-                            roll_upgrade=False,
-                        ),
+                        )
+                        for _ in range(self.NONDESCRIPT_CARD_REWARDS)
                     ]
                 },
             )
@@ -2472,7 +2486,7 @@ class Trial(EventModel):
                     "Freed the drifter, gained Doubt and transformed 2 cards.",
                     [
                         AddCardsReward(run_state.player.player_id, [make_doubt()]),
-                        TransformCardsReward(run_state.player.player_id, count=2),
+                        TransformCardsReward(run_state.player.player_id, count=self.NONDESCRIPT_INNOCENT_TRANSFORMS),
                     ],
                 )
             run_state.player.add_card_instance_to_deck(make_doubt())
@@ -2485,8 +2499,8 @@ class Trial(EventModel):
                     _transform_selected_cards(selected, run_state, rng=run_state.rng.niche),
                     EventResult(finished=True, description="Freed the drifter, gained Doubt and transformed 2 cards."),
                 )[1],
-                min_count=min(2, len(candidates)),
-                max_count=min(2, len(candidates)),
+                min_count=min(self.NONDESCRIPT_INNOCENT_TRANSFORMS, len(candidates)),
+                max_count=min(self.NONDESCRIPT_INNOCENT_TRANSFORMS, len(candidates)),
                 description="Choose 2 cards to transform.",
             )
         return EventResult(finished=True, description="The trial ends.")

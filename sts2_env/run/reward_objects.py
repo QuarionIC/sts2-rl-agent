@@ -93,6 +93,13 @@ class GoldReward(Reward):
         self.max_gold = max_gold
         self.amount = 0
 
+    @classmethod
+    def fixed(cls, player_id: int, amount: int) -> GoldReward:
+        reward = cls(player_id, amount, amount)
+        reward.amount = amount
+        reward.is_populated = True
+        return reward
+
     def populate(self, run_state: RunState, room: Room | None) -> None:
         self.amount = run_state.rng.rewards.next_int(self.min_gold, self.max_gold)
         self.is_populated = True
@@ -905,6 +912,7 @@ class RewardsSet:
     room: Room | None = None
     rewards: list[Reward] = field(default_factory=list)
     allow_empty_rewards: bool = False
+    preserve_order: bool = False
     _reward_modifiers_applied: bool = False
 
     def empty_for_room(self, room: Room) -> RewardsSet:
@@ -962,8 +970,9 @@ class RewardsSet:
             self.rewards.extend(room.extra_rewards.get(self.player_id, []))
         return self
 
-    def with_custom_rewards(self, rewards: list[Reward]) -> RewardsSet:
+    def with_custom_rewards(self, rewards: list[Reward], *, preserve_order: bool = False) -> RewardsSet:
         self.rewards.extend(rewards)
+        self.preserve_order = self.preserve_order or preserve_order
         return self
 
     def generate_without_offering(self, run_state: RunState) -> list[Reward]:
@@ -999,7 +1008,8 @@ class RewardsSet:
         for reward in self.rewards:
             if not reward.is_populated:
                 reward.populate(run_state, self.room)
-        self.rewards.sort(key=lambda reward: reward.rewards_set_index)
+        if not self.preserve_order:
+            self.rewards.sort(key=lambda reward: reward.rewards_set_index)
         return self.rewards
 
     @staticmethod
