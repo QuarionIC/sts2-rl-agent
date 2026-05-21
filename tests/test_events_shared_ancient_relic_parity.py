@@ -33,6 +33,15 @@ class _ChoiceLastRng:
         return seq[-1]
 
 
+class _RecordingChoiceLastRng:
+    def __init__(self) -> None:
+        self.choice_inputs = []
+
+    def choice(self, seq):
+        self.choice_inputs.append(list(seq))
+        return seq[-1]
+
+
 class _ReverseShuffleRng:
     def shuffle(self, seq) -> None:
         seq.reverse()
@@ -271,7 +280,7 @@ def test_pael_pool_conditions_and_legion_lockout_follow_deck_and_relic_state():
     pael.rng = _ChoiceLastRng()
     pael.generate_initial_options(run_state)
 
-    assert pael._choices["relic_2"] == RelicId.PAELS_TOOTH.name
+    assert pael._choices["relic_2"] == RelicId.PAELS_GROWTH.name
     assert pael._choices["relic_3"] == RelicId.PAELS_LEGION.name
     relics_before = len(run_state.player.relics)
     pael.choose(run_state, "relic_3")
@@ -294,6 +303,25 @@ def test_pael_pool_conditions_and_legion_lockout_follow_deck_and_relic_state():
     byrdpip_pael.rng = _ChoiceLastRng()
     byrdpip_pael.generate_initial_options(byrdpip_state)
     assert byrdpip_pael._choices["relic_3"] == RelicId.PAELS_BLOOD.name
+
+
+def test_pael_duplicates_conditional_middle_pool_before_single_growth_option():
+    run_state = _make_run_state(6142)
+    rng = _RecordingChoiceLastRng()
+    pael = Pael()
+    pael.rng = rng
+
+    pael.generate_initial_options(run_state)
+
+    assert rng.choice_inputs[1] == [
+        RelicId.PAELS_WING.name,
+        RelicId.PAELS_CLAW.name,
+        RelicId.PAELS_TOOTH.name,
+        RelicId.PAELS_WING.name,
+        RelicId.PAELS_CLAW.name,
+        RelicId.PAELS_TOOTH.name,
+        RelicId.PAELS_GROWTH.name,
+    ]
 
 
 def test_punch_off_and_spirit_grafter_apply_curses_rewards_and_card_removal_damage():

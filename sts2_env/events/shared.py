@@ -1402,12 +1402,12 @@ class Pael(EventModel):
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         rng = self.get_rng(run_state)
         pool1 = [RelicId.PAELS_FLESH.name, RelicId.PAELS_HORN.name, RelicId.PAELS_TEARS.name]
-        pool2 = [RelicId.PAELS_WING.name, RelicId.PAELS_GROWTH.name]
+        pool2 = [RelicId.PAELS_WING.name]
         if sum(1 for card in run_state.player.deck if can_enchant_card(card, "Goopy")) >= 3:
             pool2.append(RelicId.PAELS_CLAW.name)
         if len(run_state.player.removable_deck_cards()) >= 5:
             pool2.append(RelicId.PAELS_TOOTH.name)
-        pool2 = pool2 + pool2
+        pool2 = pool2 + pool2 + [RelicId.PAELS_GROWTH.name]
         pool3 = [RelicId.PAELS_EYE.name, RelicId.PAELS_BLOOD.name]
         if not run_state.player.has_event_pet():
             pool3.append(RelicId.PAELS_LEGION.name)
