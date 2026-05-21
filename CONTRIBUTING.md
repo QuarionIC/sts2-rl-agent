@@ -72,7 +72,7 @@ pytest tests/ --cov=sts2_env --cov-report=term-missing
 The test suite covers:
 - `test_damage.py` -- damage/block calculation pipelines
 - `test_combat_flow.py` -- turn flow, card play, end turn
-- `test_cards.py` -- individual card effects
+- `test_ironclad_basic_card_effects_parity.py` -- Ironclad starter card effects
 - `test_powers.py` -- power hook behavior
 - `test_monster_ai.py` -- state machine transitions
 - `test_encounters.py` -- encounter setup
@@ -137,7 +137,7 @@ The test suite covers:
        )
    ```
 
-5. **Add tests** in `tests/test_cards.py`:
+5. **Add tests** in the matching card parity test file:
    ```python
    def test_your_card_deals_damage_and_applies_vulnerable():
        combat = make_combat_with_deck([make_your_card()])
