@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sts2_env.core.constants import VULNERABLE_MULTIPLIER
+from sts2_env.core.constants import PERCENT_DENOMINATOR, VULNERABLE_MULTIPLIER
 from sts2_env.core.enums import (
     RelicRarity, CombatSide, CardType, OrbType, PowerId, RoomType, ValueProp,
 )
@@ -535,7 +535,7 @@ class PaperPhrog(RelicInstance):
         vulnerable_multiplier = VULNERABLE_MULTIPLIER
         cruelty = dealer.powers.get(PowerId.CRUELTY)
         if cruelty is not None:
-            vulnerable_multiplier += cruelty.amount / 100.0
+            vulnerable_multiplier += cruelty.amount / PERCENT_DENOMINATOR
         if target.has_power(PowerId.DEBILITATE):
             vulnerable_multiplier += vulnerable_multiplier - 1.0
 

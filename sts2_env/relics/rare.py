@@ -1288,6 +1288,7 @@ class PaperKrane(RelicInstance):
     rarity = RelicRarity.RARE
     pool = RelicPool.SILENT
     EXTRA_WEAK = 0.15
+    FLOAT_ROUND_DIGITS = 10
 
     def modify_damage_multiplicative(
         self,
@@ -1306,7 +1307,7 @@ class PaperKrane(RelicInstance):
         if dealer.has_power(PowerId.DEBILITATE):
             weak_multiplier -= 1.0 - weak_multiplier
 
-        return max(0.0, round((weak_multiplier - self.EXTRA_WEAK) / weak_multiplier, 10))
+        return max(0.0, round((weak_multiplier - self.EXTRA_WEAK) / weak_multiplier, self.FLOAT_ROUND_DIGITS))
 
 
 @register_relic
