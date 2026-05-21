@@ -189,3 +189,32 @@ class TestRelicRareShopRestAttackOrbHooksParity:
         assert combat.pending_choice is None
         assert [card.card_id.name for card in combat.discard_pile] == ["STRIKE_IRONCLAD", "DEFEND_IRONCLAD"]
         assert [card.card_id.name for card in combat.hand] == ["BASH", "INFLAME", "THUNDERCLAP"]
+
+    def test_gambling_chip_can_confirm_without_discarding_or_drawing(self):
+        """Matches GamblingChip.cs: zero selected hand cards leaves hand and piles unchanged."""
+        combat = _make_ironclad_combat(["GamblingChip"], seed=1808)
+        relic = _combat_relic(combat, "GAMBLING_CHIP")
+        strike = make_strike_ironclad()
+        defend = make_defend_ironclad()
+        bash = make_bash()
+        inflame = make_inflame()
+        for card in (strike, defend, bash, inflame):
+            card.owner = combat.player
+
+        combat.pending_choice = None
+        combat.hand = [strike, defend, bash]
+        combat.draw_pile = [inflame]
+        combat.discard_pile = []
+
+        relic.after_player_turn_start(combat.player, combat)
+
+        assert combat.pending_choice is not None
+        assert combat.pending_choice.min_choices == 0
+        assert combat.pending_choice.max_choices == 3
+        assert combat.pending_choice.allow_skip is True
+
+        assert combat.resolve_pending_choice(None) is True
+        assert combat.pending_choice is None
+        assert combat.hand == [strike, defend, bash]
+        assert combat.draw_pile == [inflame]
+        assert combat.discard_pile == []

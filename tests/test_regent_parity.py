@@ -284,6 +284,24 @@ class TestRegentParity:
         assert len(sacrifices) == 2
         assert all(card.upgraded for card in sacrifices)
 
+    def test_guards_can_confirm_without_transforming_hand_cards(self):
+        """Matches Guards.cs: zero selected hand cards means no transformations."""
+        combat = _make_combat()
+        a = make_strike_ironclad()
+        b = make_defend_ironclad()
+        combat.hand = [make_guards(), a, b]
+        combat.energy = 2
+
+        assert combat.play_card(0)
+        assert combat.pending_choice is not None
+        assert combat.pending_choice.min_choices == 0
+        assert combat.pending_choice.max_choices == 2
+        assert combat.pending_choice.allow_skip is True
+
+        assert combat.resolve_pending_choice(None)
+        assert combat.pending_choice is None
+        assert combat.hand == [a, b]
+
     def test_big_bang_draws_then_gains_star_energy_and_forge(self):
         """Matches BigBang.cs: draw, gain stars, gain energy, then forge."""
         combat = _make_combat()
