@@ -77,6 +77,7 @@ def test_colorful_philosophers_choice_surfaces_three_rarity_tiered_card_rewards(
     assert all(reward.character_ids == (chosen_pool,) for reward in rewards)
     assert all(reward.use_default_character_pool is False for reward in rewards)
     assert all(reward.card_creation_source == "other" for reward in rewards)
+    assert all(reward.roll_upgrade is True for reward in rewards)
     assert [reward.forced_rarities for reward in rewards] == [
         (CardRarity.COMMON, CardRarity.COMMON, CardRarity.COMMON),
         (CardRarity.UNCOMMON, CardRarity.UNCOMMON, CardRarity.UNCOMMON),

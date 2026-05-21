@@ -337,6 +337,14 @@ class _RecordingChoiceRng:
         return choices[0]
 
 
+class _FirstChoiceZeroFloatRng:
+    def choice(self, values):
+        return list(values)[0]
+
+    def next_float(self, upper: float = 1.0) -> float:
+        return 0.0
+
+
 class TestUniformNoncombatCards:
     def test_excludes_basic_and_ancient_cards_like_original_uniform_rewards(self):
         rs = RunState(42, character_id="Ironclad")
@@ -357,6 +365,39 @@ class TestUniformNoncombatCards:
         assert CardId.BREAK not in offered_rarities
         assert CardId.CORRUPTION_CARD not in offered_rarities
         assert all(rarity not in {CardRarity.BASIC, CardRarity.ANCIENT} for rarity in offered_rarities.values())
+
+
+class TestNoncombatRewardUpgrades:
+    def test_defaults_to_no_upgrade_roll_like_noncombat_helpers(self):
+        rs = RunState(500, character_id="Ironclad")
+        rs.initialize_run()
+        rs.current_act_index = 1
+        rs.rng.rewards = _FirstChoiceZeroFloatRng()
+
+        cards = generate_noncombat_reward_cards(
+            rs,
+            num_cards=1,
+            forced_rarities=(CardRarity.COMMON,),
+        )
+
+        assert len(cards) == 1
+        assert cards[0].upgraded is False
+
+    def test_can_roll_upgrades_for_manual_other_card_creation_options(self):
+        rs = RunState(501, character_id="Ironclad")
+        rs.initialize_run()
+        rs.current_act_index = 1
+        rs.rng.rewards = _FirstChoiceZeroFloatRng()
+
+        cards = generate_noncombat_reward_cards(
+            rs,
+            num_cards=1,
+            forced_rarities=(CardRarity.COMMON,),
+            roll_upgrade=True,
+        )
+
+        assert len(cards) == 1
+        assert cards[0].upgraded is True
 
 
 class TestCombatGenerationEligibility:

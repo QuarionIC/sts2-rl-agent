@@ -320,6 +320,7 @@ class CardReward(Reward):
                     include_colorless=options.include_colorless,
                     card_type=options.card_type,
                     custom_card_ids=options.custom_card_ids,
+                    roll_upgrade=options.roll_upgrade,
                 )
             else:
                 self.cards = generate_combat_reward_cards(

@@ -759,7 +759,6 @@ class ColorfulPhilosophers(EventModel):
                 use_default_character_pool=False,
                 generation_context=None,
                 card_creation_source="other",
-                roll_upgrade=False,
             )
             for rarity in (CardRarity.COMMON, CardRarity.UNCOMMON, CardRarity.RARE)
         ]
@@ -2414,8 +2413,18 @@ class Trial(EventModel):
                     "Condemned the drifter, gained Doubt and two card rewards.",
                     [
                         AddCardsReward(run_state.player.player_id, [make_doubt()]),
-                        CardReward(run_state.player.player_id, generation_context=None, card_creation_source="other"),
-                        CardReward(run_state.player.player_id, generation_context=None, card_creation_source="other"),
+                        CardReward(
+                            run_state.player.player_id,
+                            generation_context=None,
+                            card_creation_source="other",
+                            roll_upgrade=False,
+                        ),
+                        CardReward(
+                            run_state.player.player_id,
+                            generation_context=None,
+                            card_creation_source="other",
+                            roll_upgrade=False,
+                        ),
                     ],
                 )
             run_state.player.add_card_instance_to_deck(make_doubt())
@@ -2424,8 +2433,18 @@ class Trial(EventModel):
                 description="Condemned the drifter, gained Doubt and two card rewards.",
                 rewards={
                     "reward_objects": [
-                        CardReward(run_state.player.player_id, generation_context=None, card_creation_source="other"),
-                        CardReward(run_state.player.player_id, generation_context=None, card_creation_source="other"),
+                        CardReward(
+                            run_state.player.player_id,
+                            generation_context=None,
+                            card_creation_source="other",
+                            roll_upgrade=False,
+                        ),
+                        CardReward(
+                            run_state.player.player_id,
+                            generation_context=None,
+                            card_creation_source="other",
+                            roll_upgrade=False,
+                        ),
                     ]
                 },
             )

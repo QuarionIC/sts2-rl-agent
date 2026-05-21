@@ -422,6 +422,7 @@ def generate_noncombat_reward_cards(
     cost: int | None = None,
     costs_x: bool | None = None,
     custom_card_ids: tuple[CardId, ...] = (),
+    roll_upgrade: bool = False,
 ) -> list[CardInstance]:
     if character_ids is None:
         character_ids = (run_state.player.character_id,)
@@ -439,7 +440,7 @@ def generate_noncombat_reward_cards(
             character_ids=character_ids,
             include_colorless=include_colorless,
             generation_context=None,
-            roll_upgrade=False,
+            roll_upgrade=roll_upgrade,
             card_type=card_type,
             cost=cost,
             costs_x=costs_x,

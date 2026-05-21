@@ -148,6 +148,8 @@ def test_trial_nondescript_guilty_surfaces_card_rewards_through_run_manager():
     second = mgr._do_event_choice({"option_id": "nondescript_guilty"})
     assert second["phase"] == RunManager.PHASE_CARD_REWARD
     assert any(card.card_id == make_doubt().card_id for card in mgr.run_state.player.deck)
+    rewards = [mgr._current_reward, *mgr._pending_rewards]
+    assert all(getattr(reward, "roll_upgrade", True) is False for reward in rewards)
 
     actions = mgr.get_available_actions()
     reward_actions = [action for action in actions if action["action"] == "pick_card"]
@@ -537,7 +539,7 @@ def test_shared_reward_and_curse_events_apply_real_state_changes():
     assert len(rewards) == 3
     assert all(reward.reward_type.name == "CARD" for reward in rewards)
     assert all(getattr(reward, "generation_context", "combat") is None for reward in rewards)
-    assert all(getattr(reward, "roll_upgrade", True) is False for reward in rewards)
+    assert all(getattr(reward, "roll_upgrade", False) is True for reward in rewards)
 
     flower = ColossalFlower()
     result = flower.choose(run_state, "reach_deeper")
