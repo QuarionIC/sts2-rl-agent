@@ -32,6 +32,7 @@ from sts2_env.run.modifiers import (
     NightTerrorsModifier,
     PANDORAS_BOX_RELIC_ID,
     SealedDeckModifier,
+    SEALED_DECK_RARITY_SORT_ORDER,
     TerminalModifier,
     VintageModifier,
 )
@@ -156,6 +157,11 @@ def test_neow_sealed_deck_modifier_requests_ten_of_thirty_cards():
     assert len(run_state.pending_choice.options) == 30
     assert run_state.pending_choice.min_choices == 10
     assert run_state.pending_choice.max_choices == 10
+    offered_cards = [option.card for option in run_state.pending_choice.options]
+    assert offered_cards == sorted(
+        offered_cards,
+        key=lambda card: (SEALED_DECK_RARITY_SORT_ORDER[card.rarity], card.card_id.name),
+    )
 
 
 def test_neow_all_star_modifier_adds_five_colorless_cards():

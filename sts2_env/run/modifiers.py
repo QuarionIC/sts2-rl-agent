@@ -43,6 +43,17 @@ SPECIALIZED_CARD_REWARD_COUNT = 1
 SPECIALIZED_CARD_COPIES = 5
 SEALED_DECK_OFFERED_CARD_COUNT = 30
 SEALED_DECK_PICK_COUNT = 10
+SEALED_DECK_RARITY_SORT_ORDER = {
+    CardRarity.BASIC: 1,
+    CardRarity.COMMON: 2,
+    CardRarity.UNCOMMON: 3,
+    CardRarity.RARE: 4,
+    CardRarity.ANCIENT: 5,
+    CardRarity.EVENT: 6,
+    CardRarity.STATUS: 8,
+    CardRarity.CURSE: 9,
+    CardRarity.QUEST: 10,
+}
 DEPRECATED_MODIFIER_ID = "deprecated"
 
 
@@ -473,6 +484,7 @@ class SealedDeckModifier(ModifierModel):
         )
         if not cards:
             return EventResult(finished=True, description="No cards available.")
+        cards.sort(key=lambda card: (SEALED_DECK_RARITY_SORT_ORDER[card.rarity], card.card_id.name))
         run_state.pending_choice = PendingCardChoice(
             prompt=f"Choose {SEALED_DECK_PICK_COUNT} cards for your sealed deck",
             options=[CardChoiceOption(card=card, source_pile="deck") for card in cards],
