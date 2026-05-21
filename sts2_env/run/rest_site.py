@@ -11,6 +11,8 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from sts2_env.relics.base import RelicId
+
 if TYPE_CHECKING:
     from sts2_env.run.reward_objects import Reward
     from sts2_env.run.run_state import PlayerState
@@ -121,25 +123,27 @@ class DigOption(RestSiteOption):
 class LiftOption(RestSiteOption):
     """Increment Girya counter. Max 3 lifts -> +1 Strength each."""
 
+    MAX_LIFTS = 3
+
     def __init__(self, lifts_done: int = 0) -> None:
         super().__init__(
             option_id="LIFT",
             label="Lift",
             description="Exercise with Girya",
-            enabled=lifts_done < 3,
+            enabled=lifts_done < self.MAX_LIFTS,
         )
         self.lifts_done = lifts_done
 
     def execute(self, player: PlayerState, **kwargs: Any) -> str:
         for relic in player.get_relic_objects():
             lift = getattr(relic, "lift", None)
-            if callable(lift) and getattr(relic, "relic_id", None).name == "GIRYA":
+            if callable(lift) and getattr(relic, "relic_id", None) == RelicId.GIRYA:
                 if lift():
                     self.lifts_done = getattr(relic, "_times_lifted", self.lifts_done + 1)
-                    return f"Lifted! ({self.lifts_done}/3)"
+                    return f"Lifted! ({self.lifts_done}/{self.MAX_LIFTS})"
                 return "Cannot lift further"
         self.lifts_done += 1
-        return f"Lifted! ({self.lifts_done}/3)"
+        return f"Lifted! ({self.lifts_done}/{self.MAX_LIFTS})"
 
 
 class CookOption(RestSiteOption):

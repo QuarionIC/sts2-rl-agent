@@ -14,6 +14,12 @@ from sts2_env.run.rest_site import generate_rest_site_options
 from sts2_env.run.run_state import RunState
 
 
+IRONCLAD_CHARACTER_ID = "Ironclad"
+GIRYA_RELIC_NAME = "GIRYA"
+GIRYA_MAX_LIFTS = 3
+GIRYA_PARITY_SEED = 1801
+
+
 def _make_ironclad_combat(
     relics: list[str] | None = None,
     *,
@@ -61,17 +67,17 @@ def _combat_relic(combat: CombatState, relic_name: str):
 class TestRelicRareShopRestAttackOrbHooksParity:
     def test_girya_lift_option_caps_at_three_and_grants_strength_in_combat(self):
         """Matches Girya.cs: add Lift up to 3 times, then grant that much Strength in combat."""
-        run_state = RunState(seed=1801, character_id="Ironclad")
-        assert run_state.player.obtain_relic("GIRYA")
+        run_state = RunState(seed=GIRYA_PARITY_SEED, character_id=IRONCLAD_CHARACTER_ID)
+        assert run_state.player.obtain_relic(GIRYA_RELIC_NAME)
 
-        for lifts_done in range(1, 4):
+        for lifts_done in range(1, GIRYA_MAX_LIFTS + 1):
             option = next(option for option in generate_rest_site_options(run_state.player) if option.option_id == "LIFT")
-            assert option.execute(run_state.player) == f"Lifted! ({lifts_done}/3)"
+            assert option.execute(run_state.player) == f"Lifted! ({lifts_done}/{GIRYA_MAX_LIFTS})"
 
         assert all(option.option_id != "LIFT" for option in generate_rest_site_options(run_state.player))
 
-        combat = _make_ironclad_combat(seed=1801, player_state=run_state.player)
-        assert combat.player.get_power_amount(PowerId.STRENGTH) == 3
+        combat = _make_ironclad_combat(seed=GIRYA_PARITY_SEED, player_state=run_state.player)
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == GIRYA_MAX_LIFTS
 
     def test_shovel_adds_dig_option_and_queues_a_relic_reward(self):
         """Matches Shovel.cs: rest sites add Dig, which offers a relic reward."""
