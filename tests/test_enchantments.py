@@ -10,6 +10,7 @@ from sts2_env.core.enums import CardId, CardType, PowerId
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 from sts2_env.relics.shop_event import Claws
+from sts2_env.relics.shop_event import GnarledHammer, Kifuda
 from sts2_env.run.rest_site import CloneOption
 from sts2_env.run.reward_objects import RelicReward
 from sts2_env.run.run_manager import RunManager
@@ -271,6 +272,48 @@ def test_claws_excludes_quest_cards_from_transform_choices():
     assert run_state.player.deck[0] is quest
     assert run_state.player.deck[0].card_type == CardType.QUEST
     assert run_state.player.deck[1].card_id == CardId.MAUL
+
+
+def test_gnarled_hammer_can_confirm_without_enchanting_any_attacks():
+    run_state = RunState(seed=109, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.enable_deck_choice_requests = True
+    attacks = [make_strike_ironclad(), make_strike_ironclad()]
+    run_state.player.deck = attacks[:]
+
+    run_state.player.obtain_relic("GNARLED_HAMMER")
+
+    choice = run_state.pending_choice
+    assert choice is not None
+    assert choice.allow_skip is True
+    assert choice.min_choices == 0
+    assert choice.max_choices == min(GnarledHammer.CARDS, len(attacks))
+    assert [option.card for option in choice.options] == attacks
+
+    assert run_state.resolve_pending_choice(None)
+    assert run_state.pending_choice is None
+    assert all(not card.has_enchantment("Sharp") for card in attacks)
+
+
+def test_kifuda_can_confirm_without_enchanting_any_cards():
+    run_state = RunState(seed=113, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.enable_deck_choice_requests = True
+    deck = [make_strike_ironclad(), make_defend_ironclad()]
+    run_state.player.deck = deck[:]
+
+    run_state.player.obtain_relic("KIFUDA")
+
+    choice = run_state.pending_choice
+    assert choice is not None
+    assert choice.allow_skip is True
+    assert choice.min_choices == 0
+    assert choice.max_choices == min(Kifuda.CARDS, len(deck))
+    assert [option.card for option in choice.options] == deck
+
+    assert run_state.resolve_pending_choice(None)
+    assert run_state.pending_choice is None
+    assert all(not card.has_enchantment("Adroit") for card in deck)
 
 
 def test_run_level_relic_hooks_fire_for_curse_add_and_potion_procure():

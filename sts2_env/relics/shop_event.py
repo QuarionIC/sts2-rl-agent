@@ -410,13 +410,14 @@ class Kifuda(RelicInstance):
     rarity = RelicRarity.SHOP
     pool = RelicPool.SHARED
     CARDS = 3
+    ADROIT = 3
 
     def after_obtained(self, owner: Creature) -> None:
         candidates = [card for card in owner.deck if can_enchant_card(card, "Adroit")]
         if getattr(owner.run_state, "defer_followup_rewards", False):
-            owner.offer_enchant_cards_reward("Adroit", 3, self.CARDS, cards=candidates, min_count=0)
+            owner.offer_enchant_cards_reward("Adroit", self.ADROIT, self.CARDS, cards=candidates, min_count=0)
             return
-        owner.enchant_selected_cards("Adroit", 3, self.CARDS, cards=candidates, min_count=0)
+        owner.enchant_selected_cards("Adroit", self.ADROIT, self.CARDS, cards=candidates, min_count=0)
 
 
 @register_relic
