@@ -21,7 +21,7 @@ from sts2_env.events.act2 import (
     Symbiote,
     WhisperingHollow,
 )
-from sts2_env.run.reward_objects import EnchantCardsReward, RemoveCardReward, TransformCardsReward
+from sts2_env.run.reward_objects import EnchantCardsReward, PotionReward, RemoveCardReward, TransformCardsReward
 from sts2_env.potions.base import create_potion
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.run_state import PlayerState, RunState
@@ -206,14 +206,56 @@ def test_ranwid_requires_all_players_to_have_gold_potion_and_tradable_relic():
 def test_whispering_hollow_requires_all_players_to_have_gold():
     run_state = RunState(seed=3101, character_id="Ironclad")
     run_state.initialize_run()
-    run_state.player.gold = 50
-    ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent", gold=49))
+    run_state.player.gold = WhisperingHollow.GOLD_COST
+    ally = run_state.add_player(PlayerState(player_id=2, character_id="Silent", gold=WhisperingHollow.GOLD_COST - 1))
     event = WhisperingHollow()
 
     assert event.is_allowed(run_state) is False
 
-    ally.gold = 50
+    ally.gold = WhisperingHollow.GOLD_COST
     assert event.is_allowed(run_state) is True
+
+
+def test_whispering_hollow_options_and_effects_match_reference_vars():
+    run_state = RunState(seed=3102, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.player.deck = create_ironclad_starter_deck()
+    run_state.player.gold = 200
+    event = WhisperingHollow()
+
+    options = event.generate_initial_options(run_state)
+
+    assert [option.option_id for option in options] == [
+        WhisperingHollow.OPTION_GOLD,
+        WhisperingHollow.OPTION_HUG,
+    ]
+    assert options[0].label == f"Pay Gold ({WhisperingHollow.GOLD_COST}g)"
+    assert options[0].description == f"Gain {WhisperingHollow.GOLD_POTION_REWARD_COUNT} potions"
+    assert options[1].description == f"Take {WhisperingHollow.HUG_DAMAGE} damage, transform 1 card"
+
+    gold_before = run_state.player.gold
+    gold_result = event.choose(run_state, WhisperingHollow.OPTION_GOLD)
+    potion_rewards = gold_result.rewards["reward_objects"]
+
+    assert gold_result.finished
+    assert run_state.player.gold == gold_before - WhisperingHollow.GOLD_COST
+    assert len(potion_rewards) == WhisperingHollow.GOLD_POTION_REWARD_COUNT
+    assert all(isinstance(reward, PotionReward) for reward in potion_rewards)
+
+    deferred_state = RunState(seed=3103, character_id="Ironclad")
+    deferred_state.initialize_run()
+    deferred_state.player.deck = create_ironclad_starter_deck()
+    deferred_state.defer_followup_rewards = True
+    hp_before = deferred_state.player.current_hp
+    deferred_event = WhisperingHollow()
+
+    hug_result = deferred_event.choose(deferred_state, WhisperingHollow.OPTION_HUG)
+    transform_reward = hug_result.rewards["reward_objects"][0]
+
+    assert hug_result.finished
+    assert deferred_state.player.current_hp == hp_before - WhisperingHollow.HUG_DAMAGE
+    assert isinstance(transform_reward, TransformCardsReward)
+    assert transform_reward.count == 1
 
 
 def test_potion_courier_ransack_uses_event_specific_uncommon_pool_order():

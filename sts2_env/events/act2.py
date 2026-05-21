@@ -1662,30 +1662,46 @@ class WhisperingHollow(EventModel):
     """Gold: Pay 50g, gain 2 potions. Hug: Take 9 damage, transform 1 card."""
 
     event_id = "WhisperingHollow"
+    GOLD_COST = 50
+    GOLD_POTION_REWARD_COUNT = 2
+    HUG_DAMAGE = 9
+    OPTION_GOLD = "gold"
+    OPTION_HUG = "hug"
 
     def is_allowed(self, run_state: RunState) -> bool:
-        return all(player.gold >= 50 for player in run_state.players)
+        return all(player.gold >= self.GOLD_COST for player in run_state.players)
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         return [
-            EventOption("gold", "Pay Gold (50g)", "Gain 2 potions"),
-            EventOption("hug", "Hug", "Take 9 damage, transform 1 card"),
+            EventOption(
+                self.OPTION_GOLD,
+                f"Pay Gold ({self.GOLD_COST}g)",
+                f"Gain {self.GOLD_POTION_REWARD_COUNT} potions",
+            ),
+            EventOption(
+                self.OPTION_HUG,
+                "Hug",
+                f"Take {self.HUG_DAMAGE} damage, transform 1 card",
+            ),
         ]
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
-        if option_id == "gold":
-            run_state.player.lose_gold(50)
-            rewards = [PotionReward(run_state.player.player_id), PotionReward(run_state.player.player_id)]
+        if option_id == self.OPTION_GOLD:
+            run_state.player.lose_gold(self.GOLD_COST)
+            rewards = [
+                PotionReward(run_state.player.player_id)
+                for _ in range(self.GOLD_POTION_REWARD_COUNT)
+            ]
             return EventResult(
                 finished=True,
-                description="Paid 50g, gained 2 potions.",
+                description=f"Paid {self.GOLD_COST}g, gained {self.GOLD_POTION_REWARD_COUNT} potions.",
                 rewards={"reward_objects": rewards},
             )
         candidates = run_state.player.transformable_deck_cards()
         if _should_defer_event_rewards(run_state):
-            run_state.player.lose_hp(9)
+            run_state.player.lose_hp(self.HUG_DAMAGE)
             return _event_result_with_rewards(
-                "Took 9 damage, transformed 1 card.",
+                f"Took {self.HUG_DAMAGE} damage, transformed 1 card.",
                 [
                     TransformCardsReward(
                         run_state.player.player_id,
@@ -1700,8 +1716,8 @@ class WhisperingHollow(EventModel):
             source_pile="deck",
             resolver=lambda selected: (
                 _transform_selected_cards(selected, run_state, rng=self.get_rng(run_state)),
-                run_state.player.lose_hp(9),
-                EventResult(finished=True, description="Took 9 damage, transformed 1 card."),
+                run_state.player.lose_hp(self.HUG_DAMAGE),
+                EventResult(finished=True, description=f"Took {self.HUG_DAMAGE} damage, transformed 1 card."),
             )[-1],
             description="Choose a card to transform.",
         )
