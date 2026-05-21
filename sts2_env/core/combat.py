@@ -584,16 +584,13 @@ class CombatState:
     ) -> str:
         if relics:
             starter_relic_map = {
-                "BURNING_BLOOD": "Ironclad",
-                "RING_OF_THE_SNAKE": "Silent",
-                "CRACKED_CORE": "Defect",
-                "BOUND_PHYLACTERY": "Necrobinder",
-                "DIVINE_RIGHT": "Regent",
+                config.starting_relic: config.character_id
+                for config in ALL_CHARACTERS
             }
             for relic in relics:
                 relic_id = getattr(relic, "relic_id", None)
                 if relic_id is not None:
-                    inferred = starter_relic_map.get(relic_id.name)
+                    inferred = starter_relic_map.get(relic_id)
                     if inferred is not None:
                         return inferred
 

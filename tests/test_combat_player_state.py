@@ -6,6 +6,7 @@ from sts2_env.cards.defect import make_charge_battery
 from sts2_env.cards.silent import make_backflip
 from sts2_env.cards.regent import make_gather_light
 from sts2_env.cards.ironclad_basic import make_strike_ironclad
+from sts2_env.characters.all import SILENT
 from sts2_env.core.combat import CombatState
 from sts2_env.core.creature import Creature
 from sts2_env.core.enums import CombatSide, PowerId
@@ -13,6 +14,21 @@ from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 from sts2_env.potions.base import create_potion
 from sts2_env.run.run_state import PlayerState
+
+
+SILENT_STARTER_RELIC_INFERENCE_SEED = 7
+
+
+def test_combat_infers_character_from_starter_relic_enum():
+    combat = CombatState(
+        player_hp=SILENT.starting_hp,
+        player_max_hp=SILENT.starting_hp,
+        deck=create_ironclad_starter_deck(),
+        rng_seed=SILENT_STARTER_RELIC_INFERENCE_SEED,
+        relics=[SILENT.starting_relic],
+    )
+
+    assert combat.character_id == SILENT.character_id
 
 
 def test_add_ally_player_state_creates_full_combat_player_state():
