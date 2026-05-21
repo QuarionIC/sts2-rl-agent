@@ -309,6 +309,9 @@ def test_big_game_hunter_modifier_makes_elite_card_rewards_rare():
     reward.populate(run_state, create_room(RoomType.ELITE))
 
     assert reward.cards
+    assert reward.forced_rarities == ()
+    assert reward.has_custom_card_pool is True
+    assert all(card.card_id in reward.custom_card_ids for card in reward.cards)
     assert all(card.rarity == CardRarity.RARE for card in reward.cards)
 
 

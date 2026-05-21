@@ -319,7 +319,7 @@ class BigGameHunterModifier(ModifierModel):
             context=options.context,
             num_cards=options.num_cards,
             character_ids=options.character_ids,
-            forced_rarities=(CardRarity.RARE,) * options.num_cards,
+            forced_rarities=options.forced_rarities,
             include_colorless=options.include_colorless,
             use_default_character_pool=False,
             generation_context=options.generation_context,
