@@ -98,7 +98,7 @@ def setup_flyconid_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_fogmog_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_fogmog(rng)
+    creature, ai = create_fogmog(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 

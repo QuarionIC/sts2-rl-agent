@@ -324,51 +324,99 @@ def create_eye_with_teeth(rng: Rng) -> tuple[Creature, MonsterAI]:
     return creature, MonsterAI(states, "DISTRACT_MOVE")
 
 
-def create_fogmog(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 74
-    creature = Creature(max_hp=hp, monster_id="FOGMOG")
+FOGMOG_BASE_HP = 74
+FOGMOG_TOUGH_HP = 78
+FOGMOG_BASE_SWIPE_DAMAGE = 8
+FOGMOG_DEADLY_SWIPE_DAMAGE = 9
+FOGMOG_BASE_HEADBUTT_DAMAGE = 14
+FOGMOG_DEADLY_HEADBUTT_DAMAGE = 16
+FOGMOG_SWIPE_STRENGTH_GAIN = 1
+FOGMOG_BRANCH_MOVE = "BRANCH"
+FOGMOG_ILLUSION_MOVE = "ILLUSION_MOVE"
+FOGMOG_SWIPE_MOVE = "SWIPE_MOVE"
+FOGMOG_SWIPE_RANDOM_MOVE = "SWIPE_RANDOM_MOVE"
+FOGMOG_HEADBUTT_MOVE = "HEADBUTT_MOVE"
+FOGMOG_SWIPE_RANDOM_WEIGHT = 0.4
+FOGMOG_HEADBUTT_WEIGHT = 0.6
 
-    swipe_dmg = 8
-    headbutt_dmg = 14
+
+def create_fogmog(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        FOGMOG_TOUGH_HP,
+        FOGMOG_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id="FOGMOG")
 
     def illusion(combat: CombatState) -> None:
         eye, eye_ai = create_eye_with_teeth(rng)
         combat.add_enemy(eye, eye_ai)
 
     def swipe(combat: CombatState) -> None:
+        swipe_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FOGMOG_DEADLY_SWIPE_DAMAGE,
+            FOGMOG_BASE_SWIPE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, swipe_dmg)
-        combat.apply_power_to(creature, PowerId.STRENGTH, 1, applier=creature)
+        combat.apply_power_to(creature, PowerId.STRENGTH, FOGMOG_SWIPE_STRENGTH_GAIN, applier=creature)
 
     def headbutt(combat: CombatState) -> None:
+        headbutt_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FOGMOG_DEADLY_HEADBUTT_DAMAGE,
+            FOGMOG_BASE_HEADBUTT_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, headbutt_dmg)
 
-    rand = RandomBranchState("BRANCH")
-    rand.add_branch("SWIPE_RANDOM_MOVE", MoveRepeatType.CANNOT_REPEAT, weight=0.4)
-    rand.add_branch("HEADBUTT_MOVE", MoveRepeatType.CANNOT_REPEAT, weight=0.6)
+    swipe_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FOGMOG_DEADLY_SWIPE_DAMAGE,
+        FOGMOG_BASE_SWIPE_DAMAGE,
+    )
+    headbutt_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FOGMOG_DEADLY_HEADBUTT_DAMAGE,
+        FOGMOG_BASE_HEADBUTT_DAMAGE,
+    )
+
+    rand = RandomBranchState(FOGMOG_BRANCH_MOVE)
+    rand.add_branch(FOGMOG_SWIPE_RANDOM_MOVE, MoveRepeatType.CANNOT_REPEAT, weight=FOGMOG_SWIPE_RANDOM_WEIGHT)
+    rand.add_branch(FOGMOG_HEADBUTT_MOVE, MoveRepeatType.CANNOT_REPEAT, weight=FOGMOG_HEADBUTT_WEIGHT)
 
     states: dict[str, MonsterState] = {
-        "ILLUSION_MOVE": MoveState("ILLUSION_MOVE", illusion, [Intent(IntentType.SUMMON)], follow_up_id="SWIPE_MOVE"),
-        "SWIPE_MOVE": MoveState(
-            "SWIPE_MOVE",
-            swipe,
-            [attack_intent(swipe_dmg), buff_intent()],
-            follow_up_id="BRANCH",
+        FOGMOG_ILLUSION_MOVE: MoveState(
+            FOGMOG_ILLUSION_MOVE,
+            illusion,
+            [Intent(IntentType.SUMMON)],
+            follow_up_id=FOGMOG_SWIPE_MOVE,
         ),
-        "BRANCH": rand,
-        "SWIPE_RANDOM_MOVE": MoveState(
-            "SWIPE_RANDOM_MOVE",
+        FOGMOG_SWIPE_MOVE: MoveState(
+            FOGMOG_SWIPE_MOVE,
             swipe,
-            [attack_intent(swipe_dmg), buff_intent()],
-            follow_up_id="HEADBUTT_MOVE",
+            [attack_intent(swipe_intent_damage), buff_intent()],
+            follow_up_id=FOGMOG_BRANCH_MOVE,
         ),
-        "HEADBUTT_MOVE": MoveState(
-            "HEADBUTT_MOVE",
+        FOGMOG_BRANCH_MOVE: rand,
+        FOGMOG_SWIPE_RANDOM_MOVE: MoveState(
+            FOGMOG_SWIPE_RANDOM_MOVE,
+            swipe,
+            [attack_intent(swipe_intent_damage), buff_intent()],
+            follow_up_id=FOGMOG_HEADBUTT_MOVE,
+        ),
+        FOGMOG_HEADBUTT_MOVE: MoveState(
+            FOGMOG_HEADBUTT_MOVE,
             headbutt,
-            [attack_intent(headbutt_dmg)],
-            follow_up_id="SWIPE_MOVE",
+            [attack_intent(headbutt_intent_damage)],
+            follow_up_id=FOGMOG_SWIPE_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "ILLUSION_MOVE")
+    return creature, MonsterAI(states, FOGMOG_ILLUSION_MOVE)
 
 
 # ---- Inklet (HP 11-17 / 12-18 asc) ----

@@ -322,6 +322,13 @@ class TestAct1NormalEncounters:
         setup_fogmog_normal(combat, Rng(42))
         assert len(combat.enemies) == 1
 
+    def test_fogmog_tough_ascension_hp_matches_csharp(self):
+        combat = _make_combat()
+        combat.ascension_level = 8
+        setup_fogmog_normal(combat, Rng(42))
+        assert len(combat.enemies) == 1
+        assert combat.enemies[0].max_hp == 78
+
     def test_inklets_count(self):
         combat = _make_combat()
         setup_inklets_normal(combat, Rng(42))

@@ -543,6 +543,28 @@ class TestFixedRotation:
         flyconid_ai.states["VULNERABLE_SPORES_MOVE"].perform(combat)
         assert ally.get_power_amount(PowerId.VULNERABLE) == 2
 
+    def test_fogmog_ascension_scaling_matches_csharp(self):
+        rng_seed = 1272
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=70)
+        fogmog, fogmog_ai = create_fogmog(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(fogmog, fogmog_ai)
+
+        swipe = fogmog_ai.states["SWIPE_MOVE"]
+        assert swipe.intents[0].damage == 9
+        ally_hp_before_swipe = ally.current_hp
+        swipe.perform(combat)
+        assert ally.current_hp == ally_hp_before_swipe - 9
+        assert fogmog.get_power_amount(PowerId.STRENGTH) == 1
+
+        fogmog.powers.pop(PowerId.STRENGTH)
+        headbutt = fogmog_ai.states["HEADBUTT_MOVE"]
+        assert headbutt.intents[0].damage == 16
+        ally_hp_before_headbutt = ally.current_hp
+        headbutt.perform(combat)
+        assert ally.current_hp == ally_hp_before_headbutt - 16
+
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle
 
