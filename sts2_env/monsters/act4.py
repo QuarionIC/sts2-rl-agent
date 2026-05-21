@@ -1514,134 +1514,339 @@ def create_two_tailed_rat(
 
 # ---- PhantasmalGardener (HP 28-32 / 29-33 asc) ----
 
-def create_phantasmal_gardener(rng: Rng, slot: str = "first") -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(28, 32)
-    creature = Creature(max_hp=hp, monster_id="PHANTASMAL_GARDENER")
-    bite_dmg = 5
-    lash_dmg = 7
-    flail_dmg = 1
+PHANTASMAL_GARDENER_MONSTER_ID = "PHANTASMAL_GARDENER"
+PHANTASMAL_GARDENER_BASE_MIN_HP = 28
+PHANTASMAL_GARDENER_BASE_MAX_HP = 32
+PHANTASMAL_GARDENER_TOUGH_MIN_HP = 29
+PHANTASMAL_GARDENER_TOUGH_MAX_HP = 33
+PHANTASMAL_GARDENER_BITE_DAMAGE = 5
+PHANTASMAL_GARDENER_LASH_DAMAGE = 7
+PHANTASMAL_GARDENER_FLAIL_DAMAGE = 1
+PHANTASMAL_GARDENER_FLAIL_REPEAT = 3
+PHANTASMAL_GARDENER_BASE_ENLARGE_STRENGTH = 2
+PHANTASMAL_GARDENER_DEADLY_ENLARGE_STRENGTH = 3
+PHANTASMAL_GARDENER_BASE_SKITTISH = 6
+PHANTASMAL_GARDENER_TOUGH_SKITTISH = 7
+PHANTASMAL_GARDENER_INIT_MOVE = "INIT_MOVE"
+PHANTASMAL_GARDENER_BITE_MOVE = "BITE_MOVE"
+PHANTASMAL_GARDENER_LASH_MOVE = "LASH_MOVE"
+PHANTASMAL_GARDENER_FLAIL_MOVE = "FLAIL_MOVE"
+PHANTASMAL_GARDENER_ENLARGE_MOVE = "ENLARGE_MOVE"
+
+
+def create_phantasmal_gardener(
+    rng: Rng,
+    slot: str = "first",
+    ascension_level: int = 0,
+) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        PHANTASMAL_GARDENER_TOUGH_MIN_HP,
+        PHANTASMAL_GARDENER_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        PHANTASMAL_GARDENER_TOUGH_MAX_HP,
+        PHANTASMAL_GARDENER_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=PHANTASMAL_GARDENER_MONSTER_ID)
 
     def bite(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, bite_dmg)
+        _deal_damage_to_player(combat, creature, PHANTASMAL_GARDENER_BITE_DAMAGE)
 
     def lash(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, lash_dmg)
+        _deal_damage_to_player(combat, creature, PHANTASMAL_GARDENER_LASH_DAMAGE)
 
     def flail(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, flail_dmg, hits=3)
+        _deal_damage_to_player(
+            combat,
+            creature,
+            PHANTASMAL_GARDENER_FLAIL_DAMAGE,
+            hits=PHANTASMAL_GARDENER_FLAIL_REPEAT,
+        )
 
     def enlarge(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, 2, applier=creature)
+        enlarge_strength = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            PHANTASMAL_GARDENER_DEADLY_ENLARGE_STRENGTH,
+            PHANTASMAL_GARDENER_BASE_ENLARGE_STRENGTH,
+        )
+        creature.apply_power(PowerId.STRENGTH, enlarge_strength, applier=creature)
 
-    init = ConditionalBranchState("INIT_MOVE")
-    init.add_branch(lambda: slot == "first", "FLAIL_MOVE")
-    init.add_branch(lambda: slot == "second", "BITE_MOVE")
-    init.add_branch(lambda: slot == "third", "LASH_MOVE")
-    init.add_branch(lambda: slot == "fourth", "ENLARGE_MOVE")
+    init = ConditionalBranchState(PHANTASMAL_GARDENER_INIT_MOVE)
+    init.add_branch(lambda: slot == "first", PHANTASMAL_GARDENER_FLAIL_MOVE)
+    init.add_branch(lambda: slot == "second", PHANTASMAL_GARDENER_BITE_MOVE)
+    init.add_branch(lambda: slot == "third", PHANTASMAL_GARDENER_LASH_MOVE)
+    init.add_branch(lambda: slot == "fourth", PHANTASMAL_GARDENER_ENLARGE_MOVE)
 
     states: dict[str, MonsterState] = {
-        "INIT_MOVE": init,
-        "BITE_MOVE": MoveState("BITE_MOVE", bite, [attack_intent(bite_dmg)], follow_up_id="LASH_MOVE"),
-        "LASH_MOVE": MoveState("LASH_MOVE", lash, [attack_intent(lash_dmg)], follow_up_id="FLAIL_MOVE"),
-        "FLAIL_MOVE": MoveState(
-            "FLAIL_MOVE",
-            flail,
-            [multi_attack_intent(flail_dmg, 3)],
-            follow_up_id="ENLARGE_MOVE",
+        PHANTASMAL_GARDENER_INIT_MOVE: init,
+        PHANTASMAL_GARDENER_BITE_MOVE: MoveState(
+            PHANTASMAL_GARDENER_BITE_MOVE,
+            bite,
+            [attack_intent(PHANTASMAL_GARDENER_BITE_DAMAGE)],
+            follow_up_id=PHANTASMAL_GARDENER_LASH_MOVE,
         ),
-        "ENLARGE_MOVE": MoveState("ENLARGE_MOVE", enlarge, [buff_intent()], follow_up_id="BITE_MOVE"),
+        PHANTASMAL_GARDENER_LASH_MOVE: MoveState(
+            PHANTASMAL_GARDENER_LASH_MOVE,
+            lash,
+            [attack_intent(PHANTASMAL_GARDENER_LASH_DAMAGE)],
+            follow_up_id=PHANTASMAL_GARDENER_FLAIL_MOVE,
+        ),
+        PHANTASMAL_GARDENER_FLAIL_MOVE: MoveState(
+            PHANTASMAL_GARDENER_FLAIL_MOVE,
+            flail,
+            [multi_attack_intent(PHANTASMAL_GARDENER_FLAIL_DAMAGE, PHANTASMAL_GARDENER_FLAIL_REPEAT)],
+            follow_up_id=PHANTASMAL_GARDENER_ENLARGE_MOVE,
+        ),
+        PHANTASMAL_GARDENER_ENLARGE_MOVE: MoveState(
+            PHANTASMAL_GARDENER_ENLARGE_MOVE,
+            enlarge,
+            [buff_intent()],
+            follow_up_id=PHANTASMAL_GARDENER_BITE_MOVE,
+        ),
     }
-    creature.apply_power(PowerId.SKITTISH, 6)
-    return creature, MonsterAI(states, "INIT_MOVE", rng)
+    skittish = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        PHANTASMAL_GARDENER_TOUGH_SKITTISH,
+        PHANTASMAL_GARDENER_BASE_SKITTISH,
+    )
+    creature.apply_power(PowerId.SKITTISH, skittish)
+    return creature, MonsterAI(states, PHANTASMAL_GARDENER_INIT_MOVE, rng)
 
 
 # ---- SkulkingColony (HP 79 / 84 asc) ----
 
-def create_skulking_colony(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 79
-    creature = Creature(max_hp=hp, monster_id="SKULKING_COLONY")
-    super_crab_dmg = 6
-    zoom_dmg = 16
-    smash_dmg = 9
-    smash_dazed = 4
-    inertia_block = 10
+SKULKING_COLONY_MONSTER_ID = "SKULKING_COLONY"
+SKULKING_COLONY_BASE_HP = 79
+SKULKING_COLONY_TOUGH_HP = 84
+SKULKING_COLONY_BASE_SUPER_CRAB_DAMAGE = 6
+SKULKING_COLONY_DEADLY_SUPER_CRAB_DAMAGE = 7
+SKULKING_COLONY_SUPER_CRAB_REPEAT = 2
+SKULKING_COLONY_BASE_ZOOM_DAMAGE = 16
+SKULKING_COLONY_DEADLY_ZOOM_DAMAGE = 17
+SKULKING_COLONY_BASE_SMASH_DAMAGE = 9
+SKULKING_COLONY_DEADLY_SMASH_DAMAGE = 11
+SKULKING_COLONY_SMASH_DAZED = 4
+SKULKING_COLONY_BASE_INERTIA_BLOCK = 10
+SKULKING_COLONY_TOUGH_INERTIA_BLOCK = 13
+SKULKING_COLONY_HARDENED_SHELL = 20
+SKULKING_COLONY_INERTIA_STRENGTH = 3
+SKULKING_COLONY_INERTIA_MOVE = "INERTIA_MOVE"
+SKULKING_COLONY_ZOOM_MOVE = "ZOOM_MOVE"
+SKULKING_COLONY_SUPER_CRAB_MOVE = "SUPER_CRAB_MOVE"
+SKULKING_COLONY_SMASH_MOVE = "SMASH_MOVE"
+
+
+def create_skulking_colony(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SKULKING_COLONY_TOUGH_HP,
+        SKULKING_COLONY_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=SKULKING_COLONY_MONSTER_ID)
 
     def inertia(combat: CombatState) -> None:
+        inertia_block = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            SKULKING_COLONY_TOUGH_INERTIA_BLOCK,
+            SKULKING_COLONY_BASE_INERTIA_BLOCK,
+        )
         _gain_block(creature, inertia_block, combat)
-        creature.apply_power(PowerId.STRENGTH, 3, applier=creature)
+        creature.apply_power(PowerId.STRENGTH, SKULKING_COLONY_INERTIA_STRENGTH, applier=creature)
 
     def zoom(combat: CombatState) -> None:
+        zoom_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SKULKING_COLONY_DEADLY_ZOOM_DAMAGE,
+            SKULKING_COLONY_BASE_ZOOM_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, zoom_dmg)
 
     def super_crab(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, super_crab_dmg, hits=2)
+        super_crab_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SKULKING_COLONY_DEADLY_SUPER_CRAB_DAMAGE,
+            SKULKING_COLONY_BASE_SUPER_CRAB_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, super_crab_dmg, hits=SKULKING_COLONY_SUPER_CRAB_REPEAT)
 
     def smash(combat: CombatState) -> None:
+        smash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SKULKING_COLONY_DEADLY_SMASH_DAMAGE,
+            SKULKING_COLONY_BASE_SMASH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, smash_dmg)
         if combat.is_over:
             return
-        add_generated_cards_to_living_player_discards(combat, make_dazed, smash_dazed)
+        add_generated_cards_to_living_player_discards(combat, make_dazed, SKULKING_COLONY_SMASH_DAZED)
+
+    super_crab_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SKULKING_COLONY_DEADLY_SUPER_CRAB_DAMAGE,
+        SKULKING_COLONY_BASE_SUPER_CRAB_DAMAGE,
+    )
+    zoom_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SKULKING_COLONY_DEADLY_ZOOM_DAMAGE,
+        SKULKING_COLONY_BASE_ZOOM_DAMAGE,
+    )
+    smash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SKULKING_COLONY_DEADLY_SMASH_DAMAGE,
+        SKULKING_COLONY_BASE_SMASH_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "INERTIA_MOVE": MoveState(
-            "INERTIA_MOVE",
+        SKULKING_COLONY_INERTIA_MOVE: MoveState(
+            SKULKING_COLONY_INERTIA_MOVE,
             inertia,
             [defend_intent(), buff_intent()],
-            follow_up_id="SUPER_CRAB_MOVE",
+            follow_up_id=SKULKING_COLONY_SUPER_CRAB_MOVE,
         ),
-        "ZOOM_MOVE": MoveState("ZOOM_MOVE", zoom, [attack_intent(zoom_dmg)], follow_up_id="INERTIA_MOVE"),
-        "SUPER_CRAB_MOVE": MoveState(
-            "SUPER_CRAB_MOVE",
+        SKULKING_COLONY_ZOOM_MOVE: MoveState(
+            SKULKING_COLONY_ZOOM_MOVE,
+            zoom,
+            [attack_intent(zoom_intent_damage)],
+            follow_up_id=SKULKING_COLONY_INERTIA_MOVE,
+        ),
+        SKULKING_COLONY_SUPER_CRAB_MOVE: MoveState(
+            SKULKING_COLONY_SUPER_CRAB_MOVE,
             super_crab,
-            [multi_attack_intent(super_crab_dmg, 2)],
-            follow_up_id="SMASH_MOVE",
+            [multi_attack_intent(super_crab_intent_damage, SKULKING_COLONY_SUPER_CRAB_REPEAT)],
+            follow_up_id=SKULKING_COLONY_SMASH_MOVE,
         ),
-        "SMASH_MOVE": MoveState(
-            "SMASH_MOVE",
+        SKULKING_COLONY_SMASH_MOVE: MoveState(
+            SKULKING_COLONY_SMASH_MOVE,
             smash,
-            [attack_intent(smash_dmg), status_intent()],
-            follow_up_id="ZOOM_MOVE",
+            [attack_intent(smash_intent_damage), status_intent()],
+            follow_up_id=SKULKING_COLONY_ZOOM_MOVE,
         ),
     }
-    creature.apply_power(PowerId.HARDENED_SHELL, 20)
-    return creature, MonsterAI(states, "SMASH_MOVE")
+    creature.apply_power(PowerId.HARDENED_SHELL, SKULKING_COLONY_HARDENED_SHELL)
+    return creature, MonsterAI(states, SKULKING_COLONY_SMASH_MOVE)
 
 
 # ---- TerrorEel (HP 140 / 150 asc) ----
 
-def create_terror_eel(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 140
-    creature = Creature(max_hp=hp, monster_id="TERROR_EEL")
-    crash_dmg = 17
-    thrash_dmg = 3
-    terror_vulnerable = 99
+TERROR_EEL_MONSTER_ID = "TERROR_EEL"
+TERROR_EEL_BASE_HP = 140
+TERROR_EEL_TOUGH_HP = 150
+TERROR_EEL_BASE_SHRIEK = 70
+TERROR_EEL_TOUGH_SHRIEK = 75
+TERROR_EEL_BASE_CRASH_DAMAGE = 17
+TERROR_EEL_DEADLY_CRASH_DAMAGE = 19
+TERROR_EEL_BASE_THRASH_DAMAGE = 3
+TERROR_EEL_DEADLY_THRASH_DAMAGE = 4
+TERROR_EEL_THRASH_REPEAT = 3
+TERROR_EEL_TERROR_VULNERABLE = 99
+TERROR_EEL_THRASH_VIGOR = 7
+TERROR_EEL_CRASH_MOVE = "CRASH_MOVE"
+TERROR_EEL_THRASH_MOVE = "ThrashMove"
+TERROR_EEL_STUN_MOVE = "STUN_MOVE"
+TERROR_EEL_TERROR_MOVE = "TERROR_MOVE"
+
+
+def create_terror_eel(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TERROR_EEL_TOUGH_HP,
+        TERROR_EEL_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=TERROR_EEL_MONSTER_ID)
 
     def crash(combat: CombatState) -> None:
+        crash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TERROR_EEL_DEADLY_CRASH_DAMAGE,
+            TERROR_EEL_BASE_CRASH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, crash_dmg)
 
     def thrash(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, thrash_dmg, hits=3)
-        combat.apply_power_to(creature, PowerId.VIGOR, 7, applier=creature)
+        thrash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TERROR_EEL_DEADLY_THRASH_DAMAGE,
+            TERROR_EEL_BASE_THRASH_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, thrash_dmg, hits=TERROR_EEL_THRASH_REPEAT)
+        combat.apply_power_to(creature, PowerId.VIGOR, TERROR_EEL_THRASH_VIGOR, applier=creature)
 
     def stun(combat: CombatState) -> None:
         pass
 
     def terror(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.VULNERABLE, terror_vulnerable, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.VULNERABLE,
+            TERROR_EEL_TERROR_VULNERABLE,
+            applier=creature,
+        )
+
+    crash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TERROR_EEL_DEADLY_CRASH_DAMAGE,
+        TERROR_EEL_BASE_CRASH_DAMAGE,
+    )
+    thrash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TERROR_EEL_DEADLY_THRASH_DAMAGE,
+        TERROR_EEL_BASE_THRASH_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "CRASH_MOVE": MoveState("CRASH_MOVE", crash, [attack_intent(crash_dmg)], follow_up_id="ThrashMove"),
-        "ThrashMove": MoveState(
-            "ThrashMove",
-            thrash,
-            [multi_attack_intent(thrash_dmg, 3), buff_intent()],
-            follow_up_id="CRASH_MOVE",
+        TERROR_EEL_CRASH_MOVE: MoveState(
+            TERROR_EEL_CRASH_MOVE,
+            crash,
+            [attack_intent(crash_intent_damage)],
+            follow_up_id=TERROR_EEL_THRASH_MOVE,
         ),
-        "STUN_MOVE": MoveState("STUN_MOVE", stun, [Intent(IntentType.STUN)], follow_up_id="TERROR_MOVE"),
-        "TERROR_MOVE": MoveState("TERROR_MOVE", terror, [debuff_intent()], follow_up_id="CRASH_MOVE"),
+        TERROR_EEL_THRASH_MOVE: MoveState(
+            TERROR_EEL_THRASH_MOVE,
+            thrash,
+            [multi_attack_intent(thrash_intent_damage, TERROR_EEL_THRASH_REPEAT), buff_intent()],
+            follow_up_id=TERROR_EEL_CRASH_MOVE,
+        ),
+        TERROR_EEL_STUN_MOVE: MoveState(
+            TERROR_EEL_STUN_MOVE,
+            stun,
+            [Intent(IntentType.STUN)],
+            follow_up_id=TERROR_EEL_TERROR_MOVE,
+        ),
+        TERROR_EEL_TERROR_MOVE: MoveState(
+            TERROR_EEL_TERROR_MOVE,
+            terror,
+            [debuff_intent()],
+            follow_up_id=TERROR_EEL_CRASH_MOVE,
+        ),
     }
-    creature.apply_power(PowerId.SHRIEK, 70)
-    return creature, MonsterAI(states, "CRASH_MOVE")
+    shriek = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TERROR_EEL_TOUGH_SHRIEK,
+        TERROR_EEL_BASE_SHRIEK,
+    )
+    creature.apply_power(PowerId.SHRIEK, shriek)
+    return creature, MonsterAI(states, TERROR_EEL_CRASH_MOVE)
 
 
 # ========================================================================

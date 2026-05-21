@@ -156,17 +156,17 @@ NORMAL_ENCOUNTERS: list[EncounterSetup] = [
 
 def setup_phantasmal_gardeners_elite(combat: CombatState, rng: Rng) -> None:
     for slot in ("first", "second", "third", "fourth"):
-        creature, ai = create_phantasmal_gardener(rng, slot=slot)
+        creature, ai = create_phantasmal_gardener(rng, slot=slot, ascension_level=combat.ascension_level)
         combat.add_enemy(creature, ai)
 
 
 def setup_skulking_colony_elite(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_skulking_colony(rng)
+    creature, ai = create_skulking_colony(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
 def setup_terror_eel_elite(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_terror_eel(rng)
+    creature, ai = create_terror_eel(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 

@@ -57,8 +57,10 @@ from sts2_env.encounters.act4 import (
     setup_sewer_clam_normal,
     setup_sludge_spinner_weak,
     setup_soul_fysh_boss,
+    setup_skulking_colony_elite,
     setup_toadpoles_normal,
     setup_toadpoles_weak,
+    setup_terror_eel_elite,
     setup_two_tailed_rats_normal,
     setup_waterfall_giant_boss,
 )
@@ -122,6 +124,11 @@ from sts2_env.monsters.act4 import (
     LIVING_FOG_BLOAT_MOVE,
     LIVING_FOG_MONSTER_ID,
     LIVING_FOG_SUPER_GAS_BLAST_MOVE,
+    PHANTASMAL_GARDENER_BITE_MOVE,
+    PHANTASMAL_GARDENER_ENLARGE_MOVE,
+    PHANTASMAL_GARDENER_FLAIL_MOVE,
+    PHANTASMAL_GARDENER_LASH_MOVE,
+    PHANTASMAL_GARDENER_MONSTER_ID,
     PUNCH_CONSTRUCT_ARTIFACT,
     PUNCH_CONSTRUCT_FAST_PUNCH_MOVE,
     PUNCH_CONSTRUCT_MONSTER_ID,
@@ -140,6 +147,16 @@ from sts2_env.monsters.act4 import (
     SLUDGE_SPINNER_RAGE_MOVE,
     SLUDGE_SPINNER_SLAM_MOVE,
     SLUDGE_SPINNER_MONSTER_ID,
+    SKULKING_COLONY_INERTIA_MOVE,
+    SKULKING_COLONY_MONSTER_ID,
+    SKULKING_COLONY_SMASH_MOVE,
+    SKULKING_COLONY_SUPER_CRAB_MOVE,
+    SKULKING_COLONY_ZOOM_MOVE,
+    TERROR_EEL_CRASH_MOVE,
+    TERROR_EEL_MONSTER_ID,
+    TERROR_EEL_STUN_MOVE,
+    TERROR_EEL_TERROR_MOVE,
+    TERROR_EEL_THRASH_MOVE,
     TWO_TAILED_RAT_CALL_FOR_BACKUP_MOVE,
     TWO_TAILED_RAT_DISEASE_BITE_MOVE,
     TWO_TAILED_RAT_MONSTER_ID,
@@ -766,6 +783,43 @@ TWO_TAILED_RAT_A8_HP_RANGE = (18, 22)
 TWO_TAILED_RAT_SCRATCH_DAMAGE_A9 = 9
 TWO_TAILED_RAT_DISEASE_BITE_DAMAGE_A9 = 7
 TWO_TAILED_RAT_SCREECH_FRAIL = 1
+STUNNED_MOVE_ID = "STUNNED"
+PHANTASMAL_GARDENER_BASE_HP_RANGE = (28, 32)
+PHANTASMAL_GARDENER_A8_HP_RANGE = (29, 33)
+PHANTASMAL_GARDENER_BITE_DAMAGE = 5
+PHANTASMAL_GARDENER_LASH_DAMAGE = 7
+PHANTASMAL_GARDENER_FLAIL_DAMAGE = 1
+PHANTASMAL_GARDENER_FLAIL_HITS = 3
+PHANTASMAL_GARDENER_BASE_ENLARGE_STRENGTH = 2
+PHANTASMAL_GARDENER_ENLARGE_STRENGTH_A9 = 3
+PHANTASMAL_GARDENER_BASE_SKITTISH = 6
+PHANTASMAL_GARDENER_SKITTISH_A8 = 7
+SKULKING_COLONY_BASE_HP = 79
+SKULKING_COLONY_A8_HP = 84
+SKULKING_COLONY_BASE_SUPER_CRAB_DAMAGE = 6
+SKULKING_COLONY_SUPER_CRAB_DAMAGE_A9 = 7
+SKULKING_COLONY_SUPER_CRAB_HITS = 2
+SKULKING_COLONY_BASE_ZOOM_DAMAGE = 16
+SKULKING_COLONY_ZOOM_DAMAGE_A9 = 17
+SKULKING_COLONY_BASE_SMASH_DAMAGE = 9
+SKULKING_COLONY_SMASH_DAMAGE_A9 = 11
+SKULKING_COLONY_SMASH_DAZED = 4
+SKULKING_COLONY_BASE_INERTIA_BLOCK = 10
+SKULKING_COLONY_INERTIA_BLOCK_A8 = 13
+SKULKING_COLONY_INERTIA_STRENGTH = 3
+SKULKING_COLONY_HARDENED_SHELL = 20
+TERROR_EEL_BASE_HP = 140
+TERROR_EEL_A8_HP = 150
+TERROR_EEL_BASE_SHRIEK = 70
+TERROR_EEL_SHRIEK_A8 = 75
+TERROR_EEL_BASE_CRASH_DAMAGE = 17
+TERROR_EEL_CRASH_DAMAGE_A9 = 19
+TERROR_EEL_BASE_THRASH_DAMAGE = 3
+TERROR_EEL_THRASH_DAMAGE_A9 = 4
+TERROR_EEL_THRASH_HITS = 3
+TERROR_EEL_THRASH_VIGOR = 7
+TERROR_EEL_TERROR_VULNERABLE = 99
+TERROR_EEL_SHRIEK_BREAK_DAMAGE = 80
 FABRICATOR_BASE_HP = 150
 FABRICATOR_A8_HP = 155
 FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9 = 21
@@ -6738,99 +6792,121 @@ class TestFixedRotation:
         assert matriarch.get_power_amount(PowerId.STRENGTH) == soul_siphon_strength
 
     def test_act4_elites_match_original_moves_and_setup(self):
-        assert create_phantasmal_gardener(Rng(77), slot="first")[1].current_move.state_id == "FLAIL_MOVE"
-        assert create_phantasmal_gardener(Rng(77), slot="second")[1].current_move.state_id == "BITE_MOVE"
-        assert create_phantasmal_gardener(Rng(77), slot="third")[1].current_move.state_id == "LASH_MOVE"
-        assert create_phantasmal_gardener(Rng(77), slot="fourth")[1].current_move.state_id == "ENLARGE_MOVE"
+        assert create_phantasmal_gardener(Rng(77), slot="first")[1].current_move.state_id == (
+            PHANTASMAL_GARDENER_FLAIL_MOVE
+        )
+        assert create_phantasmal_gardener(Rng(77), slot="second")[1].current_move.state_id == (
+            PHANTASMAL_GARDENER_BITE_MOVE
+        )
+        assert create_phantasmal_gardener(Rng(77), slot="third")[1].current_move.state_id == (
+            PHANTASMAL_GARDENER_LASH_MOVE
+        )
+        assert create_phantasmal_gardener(Rng(77), slot="fourth")[1].current_move.state_id == (
+            PHANTASMAL_GARDENER_ENLARGE_MOVE
+        )
 
         gardener, gardener_ai = create_phantasmal_gardener(Rng(77), slot="second")
         gardener_combat = _make_combat(77)
         gardener_combat.add_enemy(gardener, gardener_ai)
-        assert 28 <= gardener.max_hp <= 32
-        assert gardener.get_power_amount(PowerId.SKITTISH) == 6
+        assert PHANTASMAL_GARDENER_BASE_HP_RANGE[0] <= gardener.max_hp <= PHANTASMAL_GARDENER_BASE_HP_RANGE[1]
+        assert gardener.get_power_amount(PowerId.SKITTISH) == PHANTASMAL_GARDENER_BASE_SKITTISH
         assert _run_ai(gardener_ai, Rng(77), 5) == [
-            "BITE_MOVE",
-            "LASH_MOVE",
-            "FLAIL_MOVE",
-            "ENLARGE_MOVE",
-            "BITE_MOVE",
+            PHANTASMAL_GARDENER_BITE_MOVE,
+            PHANTASMAL_GARDENER_LASH_MOVE,
+            PHANTASMAL_GARDENER_FLAIL_MOVE,
+            PHANTASMAL_GARDENER_ENLARGE_MOVE,
+            PHANTASMAL_GARDENER_BITE_MOVE,
         ]
-        gardener_ai.states["FLAIL_MOVE"].perform(gardener_combat)
-        assert gardener_combat.player.current_hp == 77
-        gardener_ai.states["ENLARGE_MOVE"].perform(gardener_combat)
-        assert gardener.get_power_amount(PowerId.STRENGTH) == 2
+        player_hp_before_flail = gardener_combat.player.current_hp
+        gardener_ai.states[PHANTASMAL_GARDENER_FLAIL_MOVE].perform(gardener_combat)
+        assert gardener_combat.player.current_hp == (
+            player_hp_before_flail - PHANTASMAL_GARDENER_FLAIL_DAMAGE * PHANTASMAL_GARDENER_FLAIL_HITS
+        )
+        gardener_ai.states[PHANTASMAL_GARDENER_ENLARGE_MOVE].perform(gardener_combat)
+        assert gardener.get_power_amount(PowerId.STRENGTH) == PHANTASMAL_GARDENER_BASE_ENLARGE_STRENGTH
 
         gardeners_combat = _make_combat(78)
         setup_phantasmal_gardeners_elite(gardeners_combat, Rng(78))
         assert [enemy.monster_id for enemy in gardeners_combat.enemies] == [
-            "PHANTASMAL_GARDENER",
-            "PHANTASMAL_GARDENER",
-            "PHANTASMAL_GARDENER",
-            "PHANTASMAL_GARDENER",
+            PHANTASMAL_GARDENER_MONSTER_ID,
+            PHANTASMAL_GARDENER_MONSTER_ID,
+            PHANTASMAL_GARDENER_MONSTER_ID,
+            PHANTASMAL_GARDENER_MONSTER_ID,
         ]
         assert [
             gardeners_combat.enemy_ais[enemy.combat_id].current_move.state_id
             for enemy in gardeners_combat.enemies
-        ] == ["FLAIL_MOVE", "BITE_MOVE", "LASH_MOVE", "ENLARGE_MOVE"]
+        ] == [
+            PHANTASMAL_GARDENER_FLAIL_MOVE,
+            PHANTASMAL_GARDENER_BITE_MOVE,
+            PHANTASMAL_GARDENER_LASH_MOVE,
+            PHANTASMAL_GARDENER_ENLARGE_MOVE,
+        ]
 
         colony, colony_ai = create_skulking_colony(Rng(79))
         colony_combat = _make_combat(79)
         colony_combat.add_enemy(colony, colony_ai)
-        assert colony.max_hp == 79
-        assert colony.get_power_amount(PowerId.HARDENED_SHELL) == 20
+        assert colony.max_hp == SKULKING_COLONY_BASE_HP
+        assert colony.get_power_amount(PowerId.HARDENED_SHELL) == SKULKING_COLONY_HARDENED_SHELL
         assert _run_ai(colony_ai, Rng(79), 5) == [
-            "SMASH_MOVE",
-            "ZOOM_MOVE",
-            "INERTIA_MOVE",
-            "SUPER_CRAB_MOVE",
-            "SMASH_MOVE",
+            SKULKING_COLONY_SMASH_MOVE,
+            SKULKING_COLONY_ZOOM_MOVE,
+            SKULKING_COLONY_INERTIA_MOVE,
+            SKULKING_COLONY_SUPER_CRAB_MOVE,
+            SKULKING_COLONY_SMASH_MOVE,
         ]
-        colony_ai.states["SMASH_MOVE"].perform(colony_combat)
-        assert colony_combat.player.current_hp == 71
-        assert [card.card_id for card in colony_combat.discard_pile] == [CardId.DAZED] * 4
+        player_hp_before_smash = colony_combat.player.current_hp
+        colony_ai.states[SKULKING_COLONY_SMASH_MOVE].perform(colony_combat)
+        assert colony_combat.player.current_hp == player_hp_before_smash - SKULKING_COLONY_BASE_SMASH_DAMAGE
+        assert [card.card_id for card in colony_combat.discard_pile] == [CardId.DAZED] * SKULKING_COLONY_SMASH_DAZED
 
         lethal_colony, lethal_colony_ai = create_skulking_colony(Rng(80))
         lethal_colony_combat = _make_combat(80)
         lethal_colony_combat.add_enemy(lethal_colony, lethal_colony_ai)
         lethal_colony_combat.player.current_hp = 9
-        lethal_colony_ai.states["SMASH_MOVE"].perform(lethal_colony_combat)
+        lethal_colony_ai.states[SKULKING_COLONY_SMASH_MOVE].perform(lethal_colony_combat)
         assert lethal_colony_combat.is_over
         assert lethal_colony_combat.player_won is False
         assert lethal_colony_combat.discard_pile == []
 
-        colony_ai.states["INERTIA_MOVE"].perform(colony_combat)
-        assert colony.block == 10
-        assert colony.get_power_amount(PowerId.STRENGTH) == 3
+        colony_ai.states[SKULKING_COLONY_INERTIA_MOVE].perform(colony_combat)
+        assert colony.block == SKULKING_COLONY_BASE_INERTIA_BLOCK
+        assert colony.get_power_amount(PowerId.STRENGTH) == SKULKING_COLONY_INERTIA_STRENGTH
         counter = _BlockHookCounterPower()
         colony.powers[PowerId.JUGGERNAUT] = counter
         colony.block = 0
-        colony_ai.states["INERTIA_MOVE"].perform(colony_combat)
-        assert colony.block == 10
-        assert counter.calls == [10]
+        colony_ai.states[SKULKING_COLONY_INERTIA_MOVE].perform(colony_combat)
+        assert colony.block == SKULKING_COLONY_BASE_INERTIA_BLOCK
+        assert counter.calls == [SKULKING_COLONY_BASE_INERTIA_BLOCK]
 
         colony_zoom, colony_zoom_ai = create_skulking_colony(Rng(80))
         colony_zoom_combat = _make_combat(80)
         colony_zoom_combat.add_enemy(colony_zoom, colony_zoom_ai)
-        colony_zoom_ai.states["ZOOM_MOVE"].perform(colony_zoom_combat)
-        assert colony_zoom_combat.player.current_hp == 64
-        colony_zoom_ai.states["SUPER_CRAB_MOVE"].perform(colony_zoom_combat)
-        assert colony_zoom_combat.player.current_hp == 52
+        player_hp_before_zoom = colony_zoom_combat.player.current_hp
+        colony_zoom_ai.states[SKULKING_COLONY_ZOOM_MOVE].perform(colony_zoom_combat)
+        assert colony_zoom_combat.player.current_hp == player_hp_before_zoom - SKULKING_COLONY_BASE_ZOOM_DAMAGE
+        player_hp_before_super_crab = colony_zoom_combat.player.current_hp
+        colony_zoom_ai.states[SKULKING_COLONY_SUPER_CRAB_MOVE].perform(colony_zoom_combat)
+        assert colony_zoom_combat.player.current_hp == (
+            player_hp_before_super_crab - SKULKING_COLONY_BASE_SUPER_CRAB_DAMAGE * SKULKING_COLONY_SUPER_CRAB_HITS
+        )
 
         eel, eel_ai = create_terror_eel(Rng(81))
         eel_combat = _make_combat(81)
         eel_combat.add_enemy(eel, eel_ai)
-        assert eel.max_hp == 140
-        assert eel.get_power_amount(PowerId.SHRIEK) == 70
-        assert _run_ai(eel_ai, Rng(81), 3) == ["CRASH_MOVE", "ThrashMove", "CRASH_MOVE"]
-        eel_ai.states["ThrashMove"].perform(eel_combat)
-        assert eel_combat.player.current_hp == 71
-        assert eel.get_power_amount(PowerId.VIGOR) == 7
+        assert eel.max_hp == TERROR_EEL_BASE_HP
+        assert eel.get_power_amount(PowerId.SHRIEK) == TERROR_EEL_BASE_SHRIEK
+        assert _run_ai(eel_ai, Rng(81), 3) == [TERROR_EEL_CRASH_MOVE, TERROR_EEL_THRASH_MOVE, TERROR_EEL_CRASH_MOVE]
+        player_hp_before_thrash = eel_combat.player.current_hp
+        eel_ai.states[TERROR_EEL_THRASH_MOVE].perform(eel_combat)
+        assert eel_combat.player.current_hp == player_hp_before_thrash - TERROR_EEL_BASE_THRASH_DAMAGE * TERROR_EEL_THRASH_HITS
+        assert eel.get_power_amount(PowerId.VIGOR) == TERROR_EEL_THRASH_VIGOR
 
         lethal_eel, lethal_eel_ai = create_terror_eel(Rng(83))
         lethal_eel_combat = _make_combat(83)
         lethal_eel_combat.add_enemy(lethal_eel, lethal_eel_ai)
         lethal_eel_combat.player.current_hp = 6
-        lethal_eel_ai.states["ThrashMove"].perform(lethal_eel_combat)
+        lethal_eel_ai.states[TERROR_EEL_THRASH_MOVE].perform(lethal_eel_combat)
         assert lethal_eel_combat.is_over
         assert lethal_eel_combat.player_won is False
         assert lethal_eel.get_power_amount(PowerId.VIGOR) == 0
@@ -6838,38 +6914,146 @@ class TestFixedRotation:
         eel_shriek, eel_shriek_ai = create_terror_eel(Rng(82))
         eel_shriek_combat = _make_combat(82)
         eel_shriek_combat.add_enemy(eel_shriek, eel_shriek_ai)
-        apply_damage(eel_shriek, 80, ValueProp.MOVE, eel_shriek_combat, eel_shriek_combat.player)
+        apply_damage(eel_shriek, TERROR_EEL_SHRIEK_BREAK_DAMAGE, ValueProp.MOVE, eel_shriek_combat, eel_shriek_combat.player)
         assert eel_shriek.get_power_amount(PowerId.SHRIEK) == 0
-        assert eel_shriek_ai.current_move.state_id == "STUNNED"
+        assert eel_shriek_ai.current_move.state_id == STUNNED_MOVE_ID
         eel_shriek_ai.current_move.perform(eel_shriek_combat)
         eel_shriek_ai.on_move_performed()
         eel_shriek_ai.roll_move(Rng(82))
-        assert eel_shriek_ai.current_move.state_id == "TERROR_MOVE"
+        assert eel_shriek_ai.current_move.state_id == TERROR_EEL_TERROR_MOVE
         eel_shriek_ai.current_move.perform(eel_shriek_combat)
-        assert eel_shriek_combat.player.get_power_amount(PowerId.VULNERABLE) == 99
+        assert eel_shriek_combat.player.get_power_amount(PowerId.VULNERABLE) == TERROR_EEL_TERROR_VULNERABLE
+
+    def test_act4_elites_ascension_scaling_matches_csharp(self):
+        rng_seed = 1333
+
+        gardener_combat = _make_combat(rng_seed)
+        gardener_combat.ascension_level = 9
+        gardener, gardener_ai = create_phantasmal_gardener(Rng(rng_seed), slot="fourth", ascension_level=9)
+        gardener_combat.add_enemy(gardener, gardener_ai)
+
+        assert PHANTASMAL_GARDENER_A8_HP_RANGE[0] <= gardener.max_hp <= PHANTASMAL_GARDENER_A8_HP_RANGE[1]
+        assert gardener.get_power_amount(PowerId.SKITTISH) == PHANTASMAL_GARDENER_SKITTISH_A8
+        assert gardener_ai.current_move.state_id == PHANTASMAL_GARDENER_ENLARGE_MOVE
+        assert gardener_ai.states[PHANTASMAL_GARDENER_BITE_MOVE].intents[0].damage == PHANTASMAL_GARDENER_BITE_DAMAGE
+        assert gardener_ai.states[PHANTASMAL_GARDENER_LASH_MOVE].intents[0].damage == PHANTASMAL_GARDENER_LASH_DAMAGE
+        flail = gardener_ai.states[PHANTASMAL_GARDENER_FLAIL_MOVE]
+        assert flail.intents[0].damage == PHANTASMAL_GARDENER_FLAIL_DAMAGE
+        assert flail.intents[0].hits == PHANTASMAL_GARDENER_FLAIL_HITS
+        gardener_ai.states[PHANTASMAL_GARDENER_ENLARGE_MOVE].perform(gardener_combat)
+        assert gardener.get_power_amount(PowerId.STRENGTH) == PHANTASMAL_GARDENER_ENLARGE_STRENGTH_A9
+
+        colony_combat = _make_combat(rng_seed)
+        colony_combat.ascension_level = 9
+        colony, colony_ai = create_skulking_colony(Rng(rng_seed), ascension_level=9)
+        colony_combat.add_enemy(colony, colony_ai)
+
+        assert colony.max_hp == SKULKING_COLONY_A8_HP
+        assert colony.get_power_amount(PowerId.HARDENED_SHELL) == SKULKING_COLONY_HARDENED_SHELL
+        smash = colony_ai.states[SKULKING_COLONY_SMASH_MOVE]
+        assert smash.intents[0].damage == SKULKING_COLONY_SMASH_DAMAGE_A9
+        player_hp_before_smash = colony_combat.player.current_hp
+        smash.perform(colony_combat)
+        assert colony_combat.player.current_hp == player_hp_before_smash - SKULKING_COLONY_SMASH_DAMAGE_A9
+        assert [card.card_id for card in colony_combat.discard_pile] == [CardId.DAZED] * SKULKING_COLONY_SMASH_DAZED
+
+        zoom = colony_ai.states[SKULKING_COLONY_ZOOM_MOVE]
+        assert zoom.intents[0].damage == SKULKING_COLONY_ZOOM_DAMAGE_A9
+        player_hp_before_zoom = colony_combat.player.current_hp
+        zoom.perform(colony_combat)
+        assert colony_combat.player.current_hp == player_hp_before_zoom - SKULKING_COLONY_ZOOM_DAMAGE_A9
+
+        super_crab = colony_ai.states[SKULKING_COLONY_SUPER_CRAB_MOVE]
+        assert super_crab.intents[0].damage == SKULKING_COLONY_SUPER_CRAB_DAMAGE_A9
+        assert super_crab.intents[0].hits == SKULKING_COLONY_SUPER_CRAB_HITS
+        player_hp_before_super_crab = colony_combat.player.current_hp
+        super_crab.perform(colony_combat)
+        assert colony_combat.player.current_hp == (
+            player_hp_before_super_crab - SKULKING_COLONY_SUPER_CRAB_DAMAGE_A9 * SKULKING_COLONY_SUPER_CRAB_HITS
+        )
+
+        colony_ai.states[SKULKING_COLONY_INERTIA_MOVE].perform(colony_combat)
+        assert colony.block == SKULKING_COLONY_INERTIA_BLOCK_A8
+        assert colony.get_power_amount(PowerId.STRENGTH) == SKULKING_COLONY_INERTIA_STRENGTH
+
+        eel_combat = _make_combat(rng_seed)
+        eel_combat.ascension_level = 9
+        eel, eel_ai = create_terror_eel(Rng(rng_seed), ascension_level=9)
+        eel_combat.add_enemy(eel, eel_ai)
+
+        assert eel.max_hp == TERROR_EEL_A8_HP
+        assert eel.get_power_amount(PowerId.SHRIEK) == TERROR_EEL_SHRIEK_A8
+        assert {TERROR_EEL_CRASH_MOVE, TERROR_EEL_THRASH_MOVE, TERROR_EEL_STUN_MOVE, TERROR_EEL_TERROR_MOVE}.issubset(
+            eel_ai.states
+        )
+        crash = eel_ai.states[TERROR_EEL_CRASH_MOVE]
+        assert crash.intents[0].damage == TERROR_EEL_CRASH_DAMAGE_A9
+        player_hp_before_crash = eel_combat.player.current_hp
+        crash.perform(eel_combat)
+        assert eel_combat.player.current_hp == player_hp_before_crash - TERROR_EEL_CRASH_DAMAGE_A9
+
+        thrash = eel_ai.states[TERROR_EEL_THRASH_MOVE]
+        assert thrash.intents[0].damage == TERROR_EEL_THRASH_DAMAGE_A9
+        assert thrash.intents[0].hits == TERROR_EEL_THRASH_HITS
+        player_hp_before_thrash = eel_combat.player.current_hp
+        thrash.perform(eel_combat)
+        assert eel_combat.player.current_hp == (
+            player_hp_before_thrash - TERROR_EEL_THRASH_DAMAGE_A9 * TERROR_EEL_THRASH_HITS
+        )
+        assert eel.get_power_amount(PowerId.VIGOR) == TERROR_EEL_THRASH_VIGOR
+        eel_ai.states[TERROR_EEL_TERROR_MOVE].perform(eel_combat)
+        assert eel_combat.player.get_power_amount(PowerId.VULNERABLE) == TERROR_EEL_TERROR_VULNERABLE
+
+        gardeners_encounter = _make_combat(rng_seed)
+        gardeners_encounter.ascension_level = 9
+        setup_phantasmal_gardeners_elite(gardeners_encounter, Rng(rng_seed))
+        assert all(
+            PHANTASMAL_GARDENER_A8_HP_RANGE[0] <= enemy.max_hp <= PHANTASMAL_GARDENER_A8_HP_RANGE[1]
+            for enemy in gardeners_encounter.enemies
+        )
+        assert all(
+            enemy.get_power_amount(PowerId.SKITTISH) == PHANTASMAL_GARDENER_SKITTISH_A8
+            for enemy in gardeners_encounter.enemies
+        )
+
+        colony_encounter = _make_combat(rng_seed)
+        colony_encounter.ascension_level = 9
+        setup_skulking_colony_elite(colony_encounter, Rng(rng_seed))
+        encounter_colony = colony_encounter.enemies[0]
+        encounter_colony_ai = colony_encounter.enemy_ais[encounter_colony.combat_id]
+        assert encounter_colony.monster_id == SKULKING_COLONY_MONSTER_ID
+        assert encounter_colony.max_hp == SKULKING_COLONY_A8_HP
+        assert encounter_colony_ai.states[SKULKING_COLONY_ZOOM_MOVE].intents[0].damage == (
+            SKULKING_COLONY_ZOOM_DAMAGE_A9
+        )
+
+        eel_encounter = _make_combat(rng_seed)
+        eel_encounter.ascension_level = 9
+        setup_terror_eel_elite(eel_encounter, Rng(rng_seed))
+        encounter_eel = eel_encounter.enemies[0]
+        encounter_eel_ai = eel_encounter.enemy_ais[encounter_eel.combat_id]
+        assert encounter_eel.monster_id == TERROR_EEL_MONSTER_ID
+        assert encounter_eel.max_hp == TERROR_EEL_A8_HP
+        assert encounter_eel_ai.states[TERROR_EEL_CRASH_MOVE].intents[0].damage == TERROR_EEL_CRASH_DAMAGE_A9
 
     def test_terror_eel_shriek_stuns_before_terror_move(self):
         rng_seed = 1082
-        shriek_break_damage = 80
-        stunned_move_id = "STUNNED"
-        terror_move_id = "TERROR_MOVE"
-        terror_vulnerable = 99
         eel, eel_ai = create_terror_eel(Rng(rng_seed))
         combat = _make_combat(rng_seed)
         combat.add_enemy(eel, eel_ai)
 
-        apply_damage(eel, shriek_break_damage, ValueProp.MOVE, combat, combat.player)
+        apply_damage(eel, TERROR_EEL_SHRIEK_BREAK_DAMAGE, ValueProp.MOVE, combat, combat.player)
 
         assert eel.get_power_amount(PowerId.SHRIEK) == 0
-        assert eel_ai.current_move.state_id == stunned_move_id
+        assert eel_ai.current_move.state_id == STUNNED_MOVE_ID
 
         eel_ai.current_move.perform(combat)
         eel_ai.on_move_performed()
         eel_ai.roll_move(Rng(rng_seed))
 
-        assert eel_ai.current_move.state_id == terror_move_id
+        assert eel_ai.current_move.state_id == TERROR_EEL_TERROR_MOVE
         eel_ai.current_move.perform(combat)
-        assert combat.player.get_power_amount(PowerId.VULNERABLE) == terror_vulnerable
+        assert combat.player.get_power_amount(PowerId.VULNERABLE) == TERROR_EEL_TERROR_VULNERABLE
 
     def test_act4_bosses_match_original_moves_and_setup(self):
         giant, giant_ai = create_waterfall_giant(Rng(83))
