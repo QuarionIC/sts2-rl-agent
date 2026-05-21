@@ -41,7 +41,6 @@ from sts2_env.run.reward_objects import (
     CardReward,
     EnchantCardsReward,
     LoseGoldReward,
-    LoseHpReward,
     PotionReward,
     RelicReward,
     RemoveCardReward,
@@ -937,8 +936,12 @@ class DenseVegetation(EventModel):
                 return _event_result_with_rewards(
                     "Removed a card, took 11 damage.",
                     [
-                        RemoveCardReward(run_state.player.player_id, count=1, cards=candidates),
-                        LoseHpReward(run_state.player.player_id, 11),
+                        RemoveCardReward(
+                            run_state.player.player_id,
+                            count=1,
+                            cards=candidates,
+                            after_selected=lambda: run_state.player.lose_hp(11),
+                        ),
                     ],
                 )
             return self.request_card_choice(
@@ -1731,8 +1734,12 @@ class SpiritGrafter(EventModel):
             return _event_result_with_rewards(
                 "Removed a card, took 9 damage.",
                 [
-                    RemoveCardReward(run_state.player.player_id, count=1, cards=candidates),
-                    LoseHpReward(run_state.player.player_id, 9),
+                    RemoveCardReward(
+                        run_state.player.player_id,
+                        count=1,
+                        cards=candidates,
+                        after_selected=lambda: run_state.player.lose_hp(9),
+                    ),
                 ],
             )
         return self.request_card_choice(

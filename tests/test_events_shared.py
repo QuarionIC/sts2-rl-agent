@@ -210,6 +210,50 @@ def test_battleworn_dummy_and_trash_heap_surface_real_rewards():
     assert run_state.player.relics[-1] in TrashHeap._RELICS  # noqa: SLF001
 
 
+def test_deferred_remove_then_damage_events_remove_card_before_lethal_hp_loss():
+    mgr = RunManager(seed=1930, character_id="Ironclad")
+    mgr.run_state.player.current_hp = 9
+    mgr._phase = RunManager.PHASE_EVENT
+    event = SpiritGrafter()
+    mgr._event_model = event
+    mgr._event_options = event.generate_initial_options(mgr.run_state)
+    deck_before = len(mgr.run_state.player.deck)
+
+    result = mgr._do_event_choice({"option_id": "rejection"})
+
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert mgr.run_state.pending_choice is not None
+    assert mgr.run_state.player.current_hp == 9
+
+    final = mgr.take_action({"action": "choose", "index": 0})
+
+    assert final["phase"] == RunManager.PHASE_RUN_OVER
+    assert len(mgr.run_state.player.deck) == deck_before - 1
+    assert mgr.run_state.player.current_hp == 0
+
+
+def test_deferred_dense_vegetation_trudge_removes_card_before_lethal_hp_loss():
+    mgr = RunManager(seed=19301, character_id="Ironclad")
+    mgr.run_state.player.current_hp = 11
+    mgr._phase = RunManager.PHASE_EVENT
+    event = DenseVegetation()
+    mgr._event_model = event
+    mgr._event_options = event.generate_initial_options(mgr.run_state)
+    deck_before = len(mgr.run_state.player.deck)
+
+    result = mgr._do_event_choice({"option_id": "trudge_on"})
+
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert mgr.run_state.pending_choice is not None
+    assert mgr.run_state.player.current_hp == 11
+
+    final = mgr.take_action({"action": "choose", "index": 0})
+
+    assert final["phase"] == RunManager.PHASE_RUN_OVER
+    assert len(mgr.run_state.player.deck) == deck_before - 1
+    assert mgr.run_state.player.current_hp == 0
+
+
 def test_trash_heap_uses_event_rng_fixed_relic_and_card_pools():
     run_state = RunState(seed=1931, character_id="Ironclad")
     run_state.initialize_run()

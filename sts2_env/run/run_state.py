@@ -623,9 +623,20 @@ class PlayerState:
         *,
         cards: list[CardInstance] | None = None,
         require_manual_confirmation: bool = False,
+        after_selected: Callable[[], None] | None = None,
     ) -> int:
         candidates = list(cards) if cards is not None else self.removable_deck_cards()
         required = min(count, len(candidates))
+
+        def apply_removal(selected: list[CardInstance]) -> int:
+            selected_ids = {id(card) for card in selected}
+            before = len(self.deck)
+            self.deck = [card for card in self.deck if id(card) not in selected_ids]
+            removed = before - len(self.deck)
+            if after_selected is not None:
+                after_selected()
+            return removed
+
         if required > 0 and self._can_auto_resolve_deck_choice(
             candidates,
             allow_skip=False,
@@ -633,28 +644,17 @@ class PlayerState:
             max_count=required,
             require_manual_confirmation=require_manual_confirmation,
         ):
-            selected_ids = {id(card) for card in candidates[:required]}
-            self.deck = [card for card in self.deck if id(card) not in selected_ids]
-            return required
+            return apply_removal(candidates[:required])
         if required > 0 and self.request_deck_choice(
             prompt=f"Choose {min(count, len(candidates))} cards to remove",
             cards=candidates,
-            resolver=lambda selected: [self.deck.remove(card) for card in selected if card in self.deck],
+            resolver=apply_removal,
             allow_skip=False,
             min_count=required,
             max_count=required,
         ):
             return 0
-        removed = 0
-        selected = candidates[:count]
-        remaining = []
-        for card in self.deck:
-            if removed < count and card in selected:
-                removed += 1
-                continue
-            remaining.append(card)
-        self.deck = remaining
-        return removed
+        return apply_removal(candidates[:count])
 
     def transform_cards(
         self,

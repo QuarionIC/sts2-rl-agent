@@ -440,6 +440,11 @@ class RunManager:
             return {"phase": self.phase, "description": "Pending choice updated.", "finished": False, "success": True}
         callback = self._resume_after_run_choice
         self._resume_after_run_choice = None
+        if self._run_state.is_over or self._run_state.player.is_dead:
+            if self._run_state.player.is_dead:
+                self._run_state.lose_run()
+            self._phase = self.PHASE_RUN_OVER
+            return {"phase": self.phase, "description": "Resolved pending choice.", "finished": True, "success": True}
         if callback is not None:
             callback()
         return {"phase": self.phase, "description": "Resolved pending choice.", "finished": True, "success": True}

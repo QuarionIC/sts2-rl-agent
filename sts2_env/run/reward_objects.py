@@ -594,6 +594,7 @@ class RemoveCardReward(Reward):
     cards: list[CardInstance] | None = None
     require_manual_confirmation: bool = False
     after_remove_card_names: tuple[str, ...] = field(default_factory=tuple)
+    after_selected: Callable[[], None] | None = None
 
     def __init__(
         self,
@@ -603,6 +604,7 @@ class RemoveCardReward(Reward):
         *,
         require_manual_confirmation: bool = False,
         after_remove_card_names: tuple[str, ...] | None = None,
+        after_selected: Callable[[], None] | None = None,
     ):
         super().__init__(
             player_id=player_id,
@@ -614,32 +616,29 @@ class RemoveCardReward(Reward):
         self.cards = cards
         self.require_manual_confirmation = require_manual_confirmation
         self.after_remove_card_names = tuple(after_remove_card_names or ())
+        self.after_selected = after_selected
 
     def select(self, run_manager: RunManager, **_: object) -> dict:
         player = run_manager.run_state.get_player(self.player_id)
         previous_choice = run_manager.run_state.pending_choice
+
+        def after_selected() -> None:
+            for card_name in self.after_remove_card_names:
+                player.add_card_to_deck(card_name)
+            if self.after_selected is not None:
+                self.after_selected()
+
         removed = player.remove_cards_from_deck(
             self.count,
             cards=self.cards,
             require_manual_confirmation=self.require_manual_confirmation,
+            after_selected=after_selected,
         )
         if run_manager.run_state.pending_choice is not None and previous_choice is None:
-            choice = run_manager.run_state.pending_choice
-            if self.after_remove_card_names:
-                original_resolver = choice.resolver
-
-                def resolver(selected):
-                    original_resolver(selected)
-                    for card_name in self.after_remove_card_names:
-                        player.add_card_to_deck(card_name)
-
-                choice.resolver = resolver
             return {
                 "description": f"Choose {self.count} card(s) to remove.",
                 "pending_choice": True,
             }
-        for card_name in self.after_remove_card_names:
-            player.add_card_to_deck(card_name)
         return {
             "description": f"Removed {removed} card(s).",
             "removed": removed,
