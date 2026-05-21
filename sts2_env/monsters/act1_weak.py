@@ -329,97 +329,268 @@ def create_nibbit(
 # ---- LeafSlimeS (HP 11-15) ----
 # Random: BUTT_MOVE(3) or GOOP_MOVE(add Slimed), CannotRepeat
 
-def create_leaf_slime_s(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(11, 15)
+LEAF_SLIME_S_BASE_MIN_HP = 11
+LEAF_SLIME_S_BASE_MAX_HP = 15
+LEAF_SLIME_S_TOUGH_MIN_HP = 12
+LEAF_SLIME_S_TOUGH_MAX_HP = 16
+LEAF_SLIME_S_BASE_TACKLE_DAMAGE = 3
+LEAF_SLIME_S_DEADLY_TACKLE_DAMAGE = 4
+LEAF_SLIME_S_GOOP_AMOUNT = 1
+LEAF_SLIME_S_RANDOM_MOVE = "RANDOM"
+LEAF_SLIME_S_BUTT_MOVE = "BUTT_MOVE"
+LEAF_SLIME_S_GOOP_MOVE = "GOOP_MOVE"
+
+
+def create_leaf_slime_s(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        LEAF_SLIME_S_TOUGH_MIN_HP,
+        LEAF_SLIME_S_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        LEAF_SLIME_S_TOUGH_MAX_HP,
+        LEAF_SLIME_S_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
     creature = Creature(max_hp=hp, monster_id="LEAF_SLIME_S")
-    goop_amount = 1
 
     def butt(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, 3)
+        tackle_damage = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            LEAF_SLIME_S_DEADLY_TACKLE_DAMAGE,
+            LEAF_SLIME_S_BASE_TACKLE_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, tackle_damage)
 
     def goop(combat: CombatState) -> None:
-        add_generated_cards_to_living_player_discards(combat, make_slimed, goop_amount)
+        add_generated_cards_to_living_player_discards(combat, make_slimed, LEAF_SLIME_S_GOOP_AMOUNT)
 
-    rand = RandomBranchState("RANDOM")
-    rand.add_branch("BUTT_MOVE", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("GOOP_MOVE", MoveRepeatType.CANNOT_REPEAT)
+    tackle_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        LEAF_SLIME_S_DEADLY_TACKLE_DAMAGE,
+        LEAF_SLIME_S_BASE_TACKLE_DAMAGE,
+    )
+
+    rand = RandomBranchState(LEAF_SLIME_S_RANDOM_MOVE)
+    rand.add_branch(LEAF_SLIME_S_BUTT_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(LEAF_SLIME_S_GOOP_MOVE, MoveRepeatType.CANNOT_REPEAT)
 
     states: dict[str, MonsterState] = {
-        "RANDOM": rand,
-        "BUTT_MOVE": MoveState("BUTT_MOVE", butt, [attack_intent(3)], follow_up_id="RANDOM"),
-        "GOOP_MOVE": MoveState("GOOP_MOVE", goop, [status_intent()], follow_up_id="RANDOM"),
+        LEAF_SLIME_S_RANDOM_MOVE: rand,
+        LEAF_SLIME_S_BUTT_MOVE: MoveState(
+            LEAF_SLIME_S_BUTT_MOVE,
+            butt,
+            [attack_intent(tackle_intent_damage)],
+            follow_up_id=LEAF_SLIME_S_RANDOM_MOVE,
+        ),
+        LEAF_SLIME_S_GOOP_MOVE: MoveState(
+            LEAF_SLIME_S_GOOP_MOVE,
+            goop,
+            [status_intent()],
+            follow_up_id=LEAF_SLIME_S_RANDOM_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "RANDOM", rng)
+    return creature, MonsterAI(states, LEAF_SLIME_S_RANDOM_MOVE, rng)
 
 
 # ---- TwigSlimeS (HP 7-11) ----
 # BUTT_MOVE(4) → BUTT_MOVE(4) (self loop)
 
-def create_twig_slime_s(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(7, 11)
+TWIG_SLIME_S_BASE_MIN_HP = 7
+TWIG_SLIME_S_BASE_MAX_HP = 11
+TWIG_SLIME_S_TOUGH_MIN_HP = 8
+TWIG_SLIME_S_TOUGH_MAX_HP = 12
+TWIG_SLIME_S_BASE_TACKLE_DAMAGE = 4
+TWIG_SLIME_S_DEADLY_TACKLE_DAMAGE = 5
+TWIG_SLIME_S_BUTT_MOVE = "BUTT_MOVE"
+
+
+def create_twig_slime_s(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TWIG_SLIME_S_TOUGH_MIN_HP,
+        TWIG_SLIME_S_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TWIG_SLIME_S_TOUGH_MAX_HP,
+        TWIG_SLIME_S_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
     creature = Creature(max_hp=hp, monster_id="TWIG_SLIME_S")
 
     def butt(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, 4)
+        tackle_damage = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TWIG_SLIME_S_DEADLY_TACKLE_DAMAGE,
+            TWIG_SLIME_S_BASE_TACKLE_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, tackle_damage)
+
+    tackle_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TWIG_SLIME_S_DEADLY_TACKLE_DAMAGE,
+        TWIG_SLIME_S_BASE_TACKLE_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "BUTT_MOVE": MoveState("BUTT_MOVE", butt, [attack_intent(4)], follow_up_id="BUTT_MOVE"),
+        TWIG_SLIME_S_BUTT_MOVE: MoveState(
+            TWIG_SLIME_S_BUTT_MOVE,
+            butt,
+            [attack_intent(tackle_intent_damage)],
+            follow_up_id=TWIG_SLIME_S_BUTT_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "BUTT_MOVE")
+    return creature, MonsterAI(states, TWIG_SLIME_S_BUTT_MOVE)
 
 
 # ---- LeafSlimeM (HP 32-35) ----
 # Strict alternation: STICKY_SHOT(add 2 Slimed) → CLUMP_SHOT(8) → STICKY_SHOT...
 
-def create_leaf_slime_m(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(32, 35)
+LEAF_SLIME_M_BASE_MIN_HP = 32
+LEAF_SLIME_M_BASE_MAX_HP = 35
+LEAF_SLIME_M_TOUGH_MIN_HP = 33
+LEAF_SLIME_M_TOUGH_MAX_HP = 36
+LEAF_SLIME_M_BASE_CLUMP_DAMAGE = 8
+LEAF_SLIME_M_DEADLY_CLUMP_DAMAGE = 9
+LEAF_SLIME_M_STICKY_AMOUNT = 2
+LEAF_SLIME_M_STICKY_SHOT_MOVE = "STICKY_SHOT"
+LEAF_SLIME_M_CLUMP_SHOT_MOVE = "CLUMP_SHOT"
+
+
+def create_leaf_slime_m(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        LEAF_SLIME_M_TOUGH_MIN_HP,
+        LEAF_SLIME_M_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        LEAF_SLIME_M_TOUGH_MAX_HP,
+        LEAF_SLIME_M_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
     creature = Creature(max_hp=hp, monster_id="LEAF_SLIME_M")
-    sticky_amount = 2
 
     def sticky_shot(combat: CombatState) -> None:
-        add_generated_cards_to_living_player_discards(combat, make_slimed, sticky_amount)
+        add_generated_cards_to_living_player_discards(combat, make_slimed, LEAF_SLIME_M_STICKY_AMOUNT)
 
     def clump_shot(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, 8)
+        clump_damage = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            LEAF_SLIME_M_DEADLY_CLUMP_DAMAGE,
+            LEAF_SLIME_M_BASE_CLUMP_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, clump_damage)
+
+    clump_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        LEAF_SLIME_M_DEADLY_CLUMP_DAMAGE,
+        LEAF_SLIME_M_BASE_CLUMP_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "STICKY_SHOT": MoveState("STICKY_SHOT", sticky_shot, [status_intent()], follow_up_id="CLUMP_SHOT"),
-        "CLUMP_SHOT": MoveState("CLUMP_SHOT", clump_shot, [attack_intent(8)], follow_up_id="STICKY_SHOT"),
+        LEAF_SLIME_M_STICKY_SHOT_MOVE: MoveState(
+            LEAF_SLIME_M_STICKY_SHOT_MOVE,
+            sticky_shot,
+            [status_intent()],
+            follow_up_id=LEAF_SLIME_M_CLUMP_SHOT_MOVE,
+        ),
+        LEAF_SLIME_M_CLUMP_SHOT_MOVE: MoveState(
+            LEAF_SLIME_M_CLUMP_SHOT_MOVE,
+            clump_shot,
+            [attack_intent(clump_intent_damage)],
+            follow_up_id=LEAF_SLIME_M_STICKY_SHOT_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "STICKY_SHOT")
+    return creature, MonsterAI(states, LEAF_SLIME_M_STICKY_SHOT_MOVE)
 
 
 # ---- TwigSlimeM (HP 26-28) ----
 # STICKY_SHOT_MOVE → Random(CLUMP_SHOT_MOVE[max 2 consec] | STICKY_SHOT_MOVE[CannotRepeat])
 
-def create_twig_slime_m(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(26, 28)
+TWIG_SLIME_M_BASE_MIN_HP = 26
+TWIG_SLIME_M_BASE_MAX_HP = 28
+TWIG_SLIME_M_TOUGH_MIN_HP = 27
+TWIG_SLIME_M_TOUGH_MAX_HP = 29
+TWIG_SLIME_M_BASE_CLUMP_DAMAGE = 11
+TWIG_SLIME_M_DEADLY_CLUMP_DAMAGE = 12
+TWIG_SLIME_M_STICKY_AMOUNT = 1
+TWIG_SLIME_M_RANDOM_MOVE = "RANDOM"
+TWIG_SLIME_M_STICKY_SHOT_MOVE = "STICKY_SHOT_MOVE"
+TWIG_SLIME_M_CLUMP_SHOT_MOVE = "CLUMP_SHOT_MOVE"
+TWIG_SLIME_M_MAX_CONSECUTIVE_CLUMP_SHOTS = 2
+
+
+def create_twig_slime_m(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TWIG_SLIME_M_TOUGH_MIN_HP,
+        TWIG_SLIME_M_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TWIG_SLIME_M_TOUGH_MAX_HP,
+        TWIG_SLIME_M_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
     creature = Creature(max_hp=hp, monster_id="TWIG_SLIME_M")
-    sticky_amount = 1
 
     def sticky_shot(combat: CombatState) -> None:
-        add_generated_cards_to_living_player_discards(combat, make_slimed, sticky_amount)
+        add_generated_cards_to_living_player_discards(combat, make_slimed, TWIG_SLIME_M_STICKY_AMOUNT)
 
     def clump_shot(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, 11)
+        clump_damage = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TWIG_SLIME_M_DEADLY_CLUMP_DAMAGE,
+            TWIG_SLIME_M_BASE_CLUMP_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, clump_damage)
 
-    rand = RandomBranchState("RANDOM")
-    rand.add_branch("CLUMP_SHOT_MOVE", MoveRepeatType.CAN_REPEAT_X_TIMES, max_times=2)
-    rand.add_branch("STICKY_SHOT_MOVE", MoveRepeatType.CANNOT_REPEAT)
+    clump_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TWIG_SLIME_M_DEADLY_CLUMP_DAMAGE,
+        TWIG_SLIME_M_BASE_CLUMP_DAMAGE,
+    )
+
+    rand = RandomBranchState(TWIG_SLIME_M_RANDOM_MOVE)
+    rand.add_branch(
+        TWIG_SLIME_M_CLUMP_SHOT_MOVE,
+        MoveRepeatType.CAN_REPEAT_X_TIMES,
+        max_times=TWIG_SLIME_M_MAX_CONSECUTIVE_CLUMP_SHOTS,
+    )
+    rand.add_branch(TWIG_SLIME_M_STICKY_SHOT_MOVE, MoveRepeatType.CANNOT_REPEAT)
 
     states: dict[str, MonsterState] = {
-        "RANDOM": rand,
-        "STICKY_SHOT_MOVE": MoveState(
-            "STICKY_SHOT_MOVE",
+        TWIG_SLIME_M_RANDOM_MOVE: rand,
+        TWIG_SLIME_M_STICKY_SHOT_MOVE: MoveState(
+            TWIG_SLIME_M_STICKY_SHOT_MOVE,
             sticky_shot,
             [status_intent()],
-            follow_up_id="RANDOM",
+            follow_up_id=TWIG_SLIME_M_RANDOM_MOVE,
         ),
-        "CLUMP_SHOT_MOVE": MoveState(
-            "CLUMP_SHOT_MOVE",
+        TWIG_SLIME_M_CLUMP_SHOT_MOVE: MoveState(
+            TWIG_SLIME_M_CLUMP_SHOT_MOVE,
             clump_shot,
-            [attack_intent(11)],
-            follow_up_id="RANDOM",
+            [attack_intent(clump_intent_damage)],
+            follow_up_id=TWIG_SLIME_M_RANDOM_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "STICKY_SHOT_MOVE")
+    return creature, MonsterAI(states, TWIG_SLIME_M_STICKY_SHOT_MOVE)

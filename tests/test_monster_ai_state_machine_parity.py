@@ -70,6 +70,8 @@ from sts2_env.monsters.act1 import (
     create_vine_shambler,
 )
 from sts2_env.monsters.act1_weak import create_leaf_slime_m
+from sts2_env.monsters.act1_weak import create_twig_slime_s
+from sts2_env.monsters.act1_weak import create_twig_slime_m
 from sts2_env.monsters.act4 import (
     create_calcified_cultist,
     create_corpse_slug,
@@ -449,6 +451,45 @@ class TestFixedRotation:
 
         slice_move = nibbit_ai.states["SLICE_MOVE"]
         assert slice_move.intents[0].damage == 6
+
+    def test_act1_slimes_deadly_ascension_damage_matches_csharp(self):
+        cases = [
+            (create_leaf_slime_s, "BUTT_MOVE", 4),
+            (create_twig_slime_s, "BUTT_MOVE", 5),
+            (create_leaf_slime_m, "CLUMP_SHOT", 9),
+            (create_twig_slime_m, "CLUMP_SHOT_MOVE", 12),
+        ]
+        for seed_offset, (factory, move_id, expected_damage) in enumerate(cases):
+            combat = _make_combat(1250 + seed_offset)
+            combat.ascension_level = 9
+            ally = _add_test_ally(combat, hp=70)
+            slime, slime_ai = factory(Rng(1250 + seed_offset), ascension_level=9)
+            combat.add_enemy(slime, slime_ai)
+
+            move = slime_ai.states[move_id]
+            assert move.intents[0].damage == expected_damage
+            ally_hp_before = ally.current_hp
+            move.perform(combat)
+            assert ally.current_hp == ally_hp_before - expected_damage
+
+    def test_act1_slimes_deadly_ascension_status_amounts_match_csharp(self):
+        cases = [
+            (create_leaf_slime_s, "GOOP_MOVE", 1),
+            (create_leaf_slime_m, "STICKY_SHOT", 2),
+            (create_twig_slime_m, "STICKY_SHOT_MOVE", 1),
+        ]
+        for seed_offset, (factory, move_id, expected_slimed_count) in enumerate(cases):
+            combat = _make_combat(1260 + seed_offset)
+            combat.ascension_level = 9
+            state = combat.combat_player_state_for(combat.primary_player)
+            assert state is not None
+            state.discard.clear()
+            slime, slime_ai = factory(Rng(1260 + seed_offset), ascension_level=9)
+            combat.add_enemy(slime, slime_ai)
+
+            slime_ai.states[move_id].perform(combat)
+
+            assert [card.card_id for card in state.discard] == [CardId.SLIMED] * expected_slimed_count
 
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle

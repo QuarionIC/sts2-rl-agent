@@ -66,10 +66,10 @@ def setup_slimes_weak(combat: CombatState, rng: Rng) -> None:
     medium_creators = [create_leaf_slime_m, create_twig_slime_m]
     chosen_small = rng.sample(small_creators, 2)
     for creator in chosen_small:
-        creature, ai = creator(rng)
+        creature, ai = creator(rng, ascension_level=combat.ascension_level)
         combat.add_enemy(creature, ai)
     creator = rng.choice(medium_creators)
-    creature, ai = creator(rng)
+    creature, ai = creator(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
@@ -91,7 +91,7 @@ def setup_cubex_construct_normal(combat: CombatState, rng: Rng) -> None:
 
 def setup_flyconid_normal(combat: CombatState, rng: Rng) -> None:
     slime_creator = rng.choice([create_leaf_slime_m, create_twig_slime_m])
-    slime, slime_ai = slime_creator(rng)
+    slime, slime_ai = slime_creator(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(slime, slime_ai)
     creature, ai = create_flyconid(rng)
     combat.add_enemy(creature, ai)
@@ -157,7 +157,7 @@ def setup_slimes_normal(combat: CombatState, rng: Rng) -> None:
         second_small_creator,
     ]
     for creator in slime_creators:
-        creature, ai = creator(rng)
+        creature, ai = creator(rng, ascension_level=combat.ascension_level)
         combat.add_enemy(creature, ai)
 
 
@@ -178,7 +178,10 @@ def setup_slithering_strangler_normal(combat: CombatState, rng: Rng) -> None:
         ]
 
     for creator in secondary_creators:
-        creature, ai = creator(rng)
+        if creator is create_snapping_jaxfruit:
+            creature, ai = creator(rng)
+        else:
+            creature, ai = creator(rng, ascension_level=combat.ascension_level)
         combat.add_enemy(creature, ai)
 
     strangler, strangler_ai = create_slithering_strangler(rng)

@@ -262,6 +262,22 @@ class TestAct1WeakEncounters:
             for e in combat.enemies:
                 assert e.max_hp > 0
 
+    def test_slimes_weak_tough_ascension_hp_matches_csharp(self):
+        for seed in range(5):
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+            rng = Rng(seed)
+            setup_slimes_weak(combat, rng)
+            ranges_by_id = {
+                "LEAF_SLIME_S": (12, 16),
+                "TWIG_SLIME_S": (8, 12),
+                "LEAF_SLIME_M": (33, 36),
+                "TWIG_SLIME_M": (27, 29),
+            }
+            for enemy in combat.enemies:
+                min_hp, max_hp = ranges_by_id[enemy.monster_id]
+                assert min_hp <= enemy.max_hp <= max_hp
+
 
 # ========================================================================
 # Act 1: Normal Encounters
