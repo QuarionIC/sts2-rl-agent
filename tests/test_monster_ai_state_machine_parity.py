@@ -98,10 +98,20 @@ from sts2_env.monsters.act4 import (
     create_waterfall_giant,
 )
 from sts2_env.monsters.act2 import (
+    DECIMILLIPEDE_BULK_MOVE,
+    DECIMILLIPEDE_CONSTRICT_MOVE,
+    DECIMILLIPEDE_DEAD_MOVE,
     DECIMILLIPEDE_HP_STEP,
+    DECIMILLIPEDE_RANDOM_STATE,
     DECIMILLIPEDE_REATTACH_HP,
+    DECIMILLIPEDE_REATTACH_MOVE,
+    DECIMILLIPEDE_SEGMENT_BACK_MONSTER_ID,
+    DECIMILLIPEDE_SEGMENT_FRONT_MONSTER_ID,
     DECIMILLIPEDE_SEGMENT_MAX_HP,
+    DECIMILLIPEDE_SEGMENT_MIDDLE_MONSTER_ID,
     DECIMILLIPEDE_SEGMENT_MIN_HP,
+    DECIMILLIPEDE_SEGMENT_MONSTER_ID,
+    DECIMILLIPEDE_WRITHE_MOVE,
     ENTOMANCER_BEES_MOVE,
     ENTOMANCER_MONSTER_ID,
     ENTOMANCER_PHEROMONE_SPIT_MOVE,
@@ -389,6 +399,15 @@ MULTIPLAYER_TEST_PLAYER_COUNT = 2
 DECIMILLIPEDE_STARTER_MOVE_IDX = 0
 DECIMILLIPEDE_ODD_SEGMENT_HP = DECIMILLIPEDE_SEGMENT_MIN_HP + 1
 DECIMILLIPEDE_NEAR_MAX_SEGMENT_HP = DECIMILLIPEDE_SEGMENT_MAX_HP - 1
+DECIMILLIPEDE_A8_HP_RANGE = (48, 56)
+DECIMILLIPEDE_A8_ODD_SEGMENT_HP = 49
+DECIMILLIPEDE_A8_DUPLICATE_SEGMENT_HP = 55
+DECIMILLIPEDE_WRITHE_DAMAGE_A9 = 6
+DECIMILLIPEDE_WRITHE_HITS = 2
+DECIMILLIPEDE_CONSTRICT_DAMAGE_A9 = 9
+DECIMILLIPEDE_CONSTRICT_WEAK = 1
+DECIMILLIPEDE_BULK_DAMAGE_A9 = 7
+DECIMILLIPEDE_BULK_STRENGTH = 2
 DECIMILLIPEDE_SCALED_REATTACH_HP = int(
     DECIMILLIPEDE_REATTACH_HP
     * MULTIPLAYER_TEST_PLAYER_COUNT
@@ -511,13 +530,27 @@ CS_MONSTER_FACTORY_PARITY_CASES = [
     ("BattleFriendV2", create_battle_friend_v2, "BATTLE_FRIEND_V2", "NOTHING_MOVE", 150, 150),
     ("BattleFriendV3", create_battle_friend_v3, "BATTLE_FRIEND_V3", "NOTHING_MOVE", 300, 300),
     ("BigDummy", create_big_dummy, "BIG_DUMMY", "NOTHING", NOOP_MONSTER_HP, NOOP_MONSTER_HP),
-    ("DecimillipedeSegmentBack", create_decimillipede_segment_back, "DECIMILLIPEDE_SEGMENT_BACK", "WRITHE_MOVE", 42, 48),
-    ("DecimillipedeSegmentFront", create_decimillipede_segment_front, "DECIMILLIPEDE_SEGMENT_FRONT", "WRITHE_MOVE", 42, 48),
+    (
+        "DecimillipedeSegmentBack",
+        create_decimillipede_segment_back,
+        DECIMILLIPEDE_SEGMENT_BACK_MONSTER_ID,
+        DECIMILLIPEDE_WRITHE_MOVE,
+        42,
+        48,
+    ),
+    (
+        "DecimillipedeSegmentFront",
+        create_decimillipede_segment_front,
+        DECIMILLIPEDE_SEGMENT_FRONT_MONSTER_ID,
+        DECIMILLIPEDE_WRITHE_MOVE,
+        42,
+        48,
+    ),
     (
         "DecimillipedeSegmentMiddle",
         create_decimillipede_segment_middle,
-        "DECIMILLIPEDE_SEGMENT_MIDDLE",
-        "WRITHE_MOVE",
+        DECIMILLIPEDE_SEGMENT_MIDDLE_MONSTER_ID,
+        DECIMILLIPEDE_WRITHE_MOVE,
         42,
         48,
     ),
@@ -2767,7 +2800,7 @@ class TestFixedRotation:
         hunter_ai.states["TENDERIZING_GOOP_MOVE"].perform(combat)
         louse_ai.states["WEB_CANNON_MOVE"].perform(combat)
         ovicopter_ai.states["TENDERIZER_MOVE"].perform(combat)
-        segment_ai.states["CONSTRICT_MOVE"].perform(combat)
+        segment_ai.states[DECIMILLIPEDE_CONSTRICT_MOVE].perform(combat)
         crusher_ai.states["BUG_STING_MOVE"].perform(combat)
 
         assert combat.primary_player.current_hp == primary_hp_before
@@ -2943,11 +2976,19 @@ class TestFixedRotation:
         assert ally.current_hp == ally_hp_before_slam - PARAFRIGHT_SLAM_DAMAGE_A9
 
     def test_act2_elites_use_original_move_ids_and_entomancer_buff(self):
-        assert create_decimillipede_segment(Rng(40), starter_idx=0)[1].current_move.state_id == "WRITHE_MOVE"
-        assert create_decimillipede_segment(Rng(40), starter_idx=1)[1].current_move.state_id == "BULK_MOVE"
+        assert create_decimillipede_segment(Rng(40), starter_idx=0)[1].current_move.state_id == (
+            DECIMILLIPEDE_WRITHE_MOVE
+        )
+        assert create_decimillipede_segment(Rng(40), starter_idx=1)[1].current_move.state_id == (
+            DECIMILLIPEDE_BULK_MOVE
+        )
         segment, segment_ai = create_decimillipede_segment(Rng(40), starter_idx=2)
-        assert segment_ai.current_move.state_id == "CONSTRICT_MOVE"
-        assert {"DEAD_MOVE", "REATTACH_MOVE", "RAND"}.issubset(segment_ai.states)
+        assert segment_ai.current_move.state_id == DECIMILLIPEDE_CONSTRICT_MOVE
+        assert {
+            DECIMILLIPEDE_DEAD_MOVE,
+            DECIMILLIPEDE_REATTACH_MOVE,
+            DECIMILLIPEDE_RANDOM_STATE,
+        }.issubset(segment_ai.states)
         assert segment.get_power_amount(PowerId.REATTACH) == 0
 
         segment_combat = _make_combat(40)
@@ -3003,7 +3044,7 @@ class TestFixedRotation:
         lethal_combat.add_enemy(lethal_segment, lethal_segment_ai)
         apply_decimillipede_segment_room_setup(lethal_segment, lethal_combat)
         lethal_combat.player.current_hp = 6
-        lethal_segment_ai.states["BULK_MOVE"].perform(lethal_combat)
+        lethal_segment_ai.states[DECIMILLIPEDE_BULK_MOVE].perform(lethal_combat)
         assert lethal_combat.is_over
         assert lethal_combat.player_won is False
         assert lethal_segment.get_power_amount(PowerId.STRENGTH) == 0
@@ -3038,6 +3079,67 @@ class TestFixedRotation:
 
     def test_act2_elite_ascension_scaling_matches_csharp(self):
         rng_seed = 1287
+
+        segment_combat = _make_combat(rng_seed)
+        segment_combat.ascension_level = 9
+        segment, segment_ai = create_decimillipede_segment(
+            _FixedIntsRng([DECIMILLIPEDE_A8_ODD_SEGMENT_HP]),
+            starter_idx=DECIMILLIPEDE_STARTER_MOVE_IDX,
+            ascension_level=9,
+        )
+        segment_combat.add_enemy(segment, segment_ai)
+        assert DECIMILLIPEDE_A8_HP_RANGE[0] <= segment.max_hp <= DECIMILLIPEDE_A8_HP_RANGE[1]
+        apply_decimillipede_segment_room_setup(segment, segment_combat)
+        assert segment.max_hp == DECIMILLIPEDE_A8_ODD_SEGMENT_HP + 1
+        assert segment.current_hp == segment.max_hp
+        assert segment.get_power_amount(PowerId.REATTACH) == DECIMILLIPEDE_REATTACH_HP
+
+        writhe = segment_ai.states[DECIMILLIPEDE_WRITHE_MOVE]
+        assert writhe.intents[0].damage == DECIMILLIPEDE_WRITHE_DAMAGE_A9
+        assert writhe.intents[0].hits == DECIMILLIPEDE_WRITHE_HITS
+        player_hp_before_writhe = segment_combat.player.current_hp
+        writhe.perform(segment_combat)
+        assert segment_combat.player.current_hp == (
+            player_hp_before_writhe - DECIMILLIPEDE_WRITHE_DAMAGE_A9 * DECIMILLIPEDE_WRITHE_HITS
+        )
+
+        constrict = segment_ai.states[DECIMILLIPEDE_CONSTRICT_MOVE]
+        assert constrict.intents[0].damage == DECIMILLIPEDE_CONSTRICT_DAMAGE_A9
+        player_hp_before_constrict = segment_combat.player.current_hp
+        constrict.perform(segment_combat)
+        assert segment_combat.player.current_hp == player_hp_before_constrict - DECIMILLIPEDE_CONSTRICT_DAMAGE_A9
+        assert segment_combat.player.get_power_amount(PowerId.WEAK) == DECIMILLIPEDE_CONSTRICT_WEAK
+
+        bulk = segment_ai.states[DECIMILLIPEDE_BULK_MOVE]
+        assert bulk.intents[0].damage == DECIMILLIPEDE_BULK_DAMAGE_A9
+        player_hp_before_bulk = segment_combat.player.current_hp
+        bulk.perform(segment_combat)
+        assert segment_combat.player.current_hp == player_hp_before_bulk - DECIMILLIPEDE_BULK_DAMAGE_A9
+        assert segment.get_power_amount(PowerId.STRENGTH) == DECIMILLIPEDE_BULK_STRENGTH
+
+        elite_combat = _make_combat(rng_seed)
+        elite_combat.ascension_level = 9
+        setup_decimillipede_elite(
+            elite_combat,
+            _FixedDecimillipedeRng(
+                DECIMILLIPEDE_STARTER_MOVE_IDX,
+                [
+                    DECIMILLIPEDE_A8_ODD_SEGMENT_HP,
+                    DECIMILLIPEDE_A8_ODD_SEGMENT_HP,
+                    DECIMILLIPEDE_A8_DUPLICATE_SEGMENT_HP,
+                ],
+            ),
+        )
+        assert [enemy.monster_id for enemy in elite_combat.enemies] == [DECIMILLIPEDE_SEGMENT_MONSTER_ID] * 3
+        assert [enemy.max_hp for enemy in elite_combat.enemies] == [
+            DECIMILLIPEDE_A8_ODD_SEGMENT_HP + 1,
+            DECIMILLIPEDE_A8_ODD_SEGMENT_HP + DECIMILLIPEDE_HP_STEP + 1,
+            DECIMILLIPEDE_A8_DUPLICATE_SEGMENT_HP + 1,
+        ]
+        assert [
+            elite_combat.enemy_ais[enemy.combat_id].states[DECIMILLIPEDE_WRITHE_MOVE].intents[0].damage
+            for enemy in elite_combat.enemies
+        ] == [DECIMILLIPEDE_WRITHE_DAMAGE_A9] * 3
 
         entomancer_combat = _make_combat(rng_seed)
         entomancer_combat.ascension_level = 9

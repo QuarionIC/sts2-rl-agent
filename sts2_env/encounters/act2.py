@@ -169,9 +169,14 @@ NORMAL_ENCOUNTERS: list[EncounterSetup] = [
 
 def setup_decimillipede_elite(combat: CombatState, rng: Rng) -> None:
     starter_idx = rng.next_int_exclusive(0, 3)
+    ascension_level = getattr(combat, "ascension_level", 0)
     segments = []
     for offset in range(3):
-        creature, ai = create_decimillipede_segment(rng, starter_idx=(starter_idx + offset) % 3)
+        creature, ai = create_decimillipede_segment(
+            rng,
+            starter_idx=(starter_idx + offset) % 3,
+            ascension_level=ascension_level,
+        )
         combat.add_enemy(creature, ai)
         segments.append(creature)
     for creature in segments:

@@ -1756,10 +1756,32 @@ def create_the_obscura(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Mo
 
 # ---- Decimillipede (3 segments) (HP 42-48 / 48-56 asc) ----
 
+DECIMILLIPEDE_SEGMENT_MONSTER_ID = "DECIMILLIPEDE_SEGMENT"
+DECIMILLIPEDE_SEGMENT_FRONT_MONSTER_ID = "DECIMILLIPEDE_SEGMENT_FRONT"
+DECIMILLIPEDE_SEGMENT_MIDDLE_MONSTER_ID = "DECIMILLIPEDE_SEGMENT_MIDDLE"
+DECIMILLIPEDE_SEGMENT_BACK_MONSTER_ID = "DECIMILLIPEDE_SEGMENT_BACK"
 DECIMILLIPEDE_SEGMENT_MIN_HP = 42
 DECIMILLIPEDE_SEGMENT_MAX_HP = 48
+DECIMILLIPEDE_SEGMENT_TOUGH_MIN_HP = 48
+DECIMILLIPEDE_SEGMENT_TOUGH_MAX_HP = 56
 DECIMILLIPEDE_HP_STEP = 2
 DECIMILLIPEDE_REATTACH_HP = 25
+DECIMILLIPEDE_BASE_WRITHE_DAMAGE = 5
+DECIMILLIPEDE_DEADLY_WRITHE_DAMAGE = 6
+DECIMILLIPEDE_WRITHE_REPEAT = 2
+DECIMILLIPEDE_BASE_CONSTRICT_DAMAGE = 8
+DECIMILLIPEDE_DEADLY_CONSTRICT_DAMAGE = 9
+DECIMILLIPEDE_CONSTRICT_WEAK = 1
+DECIMILLIPEDE_BASE_BULK_DAMAGE = 6
+DECIMILLIPEDE_DEADLY_BULK_DAMAGE = 7
+DECIMILLIPEDE_BULK_STRENGTH = 2
+DECIMILLIPEDE_STARTER_MOVE_COUNT = 3
+DECIMILLIPEDE_WRITHE_MOVE = "WRITHE_MOVE"
+DECIMILLIPEDE_BULK_MOVE = "BULK_MOVE"
+DECIMILLIPEDE_CONSTRICT_MOVE = "CONSTRICT_MOVE"
+DECIMILLIPEDE_DEAD_MOVE = "DEAD_MOVE"
+DECIMILLIPEDE_REATTACH_MOVE = "REATTACH_MOVE"
+DECIMILLIPEDE_RANDOM_STATE = "RAND"
 
 
 def apply_decimillipede_segment_room_setup(creature: Creature, combat: CombatState) -> None:
@@ -1768,36 +1790,79 @@ def apply_decimillipede_segment_room_setup(creature: Creature, combat: CombatSta
     max_hp = creature.max_hp
     if max_hp % DECIMILLIPEDE_HP_STEP == 1:
         max_hp += 1
-    min_hp = scaled_multiplayer_enemy_hp(DECIMILLIPEDE_SEGMENT_MIN_HP, combat)
-    max_initial_hp = scaled_multiplayer_enemy_hp(DECIMILLIPEDE_SEGMENT_MAX_HP, combat)
+    ascension_level = _combat_ascension_level(combat)
+    min_initial_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        DECIMILLIPEDE_SEGMENT_TOUGH_MIN_HP,
+        DECIMILLIPEDE_SEGMENT_MIN_HP,
+    )
+    max_initial_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        DECIMILLIPEDE_SEGMENT_TOUGH_MAX_HP,
+        DECIMILLIPEDE_SEGMENT_MAX_HP,
+    )
+    min_hp = scaled_multiplayer_enemy_hp(min_initial_hp, combat)
+    max_hp_cap = scaled_multiplayer_enemy_hp(max_initial_hp, combat)
     teammates = combat.get_teammates_of(creature)
     while any(teammate.max_hp == max_hp for teammate in teammates):
         max_hp += DECIMILLIPEDE_HP_STEP
-        if max_hp > max_initial_hp:
+        if max_hp > max_hp_cap:
             max_hp = min_hp
     creature.max_hp = max_hp
     creature.current_hp = max_hp
     combat.apply_power_to(creature, PowerId.REATTACH, DECIMILLIPEDE_REATTACH_HP, applier=creature)
 
 
-def create_decimillipede_segment(rng: Rng, starter_idx: int = 0) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(DECIMILLIPEDE_SEGMENT_MIN_HP, DECIMILLIPEDE_SEGMENT_MAX_HP)
-    creature = Creature(max_hp=hp, monster_id="DECIMILLIPEDE_SEGMENT")
-    writhe_dmg = 5
-    constrict_dmg = 8
-    constrict_weak = 1
-    bulk_dmg = 6
+def create_decimillipede_segment(
+    rng: Rng,
+    starter_idx: int = 0,
+    ascension_level: int = 0,
+) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        DECIMILLIPEDE_SEGMENT_TOUGH_MIN_HP,
+        DECIMILLIPEDE_SEGMENT_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        DECIMILLIPEDE_SEGMENT_TOUGH_MAX_HP,
+        DECIMILLIPEDE_SEGMENT_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=DECIMILLIPEDE_SEGMENT_MONSTER_ID)
 
     def writhe(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, writhe_dmg, hits=2)
+        writhe_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            DECIMILLIPEDE_DEADLY_WRITHE_DAMAGE,
+            DECIMILLIPEDE_BASE_WRITHE_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, writhe_dmg, hits=DECIMILLIPEDE_WRITHE_REPEAT)
 
     def constrict(combat: CombatState) -> None:
+        constrict_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            DECIMILLIPEDE_DEADLY_CONSTRICT_DAMAGE,
+            DECIMILLIPEDE_BASE_CONSTRICT_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, constrict_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.WEAK, constrict_weak, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.WEAK, DECIMILLIPEDE_CONSTRICT_WEAK, applier=creature)
 
     def bulk(combat: CombatState) -> None:
+        bulk_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            DECIMILLIPEDE_DEADLY_BULK_DAMAGE,
+            DECIMILLIPEDE_BASE_BULK_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, bulk_dmg)
-        combat.apply_power_to(creature, PowerId.STRENGTH, 2, applier=creature)
+        combat.apply_power_to(creature, PowerId.STRENGTH, DECIMILLIPEDE_BULK_STRENGTH, applier=creature)
 
     def dead_move(combat: CombatState) -> None:
         pass
@@ -1810,43 +1875,71 @@ def create_decimillipede_segment(rng: Rng, starter_idx: int = 0) -> tuple[Creatu
         else:
             creature.heal(DECIMILLIPEDE_REATTACH_HP)
 
-    rand = RandomBranchState("RAND")
-    rand.add_branch("WRITHE_MOVE", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("BULK_MOVE", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("CONSTRICT_MOVE", MoveRepeatType.CANNOT_REPEAT)
+    writhe_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        DECIMILLIPEDE_DEADLY_WRITHE_DAMAGE,
+        DECIMILLIPEDE_BASE_WRITHE_DAMAGE,
+    )
+    constrict_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        DECIMILLIPEDE_DEADLY_CONSTRICT_DAMAGE,
+        DECIMILLIPEDE_BASE_CONSTRICT_DAMAGE,
+    )
+    bulk_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        DECIMILLIPEDE_DEADLY_BULK_DAMAGE,
+        DECIMILLIPEDE_BASE_BULK_DAMAGE,
+    )
+
+    rand = RandomBranchState(DECIMILLIPEDE_RANDOM_STATE)
+    rand.add_branch(DECIMILLIPEDE_WRITHE_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(DECIMILLIPEDE_BULK_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(DECIMILLIPEDE_CONSTRICT_MOVE, MoveRepeatType.CANNOT_REPEAT)
 
     states: dict[str, MonsterState] = {
-        "WRITHE_MOVE": MoveState(
-            "WRITHE_MOVE",
+        DECIMILLIPEDE_WRITHE_MOVE: MoveState(
+            DECIMILLIPEDE_WRITHE_MOVE,
             writhe,
-            [multi_attack_intent(writhe_dmg, 2)],
-            follow_up_id="CONSTRICT_MOVE",
+            [multi_attack_intent(writhe_intent_damage, DECIMILLIPEDE_WRITHE_REPEAT)],
+            follow_up_id=DECIMILLIPEDE_CONSTRICT_MOVE,
         ),
-        "CONSTRICT_MOVE": MoveState(
-            "CONSTRICT_MOVE",
+        DECIMILLIPEDE_CONSTRICT_MOVE: MoveState(
+            DECIMILLIPEDE_CONSTRICT_MOVE,
             constrict,
-            [attack_intent(constrict_dmg), debuff_intent()],
-            follow_up_id="BULK_MOVE",
+            [attack_intent(constrict_intent_damage), debuff_intent()],
+            follow_up_id=DECIMILLIPEDE_BULK_MOVE,
         ),
-        "BULK_MOVE": MoveState(
-            "BULK_MOVE",
+        DECIMILLIPEDE_BULK_MOVE: MoveState(
+            DECIMILLIPEDE_BULK_MOVE,
             bulk,
-            [attack_intent(bulk_dmg), buff_intent()],
-            follow_up_id="WRITHE_MOVE",
+            [attack_intent(bulk_intent_damage), buff_intent()],
+            follow_up_id=DECIMILLIPEDE_WRITHE_MOVE,
         ),
-        "DEAD_MOVE": MoveState("DEAD_MOVE", dead_move, [Intent(IntentType.UNKNOWN)], follow_up_id="REATTACH_MOVE"),
-        "REATTACH_MOVE": MoveState(
-            "REATTACH_MOVE",
+        DECIMILLIPEDE_DEAD_MOVE: MoveState(
+            DECIMILLIPEDE_DEAD_MOVE,
+            dead_move,
+            [Intent(IntentType.UNKNOWN)],
+            follow_up_id=DECIMILLIPEDE_REATTACH_MOVE,
+        ),
+        DECIMILLIPEDE_REATTACH_MOVE: MoveState(
+            DECIMILLIPEDE_REATTACH_MOVE,
             reattach,
             [Intent(IntentType.HEAL)],
-            follow_up_id="RAND",
+            follow_up_id=DECIMILLIPEDE_RANDOM_STATE,
             must_perform_once=True,
         ),
-        "RAND": rand,
+        DECIMILLIPEDE_RANDOM_STATE: rand,
     }
 
-    starter_map = {0: "WRITHE_MOVE", 1: "BULK_MOVE", 2: "CONSTRICT_MOVE"}
-    initial = starter_map.get(starter_idx, "WRITHE_MOVE")
+    starter_moves = (
+        DECIMILLIPEDE_WRITHE_MOVE,
+        DECIMILLIPEDE_BULK_MOVE,
+        DECIMILLIPEDE_CONSTRICT_MOVE,
+    )
+    initial = starter_moves[starter_idx % DECIMILLIPEDE_STARTER_MOVE_COUNT]
     return creature, MonsterAI(states, initial, rng)
 
 
@@ -1854,27 +1947,39 @@ def create_decimillipede_segment(rng: Rng, starter_idx: int = 0) -> tuple[Creatu
 # Identical behavior to DecimillipedeSegment (same base class in C#).
 # The only difference is visual (front segment animation).
 
-def create_decimillipede_segment_front(rng: Rng, starter_idx: int = 0) -> tuple[Creature, MonsterAI]:
-    creature, ai = create_decimillipede_segment(rng, starter_idx)
-    creature.monster_id = "DECIMILLIPEDE_SEGMENT_FRONT"
+def create_decimillipede_segment_front(
+    rng: Rng,
+    starter_idx: int = 0,
+    ascension_level: int = 0,
+) -> tuple[Creature, MonsterAI]:
+    creature, ai = create_decimillipede_segment(rng, starter_idx, ascension_level=ascension_level)
+    creature.monster_id = DECIMILLIPEDE_SEGMENT_FRONT_MONSTER_ID
     return creature, ai
 
 
 # ---- DecimillipedeSegmentMiddle (HP 42-48 / 48-56 asc) ----
 # Identical behavior to DecimillipedeSegment (same base class in C#).
 
-def create_decimillipede_segment_middle(rng: Rng, starter_idx: int = 0) -> tuple[Creature, MonsterAI]:
-    creature, ai = create_decimillipede_segment(rng, starter_idx)
-    creature.monster_id = "DECIMILLIPEDE_SEGMENT_MIDDLE"
+def create_decimillipede_segment_middle(
+    rng: Rng,
+    starter_idx: int = 0,
+    ascension_level: int = 0,
+) -> tuple[Creature, MonsterAI]:
+    creature, ai = create_decimillipede_segment(rng, starter_idx, ascension_level=ascension_level)
+    creature.monster_id = DECIMILLIPEDE_SEGMENT_MIDDLE_MONSTER_ID
     return creature, ai
 
 
 # ---- DecimillipedeSegmentBack (HP 42-48 / 48-56 asc) ----
 # Identical behavior to DecimillipedeSegment (same base class in C#).
 
-def create_decimillipede_segment_back(rng: Rng, starter_idx: int = 0) -> tuple[Creature, MonsterAI]:
-    creature, ai = create_decimillipede_segment(rng, starter_idx)
-    creature.monster_id = "DECIMILLIPEDE_SEGMENT_BACK"
+def create_decimillipede_segment_back(
+    rng: Rng,
+    starter_idx: int = 0,
+    ascension_level: int = 0,
+) -> tuple[Creature, MonsterAI]:
+    creature, ai = create_decimillipede_segment(rng, starter_idx, ascension_level=ascension_level)
+    creature.monster_id = DECIMILLIPEDE_SEGMENT_BACK_MONSTER_ID
     return creature, ai
 
 
