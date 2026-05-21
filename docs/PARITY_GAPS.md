@@ -181,7 +181,7 @@ Recent targeted tests now cover several flows that older parity notes incorrectl
 - `tests/test_defect_choice_parity.py`
 - `tests/test_regent_parity.py`
 - `tests/test_necrobinder_parity.py`
-- `tests/test_action_space_potions.py`
+- `tests/test_combat_potion_action_space_parity.py`
 - `tests/test_bridge_state_adapter.py`
 - targeted helper coverage in `tests/test_parity_helpers.py`
 

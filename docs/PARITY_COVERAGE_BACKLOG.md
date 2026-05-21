@@ -306,7 +306,7 @@ All currently counted relic classes now have direct implementation and test refe
   - [tests/test_relic_rest_site_hooks_parity.py](../tests/test_relic_rest_site_hooks_parity.py)
   - [tests/test_shop_relic_hooks.py](../tests/test_shop_relic_hooks.py)
   - [tests/test_relic_shop_event_combat_reward_hooks_parity.py](../tests/test_relic_shop_event_combat_reward_hooks_parity.py)
-  - [tests/test_action_space_potions.py](../tests/test_action_space_potions.py)
+  - [tests/test_combat_potion_action_space_parity.py](../tests/test_combat_potion_action_space_parity.py)
   - [tests/test_bridge_state_adapter.py](../tests/test_bridge_state_adapter.py)
 - Verification status for the parity-focused suites above:
   - `uv run pytest -q ...`
