@@ -37,6 +37,9 @@ class _FirstRng:
     def sample(self, lst, k):
         return list(lst)[:k]
 
+    def shuffle(self, seq) -> None:
+        return None
+
     def choice(self, lst):
         return list(lst)[0]
 

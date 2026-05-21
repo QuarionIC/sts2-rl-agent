@@ -671,7 +671,9 @@ def create_cards_from_ids(
         return []
 
     if distinct:
-        chosen_ids = rng.sample(card_ids, min(count, len(card_ids)))
+        shuffled_ids = list(card_ids)
+        rng.shuffle(shuffled_ids)
+        chosen_ids = shuffled_ids[:count]
     else:
         chosen_ids = [rng.choice(card_ids) for _ in range(count)]
     return [create_card(card_id) for card_id in chosen_ids]

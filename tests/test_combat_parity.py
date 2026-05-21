@@ -54,6 +54,9 @@ class _GenerationRng:
         self.calls += 1
         return list(seq)[:count]
 
+    def shuffle(self, seq) -> None:
+        self.calls += 1
+
     def choice(self, seq):
         self.calls += 1
         return list(seq)[0]

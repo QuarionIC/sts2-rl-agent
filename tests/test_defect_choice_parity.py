@@ -23,6 +23,9 @@ class _LastRng:
     def sample(self, lst, k):
         return list(lst)[-k:]
 
+    def shuffle(self, seq) -> None:
+        seq.reverse()
+
     def choice(self, lst):
         return list(lst)[-1]
 

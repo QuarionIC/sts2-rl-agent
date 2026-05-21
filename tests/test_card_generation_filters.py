@@ -2,12 +2,22 @@
 
 from sts2_env.cards.factory import (
     create_character_cards,
+    create_cards_from_ids,
     eligible_character_cards,
     eligible_registered_cards,
 )
 from sts2_env.cards.ironclad import make_feed
 from sts2_env.core.enums import CardId, CardType
 from sts2_env.core.rng import Rng
+
+
+class _ReverseShuffleRng:
+    def __init__(self) -> None:
+        self.shuffle_lengths: list[int] = []
+
+    def shuffle(self, seq) -> None:
+        self.shuffle_lengths.append(len(seq))
+        seq.reverse()
 
 
 def test_character_combat_generation_excludes_basic_event_and_ineligible_cards():
@@ -91,6 +101,21 @@ def test_combat_card_creation_uses_multiplayer_constraints():
 
     assert all(card.card_id != CardId.GLIMPSE_BEYOND for card in singleplayer_cards)
     assert any(card.card_id == CardId.GLIMPSE_BEYOND for card in multiplayer_cards)
+
+
+def test_distinct_card_creation_shuffles_full_pool_before_taking_cards():
+    rng = _ReverseShuffleRng()
+    card_ids = [
+        CardId.STRIKE_IRONCLAD,
+        CardId.DEFEND_IRONCLAD,
+        CardId.BASH,
+        CardId.ANGER,
+    ]
+
+    cards = create_cards_from_ids(card_ids, rng, 2, distinct=True)
+
+    assert rng.shuffle_lengths == [4]
+    assert [card.card_id for card in cards] == [CardId.ANGER, CardId.BASH]
 
 
 def test_modifier_generation_excludes_modifier_blacklisted_cards():
