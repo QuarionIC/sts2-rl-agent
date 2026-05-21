@@ -38,6 +38,7 @@ from sts2_env.run.odds import UnknownMapPointOdds, CardRarityOdds, PotionRewardO
 
 UNLOCK_STATE_NUMBER_OF_RUNS_KEY = "number_of_runs"
 UNLOCK_STATE_EPOCH_UNLOCK_COUNT_KEY = "epoch_unlock_count"
+FIRST_RUN_COUNT = 0
 
 
 @dataclass(frozen=True)
@@ -1577,6 +1578,9 @@ class RunState:
 
     def resolve_room_type(self, point_type: MapPointType) -> RoomType:
         """Convert a MapPointType to a RoomType, rolling for Unknown rooms."""
+        tutorial_room_type = self._tutorial_room_type_for(point_type)
+        if tutorial_room_type is not None:
+            return tutorial_room_type
         mapping = {
             MapPointType.SHOP: RoomType.SHOP,
             MapPointType.TREASURE: RoomType.TREASURE,
@@ -1606,6 +1610,17 @@ class RunState:
                 blacklist.add(RoomType.EVENT)
             return self.unknown_odds.roll(self.rng.unknown_map_point, self, blacklist=blacklist)
         return mapping.get(point_type, RoomType.MONSTER)
+
+    def _tutorial_room_type_for(self, point_type: MapPointType) -> RoomType | None:
+        if len(self.players) > 1:
+            return None
+        if point_type is not MapPointType.UNASSIGNED:
+            return None
+        if self.player.unlock_state.get(UNLOCK_STATE_NUMBER_OF_RUNS_KEY, FIRST_RUN_COUNT) > FIRST_RUN_COUNT:
+            return None
+        if self.count_map_point_history_entries(map_point_type=MapPointType.UNASSIGNED) > 0:
+            return None
+        return RoomType.EVENT
 
     def win_run(self) -> None:
         self.is_over = True

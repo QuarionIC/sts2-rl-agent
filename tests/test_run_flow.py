@@ -15,7 +15,7 @@ from sts2_env.core.enums import (
 from sts2_env.core.rng import Rng
 from sts2_env.cards.base import CardInstance
 from sts2_env.map.map_point import MapCoord
-from sts2_env.run.run_state import RunState, PlayerState
+from sts2_env.run.run_state import RunState, PlayerState, UNLOCK_STATE_NUMBER_OF_RUNS_KEY
 from sts2_env.run.rooms import create_room, CombatRoom, ShopRoom, RestSiteRoom, EventRoom, TreasureRoom
 from sts2_env.run.rest_site import generate_rest_site_options, HealOption, SmithOption
 from sts2_env.run.odds import UnknownMapPointOdds, PotionRewardOdds
@@ -338,6 +338,21 @@ class TestRoomTypeResolution:
         rs = RunState(seed=42)
         rs.initialize_run()
         assert rs.resolve_room_type(MapPointType.ANCIENT) == RoomType.EVENT
+
+    def test_first_run_unassigned_resolves_to_tutorial_event_once(self):
+        rs = RunState(seed=42)
+        rs.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 0
+
+        assert rs.resolve_room_type(MapPointType.UNASSIGNED) == RoomType.EVENT
+
+        rs.append_to_map_point_history(MapPointType.UNASSIGNED, RoomType.EVENT)
+        assert rs.resolve_room_type(MapPointType.UNASSIGNED) == RoomType.MONSTER
+
+    def test_unassigned_tutorial_event_requires_no_completed_runs(self):
+        rs = RunState(seed=42)
+        rs.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 1
+
+        assert rs.resolve_room_type(MapPointType.UNASSIGNED) == RoomType.MONSTER
 
 
 class TestRoomCreation:
