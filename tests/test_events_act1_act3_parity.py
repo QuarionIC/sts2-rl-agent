@@ -141,6 +141,18 @@ def test_neow_modifier_path_exposes_sequential_modifier_options():
     assert all(isinstance(reward, CardReward) and reward.skippable is False for reward in rewards)
 
 
+def test_neow_modifiers_without_neow_option_do_not_fall_back_to_relic_choices():
+    run_state = RunState(seed=8111, character_id="Ironclad")
+    run_state.player.deck = create_ironclad_starter_deck()
+    run_state.modifiers = [MurderousModifier()]
+    run_state.initialize_run()
+    event = Neow()
+
+    options = event.generate_initial_options(run_state)
+
+    assert options == []
+
+
 def test_neow_sealed_deck_modifier_requests_ten_of_thirty_cards():
     run_state = RunState(seed=812, character_id="Ironclad")
     run_state.player.deck = create_ironclad_starter_deck()

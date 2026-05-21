@@ -129,6 +129,9 @@ class ModifierModel:
     def generate_neow_event_result(self, run_state) -> EventResult | None:
         return None
 
+    def has_neow_event_option(self) -> bool:
+        return False
+
     def _remove_pandoras_box(self, run_state) -> None:
         for player in run_state.players:
             player.remove_relic_from_grab_bag(PANDORAS_BOX_RELIC_ID)
@@ -137,6 +140,9 @@ class ModifierModel:
 class DraftModifier(ModifierModel):
     def __init__(self) -> None:
         super().__init__("draft", clears_player_deck=True)
+
+    def has_neow_event_option(self) -> bool:
+        return True
 
     def generate_neow_event_result(self, run_state) -> EventResult:
         rewards = [
@@ -161,6 +167,9 @@ class InsanityModifier(ModifierModel):
     def __init__(self) -> None:
         super().__init__("insanity", clears_player_deck=True)
 
+    def has_neow_event_option(self) -> bool:
+        return True
+
     def generate_neow_event_result(self, run_state) -> EventResult:
         cards = generate_uniform_noncombat_cards(
             run_state,
@@ -179,6 +188,9 @@ class InsanityModifier(ModifierModel):
 class AllStarModifier(ModifierModel):
     def __init__(self) -> None:
         super().__init__("all_star")
+
+    def has_neow_event_option(self) -> bool:
+        return True
 
     def generate_neow_event_result(self, run_state) -> EventResult:
         cards = generate_uniform_noncombat_cards(
@@ -482,6 +494,9 @@ class SpecializedModifier(ModifierModel):
     def __init__(self) -> None:
         super().__init__("specialized")
 
+    def has_neow_event_option(self) -> bool:
+        return True
+
     def generate_neow_event_result(self, run_state) -> EventResult:
         cards = generate_uniform_noncombat_cards(
             run_state,
@@ -501,6 +516,9 @@ class SpecializedModifier(ModifierModel):
 class SealedDeckModifier(ModifierModel):
     def __init__(self) -> None:
         super().__init__("sealed_deck", clears_player_deck=True)
+
+    def has_neow_event_option(self) -> bool:
+        return True
 
     def generate_neow_event_result(self, run_state) -> EventResult:
         cards = generate_combat_reward_cards(

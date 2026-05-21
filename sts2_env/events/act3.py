@@ -159,8 +159,7 @@ class Neow(EventModel):
         if getattr(run_state, "modifiers", []):
             self._modifier_options = []
             for modifier in run_state.modifiers:
-                generator = getattr(modifier, "generate_neow_event_result", None)
-                if not callable(generator):
+                if not modifier.has_neow_event_option():
                     continue
                 option_id = f"modifier_{len(self._modifier_options)}"
                 self._modifier_options.append((option_id, modifier))
@@ -169,6 +168,7 @@ class Neow(EventModel):
                 title = getattr(modifier, "neow_option_title", option_id)
                 description = getattr(modifier, "neow_option_description", title)
                 return [EventOption(option_id, title, description)]
+            return []
 
         from sts2_env.relics.shop_event import ScrollBoxes
 
