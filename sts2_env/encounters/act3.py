@@ -173,9 +173,10 @@ def setup_doormaker_boss(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_queen_boss(combat: CombatState, rng: Rng) -> None:
-    amalgam, amalgam_ai = create_torch_head_amalgam(rng)
+    ascension_level = getattr(combat, "ascension_level", 0)
+    amalgam, amalgam_ai = create_torch_head_amalgam(rng, ascension_level=ascension_level)
     combat.add_enemy(amalgam, amalgam_ai)
-    creature, ai = create_queen(rng)
+    creature, ai = create_queen(rng, ascension_level=ascension_level)
     combat.add_enemy(creature, ai)
 
 

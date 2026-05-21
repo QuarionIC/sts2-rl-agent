@@ -197,6 +197,11 @@ from sts2_env.monsters.act2 import (
 from sts2_env.monsters.shared import (
     ATTACK_TEST_MONSTER_HP,
     NOOP_MONSTER_HP,
+    TORCH_HEAD_AMALGAM_BEAM_MOVE,
+    TORCH_HEAD_AMALGAM_MINION,
+    TORCH_HEAD_AMALGAM_MONSTER_ID,
+    TORCH_HEAD_AMALGAM_TACKLE_1_MOVE,
+    TORCH_HEAD_AMALGAM_TACKLE_3_MOVE,
     create_battle_friend_v2,
     create_battle_friend_v3,
     create_big_dummy,
@@ -265,6 +270,13 @@ from sts2_env.monsters.act3 import (
     OWL_MAGISTRATE_PECK_ASSAULT_MOVE,
     OWL_MAGISTRATE_SCRUTINY_MOVE,
     OWL_MAGISTRATE_VERDICT_MOVE,
+    QUEEN_BURN_BRIGHT_FOR_ME_MOVE,
+    QUEEN_ENRAGE_MOVE,
+    QUEEN_EXECUTION_MOVE,
+    QUEEN_MONSTER_ID,
+    QUEEN_OFF_WITH_YOUR_HEAD_MOVE,
+    QUEEN_PUPPET_STRINGS_MOVE,
+    QUEEN_YOUR_MINE_MOVE,
     SLIMED_BERSERKER_FURIOUS_PUMMELING_MOVE,
     SLIMED_BERSERKER_LEECHING_HUG_MOVE,
     SLIMED_BERSERKER_MONSTER_ID,
@@ -580,6 +592,22 @@ DOORMAKER_GET_BACK_IN_DAMAGE_A9 = 45
 DOORMAKER_STRENGTH = 5
 DOORMAKER_DOOR_HP_SCALE_A8 = 25
 DOORMAKER_DOOR_STRENGTH_SCALE_A9 = 4
+TORCH_HEAD_AMALGAM_BASE_HP = 199
+TORCH_HEAD_AMALGAM_A8_HP = 211
+TORCH_HEAD_AMALGAM_TACKLE_DAMAGE_A9 = 19
+TORCH_HEAD_AMALGAM_WEAK_TACKLE_DAMAGE_A9 = 15
+TORCH_HEAD_AMALGAM_SOUL_BEAM_DAMAGE = 8
+TORCH_HEAD_AMALGAM_SOUL_BEAM_HITS = 3
+QUEEN_BASE_HP = 400
+QUEEN_A8_HP = 419
+QUEEN_CHAINS_OF_BINDING = 3
+QUEEN_YOURE_MINE_DEBUFF = 99
+QUEEN_BURN_BRIGHT_STRENGTH = 1
+QUEEN_BURN_BRIGHT_BLOCK = 20
+QUEEN_OFF_WITH_YOUR_HEAD_DAMAGE_A9 = 4
+QUEEN_OFF_WITH_YOUR_HEAD_HITS = 5
+QUEEN_EXECUTION_DAMAGE_A9 = 18
+QUEEN_ENRAGE_STRENGTH = 2
 FABRICATOR_BASE_HP = 150
 FABRICATOR_A8_HP = 155
 FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9 = 21
@@ -5306,60 +5334,109 @@ class TestFixedRotation:
         combat = _make_combat(39)
         setup_queen_boss(combat, Rng(39))
 
-        assert [enemy.monster_id for enemy in combat.enemies] == ["TORCH_HEAD_AMALGAM", "QUEEN"]
+        assert [enemy.monster_id for enemy in combat.enemies] == [TORCH_HEAD_AMALGAM_MONSTER_ID, QUEEN_MONSTER_ID]
         amalgam, queen = combat.enemies
         amalgam_ai = combat.enemy_ais[amalgam.combat_id]
         queen_ai = combat.enemy_ais[queen.combat_id]
 
-        assert amalgam.max_hp == 199
-        assert amalgam.get_power_amount(PowerId.MINION) == 1
-        assert amalgam_ai.current_move.state_id == "TACKLE_1_MOVE"
-        assert queen.max_hp == 400
-        assert queen_ai.current_move.state_id == "PUPPET_STRINGS_MOVE"
+        assert amalgam.max_hp == TORCH_HEAD_AMALGAM_BASE_HP
+        assert amalgam.get_power_amount(PowerId.MINION) == TORCH_HEAD_AMALGAM_MINION
+        assert amalgam_ai.current_move.state_id == TORCH_HEAD_AMALGAM_TACKLE_1_MOVE
+        assert queen.max_hp == QUEEN_BASE_HP
+        assert queen_ai.current_move.state_id == QUEEN_PUPPET_STRINGS_MOVE
 
         queen_ai.current_move.perform(combat)
-        assert combat.player.get_power_amount(PowerId.CHAINS_OF_BINDING) == 3
+        assert combat.player.get_power_amount(PowerId.CHAINS_OF_BINDING) == QUEEN_CHAINS_OF_BINDING
 
         queen_ai.on_move_performed()
         queen_ai.roll_move(Rng(39))
-        assert queen_ai.current_move.state_id == "YOUR_MINE_MOVE"
+        assert queen_ai.current_move.state_id == QUEEN_YOUR_MINE_MOVE
 
         queen_ai.current_move.perform(combat)
-        assert combat.player.get_power_amount(PowerId.FRAIL) == 99
-        assert combat.player.get_power_amount(PowerId.WEAK) == 99
-        assert combat.player.get_power_amount(PowerId.VULNERABLE) == 99
+        assert combat.player.get_power_amount(PowerId.FRAIL) == QUEEN_YOURE_MINE_DEBUFF
+        assert combat.player.get_power_amount(PowerId.WEAK) == QUEEN_YOURE_MINE_DEBUFF
+        assert combat.player.get_power_amount(PowerId.VULNERABLE) == QUEEN_YOURE_MINE_DEBUFF
 
         queen_ai.on_move_performed()
         queen_ai.roll_move(Rng(39))
-        assert queen_ai.current_move.state_id == "BURN_BRIGHT_FOR_ME_MOVE"
+        assert queen_ai.current_move.state_id == QUEEN_BURN_BRIGHT_FOR_ME_MOVE
 
         queen_ai.current_move.perform(combat)
-        assert queen.block == 20
-        assert amalgam.get_power_amount(PowerId.STRENGTH) == 1
+        assert queen.block == QUEEN_BURN_BRIGHT_BLOCK
+        assert amalgam.get_power_amount(PowerId.STRENGTH) == QUEEN_BURN_BRIGHT_STRENGTH
         assert queen.get_power_amount(PowerId.STRENGTH) == 0
 
         counter = _BlockHookCounterPower()
         queen.powers[PowerId.JUGGERNAUT] = counter
         queen.block = 0
-        queen_ai.states["BURN_BRIGHT_FOR_ME_MOVE"].perform(combat)
-        assert queen.block == 20
-        assert counter.calls == [20]
+        queen_ai.states[QUEEN_BURN_BRIGHT_FOR_ME_MOVE].perform(combat)
+        assert queen.block == QUEEN_BURN_BRIGHT_BLOCK
+        assert counter.calls == [QUEEN_BURN_BRIGHT_BLOCK]
 
         combat.kill_creature(amalgam)
         queen_ai.on_move_performed()
         queen_ai.roll_move(Rng(39))
-        assert queen_ai.current_move.state_id == "OFF_WITH_YOUR_HEAD_MOVE"
+        assert queen_ai.current_move.state_id == QUEEN_OFF_WITH_YOUR_HEAD_MOVE
 
     def test_queen_switches_from_burn_bright_to_enrage_when_amalgam_dies(self):
         combat = _make_combat(1239)
         setup_queen_boss(combat, Rng(1239))
         amalgam, queen = combat.enemies
         queen_ai = combat.enemy_ais[queen.combat_id]
-        queen_ai._current_state_id = "BURN_BRIGHT_FOR_ME_MOVE"  # noqa: SLF001
+        queen_ai._current_state_id = QUEEN_BURN_BRIGHT_FOR_ME_MOVE  # noqa: SLF001
 
         combat.kill_creature(amalgam)
 
-        assert queen_ai.current_move.state_id == "ENRAGE_MOVE"
+        assert queen_ai.current_move.state_id == QUEEN_ENRAGE_MOVE
+
+    def test_queen_boss_ascension_scaling_matches_csharp(self):
+        rng_seed = 1296
+        player_hp = 250
+
+        combat = _make_combat(rng_seed)
+        combat.player.max_hp = player_hp
+        combat.player.current_hp = player_hp
+        combat.ascension_level = 9
+        setup_queen_boss(combat, Rng(rng_seed))
+        amalgam, queen = combat.enemies
+        amalgam_ai = combat.enemy_ais[amalgam.combat_id]
+        queen_ai = combat.enemy_ais[queen.combat_id]
+
+        assert amalgam.monster_id == TORCH_HEAD_AMALGAM_MONSTER_ID
+        assert amalgam.max_hp == TORCH_HEAD_AMALGAM_A8_HP
+        assert queen.monster_id == QUEEN_MONSTER_ID
+        assert queen.max_hp == QUEEN_A8_HP
+
+        tackle = amalgam_ai.states[TORCH_HEAD_AMALGAM_TACKLE_1_MOVE]
+        assert tackle.intents[0].damage == TORCH_HEAD_AMALGAM_TACKLE_DAMAGE_A9
+        player_hp_before_tackle = combat.player.current_hp
+        tackle.perform(combat)
+        assert combat.player.current_hp == player_hp_before_tackle - TORCH_HEAD_AMALGAM_TACKLE_DAMAGE_A9
+
+        beam = amalgam_ai.states[TORCH_HEAD_AMALGAM_BEAM_MOVE]
+        assert beam.intents[0].damage == TORCH_HEAD_AMALGAM_SOUL_BEAM_DAMAGE
+        assert beam.intents[0].hits == TORCH_HEAD_AMALGAM_SOUL_BEAM_HITS
+
+        weak_tackle = amalgam_ai.states[TORCH_HEAD_AMALGAM_TACKLE_3_MOVE]
+        assert weak_tackle.intents[0].damage == TORCH_HEAD_AMALGAM_WEAK_TACKLE_DAMAGE_A9
+
+        off_with_your_head = queen_ai.states[QUEEN_OFF_WITH_YOUR_HEAD_MOVE]
+        assert off_with_your_head.intents[0].damage == QUEEN_OFF_WITH_YOUR_HEAD_DAMAGE_A9
+        assert off_with_your_head.intents[0].hits == QUEEN_OFF_WITH_YOUR_HEAD_HITS
+        player_hp_before_head = combat.player.current_hp
+        off_with_your_head.perform(combat)
+        assert combat.player.current_hp == (
+            player_hp_before_head - QUEEN_OFF_WITH_YOUR_HEAD_DAMAGE_A9 * QUEEN_OFF_WITH_YOUR_HEAD_HITS
+        )
+
+        execution = queen_ai.states[QUEEN_EXECUTION_MOVE]
+        assert execution.intents[0].damage == QUEEN_EXECUTION_DAMAGE_A9
+        player_hp_before_execution = combat.player.current_hp
+        execution.perform(combat)
+        assert combat.player.current_hp == player_hp_before_execution - QUEEN_EXECUTION_DAMAGE_A9
+
+        queen_ai.states[QUEEN_ENRAGE_MOVE].perform(combat)
+        assert queen.get_power_amount(PowerId.STRENGTH) == QUEEN_ENRAGE_STRENGTH
 
     def test_act4_weak_monsters_use_original_move_ids_and_stats(self):
         slug, slug_ai = create_corpse_slug(Rng(50), starter_idx=0)

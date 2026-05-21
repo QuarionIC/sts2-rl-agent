@@ -1988,7 +1988,7 @@ def create_doormaker(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Mons
     return creature, MonsterAI(states, DOORMAKER_WHAT_IS_IT_MOVE)
 
 
-# ---- Queen (HP 302 / 322 asc) ----
+# ---- Queen ----
 
 def create_royal_guard(rng: Rng) -> tuple[Creature, MonsterAI]:
     hp = 40
@@ -2005,16 +2005,37 @@ def create_royal_guard(rng: Rng) -> tuple[Creature, MonsterAI]:
     return creature, MonsterAI(states, "STRIKE")
 
 
-def create_queen(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 400
-    creature = Creature(max_hp=hp, monster_id="QUEEN")
-    off_with_your_head_dmg = 3
-    execution_dmg = 15
-    chains_of_binding = 3
-    youre_mine_debuff = 99
-    burn_bright_strength = 1
-    burn_bright_block = 20
-    enrage_strength = 2
+QUEEN_MONSTER_ID = "QUEEN"
+QUEEN_BASE_HP = 400
+QUEEN_TOUGH_HP = 419
+QUEEN_BASE_OFF_WITH_YOUR_HEAD_DAMAGE = 3
+QUEEN_DEADLY_OFF_WITH_YOUR_HEAD_DAMAGE = 4
+QUEEN_OFF_WITH_YOUR_HEAD_REPEAT = 5
+QUEEN_BASE_EXECUTION_DAMAGE = 15
+QUEEN_DEADLY_EXECUTION_DAMAGE = 18
+QUEEN_CHAINS_OF_BINDING = 3
+QUEEN_YOURE_MINE_DEBUFF = 99
+QUEEN_BURN_BRIGHT_STRENGTH = 1
+QUEEN_BURN_BRIGHT_BLOCK = 20
+QUEEN_ENRAGE_STRENGTH = 2
+QUEEN_PUPPET_STRINGS_MOVE = "PUPPET_STRINGS_MOVE"
+QUEEN_YOUR_MINE_MOVE = "YOUR_MINE_MOVE"
+QUEEN_YOURE_MINE_NOW_BRANCH = "YOURE_MINE_NOW_BRANCH"
+QUEEN_BURN_BRIGHT_FOR_ME_MOVE = "BURN_BRIGHT_FOR_ME_MOVE"
+QUEEN_BURN_BRIGHT_FOR_ME_BRANCH = "BURN_BRIGHT_FOR_ME_BRANCH"
+QUEEN_OFF_WITH_YOUR_HEAD_MOVE = "OFF_WITH_YOUR_HEAD_MOVE"
+QUEEN_EXECUTION_MOVE = "EXECUTION_MOVE"
+QUEEN_ENRAGE_MOVE = "ENRAGE_MOVE"
+
+
+def create_queen(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        QUEEN_TOUGH_HP,
+        QUEEN_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=QUEEN_MONSTER_ID)
 
     def _has_amalgam_alive() -> bool:
         combat = creature.combat_state
@@ -2023,47 +2044,102 @@ def create_queen(rng: Rng) -> tuple[Creature, MonsterAI]:
         return any(enemy.monster_id == "TORCH_HEAD_AMALGAM" and enemy.is_alive for enemy in combat.enemies)
 
     def puppet_strings(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.CHAINS_OF_BINDING, chains_of_binding, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.CHAINS_OF_BINDING, QUEEN_CHAINS_OF_BINDING, applier=creature)
 
     def youre_mine(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.FRAIL, youre_mine_debuff, applier=creature)
-        apply_power_to_living_player_targets(combat, PowerId.WEAK, youre_mine_debuff, applier=creature)
-        apply_power_to_living_player_targets(combat, PowerId.VULNERABLE, youre_mine_debuff, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, QUEEN_YOURE_MINE_DEBUFF, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.WEAK, QUEEN_YOURE_MINE_DEBUFF, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.VULNERABLE, QUEEN_YOURE_MINE_DEBUFF, applier=creature)
 
     def burn_bright_for_me(combat: CombatState) -> None:
         for enemy in combat.alive_enemies:
             if enemy is not creature and enemy.side == creature.side:
-                enemy.apply_power(PowerId.STRENGTH, burn_bright_strength, applier=creature)
-        _gain_block(creature, burn_bright_block, combat)
+                enemy.apply_power(PowerId.STRENGTH, QUEEN_BURN_BRIGHT_STRENGTH, applier=creature)
+        _gain_block(creature, QUEEN_BURN_BRIGHT_BLOCK, combat)
 
     def off_with_your_head(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, off_with_your_head_dmg, hits=5)
+        off_with_your_head_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            QUEEN_DEADLY_OFF_WITH_YOUR_HEAD_DAMAGE,
+            QUEEN_BASE_OFF_WITH_YOUR_HEAD_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, off_with_your_head_dmg, hits=QUEEN_OFF_WITH_YOUR_HEAD_REPEAT)
 
     def execution(combat: CombatState) -> None:
+        execution_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            QUEEN_DEADLY_EXECUTION_DAMAGE,
+            QUEEN_BASE_EXECUTION_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, execution_dmg)
 
     def enrage(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, enrage_strength, applier=creature)
+        creature.apply_power(PowerId.STRENGTH, QUEEN_ENRAGE_STRENGTH, applier=creature)
 
-    youre_mine_now_branch = ConditionalBranchState("YOURE_MINE_NOW_BRANCH")
-    youre_mine_now_branch.add_branch(_has_amalgam_alive, "BURN_BRIGHT_FOR_ME_MOVE")
-    youre_mine_now_branch.add_branch(lambda: True, "OFF_WITH_YOUR_HEAD_MOVE")
+    off_with_your_head_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        QUEEN_DEADLY_OFF_WITH_YOUR_HEAD_DAMAGE,
+        QUEEN_BASE_OFF_WITH_YOUR_HEAD_DAMAGE,
+    )
+    execution_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        QUEEN_DEADLY_EXECUTION_DAMAGE,
+        QUEEN_BASE_EXECUTION_DAMAGE,
+    )
 
-    burn_bright_branch = ConditionalBranchState("BURN_BRIGHT_FOR_ME_BRANCH")
-    burn_bright_branch.add_branch(_has_amalgam_alive, "BURN_BRIGHT_FOR_ME_MOVE")
-    burn_bright_branch.add_branch(lambda: True, "OFF_WITH_YOUR_HEAD_MOVE")
+    youre_mine_now_branch = ConditionalBranchState(QUEEN_YOURE_MINE_NOW_BRANCH)
+    youre_mine_now_branch.add_branch(_has_amalgam_alive, QUEEN_BURN_BRIGHT_FOR_ME_MOVE)
+    youre_mine_now_branch.add_branch(lambda: True, QUEEN_OFF_WITH_YOUR_HEAD_MOVE)
+
+    burn_bright_branch = ConditionalBranchState(QUEEN_BURN_BRIGHT_FOR_ME_BRANCH)
+    burn_bright_branch.add_branch(_has_amalgam_alive, QUEEN_BURN_BRIGHT_FOR_ME_MOVE)
+    burn_bright_branch.add_branch(lambda: True, QUEEN_OFF_WITH_YOUR_HEAD_MOVE)
 
     states: dict[str, MonsterState] = {
-        "PUPPET_STRINGS_MOVE": MoveState("PUPPET_STRINGS_MOVE", puppet_strings, [strong_debuff_intent()], follow_up_id="YOUR_MINE_MOVE"),
-        "YOUR_MINE_MOVE": MoveState("YOUR_MINE_MOVE", youre_mine, [debuff_intent()], follow_up_id="YOURE_MINE_NOW_BRANCH"),
-        "YOURE_MINE_NOW_BRANCH": youre_mine_now_branch,
-        "BURN_BRIGHT_FOR_ME_MOVE": MoveState("BURN_BRIGHT_FOR_ME_MOVE", burn_bright_for_me, [buff_intent(), defend_intent()], follow_up_id="BURN_BRIGHT_FOR_ME_BRANCH"),
-        "BURN_BRIGHT_FOR_ME_BRANCH": burn_bright_branch,
-        "OFF_WITH_YOUR_HEAD_MOVE": MoveState("OFF_WITH_YOUR_HEAD_MOVE", off_with_your_head, [multi_attack_intent(off_with_your_head_dmg, 5)], follow_up_id="EXECUTION_MOVE"),
-        "EXECUTION_MOVE": MoveState("EXECUTION_MOVE", execution, [attack_intent(execution_dmg)], follow_up_id="ENRAGE_MOVE"),
-        "ENRAGE_MOVE": MoveState("ENRAGE_MOVE", enrage, [buff_intent()], follow_up_id="OFF_WITH_YOUR_HEAD_MOVE"),
+        QUEEN_PUPPET_STRINGS_MOVE: MoveState(
+            QUEEN_PUPPET_STRINGS_MOVE,
+            puppet_strings,
+            [strong_debuff_intent()],
+            follow_up_id=QUEEN_YOUR_MINE_MOVE,
+        ),
+        QUEEN_YOUR_MINE_MOVE: MoveState(
+            QUEEN_YOUR_MINE_MOVE,
+            youre_mine,
+            [debuff_intent()],
+            follow_up_id=QUEEN_YOURE_MINE_NOW_BRANCH,
+        ),
+        QUEEN_YOURE_MINE_NOW_BRANCH: youre_mine_now_branch,
+        QUEEN_BURN_BRIGHT_FOR_ME_MOVE: MoveState(
+            QUEEN_BURN_BRIGHT_FOR_ME_MOVE,
+            burn_bright_for_me,
+            [buff_intent(), defend_intent()],
+            follow_up_id=QUEEN_BURN_BRIGHT_FOR_ME_BRANCH,
+        ),
+        QUEEN_BURN_BRIGHT_FOR_ME_BRANCH: burn_bright_branch,
+        QUEEN_OFF_WITH_YOUR_HEAD_MOVE: MoveState(
+            QUEEN_OFF_WITH_YOUR_HEAD_MOVE,
+            off_with_your_head,
+            [multi_attack_intent(off_with_your_head_intent_damage, QUEEN_OFF_WITH_YOUR_HEAD_REPEAT)],
+            follow_up_id=QUEEN_EXECUTION_MOVE,
+        ),
+        QUEEN_EXECUTION_MOVE: MoveState(
+            QUEEN_EXECUTION_MOVE,
+            execution,
+            [attack_intent(execution_intent_damage)],
+            follow_up_id=QUEEN_ENRAGE_MOVE,
+        ),
+        QUEEN_ENRAGE_MOVE: MoveState(
+            QUEEN_ENRAGE_MOVE,
+            enrage,
+            [buff_intent()],
+            follow_up_id=QUEEN_OFF_WITH_YOUR_HEAD_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "PUPPET_STRINGS_MOVE")
+    return creature, MonsterAI(states, QUEEN_PUPPET_STRINGS_MOVE)
 
 
 # ---- TestSubject (HP 255 / 270 asc) ----

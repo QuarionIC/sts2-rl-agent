@@ -332,38 +332,108 @@ def create_dense_vegetation_wriggler(
 # BOSS MINIONS
 # ========================================================================
 
-# ---- TorchHeadAmalgam (HP 199, minion) ----
-# Cycle: TACKLE_1_MOVE(18) -> TACKLE_2_MOVE(18) -> BEAM_MOVE(8x3)
-# -> TACKLE_3_MOVE(14) -> TACKLE_4_MOVE(14) -> BEAM_MOVE -> ...
-# AfterAddedToRoom: Minion power
+# ---- TorchHeadAmalgam ----
 
-def create_torch_head_amalgam(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 199
-    creature = Creature(max_hp=hp, monster_id="TORCH_HEAD_AMALGAM")
-    tackle_dmg = 18
-    weak_tackle_dmg = 14
-    soul_beam_dmg = 8
-    soul_beam_hits = 3
+TORCH_HEAD_AMALGAM_MONSTER_ID = "TORCH_HEAD_AMALGAM"
+TORCH_HEAD_AMALGAM_BASE_HP = 199
+TORCH_HEAD_AMALGAM_TOUGH_HP = 211
+TORCH_HEAD_AMALGAM_BASE_TACKLE_DAMAGE = 18
+TORCH_HEAD_AMALGAM_DEADLY_TACKLE_DAMAGE = 19
+TORCH_HEAD_AMALGAM_BASE_WEAK_TACKLE_DAMAGE = 14
+TORCH_HEAD_AMALGAM_DEADLY_WEAK_TACKLE_DAMAGE = 15
+TORCH_HEAD_AMALGAM_SOUL_BEAM_DAMAGE = 8
+TORCH_HEAD_AMALGAM_SOUL_BEAM_REPEAT = 3
+TORCH_HEAD_AMALGAM_MINION = 1
+TORCH_HEAD_AMALGAM_TACKLE_1_MOVE = "TACKLE_1_MOVE"
+TORCH_HEAD_AMALGAM_TACKLE_2_MOVE = "TACKLE_2_MOVE"
+TORCH_HEAD_AMALGAM_BEAM_MOVE = "BEAM_MOVE"
+TORCH_HEAD_AMALGAM_TACKLE_3_MOVE = "TACKLE_3_MOVE"
+TORCH_HEAD_AMALGAM_TACKLE_4_MOVE = "TACKLE_4_MOVE"
+
+
+def create_torch_head_amalgam(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TORCH_HEAD_AMALGAM_TOUGH_HP,
+        TORCH_HEAD_AMALGAM_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=TORCH_HEAD_AMALGAM_MONSTER_ID)
 
     def tackle(combat: CombatState) -> None:
+        tackle_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TORCH_HEAD_AMALGAM_DEADLY_TACKLE_DAMAGE,
+            TORCH_HEAD_AMALGAM_BASE_TACKLE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, tackle_dmg)
 
     def weak_tackle(combat: CombatState) -> None:
+        weak_tackle_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TORCH_HEAD_AMALGAM_DEADLY_WEAK_TACKLE_DAMAGE,
+            TORCH_HEAD_AMALGAM_BASE_WEAK_TACKLE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, weak_tackle_dmg)
 
     def soul_beam(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, soul_beam_dmg, hits=soul_beam_hits)
+        _deal_damage_to_player(
+            combat,
+            creature,
+            TORCH_HEAD_AMALGAM_SOUL_BEAM_DAMAGE,
+            hits=TORCH_HEAD_AMALGAM_SOUL_BEAM_REPEAT,
+        )
+
+    tackle_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TORCH_HEAD_AMALGAM_DEADLY_TACKLE_DAMAGE,
+        TORCH_HEAD_AMALGAM_BASE_TACKLE_DAMAGE,
+    )
+    weak_tackle_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TORCH_HEAD_AMALGAM_DEADLY_WEAK_TACKLE_DAMAGE,
+        TORCH_HEAD_AMALGAM_BASE_WEAK_TACKLE_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "TACKLE_1_MOVE": MoveState("TACKLE_1_MOVE", tackle, [attack_intent(tackle_dmg)], follow_up_id="TACKLE_2_MOVE"),
-        "TACKLE_2_MOVE": MoveState("TACKLE_2_MOVE", tackle, [attack_intent(tackle_dmg)], follow_up_id="BEAM_MOVE"),
-        "BEAM_MOVE": MoveState("BEAM_MOVE", soul_beam, [multi_attack_intent(soul_beam_dmg, soul_beam_hits)], follow_up_id="TACKLE_3_MOVE"),
-        "TACKLE_3_MOVE": MoveState("TACKLE_3_MOVE", weak_tackle, [attack_intent(weak_tackle_dmg)], follow_up_id="TACKLE_4_MOVE"),
-        "TACKLE_4_MOVE": MoveState("TACKLE_4_MOVE", weak_tackle, [attack_intent(weak_tackle_dmg)], follow_up_id="BEAM_MOVE"),
+        TORCH_HEAD_AMALGAM_TACKLE_1_MOVE: MoveState(
+            TORCH_HEAD_AMALGAM_TACKLE_1_MOVE,
+            tackle,
+            [attack_intent(tackle_intent_damage)],
+            follow_up_id=TORCH_HEAD_AMALGAM_TACKLE_2_MOVE,
+        ),
+        TORCH_HEAD_AMALGAM_TACKLE_2_MOVE: MoveState(
+            TORCH_HEAD_AMALGAM_TACKLE_2_MOVE,
+            tackle,
+            [attack_intent(tackle_intent_damage)],
+            follow_up_id=TORCH_HEAD_AMALGAM_BEAM_MOVE,
+        ),
+        TORCH_HEAD_AMALGAM_BEAM_MOVE: MoveState(
+            TORCH_HEAD_AMALGAM_BEAM_MOVE,
+            soul_beam,
+            [multi_attack_intent(TORCH_HEAD_AMALGAM_SOUL_BEAM_DAMAGE, TORCH_HEAD_AMALGAM_SOUL_BEAM_REPEAT)],
+            follow_up_id=TORCH_HEAD_AMALGAM_TACKLE_3_MOVE,
+        ),
+        TORCH_HEAD_AMALGAM_TACKLE_3_MOVE: MoveState(
+            TORCH_HEAD_AMALGAM_TACKLE_3_MOVE,
+            weak_tackle,
+            [attack_intent(weak_tackle_intent_damage)],
+            follow_up_id=TORCH_HEAD_AMALGAM_TACKLE_4_MOVE,
+        ),
+        TORCH_HEAD_AMALGAM_TACKLE_4_MOVE: MoveState(
+            TORCH_HEAD_AMALGAM_TACKLE_4_MOVE,
+            weak_tackle,
+            [attack_intent(weak_tackle_intent_damage)],
+            follow_up_id=TORCH_HEAD_AMALGAM_BEAM_MOVE,
+        ),
     }
 
-    creature.apply_power(PowerId.MINION, 1)
-    return creature, MonsterAI(states, "TACKLE_1_MOVE")
+    creature.apply_power(PowerId.MINION, TORCH_HEAD_AMALGAM_MINION)
+    return creature, MonsterAI(states, TORCH_HEAD_AMALGAM_TACKLE_1_MOVE)
 
 
 # ========================================================================
