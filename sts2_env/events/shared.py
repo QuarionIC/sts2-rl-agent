@@ -893,12 +893,14 @@ class Darv(EventModel):
             RelicId.BLACK_STAR.name,
             RelicId.CALLING_BELL.name,
             RelicId.EMPTY_CAGE.name,
-            RelicId.RUNIC_PYRAMID.name,
-            RelicId.SNECKO_EYE.name,
         ]
         modifiers = getattr(run_state, "modifiers", [])
         if not any(getattr(modifier, "clears_player_deck", False) for modifier in modifiers):
             source.append(RelicId.PANDORAS_BOX.name)
+        source.extend([
+            RelicId.RUNIC_PYRAMID.name,
+            RelicId.SNECKO_EYE.name,
+        ])
         if run_state.current_act_index == 1:
             source.append(rng.choice([RelicId.ECTOPLASM.name, RelicId.SOZU.name]))
         elif run_state.current_act_index == 2:

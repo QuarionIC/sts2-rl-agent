@@ -7,6 +7,7 @@ from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.core.enums import CardId
 from sts2_env.cards.silent import make_backstab
 from sts2_env.cards.status import make_clumsy, make_decay, make_doubt, make_exterminate, make_greed, make_guilty, make_injury, make_lantern_key, make_metamorphosis, make_poor_sleep, make_regret, make_squash
+from sts2_env.relics.base import RelicId
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.reward_objects import UpgradeCardsReward
 from sts2_env.run.run_state import PlayerState, RunState
@@ -30,10 +31,14 @@ class _FixedIntRng:
 
 
 class _DarvRng:
+    def __init__(self) -> None:
+        self.shuffle_inputs = []
+
     def choice(self, seq):
         return seq[-1]
 
     def shuffle(self, seq) -> None:
+        self.shuffle_inputs.append(list(seq))
         seq.reverse()
 
     def next_int(self, low: int, high: int) -> int:
@@ -602,6 +607,28 @@ def test_darv_uses_act_conditioned_boss_relic_pool():
     options = darv.generate_initial_options(run_state)
     labels = {option.label for option in options}
     assert any("VELVET" in label or "Velvet" in label for label in labels)
+
+
+def test_darv_preserves_csharp_boss_relic_set_order_before_shuffle():
+    run_state = RunState(seed=641, character_id="Ironclad")
+    run_state.initialize_run()
+    run_state.current_act_index = 1
+    rng = _DarvRng()
+    darv = Darv()
+    darv.rng = rng
+
+    darv.generate_initial_options(run_state)
+
+    assert rng.shuffle_inputs == [[
+        RelicId.ASTROLABE.name,
+        RelicId.BLACK_STAR.name,
+        RelicId.CALLING_BELL.name,
+        RelicId.EMPTY_CAGE.name,
+        RelicId.PANDORAS_BOX.name,
+        RelicId.RUNIC_PYRAMID.name,
+        RelicId.SNECKO_EYE.name,
+        RelicId.SOZU.name,
+    ]]
 
 
 def test_shared_reward_and_curse_events_apply_real_state_changes():
