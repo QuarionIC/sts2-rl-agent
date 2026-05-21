@@ -2142,88 +2142,266 @@ def create_queen(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterA
     return creature, MonsterAI(states, QUEEN_PUPPET_STRINGS_MOVE)
 
 
-# ---- TestSubject (HP 255 / 270 asc) ----
+# ---- TestSubject ----
 
-def create_test_subject(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 100
-    creature = Creature(max_hp=hp, monster_id="TEST_SUBJECT")
-    bite_dmg = 20
-    skull_bash_dmg = 14
-    skull_bash_vulnerable = 1
-    pounce_dmg = 30
-    multi_claw_dmg = 10
-    big_pounce_dmg = 45
-    burning_growl_burns = 3
-    burning_growl_strength = 2
-    enrage_amount = 2
-    second_form_hp = 200
-    third_form_hp = 300
+TEST_SUBJECT_MONSTER_ID = "TEST_SUBJECT"
+TEST_SUBJECT_BASE_FIRST_FORM_HP = 100
+TEST_SUBJECT_TOUGH_FIRST_FORM_HP = 111
+TEST_SUBJECT_BASE_SECOND_FORM_HP = 200
+TEST_SUBJECT_TOUGH_SECOND_FORM_HP = 212
+TEST_SUBJECT_BASE_THIRD_FORM_HP = 300
+TEST_SUBJECT_TOUGH_THIRD_FORM_HP = 313
+TEST_SUBJECT_BASE_ENRAGE = 2
+TEST_SUBJECT_DEADLY_ENRAGE = 3
+TEST_SUBJECT_BASE_BITE_DAMAGE = 20
+TEST_SUBJECT_DEADLY_BITE_DAMAGE = 22
+TEST_SUBJECT_BASE_SKULL_BASH_DAMAGE = 14
+TEST_SUBJECT_DEADLY_SKULL_BASH_DAMAGE = 16
+TEST_SUBJECT_SKULL_BASH_VULNERABLE = 1
+TEST_SUBJECT_BASE_POUNCE_DAMAGE = 30
+TEST_SUBJECT_DEADLY_POUNCE_DAMAGE = 32
+TEST_SUBJECT_BASE_MULTI_CLAW_DAMAGE = 10
+TEST_SUBJECT_DEADLY_MULTI_CLAW_DAMAGE = 11
+TEST_SUBJECT_BASE_MULTI_CLAW_COUNT = 3
+TEST_SUBJECT_PHASE3_LACERATE_REPEAT = 3
+TEST_SUBJECT_BIG_POUNCE_DAMAGE = 45
+TEST_SUBJECT_BASE_BURNING_GROWL_BURNS = 3
+TEST_SUBJECT_DEADLY_BURNING_GROWL_BURNS = 5
+TEST_SUBJECT_BASE_BURNING_GROWL_STRENGTH = 2
+TEST_SUBJECT_DEADLY_BURNING_GROWL_STRENGTH = 3
+TEST_SUBJECT_BURNING_GROWL_STATUS = "BURN"
+TEST_SUBJECT_ADAPTABLE = 1
+TEST_SUBJECT_PAINFUL_STABS = 1
+TEST_SUBJECT_NEMESIS = 1
+TEST_SUBJECT_RESPAWNS_KEY = "respawns"
+TEST_SUBJECT_EXTRA_MULTI_CLAW_COUNT_KEY = "extra_multi_claw_count"
+TEST_SUBJECT_RESPAWN_MOVE = "RESPAWN_MOVE"
+TEST_SUBJECT_REVIVE_BRANCH = "REVIVE_BRANCH"
+TEST_SUBJECT_BITE_MOVE = "BITE_MOVE"
+TEST_SUBJECT_SKULL_BASH_MOVE = "SKULL_BASH_MOVE"
+TEST_SUBJECT_POUNCE_MOVE = "POUNCE_MOVE"
+TEST_SUBJECT_MULTI_CLAW_MOVE = "MULTI_CLAW_MOVE"
+TEST_SUBJECT_PHASE3_LACERATE_MOVE = "PHASE3_LACERATE_MOVE"
+TEST_SUBJECT_BIG_POUNCE_MOVE = "BIG_POUNCE_MOVE"
+TEST_SUBJECT_BURNING_GROWL_MOVE = "BURNING_GROWL_MOVE"
+
+
+def create_test_subject(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TEST_SUBJECT_TOUGH_FIRST_FORM_HP,
+        TEST_SUBJECT_BASE_FIRST_FORM_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=TEST_SUBJECT_MONSTER_ID)
 
     _state = {
-        "respawns": 0,
-        "extra_multi_claw_count": 0,
+        TEST_SUBJECT_RESPAWNS_KEY: 0,
+        TEST_SUBJECT_EXTRA_MULTI_CLAW_COUNT_KEY: 0,
     }
 
     def _multi_claw_total_count() -> int:
-        return 3 + _state["extra_multi_claw_count"]
+        return TEST_SUBJECT_BASE_MULTI_CLAW_COUNT + _state[TEST_SUBJECT_EXTRA_MULTI_CLAW_COUNT_KEY]
 
     def respawn(combat: CombatState) -> None:
-        _state["respawns"] += 1
+        _state[TEST_SUBJECT_RESPAWNS_KEY] += 1
         adaptable = creature.powers.get(PowerId.ADAPTABLE)
         do_revive = getattr(adaptable, "do_revive", None)
         if callable(do_revive):
             do_revive()
-        scaled_hp = (second_form_hp if _state["respawns"] == 1 else third_form_hp) * len(combat.combat_player_states)
+        second_form_hp = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            TEST_SUBJECT_TOUGH_SECOND_FORM_HP,
+            TEST_SUBJECT_BASE_SECOND_FORM_HP,
+        )
+        third_form_hp = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            TEST_SUBJECT_TOUGH_THIRD_FORM_HP,
+            TEST_SUBJECT_BASE_THIRD_FORM_HP,
+        )
+        scaled_hp = (
+            second_form_hp
+            if _state[TEST_SUBJECT_RESPAWNS_KEY] == 1
+            else third_form_hp
+        ) * len(combat.combat_player_states)
         creature.max_hp = scaled_hp
         creature.current_hp = scaled_hp
-        if _state["respawns"] == 1:
-            creature.apply_power(PowerId.PAINFUL_STABS, 1)
+        if _state[TEST_SUBJECT_RESPAWNS_KEY] == 1:
+            creature.apply_power(PowerId.PAINFUL_STABS, TEST_SUBJECT_PAINFUL_STABS)
         else:
-            creature.apply_power(PowerId.NEMESIS, 1)
+            creature.apply_power(PowerId.NEMESIS, TEST_SUBJECT_NEMESIS)
             creature.powers.pop(PowerId.ADAPTABLE, None)
             creature.powers.pop(PowerId.PAINFUL_STABS, None)
 
     def bite(combat: CombatState) -> None:
+        bite_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TEST_SUBJECT_DEADLY_BITE_DAMAGE,
+            TEST_SUBJECT_BASE_BITE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, bite_dmg)
 
     def skull_bash(combat: CombatState) -> None:
+        skull_bash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TEST_SUBJECT_DEADLY_SKULL_BASH_DAMAGE,
+            TEST_SUBJECT_BASE_SKULL_BASH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, skull_bash_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.VULNERABLE, skull_bash_vulnerable, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.VULNERABLE,
+            TEST_SUBJECT_SKULL_BASH_VULNERABLE,
+            applier=creature,
+        )
 
     def pounce(combat: CombatState) -> None:
+        pounce_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TEST_SUBJECT_DEADLY_POUNCE_DAMAGE,
+            TEST_SUBJECT_BASE_POUNCE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, pounce_dmg)
 
     def multi_claw(combat: CombatState) -> None:
+        multi_claw_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TEST_SUBJECT_DEADLY_MULTI_CLAW_DAMAGE,
+            TEST_SUBJECT_BASE_MULTI_CLAW_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, multi_claw_dmg, hits=_multi_claw_total_count())
-        _state["extra_multi_claw_count"] += 1
-        states["MULTI_CLAW_MOVE"].intents = [multi_attack_intent(multi_claw_dmg, _multi_claw_total_count())]
+        _state[TEST_SUBJECT_EXTRA_MULTI_CLAW_COUNT_KEY] += 1
+        states[TEST_SUBJECT_MULTI_CLAW_MOVE].intents = [multi_attack_intent(multi_claw_dmg, _multi_claw_total_count())]
 
     def phase3_lacerate(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, multi_claw_dmg, hits=3)
+        phase3_lacerate_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TEST_SUBJECT_DEADLY_MULTI_CLAW_DAMAGE,
+            TEST_SUBJECT_BASE_MULTI_CLAW_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, phase3_lacerate_dmg, hits=TEST_SUBJECT_PHASE3_LACERATE_REPEAT)
 
     def big_pounce(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, big_pounce_dmg)
+        _deal_damage_to_player(combat, creature, TEST_SUBJECT_BIG_POUNCE_DAMAGE)
 
     def burning_growl(combat: CombatState) -> None:
+        burning_growl_burns = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TEST_SUBJECT_DEADLY_BURNING_GROWL_BURNS,
+            TEST_SUBJECT_BASE_BURNING_GROWL_BURNS,
+        )
+        burning_growl_strength = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TEST_SUBJECT_DEADLY_BURNING_GROWL_STRENGTH,
+            TEST_SUBJECT_BASE_BURNING_GROWL_STRENGTH,
+        )
         for target in living_player_targets(combat):
-            combat.add_status_cards_to_discard(target, "BURN", burning_growl_burns)
+            combat.add_status_cards_to_discard(target, TEST_SUBJECT_BURNING_GROWL_STATUS, burning_growl_burns)
         creature.apply_power(PowerId.STRENGTH, burning_growl_strength)
 
-    revive_branch = ConditionalBranchState("REVIVE_BRANCH")
-    revive_branch.add_branch(lambda: _state["respawns"] < 2, "MULTI_CLAW_MOVE")
-    revive_branch.add_branch(lambda: True, "PHASE3_LACERATE_MOVE")
+    bite_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TEST_SUBJECT_DEADLY_BITE_DAMAGE,
+        TEST_SUBJECT_BASE_BITE_DAMAGE,
+    )
+    skull_bash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TEST_SUBJECT_DEADLY_SKULL_BASH_DAMAGE,
+        TEST_SUBJECT_BASE_SKULL_BASH_DAMAGE,
+    )
+    pounce_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TEST_SUBJECT_DEADLY_POUNCE_DAMAGE,
+        TEST_SUBJECT_BASE_POUNCE_DAMAGE,
+    )
+    multi_claw_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TEST_SUBJECT_DEADLY_MULTI_CLAW_DAMAGE,
+        TEST_SUBJECT_BASE_MULTI_CLAW_DAMAGE,
+    )
+    burning_growl_intent_burns = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TEST_SUBJECT_DEADLY_BURNING_GROWL_BURNS,
+        TEST_SUBJECT_BASE_BURNING_GROWL_BURNS,
+    )
+    enrage_amount = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TEST_SUBJECT_DEADLY_ENRAGE,
+        TEST_SUBJECT_BASE_ENRAGE,
+    )
+
+    revive_branch = ConditionalBranchState(TEST_SUBJECT_REVIVE_BRANCH)
+    revive_branch.add_branch(lambda: _state[TEST_SUBJECT_RESPAWNS_KEY] < 2, TEST_SUBJECT_MULTI_CLAW_MOVE)
+    revive_branch.add_branch(lambda: True, TEST_SUBJECT_PHASE3_LACERATE_MOVE)
 
     states: dict[str, MonsterState] = {
-        "RESPAWN_MOVE": MoveState("RESPAWN_MOVE", respawn, [Intent(IntentType.HEAL), buff_intent()], follow_up_id="REVIVE_BRANCH", must_perform_once=True),
-        "REVIVE_BRANCH": revive_branch,
-        "BITE_MOVE": MoveState("BITE_MOVE", bite, [attack_intent(bite_dmg)], follow_up_id="SKULL_BASH_MOVE"),
-        "SKULL_BASH_MOVE": MoveState("SKULL_BASH_MOVE", skull_bash, [attack_intent(skull_bash_dmg), debuff_intent()], follow_up_id="BITE_MOVE"),
-        "POUNCE_MOVE": MoveState("POUNCE_MOVE", pounce, [attack_intent(pounce_dmg)], follow_up_id="MULTI_CLAW_MOVE"),
-        "MULTI_CLAW_MOVE": MoveState("MULTI_CLAW_MOVE", multi_claw, [multi_attack_intent(multi_claw_dmg, _multi_claw_total_count())], follow_up_id="POUNCE_MOVE"),
-        "PHASE3_LACERATE_MOVE": MoveState("PHASE3_LACERATE_MOVE", phase3_lacerate, [multi_attack_intent(multi_claw_dmg, 3)], follow_up_id="BIG_POUNCE_MOVE"),
-        "BIG_POUNCE_MOVE": MoveState("BIG_POUNCE_MOVE", big_pounce, [attack_intent(big_pounce_dmg)], follow_up_id="BURNING_GROWL_MOVE"),
-        "BURNING_GROWL_MOVE": MoveState("BURNING_GROWL_MOVE", burning_growl, [status_intent(), buff_intent()], follow_up_id="PHASE3_LACERATE_MOVE"),
+        TEST_SUBJECT_RESPAWN_MOVE: MoveState(
+            TEST_SUBJECT_RESPAWN_MOVE,
+            respawn,
+            [Intent(IntentType.HEAL), buff_intent()],
+            follow_up_id=TEST_SUBJECT_REVIVE_BRANCH,
+            must_perform_once=True,
+        ),
+        TEST_SUBJECT_REVIVE_BRANCH: revive_branch,
+        TEST_SUBJECT_BITE_MOVE: MoveState(
+            TEST_SUBJECT_BITE_MOVE,
+            bite,
+            [attack_intent(bite_intent_damage)],
+            follow_up_id=TEST_SUBJECT_SKULL_BASH_MOVE,
+        ),
+        TEST_SUBJECT_SKULL_BASH_MOVE: MoveState(
+            TEST_SUBJECT_SKULL_BASH_MOVE,
+            skull_bash,
+            [attack_intent(skull_bash_intent_damage), debuff_intent()],
+            follow_up_id=TEST_SUBJECT_BITE_MOVE,
+        ),
+        TEST_SUBJECT_POUNCE_MOVE: MoveState(
+            TEST_SUBJECT_POUNCE_MOVE,
+            pounce,
+            [attack_intent(pounce_intent_damage)],
+            follow_up_id=TEST_SUBJECT_MULTI_CLAW_MOVE,
+        ),
+        TEST_SUBJECT_MULTI_CLAW_MOVE: MoveState(
+            TEST_SUBJECT_MULTI_CLAW_MOVE,
+            multi_claw,
+            [multi_attack_intent(multi_claw_intent_damage, _multi_claw_total_count())],
+            follow_up_id=TEST_SUBJECT_POUNCE_MOVE,
+        ),
+        TEST_SUBJECT_PHASE3_LACERATE_MOVE: MoveState(
+            TEST_SUBJECT_PHASE3_LACERATE_MOVE,
+            phase3_lacerate,
+            [multi_attack_intent(multi_claw_intent_damage, TEST_SUBJECT_PHASE3_LACERATE_REPEAT)],
+            follow_up_id=TEST_SUBJECT_BIG_POUNCE_MOVE,
+        ),
+        TEST_SUBJECT_BIG_POUNCE_MOVE: MoveState(
+            TEST_SUBJECT_BIG_POUNCE_MOVE,
+            big_pounce,
+            [attack_intent(TEST_SUBJECT_BIG_POUNCE_DAMAGE)],
+            follow_up_id=TEST_SUBJECT_BURNING_GROWL_MOVE,
+        ),
+        TEST_SUBJECT_BURNING_GROWL_MOVE: MoveState(
+            TEST_SUBJECT_BURNING_GROWL_MOVE,
+            burning_growl,
+            [status_intent(), buff_intent()],
+            follow_up_id=TEST_SUBJECT_PHASE3_LACERATE_MOVE,
+        ),
     }
-    creature.apply_power(PowerId.ADAPTABLE, 1)
+    states[TEST_SUBJECT_BURNING_GROWL_MOVE].intents[0].hits = burning_growl_intent_burns
+    creature.apply_power(PowerId.ADAPTABLE, TEST_SUBJECT_ADAPTABLE)
     creature.apply_power(PowerId.ENRAGE, enrage_amount)
-    return creature, MonsterAI(states, "BITE_MOVE")
+    return creature, MonsterAI(states, TEST_SUBJECT_BITE_MOVE)

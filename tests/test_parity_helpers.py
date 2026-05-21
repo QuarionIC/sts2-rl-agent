@@ -158,7 +158,16 @@ from sts2_env.monsters.act2 import (
 )
 from sts2_env.monsters.act1 import create_eye_with_teeth, create_parafright
 from sts2_env.monsters.act3 import create_door
-from sts2_env.monsters.act3 import create_doormaker, create_fabricator, create_osty, create_test_subject
+from sts2_env.monsters.act3 import (
+    TEST_SUBJECT_MULTI_CLAW_MOVE,
+    TEST_SUBJECT_POUNCE_MOVE,
+    TEST_SUBJECT_PHASE3_LACERATE_MOVE,
+    TEST_SUBJECT_RESPAWN_MOVE,
+    create_doormaker,
+    create_fabricator,
+    create_osty,
+    create_test_subject,
+)
 from sts2_env.monsters.act4 import create_waterfall_giant
 from sts2_env.monsters.act1_weak import create_shrinker_beetle, create_twig_slime_s
 from sts2_env.potions.base import create_potion
@@ -1096,26 +1105,26 @@ class TestUntargetableReviveStates:
         assert subject.get_power_amount(PowerId.ADAPTABLE) == 1
         assert subject.get_power_amount(PowerId.ENRAGE) == 2
         assert combat.kill_creature(subject)
-        assert subject_ai.current_move.state_id == "RESPAWN_MOVE"
+        assert subject_ai.current_move.state_id == TEST_SUBJECT_RESPAWN_MOVE
 
         combat._execute_enemy_turn()  # noqa: SLF001
 
         assert subject.current_hp == 200
         assert subject.max_hp == 200
         assert subject.get_power_amount(PowerId.PAINFUL_STABS) == 1
-        assert subject_ai.current_move.state_id == "MULTI_CLAW_MOVE"
+        assert subject_ai.current_move.state_id == TEST_SUBJECT_MULTI_CLAW_MOVE
         assert subject_ai.current_move.intents[0].hits == 3
 
         combat.player.current_hp = 200
         subject_ai.current_move.perform(combat)
         subject_ai.on_move_performed()
         subject_ai.roll_move(combat.rng)
-        assert subject_ai.current_move.state_id == "POUNCE_MOVE"
+        assert subject_ai.current_move.state_id == TEST_SUBJECT_POUNCE_MOVE
 
         subject_ai.current_move.perform(combat)
         subject_ai.on_move_performed()
         subject_ai.roll_move(combat.rng)
-        assert subject_ai.current_move.state_id == "MULTI_CLAW_MOVE"
+        assert subject_ai.current_move.state_id == TEST_SUBJECT_MULTI_CLAW_MOVE
         assert subject_ai.current_move.intents[0].hits == 4
 
     def test_test_subject_second_respawn_removes_adaptable(self):
@@ -1140,7 +1149,7 @@ class TestUntargetableReviveStates:
         assert PowerId.ADAPTABLE not in subject.powers
         assert PowerId.PAINFUL_STABS not in subject.powers
         assert subject.get_power_amount(PowerId.NEMESIS) == 1
-        assert subject_ai.current_move.state_id == "PHASE3_LACERATE_MOVE"
+        assert subject_ai.current_move.state_id == TEST_SUBJECT_PHASE3_LACERATE_MOVE
 
     def test_waterfall_giant_transitions_into_about_to_blow_then_explodes(self):
         combat = CombatState(

@@ -3775,6 +3775,7 @@ class CombatState:
     def _make_named_card(self, card_name: str) -> CardInstance | None:
         from sts2_env.cards.status import (
             make_apotheosis,
+            make_burn,
             make_dazed,
             make_folly,
             make_frantic_escape,
@@ -3787,6 +3788,7 @@ class CombatState:
 
         factories = {
             "APOTHEOSIS": make_apotheosis,
+            "BURN": make_burn,
             "DAZED": make_dazed,
             "FOLLY": make_folly,
             "SOOT": make_soot,

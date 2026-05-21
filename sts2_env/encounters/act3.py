@@ -181,7 +181,7 @@ def setup_queen_boss(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_test_subject_boss(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_test_subject(rng)
+    creature, ai = create_test_subject(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 

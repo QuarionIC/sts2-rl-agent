@@ -38,6 +38,7 @@ from sts2_env.encounters.act3 import (
     setup_queen_boss,
     setup_slimed_berserker_normal,
     setup_soul_nexus_elite,
+    setup_test_subject_boss,
     setup_the_lost_and_forgotten_normal,
     setup_turret_operator_weak,
 )
@@ -298,6 +299,14 @@ from sts2_env.monsters.act3 import (
     THE_LOST_DEBILITATING_SMOG_MOVE,
     THE_LOST_EYE_LASERS_MOVE,
     THE_LOST_MONSTER_ID,
+    TEST_SUBJECT_BIG_POUNCE_MOVE,
+    TEST_SUBJECT_BITE_MOVE,
+    TEST_SUBJECT_BURNING_GROWL_MOVE,
+    TEST_SUBJECT_MULTI_CLAW_MOVE,
+    TEST_SUBJECT_PHASE3_LACERATE_MOVE,
+    TEST_SUBJECT_POUNCE_MOVE,
+    TEST_SUBJECT_RESPAWN_MOVE,
+    TEST_SUBJECT_SKULL_BASH_MOVE,
     TURRET_OPERATOR_MONSTER_ID,
     TURRET_OPERATOR_RELOAD_MOVE,
     TURRET_OPERATOR_UNLOAD_MOVE_1,
@@ -321,6 +330,7 @@ from sts2_env.monsters.act3 import (
     create_soul_nexus,
     create_stabbot,
     create_spectral_knight,
+    create_test_subject,
     create_the_forgotten,
     create_the_lost,
     create_door,
@@ -608,6 +618,26 @@ QUEEN_OFF_WITH_YOUR_HEAD_DAMAGE_A9 = 4
 QUEEN_OFF_WITH_YOUR_HEAD_HITS = 5
 QUEEN_EXECUTION_DAMAGE_A9 = 18
 QUEEN_ENRAGE_STRENGTH = 2
+TEST_SUBJECT_BASE_FIRST_FORM_HP = 100
+TEST_SUBJECT_A8_FIRST_FORM_HP = 111
+TEST_SUBJECT_BASE_SECOND_FORM_HP = 200
+TEST_SUBJECT_A8_SECOND_FORM_HP = 212
+TEST_SUBJECT_BASE_THIRD_FORM_HP = 300
+TEST_SUBJECT_A8_THIRD_FORM_HP = 313
+TEST_SUBJECT_ADAPTABLE = 1
+TEST_SUBJECT_ENRAGE_A9 = 3
+TEST_SUBJECT_BITE_DAMAGE_A9 = 22
+TEST_SUBJECT_SKULL_BASH_DAMAGE_A9 = 16
+TEST_SUBJECT_SKULL_BASH_VULNERABLE = 1
+TEST_SUBJECT_POUNCE_DAMAGE_A9 = 32
+TEST_SUBJECT_MULTI_CLAW_DAMAGE_A9 = 11
+TEST_SUBJECT_BASE_MULTI_CLAW_HITS = 3
+TEST_SUBJECT_PHASE3_LACERATE_HITS = 3
+TEST_SUBJECT_BIG_POUNCE_DAMAGE = 45
+TEST_SUBJECT_BURNING_GROWL_BURNS_A9 = 5
+TEST_SUBJECT_BURNING_GROWL_STRENGTH_A9 = 3
+TEST_SUBJECT_PAINFUL_STABS = 1
+TEST_SUBJECT_NEMESIS = 1
 FABRICATOR_BASE_HP = 150
 FABRICATOR_A8_HP = 155
 FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9 = 21
@@ -5437,6 +5467,96 @@ class TestFixedRotation:
 
         queen_ai.states[QUEEN_ENRAGE_MOVE].perform(combat)
         assert queen.get_power_amount(PowerId.STRENGTH) == QUEEN_ENRAGE_STRENGTH
+
+    def test_test_subject_ascension_scaling_matches_csharp(self):
+        rng_seed = 1297
+        player_hp = 500
+
+        combat = _make_combat(rng_seed)
+        combat.player.max_hp = player_hp
+        combat.player.current_hp = player_hp
+        combat.ascension_level = 9
+        subject, subject_ai = create_test_subject(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(subject, subject_ai)
+
+        assert subject.max_hp == TEST_SUBJECT_A8_FIRST_FORM_HP
+        assert subject.get_power_amount(PowerId.ADAPTABLE) == TEST_SUBJECT_ADAPTABLE
+        assert subject.get_power_amount(PowerId.ENRAGE) == TEST_SUBJECT_ENRAGE_A9
+        assert subject_ai.current_move.state_id == TEST_SUBJECT_BITE_MOVE
+
+        bite = subject_ai.states[TEST_SUBJECT_BITE_MOVE]
+        assert bite.intents[0].damage == TEST_SUBJECT_BITE_DAMAGE_A9
+        player_hp_before_bite = combat.player.current_hp
+        bite.perform(combat)
+        assert combat.player.current_hp == player_hp_before_bite - TEST_SUBJECT_BITE_DAMAGE_A9
+
+        skull_bash = subject_ai.states[TEST_SUBJECT_SKULL_BASH_MOVE]
+        assert skull_bash.intents[0].damage == TEST_SUBJECT_SKULL_BASH_DAMAGE_A9
+        player_hp_before_skull_bash = combat.player.current_hp
+        skull_bash.perform(combat)
+        assert combat.player.current_hp == player_hp_before_skull_bash - TEST_SUBJECT_SKULL_BASH_DAMAGE_A9
+        assert combat.player.get_power_amount(PowerId.VULNERABLE) == TEST_SUBJECT_SKULL_BASH_VULNERABLE
+        combat.player.powers.pop(PowerId.VULNERABLE, None)
+
+        pounce = subject_ai.states[TEST_SUBJECT_POUNCE_MOVE]
+        assert pounce.intents[0].damage == TEST_SUBJECT_POUNCE_DAMAGE_A9
+        player_hp_before_pounce = combat.player.current_hp
+        pounce.perform(combat)
+        assert combat.player.current_hp == player_hp_before_pounce - TEST_SUBJECT_POUNCE_DAMAGE_A9
+
+        multi_claw = subject_ai.states[TEST_SUBJECT_MULTI_CLAW_MOVE]
+        assert multi_claw.intents[0].damage == TEST_SUBJECT_MULTI_CLAW_DAMAGE_A9
+        assert multi_claw.intents[0].hits == TEST_SUBJECT_BASE_MULTI_CLAW_HITS
+        player_hp_before_multi = combat.player.current_hp
+        multi_claw.perform(combat)
+        assert combat.player.current_hp == (
+            player_hp_before_multi - TEST_SUBJECT_MULTI_CLAW_DAMAGE_A9 * TEST_SUBJECT_BASE_MULTI_CLAW_HITS
+        )
+        assert subject_ai.states[TEST_SUBJECT_MULTI_CLAW_MOVE].intents[0].hits == TEST_SUBJECT_BASE_MULTI_CLAW_HITS + 1
+
+        phase3_lacerate = subject_ai.states[TEST_SUBJECT_PHASE3_LACERATE_MOVE]
+        assert phase3_lacerate.intents[0].damage == TEST_SUBJECT_MULTI_CLAW_DAMAGE_A9
+        assert phase3_lacerate.intents[0].hits == TEST_SUBJECT_PHASE3_LACERATE_HITS
+
+        big_pounce = subject_ai.states[TEST_SUBJECT_BIG_POUNCE_MOVE]
+        assert big_pounce.intents[0].damage == TEST_SUBJECT_BIG_POUNCE_DAMAGE
+
+        burning_growl = subject_ai.states[TEST_SUBJECT_BURNING_GROWL_MOVE]
+        assert burning_growl.intents[0].hits == TEST_SUBJECT_BURNING_GROWL_BURNS_A9
+        combat.discard_pile.clear()
+        burning_growl.perform(combat)
+        assert [card.card_id for card in combat.discard_pile] == [CardId.BURN] * TEST_SUBJECT_BURNING_GROWL_BURNS_A9
+        assert subject.get_power_amount(PowerId.STRENGTH) == TEST_SUBJECT_BURNING_GROWL_STRENGTH_A9
+
+        assert combat.kill_creature(subject)
+        assert subject_ai.current_move.state_id == TEST_SUBJECT_RESPAWN_MOVE
+        subject_ai.current_move.perform(combat)
+        subject_ai.on_move_performed()
+        subject_ai.roll_move(Rng(rng_seed))
+        assert subject.max_hp == TEST_SUBJECT_A8_SECOND_FORM_HP
+        assert subject.current_hp == TEST_SUBJECT_A8_SECOND_FORM_HP
+        assert subject.get_power_amount(PowerId.PAINFUL_STABS) == TEST_SUBJECT_PAINFUL_STABS
+        assert subject_ai.current_move.state_id == TEST_SUBJECT_MULTI_CLAW_MOVE
+
+        assert combat.kill_creature(subject)
+        assert subject_ai.current_move.state_id == TEST_SUBJECT_RESPAWN_MOVE
+        subject_ai.current_move.perform(combat)
+        subject_ai.on_move_performed()
+        subject_ai.roll_move(Rng(rng_seed))
+        assert subject.max_hp == TEST_SUBJECT_A8_THIRD_FORM_HP
+        assert subject.current_hp == TEST_SUBJECT_A8_THIRD_FORM_HP
+        assert PowerId.ADAPTABLE not in subject.powers
+        assert PowerId.PAINFUL_STABS not in subject.powers
+        assert subject.get_power_amount(PowerId.NEMESIS) == TEST_SUBJECT_NEMESIS
+        assert subject_ai.current_move.state_id == TEST_SUBJECT_PHASE3_LACERATE_MOVE
+
+        encounter_combat = _make_combat(rng_seed)
+        encounter_combat.ascension_level = 9
+        setup_test_subject_boss(encounter_combat, Rng(rng_seed))
+        encounter_subject = encounter_combat.enemies[0]
+        encounter_subject_ai = encounter_combat.enemy_ais[encounter_subject.combat_id]
+        assert encounter_subject.max_hp == TEST_SUBJECT_A8_FIRST_FORM_HP
+        assert encounter_subject_ai.states[TEST_SUBJECT_BITE_MOVE].intents[0].damage == TEST_SUBJECT_BITE_DAMAGE_A9
 
     def test_act4_weak_monsters_use_original_move_ids_and_stats(self):
         slug, slug_ai = create_corpse_slug(Rng(50), starter_idx=0)
