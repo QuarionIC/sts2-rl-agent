@@ -1763,106 +1763,183 @@ def create_ceremonial_beast(rng: Rng, ascension_level: int = 0) -> tuple[Creatur
 
 # ---- TheKin (KinPriest + 2 KinFollowers) ----
 
-def create_kin_priest(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 190
-    creature = Creature(max_hp=hp, monster_id="KIN_PRIEST")
-    orb_of_frailty_move = "ORB_OF_FRAILTY_MOVE"
-    orb_of_weakness_move = "ORB_OF_WEAKNESS_MOVE"
-    beam_move = "BEAM_MOVE"
-    ritual_move = "RITUAL_MOVE"
-    orb_of_frailty_dmg = 8
-    orb_of_weakness_dmg = 8
-    beam_dmg = 3
-    beam_hits = 3
-    ritual_strength = 2
-    orb_debuff_amount = 1
+KIN_PRIEST_ID = "KIN_PRIEST"
+KIN_PRIEST_BASE_HP = 190
+KIN_PRIEST_TOUGH_HP = 199
+KIN_PRIEST_BASE_ORB_OF_FRAILTY_DAMAGE = 8
+KIN_PRIEST_DEADLY_ORB_OF_FRAILTY_DAMAGE = 9
+KIN_PRIEST_BASE_ORB_OF_WEAKNESS_DAMAGE = 8
+KIN_PRIEST_DEADLY_ORB_OF_WEAKNESS_DAMAGE = 9
+KIN_PRIEST_BEAM_DAMAGE = 3
+KIN_PRIEST_BEAM_HITS = 3
+KIN_PRIEST_BASE_RITUAL_STRENGTH = 2
+KIN_PRIEST_DEADLY_RITUAL_STRENGTH = 3
+KIN_PRIEST_ORB_DEBUFF = 1
+KIN_PRIEST_ORB_OF_FRAILTY_MOVE = "ORB_OF_FRAILTY_MOVE"
+KIN_PRIEST_ORB_OF_WEAKNESS_MOVE = "ORB_OF_WEAKNESS_MOVE"
+KIN_PRIEST_BEAM_MOVE = "BEAM_MOVE"
+KIN_PRIEST_RITUAL_MOVE = "RITUAL_MOVE"
+
+KIN_FOLLOWER_ID = "KIN_FOLLOWER"
+KIN_FOLLOWER_BASE_MIN_HP = 58
+KIN_FOLLOWER_BASE_MAX_HP = 59
+KIN_FOLLOWER_TOUGH_MIN_HP = 62
+KIN_FOLLOWER_TOUGH_MAX_HP = 63
+KIN_FOLLOWER_QUICK_SLASH_DAMAGE = 5
+KIN_FOLLOWER_BOOMERANG_DAMAGE = 2
+KIN_FOLLOWER_BOOMERANG_HITS = 2
+KIN_FOLLOWER_BASE_DANCE_STRENGTH = 2
+KIN_FOLLOWER_DEADLY_DANCE_STRENGTH = 3
+KIN_FOLLOWER_MINION = 1
+KIN_FOLLOWER_QUICK_SLASH_MOVE = "QUICK_SLASH_MOVE"
+KIN_FOLLOWER_BOOMERANG_MOVE = "BOOMERANG_MOVE"
+KIN_FOLLOWER_POWER_DANCE_MOVE = "POWER_DANCE_MOVE"
+
+
+def create_kin_priest(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        KIN_PRIEST_TOUGH_HP,
+        KIN_PRIEST_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=KIN_PRIEST_ID)
 
     def orb_of_frailty(combat: CombatState) -> None:
+        orb_of_frailty_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            KIN_PRIEST_DEADLY_ORB_OF_FRAILTY_DAMAGE,
+            KIN_PRIEST_BASE_ORB_OF_FRAILTY_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, orb_of_frailty_dmg)
         if combat.is_over:
             return
-        apply_power_to_living_player_targets(combat, PowerId.FRAIL, orb_debuff_amount, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, KIN_PRIEST_ORB_DEBUFF, applier=creature)
 
     def orb_of_weakness(combat: CombatState) -> None:
+        orb_of_weakness_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            KIN_PRIEST_DEADLY_ORB_OF_WEAKNESS_DAMAGE,
+            KIN_PRIEST_BASE_ORB_OF_WEAKNESS_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, orb_of_weakness_dmg)
         if combat.is_over:
             return
-        apply_power_to_living_player_targets(combat, PowerId.WEAK, orb_debuff_amount, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.WEAK, KIN_PRIEST_ORB_DEBUFF, applier=creature)
 
     def beam(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, beam_dmg, hits=beam_hits)
+        _deal_damage_to_player(combat, creature, KIN_PRIEST_BEAM_DAMAGE, hits=KIN_PRIEST_BEAM_HITS)
 
     def ritual(combat: CombatState) -> None:
+        ritual_strength = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            KIN_PRIEST_DEADLY_RITUAL_STRENGTH,
+            KIN_PRIEST_BASE_RITUAL_STRENGTH,
+        )
         combat.apply_power_to(creature, PowerId.STRENGTH, ritual_strength, applier=creature)
 
+    orb_of_frailty_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        KIN_PRIEST_DEADLY_ORB_OF_FRAILTY_DAMAGE,
+        KIN_PRIEST_BASE_ORB_OF_FRAILTY_DAMAGE,
+    )
+    orb_of_weakness_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        KIN_PRIEST_DEADLY_ORB_OF_WEAKNESS_DAMAGE,
+        KIN_PRIEST_BASE_ORB_OF_WEAKNESS_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        orb_of_frailty_move: MoveState(
-            orb_of_frailty_move,
+        KIN_PRIEST_ORB_OF_FRAILTY_MOVE: MoveState(
+            KIN_PRIEST_ORB_OF_FRAILTY_MOVE,
             orb_of_frailty,
-            [attack_intent(orb_of_frailty_dmg), debuff_intent()],
-            follow_up_id=orb_of_weakness_move,
+            [attack_intent(orb_of_frailty_intent_damage), debuff_intent()],
+            follow_up_id=KIN_PRIEST_ORB_OF_WEAKNESS_MOVE,
         ),
-        orb_of_weakness_move: MoveState(
-            orb_of_weakness_move,
+        KIN_PRIEST_ORB_OF_WEAKNESS_MOVE: MoveState(
+            KIN_PRIEST_ORB_OF_WEAKNESS_MOVE,
             orb_of_weakness,
-            [attack_intent(orb_of_weakness_dmg), debuff_intent()],
-            follow_up_id=beam_move,
+            [attack_intent(orb_of_weakness_intent_damage), debuff_intent()],
+            follow_up_id=KIN_PRIEST_BEAM_MOVE,
         ),
-        beam_move: MoveState(
-            beam_move,
+        KIN_PRIEST_BEAM_MOVE: MoveState(
+            KIN_PRIEST_BEAM_MOVE,
             beam,
-            [multi_attack_intent(beam_dmg, beam_hits)],
-            follow_up_id=ritual_move,
+            [multi_attack_intent(KIN_PRIEST_BEAM_DAMAGE, KIN_PRIEST_BEAM_HITS)],
+            follow_up_id=KIN_PRIEST_RITUAL_MOVE,
         ),
-        ritual_move: MoveState(ritual_move, ritual, [buff_intent()], follow_up_id=orb_of_frailty_move),
+        KIN_PRIEST_RITUAL_MOVE: MoveState(
+            KIN_PRIEST_RITUAL_MOVE,
+            ritual,
+            [buff_intent()],
+            follow_up_id=KIN_PRIEST_ORB_OF_FRAILTY_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, orb_of_frailty_move)
+    return creature, MonsterAI(states, KIN_PRIEST_ORB_OF_FRAILTY_MOVE)
 
 
-def create_kin_follower(rng: Rng, *, starts_with_dance: bool = False) -> tuple[Creature, MonsterAI]:
-    min_initial_hp = 58
-    max_initial_hp = 59
+def create_kin_follower(
+    rng: Rng,
+    *,
+    starts_with_dance: bool = False,
+    ascension_level: int = 0,
+) -> tuple[Creature, MonsterAI]:
+    min_initial_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        KIN_FOLLOWER_TOUGH_MIN_HP,
+        KIN_FOLLOWER_BASE_MIN_HP,
+    )
+    max_initial_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        KIN_FOLLOWER_TOUGH_MAX_HP,
+        KIN_FOLLOWER_BASE_MAX_HP,
+    )
     hp = rng.next_int(min_initial_hp, max_initial_hp)
-    creature = Creature(max_hp=hp, monster_id="KIN_FOLLOWER")
-    quick_slash_move = "QUICK_SLASH_MOVE"
-    boomerang_move = "BOOMERANG_MOVE"
-    power_dance_move = "POWER_DANCE_MOVE"
-    quick_slash_dmg = 5
-    boomerang_dmg = 2
-    boomerang_hits = 2
-    dance_strength = 2
-    minion_amount = 1
+    creature = Creature(max_hp=hp, monster_id=KIN_FOLLOWER_ID)
 
     def quick_slash(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, quick_slash_dmg)
+        _deal_damage_to_player(combat, creature, KIN_FOLLOWER_QUICK_SLASH_DAMAGE)
 
     def boomerang(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, boomerang_dmg, hits=boomerang_hits)
+        _deal_damage_to_player(combat, creature, KIN_FOLLOWER_BOOMERANG_DAMAGE, hits=KIN_FOLLOWER_BOOMERANG_HITS)
 
     def power_dance(combat: CombatState) -> None:
+        dance_strength = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            KIN_FOLLOWER_DEADLY_DANCE_STRENGTH,
+            KIN_FOLLOWER_BASE_DANCE_STRENGTH,
+        )
         combat.apply_power_to(creature, PowerId.STRENGTH, dance_strength, applier=creature)
 
     states: dict[str, MonsterState] = {
-        quick_slash_move: MoveState(
-            quick_slash_move,
+        KIN_FOLLOWER_QUICK_SLASH_MOVE: MoveState(
+            KIN_FOLLOWER_QUICK_SLASH_MOVE,
             quick_slash,
-            [attack_intent(quick_slash_dmg)],
-            follow_up_id=boomerang_move,
+            [attack_intent(KIN_FOLLOWER_QUICK_SLASH_DAMAGE)],
+            follow_up_id=KIN_FOLLOWER_BOOMERANG_MOVE,
         ),
-        boomerang_move: MoveState(
-            boomerang_move,
+        KIN_FOLLOWER_BOOMERANG_MOVE: MoveState(
+            KIN_FOLLOWER_BOOMERANG_MOVE,
             boomerang,
-            [multi_attack_intent(boomerang_dmg, boomerang_hits)],
-            follow_up_id=power_dance_move,
+            [multi_attack_intent(KIN_FOLLOWER_BOOMERANG_DAMAGE, KIN_FOLLOWER_BOOMERANG_HITS)],
+            follow_up_id=KIN_FOLLOWER_POWER_DANCE_MOVE,
         ),
-        power_dance_move: MoveState(
-            power_dance_move,
+        KIN_FOLLOWER_POWER_DANCE_MOVE: MoveState(
+            KIN_FOLLOWER_POWER_DANCE_MOVE,
             power_dance,
             [buff_intent()],
-            follow_up_id=quick_slash_move,
+            follow_up_id=KIN_FOLLOWER_QUICK_SLASH_MOVE,
         ),
     }
 
-    creature.apply_power(PowerId.MINION, minion_amount)
-    initial = power_dance_move if starts_with_dance else quick_slash_move
+    creature.apply_power(PowerId.MINION, KIN_FOLLOWER_MINION)
+    initial = KIN_FOLLOWER_POWER_DANCE_MOVE if starts_with_dance else KIN_FOLLOWER_QUICK_SLASH_MOVE
     return creature, MonsterAI(states, initial, rng)

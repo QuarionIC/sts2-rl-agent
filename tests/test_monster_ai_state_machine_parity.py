@@ -224,6 +224,16 @@ CEREMONIAL_BEAST_STOMP_DAMAGE_A9 = 17
 CEREMONIAL_BEAST_CRUSH_DAMAGE_A9 = 19
 CEREMONIAL_BEAST_CRUSH_STRENGTH_A9 = 4
 CEREMONIAL_BEAST_BEAST_CRY_RINGING = 1
+KIN_PRIEST_ORB_DAMAGE_A9 = 9
+KIN_PRIEST_BEAM_DAMAGE = 3
+KIN_PRIEST_BEAM_HITS = 3
+KIN_PRIEST_ORB_DEBUFF = 1
+KIN_PRIEST_RITUAL_STRENGTH_A9 = 3
+KIN_FOLLOWER_QUICK_SLASH_DAMAGE = 5
+KIN_FOLLOWER_BOOMERANG_DAMAGE = 2
+KIN_FOLLOWER_BOOMERANG_HITS = 2
+KIN_FOLLOWER_DANCE_STRENGTH_A9 = 3
+KIN_FOLLOWER_MINION = 1
 TOUGH_EGG_INITIAL_HP = 16
 TOUGH_EGG_HATCHLING_HP = 20
 MULTIPLAYER_TEST_PLAYER_COUNT = 2
@@ -908,6 +918,59 @@ class TestFixedRotation:
 
         beast_ai.states["BEAST_CRY_MOVE"].perform(combat)
         assert ally.get_power_amount(PowerId.RINGING) == CEREMONIAL_BEAST_BEAST_CRY_RINGING
+
+    def test_the_kin_ascension_scaling_matches_csharp(self):
+        rng_seed = 1282
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=100)
+        follower, follower_ai = create_kin_follower(Rng(rng_seed), ascension_level=9)
+        priest, priest_ai = create_kin_priest(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(follower, follower_ai)
+        combat.add_enemy(priest, priest_ai)
+
+        quick_slash = follower_ai.states["QUICK_SLASH_MOVE"]
+        assert follower.get_power_amount(PowerId.MINION) == KIN_FOLLOWER_MINION
+        assert quick_slash.intents[0].damage == KIN_FOLLOWER_QUICK_SLASH_DAMAGE
+        ally_hp_before_slash = ally.current_hp
+        quick_slash.perform(combat)
+        assert ally.current_hp == ally_hp_before_slash - KIN_FOLLOWER_QUICK_SLASH_DAMAGE
+
+        boomerang = follower_ai.states["BOOMERANG_MOVE"]
+        assert boomerang.intents[0].damage == KIN_FOLLOWER_BOOMERANG_DAMAGE
+        assert boomerang.intents[0].hits == KIN_FOLLOWER_BOOMERANG_HITS
+        ally_hp_before_boomerang = ally.current_hp
+        boomerang.perform(combat)
+        assert ally.current_hp == (
+            ally_hp_before_boomerang
+            - KIN_FOLLOWER_BOOMERANG_DAMAGE * KIN_FOLLOWER_BOOMERANG_HITS
+        )
+        follower_ai.states["POWER_DANCE_MOVE"].perform(combat)
+        assert follower.get_power_amount(PowerId.STRENGTH) == KIN_FOLLOWER_DANCE_STRENGTH_A9
+
+        orb_frailty = priest_ai.states["ORB_OF_FRAILTY_MOVE"]
+        assert orb_frailty.intents[0].damage == KIN_PRIEST_ORB_DAMAGE_A9
+        ally_hp_before_frailty = ally.current_hp
+        orb_frailty.perform(combat)
+        assert ally.current_hp == ally_hp_before_frailty - KIN_PRIEST_ORB_DAMAGE_A9
+        assert ally.get_power_amount(PowerId.FRAIL) == KIN_PRIEST_ORB_DEBUFF
+
+        orb_weakness = priest_ai.states["ORB_OF_WEAKNESS_MOVE"]
+        assert orb_weakness.intents[0].damage == KIN_PRIEST_ORB_DAMAGE_A9
+        ally_hp_before_weakness = ally.current_hp
+        orb_weakness.perform(combat)
+        assert ally.current_hp == ally_hp_before_weakness - KIN_PRIEST_ORB_DAMAGE_A9
+        assert ally.get_power_amount(PowerId.WEAK) == KIN_PRIEST_ORB_DEBUFF
+
+        beam = priest_ai.states["BEAM_MOVE"]
+        assert beam.intents[0].damage == KIN_PRIEST_BEAM_DAMAGE
+        assert beam.intents[0].hits == KIN_PRIEST_BEAM_HITS
+        ally_hp_before_beam = ally.current_hp
+        beam.perform(combat)
+        assert ally.current_hp == ally_hp_before_beam - KIN_PRIEST_BEAM_DAMAGE * KIN_PRIEST_BEAM_HITS
+
+        priest_ai.states["RITUAL_MOVE"].perform(combat)
+        assert priest.get_power_amount(PowerId.STRENGTH) == KIN_PRIEST_RITUAL_STRENGTH_A9
 
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle

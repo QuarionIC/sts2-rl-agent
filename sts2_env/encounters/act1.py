@@ -253,11 +253,15 @@ def setup_ceremonial_beast_boss(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_the_kin_boss(combat: CombatState, rng: Rng) -> None:
-    first_follower, first_follower_ai = create_kin_follower(rng, starts_with_dance=True)
+    first_follower, first_follower_ai = create_kin_follower(
+        rng,
+        starts_with_dance=True,
+        ascension_level=combat.ascension_level,
+    )
     combat.add_enemy(first_follower, first_follower_ai)
-    second_follower, second_follower_ai = create_kin_follower(rng)
+    second_follower, second_follower_ai = create_kin_follower(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(second_follower, second_follower_ai)
-    priest, priest_ai = create_kin_priest(rng)
+    priest, priest_ai = create_kin_priest(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(priest, priest_ai)
 
 

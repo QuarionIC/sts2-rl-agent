@@ -133,6 +133,9 @@ PHROG_PARASITE_TOUGH_MIN_HP = 66
 PHROG_PARASITE_TOUGH_MAX_HP = 68
 VANTOM_TOUGH_HP = 183
 CEREMONIAL_BEAST_TOUGH_HP = 262
+KIN_FOLLOWER_TOUGH_MIN_HP = 62
+KIN_FOLLOWER_TOUGH_MAX_HP = 63
+KIN_PRIEST_TOUGH_HP = 199
 
 
 class _ExclusiveHighRng:
@@ -612,6 +615,22 @@ class TestAct1BossEncounters:
         combat = _make_combat()
         setup_the_kin_boss(combat, Rng(42))
         assert len(combat.enemies) == 3  # priest + 2 followers
+
+    def test_the_kin_tough_ascension_hp_matches_csharp(self):
+        for seed in range(5):
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_the_kin_boss(combat, Rng(seed))
+
+            assert [enemy.monster_id for enemy in combat.enemies] == [
+                "KIN_FOLLOWER",
+                "KIN_FOLLOWER",
+                "KIN_PRIEST",
+            ]
+            for follower in combat.enemies[:2]:
+                assert KIN_FOLLOWER_TOUGH_MIN_HP <= follower.max_hp <= KIN_FOLLOWER_TOUGH_MAX_HP
+            assert combat.enemies[2].max_hp == KIN_PRIEST_TOUGH_HP
 
     def test_the_kin_followers_start_on_original_moves(self):
         combat = _make_combat()
