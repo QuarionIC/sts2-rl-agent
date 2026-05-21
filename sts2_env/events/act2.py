@@ -510,8 +510,8 @@ class FieldOfManSizedHoles(EventModel):
                             run_state.player.player_id,
                             count=min(2, len(candidates)),
                             cards=candidates,
+                            after_selected=lambda: run_state.player.add_card_instance_to_deck(make_normality()),
                         ),
-                        AddCardsReward(run_state.player.player_id, [make_normality()]),
                     ],
                 )
             return self.request_card_choice(
@@ -663,8 +663,8 @@ class LuminousChoir(EventModel):
                             run_state.player.player_id,
                             count=min(2, len(candidates)),
                             cards=candidates,
+                            after_selected=lambda: run_state.player.add_card_instance_to_deck(make_spore_mind()),
                         ),
-                        AddCardsReward(run_state.player.player_id, [make_spore_mind()]),
                     ],
                 )
             return self.request_card_choice(

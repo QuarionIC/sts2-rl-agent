@@ -480,8 +480,14 @@ class Amalgamator(EventModel):
                 return _event_result_with_rewards(
                     "Combined 2 Strikes into Ultimate Strike.",
                     [
-                        RemoveCardReward(run_state.player.player_id, count=2, cards=candidates),
-                        AddCardsReward(run_state.player.player_id, [create_card(CardId.ULTIMATE_STRIKE)]),
+                        RemoveCardReward(
+                            run_state.player.player_id,
+                            count=2,
+                            cards=candidates,
+                            after_selected=lambda: run_state.player.add_card_instance_to_deck(
+                                create_card(CardId.ULTIMATE_STRIKE)
+                            ),
+                        ),
                     ],
                 )
             return self.request_card_choice(
@@ -506,8 +512,14 @@ class Amalgamator(EventModel):
                 return _event_result_with_rewards(
                     "Combined 2 Defends into Ultimate Defend.",
                     [
-                        RemoveCardReward(run_state.player.player_id, count=2, cards=candidates),
-                        AddCardsReward(run_state.player.player_id, [create_card(CardId.ULTIMATE_DEFEND)]),
+                        RemoveCardReward(
+                            run_state.player.player_id,
+                            count=2,
+                            cards=candidates,
+                            after_selected=lambda: run_state.player.add_card_instance_to_deck(
+                                create_card(CardId.ULTIMATE_DEFEND)
+                            ),
+                        ),
                     ],
                 )
             return self.request_card_choice(
@@ -2608,8 +2620,12 @@ class Wellspring(EventModel):
             return _event_result_with_rewards(
                 "Removed a card, gained Guilty curse.",
                 [
-                    RemoveCardReward(run_state.player.player_id, count=1, cards=candidates),
-                    AddCardsReward(run_state.player.player_id, [make_guilty()]),
+                    RemoveCardReward(
+                        run_state.player.player_id,
+                        count=1,
+                        cards=candidates,
+                        after_selected=lambda: run_state.player.add_card_instance_to_deck(make_guilty()),
+                    ),
                 ],
             )
         return self.request_card_choice(

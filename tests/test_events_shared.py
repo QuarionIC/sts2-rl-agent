@@ -10,7 +10,7 @@ from sts2_env.cards.status import make_clumsy, make_decay, make_doubt, make_exte
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.reward_objects import UpgradeCardsReward
 from sts2_env.run.run_state import PlayerState, RunState
-from sts2_env.events.shared import BattlewornDummy, Bugslayer, ColorfulPhilosophers, ColossalFlower, Darv, DenseVegetation, DoorsOfLightAndDark, DrowningBeacon, GraveOfTheForgotten, HungryForMushrooms, InfestedAutomaton, LostWisp, Nonupeipe, Orobas, Pael, PunchOff, RoundTeaParty, SpiritGrafter, SunkenStatue, SunkenTreasury, Tanx, Tezcatara, TheLanternKey, ThisOrThat, Trial, TrashHeap, UnrestSite, Vakuu, Wellspring, _event_potion_options
+from sts2_env.events.shared import Amalgamator, BattlewornDummy, Bugslayer, ColorfulPhilosophers, ColossalFlower, Darv, DenseVegetation, DoorsOfLightAndDark, DrowningBeacon, GraveOfTheForgotten, HungryForMushrooms, InfestedAutomaton, LostWisp, Nonupeipe, Orobas, Pael, PunchOff, RoundTeaParty, SpiritGrafter, SunkenStatue, SunkenTreasury, Tanx, Tezcatara, TheLanternKey, ThisOrThat, Trial, TrashHeap, UnrestSite, Vakuu, Wellspring, _event_potion_options
 
 
 class _ExclusiveHighRng:
@@ -64,6 +64,14 @@ class _FirstChoiceCountingRng:
     def choice(self, seq):
         self.choice_calls += 1
         return seq[0]
+
+
+class _DeckSizeOnAddModifier:
+    def __init__(self) -> None:
+        self.deck_sizes: list[int] = []
+
+    def after_card_added_to_deck(self, player, card, source=None) -> None:
+        self.deck_sizes.append(len(player.deck))
 
 
 def test_shared_event_random_gold_uses_exclusive_upper_bounds():
@@ -252,6 +260,30 @@ def test_deferred_dense_vegetation_trudge_removes_card_before_lethal_hp_loss():
     assert final["phase"] == RunManager.PHASE_RUN_OVER
     assert len(mgr.run_state.player.deck) == deck_before - 1
     assert mgr.run_state.player.current_hp == 0
+
+
+def test_deferred_amalgamator_adds_ultimate_card_after_removing_selected_cards():
+    mgr = RunManager(seed=19302, character_id="Ironclad")
+    modifier = _DeckSizeOnAddModifier()
+    mgr.run_state.modifiers = [modifier]
+    mgr._phase = RunManager.PHASE_EVENT
+    event = Amalgamator()
+    mgr._event_model = event
+    mgr._event_options = event.generate_initial_options(mgr.run_state)
+    deck_before = len(mgr.run_state.player.deck)
+
+    result = mgr._do_event_choice({"option_id": "combine_strikes"})
+
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert mgr.run_state.pending_choice is not None
+
+    mgr.take_action({"action": "choose", "index": 0})
+    mgr.take_action({"action": "choose", "index": 1})
+    final = mgr.take_action({"action": "confirm_choice"})
+
+    assert final["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert modifier.deck_sizes[-1] == deck_before - 1
+    assert any(card.card_id == CardId.ULTIMATE_STRIKE for card in mgr.run_state.player.deck)
 
 
 def test_trash_heap_uses_event_rng_fixed_relic_and_card_pools():

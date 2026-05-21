@@ -52,6 +52,14 @@ class _FirstChoiceCountingRng:
         return seq[0]
 
 
+class _DeckSizeOnAddModifier:
+    def __init__(self) -> None:
+        self.deck_sizes: list[int] = []
+
+    def after_card_added_to_deck(self, player, card, source=None) -> None:
+        self.deck_sizes.append(len(player.deck))
+
+
 class _NoopShuffleRng(_LastChoiceRng):
     def shuffle(self, seq) -> None:
         pass
@@ -465,6 +473,54 @@ def test_luminous_choir_reach_uses_run_level_remove_reward_in_run_manager():
     assert final["phase"] == RunManager.PHASE_MAP_CHOICE
     assert len(mgr.run_state.player.deck) == starting_deck - 1
     assert any(card.card_id == make_spore_mind().card_id for card in mgr.run_state.player.deck)
+
+
+def test_luminous_choir_reach_adds_spore_mind_after_selected_cards_are_removed():
+    mgr = RunManager(seed=4411, character_id="Ironclad")
+    modifier = _DeckSizeOnAddModifier()
+    mgr.run_state.modifiers = [modifier]
+    mgr.run_state.player.deck = create_ironclad_starter_deck()
+    mgr._phase = RunManager.PHASE_EVENT
+    event = LuminousChoir()
+    mgr._event_model = event
+    mgr._event_options = event.generate_initial_options(mgr.run_state)
+    starting_deck = len(mgr.run_state.player.deck)
+
+    result = mgr._do_event_choice({"option_id": "reach"})
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert mgr.run_state.pending_choice is not None
+
+    mgr.take_action({"action": "choose", "index": 0})
+    mgr.take_action({"action": "choose", "index": 1})
+    final = mgr.take_action({"action": "confirm_choice"})
+
+    assert final["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert modifier.deck_sizes[-1] == starting_deck - 1
+    assert any(card.card_id == CardId.SPORE_MIND for card in mgr.run_state.player.deck)
+
+
+def test_field_of_man_sized_holes_resist_adds_normality_after_selected_cards_are_removed():
+    mgr = RunManager(seed=4412, character_id="Ironclad")
+    modifier = _DeckSizeOnAddModifier()
+    mgr.run_state.modifiers = [modifier]
+    mgr.run_state.player.deck = create_ironclad_starter_deck()
+    mgr._phase = RunManager.PHASE_EVENT
+    event = FieldOfManSizedHoles()
+    mgr._event_model = event
+    mgr._event_options = event.generate_initial_options(mgr.run_state)
+    starting_deck = len(mgr.run_state.player.deck)
+
+    result = mgr._do_event_choice({"option_id": "resist"})
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert mgr.run_state.pending_choice is not None
+
+    mgr.take_action({"action": "choose", "index": 0})
+    mgr.take_action({"action": "choose", "index": 1})
+    final = mgr.take_action({"action": "confirm_choice"})
+
+    assert final["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert modifier.deck_sizes[-1] == starting_deck - 1
+    assert any(card.card_id == CardId.NORMALITY for card in mgr.run_state.player.deck)
 
 
 def test_act2_enchant_events_use_run_level_enchant_rewards_in_run_manager():
