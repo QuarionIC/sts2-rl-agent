@@ -290,6 +290,13 @@ class TestAct1NormalEncounters:
         assert len(combat.enemies) == 1
         assert combat.enemies[0].max_hp == 65
 
+    def test_cubex_construct_tough_ascension_hp_matches_csharp(self):
+        combat = _make_combat()
+        combat.ascension_level = 8
+        setup_cubex_construct_normal(combat, Rng(42))
+        assert len(combat.enemies) == 1
+        assert combat.enemies[0].max_hp == 70
+
     def test_flyconid_count_and_hp(self):
         for seed in range(5):
             combat = _make_combat(seed)

@@ -491,6 +491,34 @@ class TestFixedRotation:
 
             assert [card.card_id for card in state.discard] == [CardId.SLIMED] * expected_slimed_count
 
+    def test_cubex_construct_ascension_scaling_matches_csharp(self):
+        rng_seed = 1270
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=70)
+        cubex, cubex_ai = create_cubex_construct(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(cubex, cubex_ai)
+
+        repeater = cubex_ai.states["REPEATER_MOVE"]
+        assert repeater.intents[0].damage == 8
+        ally_hp_before_repeater = ally.current_hp
+        repeater.perform(combat)
+        assert ally.current_hp == ally_hp_before_repeater - 8
+        assert cubex.get_power_amount(PowerId.STRENGTH) == 2
+
+        cubex.powers.pop(PowerId.STRENGTH)
+        expel = cubex_ai.states["EXPEL_BLAST"]
+        assert expel.intents[0].damage == 6
+        ally_hp_before_expel = ally.current_hp
+        expel.perform(combat)
+        assert ally.current_hp == ally_hp_before_expel - 12
+
+        block_combat = _make_combat(rng_seed)
+        block_cubex, block_cubex_ai = create_cubex_construct(Rng(rng_seed), ascension_level=9)
+        block_combat.add_enemy(block_cubex, block_cubex_ai)
+        block_cubex_ai.states["SUBMERGE_MOVE"].perform(block_combat)
+        assert block_cubex.block == 15
+
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle
 

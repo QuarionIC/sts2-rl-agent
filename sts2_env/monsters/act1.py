@@ -67,55 +67,122 @@ def _gain_block(creature: Creature, amount: int, combat: CombatState) -> None:
 # ---- CubexConstruct (HP 65 / 70 asc) ----
 # CHARGE_UP_MOVE -> REPEATER_MOVE -> REPEATER_MOVE_2 -> EXPEL_BLAST -> REPEATER_MOVE (loop)
 
-def create_cubex_construct(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 65
+TOUGH_ENEMIES_ASCENSION_LEVEL = 8
+DEADLY_ENEMIES_ASCENSION_LEVEL = 9
+
+
+def _ascension_value(ascension_level: int, threshold: int, ascension_value: int, base_value: int) -> int:
+    return ascension_value if ascension_level >= threshold else base_value
+
+
+def _combat_ascension_level(combat: CombatState) -> int:
+    return getattr(combat, "ascension_level", 0)
+
+
+CUBEX_CONSTRUCT_BASE_HP = 65
+CUBEX_CONSTRUCT_TOUGH_HP = 70
+CUBEX_CONSTRUCT_BASE_BLAST_DAMAGE = 7
+CUBEX_CONSTRUCT_DEADLY_BLAST_DAMAGE = 8
+CUBEX_CONSTRUCT_BASE_EXPEL_DAMAGE = 5
+CUBEX_CONSTRUCT_DEADLY_EXPEL_DAMAGE = 6
+CUBEX_CONSTRUCT_EXPEL_HITS = 2
+CUBEX_CONSTRUCT_STRENGTH_GAIN = 2
+CUBEX_CONSTRUCT_INITIAL_BLOCK = 13
+CUBEX_CONSTRUCT_SUBMERGE_BLOCK = 15
+CUBEX_CONSTRUCT_ARTIFACT_AMOUNT = 1
+CUBEX_CONSTRUCT_CHARGE_UP_MOVE = "CHARGE_UP_MOVE"
+CUBEX_CONSTRUCT_REPEATER_MOVE = "REPEATER_MOVE"
+CUBEX_CONSTRUCT_REPEATER_MOVE_2 = "REPEATER_MOVE_2"
+CUBEX_CONSTRUCT_EXPEL_BLAST_MOVE = "EXPEL_BLAST"
+CUBEX_CONSTRUCT_SUBMERGE_MOVE = "SUBMERGE_MOVE"
+
+
+def create_cubex_construct(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        CUBEX_CONSTRUCT_TOUGH_HP,
+        CUBEX_CONSTRUCT_BASE_HP,
+    )
     creature = Creature(max_hp=hp, monster_id="CUBEX_CONSTRUCT")
 
-    blast_dmg = 7
-    expel_dmg = 5
-
     def charge_up(combat: CombatState) -> None:
-        combat.apply_power_to(creature, PowerId.STRENGTH, 2, applier=creature)
+        combat.apply_power_to(creature, PowerId.STRENGTH, CUBEX_CONSTRUCT_STRENGTH_GAIN, applier=creature)
 
     def repeater(combat: CombatState) -> None:
+        blast_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CUBEX_CONSTRUCT_DEADLY_BLAST_DAMAGE,
+            CUBEX_CONSTRUCT_BASE_BLAST_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, blast_dmg)
-        combat.apply_power_to(creature, PowerId.STRENGTH, 2, applier=creature)
+        combat.apply_power_to(creature, PowerId.STRENGTH, CUBEX_CONSTRUCT_STRENGTH_GAIN, applier=creature)
 
     def expel_blast(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, expel_dmg, hits=2)
+        expel_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CUBEX_CONSTRUCT_DEADLY_EXPEL_DAMAGE,
+            CUBEX_CONSTRUCT_BASE_EXPEL_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, expel_dmg, hits=CUBEX_CONSTRUCT_EXPEL_HITS)
 
     def submerge(combat: CombatState) -> None:
-        _gain_block(creature, 15, combat)
+        _gain_block(creature, CUBEX_CONSTRUCT_SUBMERGE_BLOCK, combat)
+
+    blast_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        CUBEX_CONSTRUCT_DEADLY_BLAST_DAMAGE,
+        CUBEX_CONSTRUCT_BASE_BLAST_DAMAGE,
+    )
+    expel_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        CUBEX_CONSTRUCT_DEADLY_EXPEL_DAMAGE,
+        CUBEX_CONSTRUCT_BASE_EXPEL_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "CHARGE_UP_MOVE": MoveState("CHARGE_UP_MOVE", charge_up, [buff_intent()], follow_up_id="REPEATER_MOVE"),
-        "REPEATER_MOVE": MoveState(
-            "REPEATER_MOVE",
-            repeater,
-            [attack_intent(blast_dmg), buff_intent()],
-            follow_up_id="REPEATER_MOVE_2",
+        CUBEX_CONSTRUCT_CHARGE_UP_MOVE: MoveState(
+            CUBEX_CONSTRUCT_CHARGE_UP_MOVE,
+            charge_up,
+            [buff_intent()],
+            follow_up_id=CUBEX_CONSTRUCT_REPEATER_MOVE,
         ),
-        "REPEATER_MOVE_2": MoveState(
-            "REPEATER_MOVE_2",
+        CUBEX_CONSTRUCT_REPEATER_MOVE: MoveState(
+            CUBEX_CONSTRUCT_REPEATER_MOVE,
             repeater,
-            [attack_intent(blast_dmg), buff_intent()],
-            follow_up_id="EXPEL_BLAST",
+            [attack_intent(blast_intent_damage), buff_intent()],
+            follow_up_id=CUBEX_CONSTRUCT_REPEATER_MOVE_2,
         ),
-        "EXPEL_BLAST": MoveState(
-            "EXPEL_BLAST",
+        CUBEX_CONSTRUCT_REPEATER_MOVE_2: MoveState(
+            CUBEX_CONSTRUCT_REPEATER_MOVE_2,
+            repeater,
+            [attack_intent(blast_intent_damage), buff_intent()],
+            follow_up_id=CUBEX_CONSTRUCT_EXPEL_BLAST_MOVE,
+        ),
+        CUBEX_CONSTRUCT_EXPEL_BLAST_MOVE: MoveState(
+            CUBEX_CONSTRUCT_EXPEL_BLAST_MOVE,
             expel_blast,
-            [multi_attack_intent(expel_dmg, 2)],
-            follow_up_id="REPEATER_MOVE",
+            [multi_attack_intent(expel_intent_damage, CUBEX_CONSTRUCT_EXPEL_HITS)],
+            follow_up_id=CUBEX_CONSTRUCT_REPEATER_MOVE,
         ),
-        "SUBMERGE_MOVE": MoveState("SUBMERGE_MOVE", submerge, [defend_intent()], follow_up_id="CHARGE_UP_MOVE"),
+        CUBEX_CONSTRUCT_SUBMERGE_MOVE: MoveState(
+            CUBEX_CONSTRUCT_SUBMERGE_MOVE,
+            submerge,
+            [defend_intent()],
+            follow_up_id=CUBEX_CONSTRUCT_CHARGE_UP_MOVE,
+        ),
     }
 
-    return creature, MonsterAI(states, "CHARGE_UP_MOVE")
+    return creature, MonsterAI(states, CUBEX_CONSTRUCT_CHARGE_UP_MOVE)
 
 
 def apply_cubex_construct_room_setup(creature: Creature, combat: CombatState) -> None:
-    _gain_block(creature, 13, combat)
-    creature.apply_power(PowerId.ARTIFACT, 1)
+    _gain_block(creature, CUBEX_CONSTRUCT_INITIAL_BLOCK, combat)
+    creature.apply_power(PowerId.ARTIFACT, CUBEX_CONSTRUCT_ARTIFACT_AMOUNT)
 
 
 # ---- Flyconid (HP 47-49 / 51-53 asc) ----

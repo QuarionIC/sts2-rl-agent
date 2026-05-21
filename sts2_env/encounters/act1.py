@@ -84,7 +84,7 @@ WEAK_ENCOUNTERS: list[EncounterSetup] = [
 # ---- Normal Encounters ----
 
 def setup_cubex_construct_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_cubex_construct(rng)
+    creature, ai = create_cubex_construct(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
     apply_cubex_construct_room_setup(creature, combat)
 

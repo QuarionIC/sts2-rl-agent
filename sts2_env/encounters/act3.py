@@ -76,10 +76,10 @@ def setup_axebots_normal(combat: CombatState, rng: Rng) -> None:
 def setup_construct_menagerie_normal(combat: CombatState, rng: Rng) -> None:
     c1, a1 = create_punch_construct(rng)
     combat.add_enemy(c1, a1)
-    c2, a2 = create_cubex_construct(rng)
+    c2, a2 = create_cubex_construct(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(c2, a2)
     apply_cubex_construct_room_setup(c2, combat)
-    c3, a3 = create_cubex_construct(rng)
+    c3, a3 = create_cubex_construct(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(c3, a3)
     apply_cubex_construct_room_setup(c3, combat)
 
