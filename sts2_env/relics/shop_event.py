@@ -565,14 +565,15 @@ class PunchDagger(RelicInstance):
     relic_id = RelicId.PUNCH_DAGGER
     rarity = RelicRarity.SHOP
     pool = RelicPool.SHARED
+    CARDS = 1
     MOMENTUM = 5
 
     def after_obtained(self, owner: Creature) -> None:
         candidates = [card for card in owner.deck if can_enchant_card(card, "Momentum")]
         if getattr(owner.run_state, "defer_followup_rewards", False):
-            owner.offer_enchant_cards_reward("Momentum", self.MOMENTUM, 1, cards=candidates)
+            owner.offer_enchant_cards_reward("Momentum", self.MOMENTUM, self.CARDS, cards=candidates)
             return
-        owner.enchant_selected_cards("Momentum", self.MOMENTUM, 1, cards=candidates)
+        owner.enchant_selected_cards("Momentum", self.MOMENTUM, self.CARDS, cards=candidates)
 
 
 @register_relic
@@ -594,14 +595,16 @@ class RoyalStamp(RelicInstance):
     relic_id = RelicId.ROYAL_STAMP
     rarity = RelicRarity.SHOP
     pool = RelicPool.SHARED
+    CARDS = 1
+    ROYALLY_APPROVED = 1
 
     def after_obtained(self, owner: Creature) -> None:
         candidates = [card for card in owner.deck if can_enchant_card(card, "RoyallyApproved")]
         owner.run_state.rng.niche.shuffle(candidates)
         if getattr(owner.run_state, "defer_followup_rewards", False):
-            owner.offer_enchant_cards_reward("RoyallyApproved", 1, 1, cards=candidates)
+            owner.offer_enchant_cards_reward("RoyallyApproved", self.ROYALLY_APPROVED, self.CARDS, cards=candidates)
             return
-        owner.enchant_selected_cards("RoyallyApproved", 1, 1, cards=candidates)
+        owner.enchant_selected_cards("RoyallyApproved", self.ROYALLY_APPROVED, self.CARDS, cards=candidates)
 
 
 @register_relic
@@ -1623,13 +1626,15 @@ class ElectricShrymp(RelicInstance):
     relic_id = RelicId.ELECTRIC_SHRYMP
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    CARDS = 1
+    IMBUED = 1
 
     def after_obtained(self, owner: Creature) -> None:
         candidates = [card for card in owner.deck if can_enchant_card(card, "Imbued")]
         if getattr(owner.run_state, "defer_followup_rewards", False):
-            owner.offer_enchant_cards_reward("Imbued", 1, 1, cards=candidates)
+            owner.offer_enchant_cards_reward("Imbued", self.IMBUED, self.CARDS, cards=candidates)
             return
-        owner.enchant_selected_cards("Imbued", 1, 1, cards=candidates)
+        owner.enchant_selected_cards("Imbued", self.IMBUED, self.CARDS, cards=candidates)
 
 
 @register_relic
@@ -2581,13 +2586,15 @@ class PaelsGrowth(RelicInstance):
     relic_id = RelicId.PAELS_GROWTH
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    CARDS = 1
+    CLONE = 4
 
     def after_obtained(self, owner: Creature) -> None:
         candidates = [card for card in owner.deck if can_enchant_card(card, "Clone")]
         if getattr(owner.run_state, "defer_followup_rewards", False):
-            owner.offer_enchant_cards_reward("Clone", 4, 1, cards=candidates)
+            owner.offer_enchant_cards_reward("Clone", self.CLONE, self.CARDS, cards=candidates)
             return
-        owner.enchant_selected_cards("Clone", 4, 1, cards=candidates)
+        owner.enchant_selected_cards("Clone", self.CLONE, self.CARDS, cards=candidates)
 
     def modify_rest_site_options(self, owner: Creature, options: list[object], run_state: RunState) -> list[object]:
         from sts2_env.run.rest_site import CloneOption
@@ -3579,13 +3586,14 @@ class TriBoomerang(RelicInstance):
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
     CARDS = 3
+    INSTINCT = 1
 
     def after_obtained(self, owner: Creature) -> None:
         candidates = [card for card in owner.deck if can_enchant_card(card, "Instinct")]
         if getattr(owner.run_state, "defer_followup_rewards", False):
-            owner.offer_enchant_cards_reward("Instinct", 1, self.CARDS, cards=candidates)
+            owner.offer_enchant_cards_reward("Instinct", self.INSTINCT, self.CARDS, cards=candidates)
             return
-        owner.enchant_selected_cards("Instinct", 1, self.CARDS, cards=candidates)
+        owner.enchant_selected_cards("Instinct", self.INSTINCT, self.CARDS, cards=candidates)
 
 
 @register_relic
