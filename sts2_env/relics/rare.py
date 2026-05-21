@@ -1111,6 +1111,7 @@ class UnsettlingLamp(RelicInstance):
     relic_id = RelicId.UNSETTLING_LAMP
     rarity = RelicRarity.RARE
     pool = RelicPool.SHARED
+    MULTIPLIER = 2
 
     def __init__(self, relic_id: RelicId):
         super().__init__(relic_id)
@@ -1162,7 +1163,7 @@ class UnsettlingLamp(RelicInstance):
         internal_power_id = temporary_internal_power_ids.get(power_id)
         if internal_power_id is not None:
             self._doubled_temporary_internal_power_ids.add(internal_power_id)
-        return amount * 2
+        return amount * self.MULTIPLIER
 
     def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
         if card is self._triggering_card:
@@ -1180,6 +1181,7 @@ class RuinedHelmet(RelicInstance):
     relic_id = RelicId.RUINED_HELMET
     rarity = RelicRarity.RARE
     pool = RelicPool.IRONCLAD
+    MULTIPLIER = 2
 
     def __init__(self, relic_id: RelicId):
         super().__init__(relic_id)
@@ -1199,7 +1201,7 @@ class RuinedHelmet(RelicInstance):
         combat: CombatState,
     ) -> int:
         if target is owner and power_id == PowerId.STRENGTH and amount > 0 and not self._used_this_combat:
-            return amount * 2
+            return amount * self.MULTIPLIER
         return amount
 
     def after_modifying_power_amount_received(

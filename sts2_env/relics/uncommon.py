@@ -820,6 +820,7 @@ class Vambrace(RelicInstance):
     relic_id = RelicId.VAMBRACE
     rarity = RelicRarity.UNCOMMON
     pool = RelicPool.SHARED
+    MULTIPLIER = 2.0
 
     def __init__(self, relic_id: RelicId):
         super().__init__(relic_id)
@@ -837,7 +838,7 @@ class Vambrace(RelicInstance):
                 and not self._block_gained_this_combat
                 and card_source is not None
                 and props.is_card_or_monster_move()):
-            return 2.0
+            return self.MULTIPLIER
         return 1.0
 
     def after_modifying_block_amount(
