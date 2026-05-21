@@ -259,10 +259,16 @@ class CardReward(Reward):
             rewards_set_index=CARD_REWARD_SET_INDEX,
             skippable=skippable,
         )
+        cards_were_manually_set = cards is not None
         resolved_cards = list(cards or [])
         resolved_rarities = tuple(forced_rarities or ())
         self.context = context
-        self.option_count = option_count or len(resolved_rarities) or len(resolved_cards) or DEFAULT_CARD_REWARD_OPTION_COUNT
+        if option_count is not None:
+            self.option_count = option_count
+        elif cards_were_manually_set:
+            self.option_count = len(resolved_cards)
+        else:
+            self.option_count = len(resolved_rarities) or DEFAULT_CARD_REWARD_OPTION_COUNT
         self.cards_to_pick = max(1, cards_to_pick)
         self.cards_picked = 0
         self.generation_context = generation_context
@@ -275,7 +281,7 @@ class CardReward(Reward):
         self.card_creation_source = card_creation_source or (
             CARD_CREATION_SOURCE_OTHER if generation_context is None else CARD_CREATION_SOURCE_ENCOUNTER
         )
-        self.allow_card_pool_modifications = allow_card_pool_modifications
+        self.allow_card_pool_modifications = allow_card_pool_modifications and not cards_were_manually_set
         self.allow_rarity_modifications = allow_rarity_modifications
         self.allow_hook_upgrades = allow_hook_upgrades
         self.has_custom_card_pool = has_custom_card_pool
@@ -286,7 +292,7 @@ class CardReward(Reward):
         self.cards = resolved_cards
         self.max_rerolls = 0
         self.rerolls_used = 0
-        self._can_regenerate = cards is None
+        self._can_regenerate = not cards_were_manually_set
 
     def populate(self, run_state: RunState, room: Room | None) -> None:
         player = run_state.get_player(self.player_id)
@@ -308,23 +314,24 @@ class CardReward(Reward):
             custom_card_ids=self.custom_card_ids,
             card_pool_rarity_filter=self.card_pool_rarity_filter,
         )
-        for relic in player.get_relic_objects():
-            options = relic.modify_card_reward_creation_options(
-                player,
-                options,
-                self,
-                room,
-                run_state,
-            )
-        for modifier in run_state.modifiers:
-            options = modifier.modify_card_reward_creation_options(
-                player,
-                options,
-                self,
-                room,
-                run_state,
-            )
-        if not self.cards:
+        if self._can_regenerate:
+            for relic in player.get_relic_objects():
+                options = relic.modify_card_reward_creation_options(
+                    player,
+                    options,
+                    self,
+                    room,
+                    run_state,
+                )
+            for modifier in run_state.modifiers:
+                options = modifier.modify_card_reward_creation_options(
+                    player,
+                    options,
+                    self,
+                    room,
+                    run_state,
+                )
+        if self._can_regenerate and not self.cards:
             character_ids = None if options.use_default_character_pool and not options.character_ids else options.character_ids
             if options.card_creation_source == CARD_CREATION_SOURCE_OTHER and self.use_uniform_noncombat_odds:
                 self.cards = generate_uniform_noncombat_reward_cards_with_options(

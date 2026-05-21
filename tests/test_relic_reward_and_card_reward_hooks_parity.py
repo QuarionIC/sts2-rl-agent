@@ -24,6 +24,15 @@ from sts2_env.run.modifiers import CharacterCardsModifier
 from sts2_env.run.rewards import CARD_CREATION_SOURCE_OTHER
 
 
+IRONCLAD_CHARACTER_ID = "Ironclad"
+SILENT_CHARACTER_ID = "Silent"
+FROZEN_EGG_RELIC_NAME = "FROZEN_EGG"
+LASTING_CANDY_RELIC_NAME = "LASTING_CANDY"
+LASTING_CANDY_TRIGGERING_COMBATS_SEEN = 2
+MANUAL_REWARD_PARITY_SEED = 218
+EMPTY_MANUAL_REWARD_CARD_COUNT = 0
+
+
 def test_prayer_wheel_adds_one_extra_card_reward_only_once():
     run_state = RunState(seed=101, character_id="Ironclad")
     assert run_state.player.obtain_relic("PRAYER_WHEEL")
@@ -777,6 +786,40 @@ def test_lasting_candy_does_not_duplicate_existing_power_reward_options():
 
     assert len(reward.cards) == len(existing_powers)
     assert len({card.card_id for card in reward.cards}) == len(existing_powers)
+
+
+def test_manual_card_reward_skips_card_pool_creation_modifiers_but_keeps_reward_hooks():
+    run_state = RunState(seed=MANUAL_REWARD_PARITY_SEED, character_id=IRONCLAD_CHARACTER_ID)
+    run_state.modifiers = [CharacterCardsModifier(SILENT_CHARACTER_ID)]
+    assert run_state.player.obtain_relic(FROZEN_EGG_RELIC_NAME)
+    assert run_state.player.obtain_relic(LASTING_CANDY_RELIC_NAME)
+    relic = next(
+        relic
+        for relic in run_state.player.get_relic_objects()
+        if relic.relic_id.name == LASTING_CANDY_RELIC_NAME
+    )
+    relic._combats_seen = LASTING_CANDY_TRIGGERING_COMBATS_SEEN
+
+    reward = CardReward(
+        run_state.player.player_id,
+        cards=[create_card(CardId.INFLAME)],
+    )
+    reward.populate(run_state, create_room(RoomType.MONSTER))
+
+    assert [card.card_id for card in reward.cards] == [CardId.INFLAME]
+    assert reward.cards[0].upgraded
+    assert reward.allow_card_pool_modifications is False
+    assert reward.custom_card_ids == ()
+
+
+def test_empty_manual_card_reward_stays_empty_after_populate():
+    run_state = RunState(seed=MANUAL_REWARD_PARITY_SEED, character_id=IRONCLAD_CHARACTER_ID)
+
+    reward = CardReward(run_state.player.player_id, cards=[])
+    reward.populate(run_state, create_room(RoomType.MONSTER))
+
+    assert reward.cards == []
+    assert reward.option_count == EMPTY_MANUAL_REWARD_CARD_COUNT
 
 
 def test_lasting_candy_stays_inside_custom_card_reward_pool():
