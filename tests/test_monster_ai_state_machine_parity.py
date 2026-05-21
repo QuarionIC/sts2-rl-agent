@@ -33,6 +33,7 @@ from sts2_env.encounters.act3 import (
     setup_frog_knight_normal,
     setup_globe_head_normal,
     setup_knights_elite,
+    setup_mecha_knight_elite,
     setup_owl_magistrate_normal,
     setup_queen_boss,
     setup_slimed_berserker_normal,
@@ -218,6 +219,10 @@ from sts2_env.monsters.act3 import (
     FABRICATOR_FABRICATE_MOVE,
     FABRICATOR_FABRICATING_STRIKE_MOVE,
     FABRICATOR_MONSTER_ID,
+    FLAIL_KNIGHT_FLAIL_MOVE,
+    FLAIL_KNIGHT_MONSTER_ID,
+    FLAIL_KNIGHT_RAM_MOVE,
+    FLAIL_KNIGHT_WAR_CHANT_MOVE,
     FROG_KNIGHT_BEETLE_CHARGE_MOVE,
     FROG_KNIGHT_FOR_THE_QUEEN_MOVE,
     FROG_KNIGHT_HALF_HEALTH_BRANCH,
@@ -232,6 +237,17 @@ from sts2_env.monsters.act3 import (
     GUARDBOT_GUARD_BLOCK,
     GUARDBOT_GUARD_MOVE,
     GUARDBOT_MONSTER_ID,
+    MAGI_KNIGHT_DAMPEN_MOVE,
+    MAGI_KNIGHT_FIRST_POWER_SHIELD_MOVE,
+    MAGI_KNIGHT_MAGIC_BOMB_MOVE,
+    MAGI_KNIGHT_MONSTER_ID,
+    MAGI_KNIGHT_PREP_MOVE,
+    MAGI_KNIGHT_RAM_MOVE,
+    MECHA_KNIGHT_CHARGE_MOVE,
+    MECHA_KNIGHT_FLAMETHROWER_MOVE,
+    MECHA_KNIGHT_HEAVY_CLEAVE_MOVE,
+    MECHA_KNIGHT_MONSTER_ID,
+    MECHA_KNIGHT_WINDUP_MOVE,
     NOISEBOT_MONSTER_ID,
     NOISEBOT_NOISE_MOVE,
     OWL_MAGISTRATE_JUDICIAL_FLIGHT_MOVE,
@@ -244,6 +260,10 @@ from sts2_env.monsters.act3 import (
     SLIMED_BERSERKER_MONSTER_ID,
     SLIMED_BERSERKER_SMOTHER_MOVE,
     SLIMED_BERSERKER_VOMIT_ICHOR_MOVE,
+    SPECTRAL_KNIGHT_HEX_MOVE,
+    SPECTRAL_KNIGHT_MONSTER_ID,
+    SPECTRAL_KNIGHT_SOUL_FLAME_MOVE,
+    SPECTRAL_KNIGHT_SOUL_SLASH_MOVE,
     STABBOT_MONSTER_ID,
     STABBOT_STAB_MOVE,
     THE_FORGOTTEN_DREAD_MOVE,
@@ -491,6 +511,39 @@ TURRET_OPERATOR_A8_HP = 51
 TURRET_OPERATOR_FIRE_DAMAGE_A9 = 4
 TURRET_OPERATOR_FIRE_HITS = 5
 TURRET_OPERATOR_RELOAD_STRENGTH = 1
+FLAIL_KNIGHT_BASE_HP = 101
+FLAIL_KNIGHT_A8_HP = 108
+FLAIL_KNIGHT_FLAIL_DAMAGE_A9 = 10
+FLAIL_KNIGHT_FLAIL_HITS = 2
+FLAIL_KNIGHT_RAM_DAMAGE_A9 = 17
+FLAIL_KNIGHT_WAR_CHANT_STRENGTH = 3
+MYSTERIOUS_KNIGHT_STRENGTH = 6
+MYSTERIOUS_KNIGHT_PLATING = 6
+MAGI_KNIGHT_BASE_HP = 82
+MAGI_KNIGHT_A8_HP = 89
+MAGI_KNIGHT_POWER_SHIELD_DAMAGE = 6
+MAGI_KNIGHT_POWER_SHIELD_DAMAGE_A9 = 7
+MAGI_KNIGHT_POWER_SHIELD_BLOCK = 5
+MAGI_KNIGHT_POWER_SHIELD_BLOCK_A8 = 9
+MAGI_KNIGHT_DAMPEN = 1
+MAGI_KNIGHT_SPEAR_DAMAGE_A9 = 11
+MAGI_KNIGHT_BOMB_DAMAGE_A9 = 40
+SPECTRAL_KNIGHT_BASE_HP = 93
+SPECTRAL_KNIGHT_A8_HP = 97
+SPECTRAL_KNIGHT_HEX = 2
+SPECTRAL_KNIGHT_SOUL_SLASH_DAMAGE_A9 = 17
+SPECTRAL_KNIGHT_SOUL_FLAME_DAMAGE_A9 = 4
+SPECTRAL_KNIGHT_SOUL_FLAME_HITS = 3
+MECHA_KNIGHT_BASE_HP = 300
+MECHA_KNIGHT_A8_HP = 320
+MECHA_KNIGHT_CHARGE_DAMAGE = 25
+MECHA_KNIGHT_CHARGE_DAMAGE_A9 = 30
+MECHA_KNIGHT_HEAVY_CLEAVE_DAMAGE = 35
+MECHA_KNIGHT_HEAVY_CLEAVE_DAMAGE_A9 = 40
+MECHA_KNIGHT_WINDUP_BLOCK = 15
+MECHA_KNIGHT_BURNS = 4
+MECHA_KNIGHT_WINDUP_STRENGTH = 5
+MECHA_KNIGHT_ARTIFACT = 3
 FABRICATOR_BASE_HP = 150
 FABRICATOR_A8_HP = 155
 FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9 = 21
@@ -3895,53 +3948,63 @@ class TestFixedRotation:
 
     def test_flail_and_mysterious_knights_use_original_move_ids(self):
         creature, ai = create_flail_knight(Rng(41))
-        assert creature.max_hp == 101
-        assert ai.current_move.state_id == "RAM_MOVE"
-        assert {"WAR_CHANT", "FLAIL_MOVE", "RAM_MOVE"}.issubset(ai.states)
+        assert creature.max_hp == FLAIL_KNIGHT_BASE_HP
+        assert ai.current_move.state_id == FLAIL_KNIGHT_RAM_MOVE
+        assert {FLAIL_KNIGHT_WAR_CHANT_MOVE, FLAIL_KNIGHT_FLAIL_MOVE, FLAIL_KNIGHT_RAM_MOVE}.issubset(ai.states)
 
         combat = _make_combat(42)
         setup_mysterious_knight(combat, Rng(42))
         mysterious = combat.enemies[0]
         mysterious_ai = combat.enemy_ais[mysterious.combat_id]
 
-        assert mysterious_ai.current_move.state_id == "RAM_MOVE"
-        assert {"WAR_CHANT", "FLAIL_MOVE", "RAM_MOVE"}.issubset(mysterious_ai.states)
-        assert mysterious.get_power_amount(PowerId.STRENGTH) == 6
-        assert mysterious.get_power_amount(PowerId.PLATING) == 6
+        assert mysterious_ai.current_move.state_id == FLAIL_KNIGHT_RAM_MOVE
+        assert {FLAIL_KNIGHT_WAR_CHANT_MOVE, FLAIL_KNIGHT_FLAIL_MOVE, FLAIL_KNIGHT_RAM_MOVE}.issubset(
+            mysterious_ai.states
+        )
+        assert mysterious.get_power_amount(PowerId.STRENGTH) == MYSTERIOUS_KNIGHT_STRENGTH
+        assert mysterious.get_power_amount(PowerId.PLATING) == MYSTERIOUS_KNIGHT_PLATING
 
     def test_knights_elite_uses_all_three_knights_in_original_order(self):
         combat = _make_combat(44)
         setup_knights_elite(combat, Rng(44))
 
         assert [enemy.monster_id for enemy in combat.enemies] == [
-            "FLAIL_KNIGHT",
-            "SPECTRAL_KNIGHT",
-            "MAGI_KNIGHT",
+            FLAIL_KNIGHT_MONSTER_ID,
+            SPECTRAL_KNIGHT_MONSTER_ID,
+            MAGI_KNIGHT_MONSTER_ID,
         ]
-        assert combat.enemy_ais[combat.enemies[0].combat_id].current_move.state_id == "RAM_MOVE"
-        assert combat.enemy_ais[combat.enemies[1].combat_id].current_move.state_id == "HEX"
-        assert combat.enemy_ais[combat.enemies[2].combat_id].current_move.state_id == "FIRST_POWER_SHIELD_MOVE"
+        assert combat.enemy_ais[combat.enemies[0].combat_id].current_move.state_id == FLAIL_KNIGHT_RAM_MOVE
+        assert combat.enemy_ais[combat.enemies[1].combat_id].current_move.state_id == SPECTRAL_KNIGHT_HEX_MOVE
+        assert (
+            combat.enemy_ais[combat.enemies[2].combat_id].current_move.state_id
+            == MAGI_KNIGHT_FIRST_POWER_SHIELD_MOVE
+        )
 
     def test_magi_knight_uses_fixed_power_shield_dampen_cycle(self):
         combat = _make_combat(24)
         creature, ai = create_magi_knight(Rng(24))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 82
-        assert ai.current_move.state_id == "FIRST_POWER_SHIELD_MOVE"
+        assert creature.max_hp == MAGI_KNIGHT_BASE_HP
+        assert ai.current_move.state_id == MAGI_KNIGHT_FIRST_POWER_SHIELD_MOVE
 
         ai.current_move.perform(combat)
         assert combat.player.current_hp == 74
-        assert creature.block == 5
+        assert creature.block == MAGI_KNIGHT_POWER_SHIELD_BLOCK
 
         ai.on_move_performed()
         ai.roll_move(Rng(24))
-        assert ai.current_move.state_id == "DAMPEN_MOVE"
+        assert ai.current_move.state_id == MAGI_KNIGHT_DAMPEN_MOVE
 
         ai.current_move.perform(combat)
-        assert combat.player.get_power_amount(PowerId.DAMPEN) == 1
+        assert combat.player.get_power_amount(PowerId.DAMPEN) == MAGI_KNIGHT_DAMPEN
 
-        expected_moves = ["RAM_MOVE", "PREP_MOVE", "MAGIC_BOMB", "RAM_MOVE"]
+        expected_moves = [
+            MAGI_KNIGHT_RAM_MOVE,
+            MAGI_KNIGHT_PREP_MOVE,
+            MAGI_KNIGHT_MAGIC_BOMB_MOVE,
+            MAGI_KNIGHT_RAM_MOVE,
+        ]
         actual_moves = []
         for _ in expected_moves:
             ai.on_move_performed()
@@ -3955,15 +4018,15 @@ class TestFixedRotation:
         creature, ai = create_spectral_knight(Rng(25))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 93
-        assert ai.current_move.state_id == "HEX"
+        assert creature.max_hp == SPECTRAL_KNIGHT_BASE_HP
+        assert ai.current_move.state_id == SPECTRAL_KNIGHT_HEX_MOVE
 
         ai.current_move.perform(combat)
-        assert combat.player.get_power_amount(PowerId.HEX) == 2
+        assert combat.player.get_power_amount(PowerId.HEX) == SPECTRAL_KNIGHT_HEX
 
         ai.on_move_performed()
         ai.roll_move(Rng(25))
-        assert ai.current_move.state_id == "SOUL_SLASH"
+        assert ai.current_move.state_id == SPECTRAL_KNIGHT_SOUL_SLASH_MOVE
 
         before_hp = combat.player.current_hp
         ai.current_move.perform(combat)
@@ -3975,50 +4038,52 @@ class TestFixedRotation:
         creature, ai = create_mecha_knight(Rng(26))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 300
-        assert creature.get_power_amount(PowerId.ARTIFACT) == 3
-        assert ai.current_move.state_id == "CHARGE_MOVE"
+        assert creature.max_hp == MECHA_KNIGHT_BASE_HP
+        assert creature.get_power_amount(PowerId.ARTIFACT) == MECHA_KNIGHT_ARTIFACT
+        assert ai.current_move.state_id == MECHA_KNIGHT_CHARGE_MOVE
 
         ai.current_move.perform(combat)
         assert combat.player.current_hp == 55
 
         ai.on_move_performed()
         ai.roll_move(Rng(26))
-        assert ai.current_move.state_id == "FLAMETHROWER_MOVE"
+        assert ai.current_move.state_id == MECHA_KNIGHT_FLAMETHROWER_MOVE
 
         rocket_punch = create_card(CardId.ROCKET_PUNCH)
         combat.hand = [rocket_punch]
         ai.current_move.perform(combat)
-        assert [card.card_id for card in combat.hand] == [CardId.ROCKET_PUNCH] + [CardId.BURN] * 4
+        assert [card.card_id for card in combat.hand] == [CardId.ROCKET_PUNCH] + [CardId.BURN] * MECHA_KNIGHT_BURNS
         assert rocket_punch.cost == 0
 
         ai.on_move_performed()
         ai.roll_move(Rng(26))
-        assert ai.current_move.state_id == "WINDUP_MOVE"
+        assert ai.current_move.state_id == MECHA_KNIGHT_WINDUP_MOVE
 
         ai.current_move.perform(combat)
-        assert creature.block == 15
-        assert creature.get_power_amount(PowerId.STRENGTH) == 5
+        assert creature.block == MECHA_KNIGHT_WINDUP_BLOCK
+        assert creature.get_power_amount(PowerId.STRENGTH) == MECHA_KNIGHT_WINDUP_STRENGTH
 
         ai.on_move_performed()
         ai.roll_move(Rng(26))
-        assert ai.current_move.state_id == "HEAVY_CLEAVE_MOVE"
+        assert ai.current_move.state_id == MECHA_KNIGHT_HEAVY_CLEAVE_MOVE
 
         before_hp = combat.player.current_hp
         ai.current_move.perform(combat)
-        assert combat.player.current_hp == before_hp - 40
+        assert combat.player.current_hp == (
+            before_hp - MECHA_KNIGHT_HEAVY_CLEAVE_DAMAGE - MECHA_KNIGHT_WINDUP_STRENGTH
+        )
 
         ai.on_move_performed()
         ai.roll_move(Rng(26))
-        assert ai.current_move.state_id == "FLAMETHROWER_MOVE"
+        assert ai.current_move.state_id == MECHA_KNIGHT_FLAMETHROWER_MOVE
 
     def test_act3_monster_block_moves_trigger_after_block_gained_hooks(self):
         cases = [
             (create_axebot(Rng(1), start_with_boot_up=True), "BOOT_UP_MOVE", 10),
             (create_the_forgotten(Rng(2)), "MIASMA", 8),
-            (create_magi_knight(Rng(3)), "FIRST_POWER_SHIELD_MOVE", 5),
-            (create_magi_knight(Rng(4)), "PREP_MOVE", 5),
-            (create_mecha_knight(Rng(5)), "WINDUP_MOVE", 15),
+            (create_magi_knight(Rng(3)), MAGI_KNIGHT_FIRST_POWER_SHIELD_MOVE, 5),
+            (create_magi_knight(Rng(4)), MAGI_KNIGHT_PREP_MOVE, 5),
+            (create_mecha_knight(Rng(5)), MECHA_KNIGHT_WINDUP_MOVE, MECHA_KNIGHT_WINDUP_BLOCK),
         ]
 
         for (creature, ai), state_id, expected_block in cases:
@@ -4046,6 +4111,148 @@ class TestFixedRotation:
 
         assert fabricator.block == 15
         assert counter.calls == [15]
+
+    def test_act3_knight_elite_ascension_scaling_matches_csharp(self):
+        rng_seed = 1293
+        player_hp = 250
+
+        flail_combat = _make_combat(rng_seed)
+        flail_combat.player.max_hp = player_hp
+        flail_combat.player.current_hp = player_hp
+        flail_combat.ascension_level = 9
+        flail, flail_ai = create_flail_knight(Rng(rng_seed), ascension_level=9)
+        flail_combat.add_enemy(flail, flail_ai)
+        assert flail.max_hp == FLAIL_KNIGHT_A8_HP
+
+        flail_move = flail_ai.states[FLAIL_KNIGHT_FLAIL_MOVE]
+        assert flail_move.intents[0].damage == FLAIL_KNIGHT_FLAIL_DAMAGE_A9
+        assert flail_move.intents[0].hits == FLAIL_KNIGHT_FLAIL_HITS
+        player_hp_before_flail = flail_combat.player.current_hp
+        flail_move.perform(flail_combat)
+        assert flail_combat.player.current_hp == (
+            player_hp_before_flail - FLAIL_KNIGHT_FLAIL_DAMAGE_A9 * FLAIL_KNIGHT_FLAIL_HITS
+        )
+
+        ram = flail_ai.states[FLAIL_KNIGHT_RAM_MOVE]
+        assert ram.intents[0].damage == FLAIL_KNIGHT_RAM_DAMAGE_A9
+        flail_ai.states[FLAIL_KNIGHT_WAR_CHANT_MOVE].perform(flail_combat)
+        assert flail.get_power_amount(PowerId.STRENGTH) == FLAIL_KNIGHT_WAR_CHANT_STRENGTH
+        player_hp_before_ram = flail_combat.player.current_hp
+        ram.perform(flail_combat)
+        assert flail_combat.player.current_hp == (
+            player_hp_before_ram - FLAIL_KNIGHT_RAM_DAMAGE_A9 - FLAIL_KNIGHT_WAR_CHANT_STRENGTH
+        )
+
+        magi_combat = _make_combat(rng_seed)
+        magi_combat.player.max_hp = player_hp
+        magi_combat.player.current_hp = player_hp
+        magi_combat.ascension_level = 9
+        magi, magi_ai = create_magi_knight(Rng(rng_seed), ascension_level=9)
+        magi_combat.add_enemy(magi, magi_ai)
+        assert magi.max_hp == MAGI_KNIGHT_A8_HP
+
+        power_shield = magi_ai.states[MAGI_KNIGHT_FIRST_POWER_SHIELD_MOVE]
+        assert power_shield.intents[0].damage == MAGI_KNIGHT_POWER_SHIELD_DAMAGE_A9
+        player_hp_before_power_shield = magi_combat.player.current_hp
+        power_shield.perform(magi_combat)
+        assert magi_combat.player.current_hp == player_hp_before_power_shield - MAGI_KNIGHT_POWER_SHIELD_DAMAGE_A9
+        assert magi.block == MAGI_KNIGHT_POWER_SHIELD_BLOCK_A8
+
+        spear = magi_ai.states[MAGI_KNIGHT_RAM_MOVE]
+        assert spear.intents[0].damage == MAGI_KNIGHT_SPEAR_DAMAGE_A9
+        player_hp_before_spear = magi_combat.player.current_hp
+        spear.perform(magi_combat)
+        assert magi_combat.player.current_hp == player_hp_before_spear - MAGI_KNIGHT_SPEAR_DAMAGE_A9
+
+        magi.block = 0
+        magi_ai.states[MAGI_KNIGHT_PREP_MOVE].perform(magi_combat)
+        assert magi.block == MAGI_KNIGHT_POWER_SHIELD_BLOCK_A8
+
+        bomb = magi_ai.states[MAGI_KNIGHT_MAGIC_BOMB_MOVE]
+        assert bomb.intents[0].damage == MAGI_KNIGHT_BOMB_DAMAGE_A9
+        player_hp_before_bomb = magi_combat.player.current_hp
+        bomb.perform(magi_combat)
+        assert magi_combat.player.current_hp == player_hp_before_bomb - MAGI_KNIGHT_BOMB_DAMAGE_A9
+
+        spectral_combat = _make_combat(rng_seed)
+        spectral_combat.player.max_hp = player_hp
+        spectral_combat.player.current_hp = player_hp
+        spectral_combat.ascension_level = 9
+        spectral, spectral_ai = create_spectral_knight(Rng(rng_seed), ascension_level=9)
+        spectral_combat.add_enemy(spectral, spectral_ai)
+        assert spectral.max_hp == SPECTRAL_KNIGHT_A8_HP
+
+        soul_slash = spectral_ai.states[SPECTRAL_KNIGHT_SOUL_SLASH_MOVE]
+        assert soul_slash.intents[0].damage == SPECTRAL_KNIGHT_SOUL_SLASH_DAMAGE_A9
+        player_hp_before_slash = spectral_combat.player.current_hp
+        soul_slash.perform(spectral_combat)
+        assert spectral_combat.player.current_hp == player_hp_before_slash - SPECTRAL_KNIGHT_SOUL_SLASH_DAMAGE_A9
+
+        soul_flame = spectral_ai.states[SPECTRAL_KNIGHT_SOUL_FLAME_MOVE]
+        assert soul_flame.intents[0].damage == SPECTRAL_KNIGHT_SOUL_FLAME_DAMAGE_A9
+        assert soul_flame.intents[0].hits == SPECTRAL_KNIGHT_SOUL_FLAME_HITS
+        player_hp_before_flame = spectral_combat.player.current_hp
+        soul_flame.perform(spectral_combat)
+        assert spectral_combat.player.current_hp == (
+            player_hp_before_flame - SPECTRAL_KNIGHT_SOUL_FLAME_DAMAGE_A9 * SPECTRAL_KNIGHT_SOUL_FLAME_HITS
+        )
+
+        mecha_combat = _make_combat(rng_seed)
+        mecha_combat.player.max_hp = player_hp
+        mecha_combat.player.current_hp = player_hp
+        mecha_combat.ascension_level = 9
+        mecha, mecha_ai = create_mecha_knight(Rng(rng_seed), ascension_level=9)
+        mecha_combat.add_enemy(mecha, mecha_ai)
+        assert mecha.max_hp == MECHA_KNIGHT_A8_HP
+        assert mecha.get_power_amount(PowerId.ARTIFACT) == MECHA_KNIGHT_ARTIFACT
+
+        charge = mecha_ai.states[MECHA_KNIGHT_CHARGE_MOVE]
+        assert charge.intents[0].damage == MECHA_KNIGHT_CHARGE_DAMAGE_A9
+        player_hp_before_charge = mecha_combat.player.current_hp
+        charge.perform(mecha_combat)
+        assert mecha_combat.player.current_hp == player_hp_before_charge - MECHA_KNIGHT_CHARGE_DAMAGE_A9
+
+        heavy_cleave = mecha_ai.states[MECHA_KNIGHT_HEAVY_CLEAVE_MOVE]
+        assert heavy_cleave.intents[0].damage == MECHA_KNIGHT_HEAVY_CLEAVE_DAMAGE_A9
+        mecha_ai.states[MECHA_KNIGHT_WINDUP_MOVE].perform(mecha_combat)
+        player_hp_before_cleave = mecha_combat.player.current_hp
+        heavy_cleave.perform(mecha_combat)
+        assert mecha_combat.player.current_hp == (
+            player_hp_before_cleave - MECHA_KNIGHT_HEAVY_CLEAVE_DAMAGE_A9 - MECHA_KNIGHT_WINDUP_STRENGTH
+        )
+
+        knights_encounter_combat = _make_combat(rng_seed)
+        knights_encounter_combat.ascension_level = 9
+        setup_knights_elite(knights_encounter_combat, Rng(rng_seed))
+        encounter_flail, encounter_spectral, encounter_magi = knights_encounter_combat.enemies
+        encounter_flail_ai = knights_encounter_combat.enemy_ais[encounter_flail.combat_id]
+        encounter_spectral_ai = knights_encounter_combat.enemy_ais[encounter_spectral.combat_id]
+        encounter_magi_ai = knights_encounter_combat.enemy_ais[encounter_magi.combat_id]
+        assert encounter_flail.max_hp == FLAIL_KNIGHT_A8_HP
+        assert encounter_flail_ai.states[FLAIL_KNIGHT_RAM_MOVE].intents[0].damage == FLAIL_KNIGHT_RAM_DAMAGE_A9
+        assert encounter_spectral.max_hp == SPECTRAL_KNIGHT_A8_HP
+        assert (
+            encounter_spectral_ai.states[SPECTRAL_KNIGHT_SOUL_FLAME_MOVE].intents[0].damage
+            == SPECTRAL_KNIGHT_SOUL_FLAME_DAMAGE_A9
+        )
+        assert encounter_magi.max_hp == MAGI_KNIGHT_A8_HP
+        assert encounter_magi_ai.states[MAGI_KNIGHT_MAGIC_BOMB_MOVE].intents[0].damage == MAGI_KNIGHT_BOMB_DAMAGE_A9
+
+        mecha_encounter_combat = _make_combat(rng_seed)
+        mecha_encounter_combat.ascension_level = 9
+        setup_mecha_knight_elite(mecha_encounter_combat, Rng(rng_seed))
+        encounter_mecha = mecha_encounter_combat.enemies[0]
+        encounter_mecha_ai = mecha_encounter_combat.enemy_ais[encounter_mecha.combat_id]
+        assert encounter_mecha.max_hp == MECHA_KNIGHT_A8_HP
+        assert encounter_mecha_ai.states[MECHA_KNIGHT_CHARGE_MOVE].intents[0].damage == MECHA_KNIGHT_CHARGE_DAMAGE_A9
+
+        mysterious_combat = _make_combat(rng_seed)
+        mysterious_combat.ascension_level = 9
+        setup_mysterious_knight(mysterious_combat, Rng(rng_seed))
+        mysterious = mysterious_combat.enemies[0]
+        mysterious_ai = mysterious_combat.enemy_ais[mysterious.combat_id]
+        assert mysterious.max_hp == FLAIL_KNIGHT_A8_HP
+        assert mysterious_ai.states[FLAIL_KNIGHT_RAM_MOVE].intents[0].damage == FLAIL_KNIGHT_RAM_DAMAGE_A9
 
     def test_owl_magistrate_uses_original_flight_and_verdict_cycle(self):
         combat = _make_combat(27)

@@ -49,6 +49,18 @@ ATTACK_TEST_MONSTER_HP = 999
 
 # ---- Helpers ----
 
+TOUGH_ENEMIES_ASCENSION_LEVEL = 8
+DEADLY_ENEMIES_ASCENSION_LEVEL = 9
+
+
+def _ascension_value(ascension_level: int, threshold: int, ascension_value: int, base_value: int) -> int:
+    return ascension_value if ascension_level >= threshold else base_value
+
+
+def _combat_ascension_level(combat: CombatState) -> int:
+    return getattr(combat, "ascension_level", 0)
+
+
 def _deal_damage_to_player(combat: CombatState, creature: Creature, base_dmg: int, hits: int = 1) -> None:
     for _ in range(hits):
         targets = living_player_targets(combat)
@@ -177,37 +189,97 @@ def create_fake_merchant_monster(rng: Rng) -> tuple[Creature, MonsterAI]:
 # HP 101 (same as FlailKnight base), moves identical to FlailKnight.
 # C# class MysteriousKnight : FlailKnight
 
-def create_mysterious_knight(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 101
-    creature = Creature(max_hp=hp, monster_id="MYSTERIOUS_KNIGHT")
-    flail_dmg = 9
-    ram_dmg = 15
+MYSTERIOUS_KNIGHT_MONSTER_ID = "MYSTERIOUS_KNIGHT"
+MYSTERIOUS_KNIGHT_BASE_HP = 101
+MYSTERIOUS_KNIGHT_TOUGH_HP = 108
+MYSTERIOUS_KNIGHT_BASE_FLAIL_DAMAGE = 9
+MYSTERIOUS_KNIGHT_DEADLY_FLAIL_DAMAGE = 10
+MYSTERIOUS_KNIGHT_FLAIL_REPEAT = 2
+MYSTERIOUS_KNIGHT_BASE_RAM_DAMAGE = 15
+MYSTERIOUS_KNIGHT_DEADLY_RAM_DAMAGE = 17
+MYSTERIOUS_KNIGHT_WAR_CHANT_STRENGTH = 3
+MYSTERIOUS_KNIGHT_STRENGTH = 6
+MYSTERIOUS_KNIGHT_PLATING = 6
+MYSTERIOUS_KNIGHT_RANDOM_STATE = "RAND"
+MYSTERIOUS_KNIGHT_WAR_CHANT_MOVE = "WAR_CHANT"
+MYSTERIOUS_KNIGHT_FLAIL_MOVE = "FLAIL_MOVE"
+MYSTERIOUS_KNIGHT_RAM_MOVE = "RAM_MOVE"
+
+
+def create_mysterious_knight(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        MYSTERIOUS_KNIGHT_TOUGH_HP,
+        MYSTERIOUS_KNIGHT_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=MYSTERIOUS_KNIGHT_MONSTER_ID)
 
     def war_chant(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, 3)
+        creature.apply_power(PowerId.STRENGTH, MYSTERIOUS_KNIGHT_WAR_CHANT_STRENGTH)
 
     def flail(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, flail_dmg, hits=2)
+        flail_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            MYSTERIOUS_KNIGHT_DEADLY_FLAIL_DAMAGE,
+            MYSTERIOUS_KNIGHT_BASE_FLAIL_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, flail_dmg, hits=MYSTERIOUS_KNIGHT_FLAIL_REPEAT)
 
     def ram(combat: CombatState) -> None:
+        ram_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            MYSTERIOUS_KNIGHT_DEADLY_RAM_DAMAGE,
+            MYSTERIOUS_KNIGHT_BASE_RAM_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, ram_dmg)
 
-    rand = RandomBranchState("RAND")
-    rand.add_branch("WAR_CHANT", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("FLAIL_MOVE", MoveRepeatType.CAN_REPEAT_FOREVER, weight=2.0)
-    rand.add_branch("RAM_MOVE", MoveRepeatType.CAN_REPEAT_FOREVER, weight=2.0)
+    flail_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        MYSTERIOUS_KNIGHT_DEADLY_FLAIL_DAMAGE,
+        MYSTERIOUS_KNIGHT_BASE_FLAIL_DAMAGE,
+    )
+    ram_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        MYSTERIOUS_KNIGHT_DEADLY_RAM_DAMAGE,
+        MYSTERIOUS_KNIGHT_BASE_RAM_DAMAGE,
+    )
+
+    rand = RandomBranchState(MYSTERIOUS_KNIGHT_RANDOM_STATE)
+    rand.add_branch(MYSTERIOUS_KNIGHT_WAR_CHANT_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(MYSTERIOUS_KNIGHT_FLAIL_MOVE, MoveRepeatType.CAN_REPEAT_FOREVER, weight=2.0)
+    rand.add_branch(MYSTERIOUS_KNIGHT_RAM_MOVE, MoveRepeatType.CAN_REPEAT_FOREVER, weight=2.0)
 
     states: dict[str, MonsterState] = {
-        "RAND": rand,
-        "WAR_CHANT": MoveState("WAR_CHANT", war_chant, [buff_intent()], follow_up_id="RAND"),
-        "FLAIL_MOVE": MoveState("FLAIL_MOVE", flail, [multi_attack_intent(flail_dmg, 2)], follow_up_id="RAND"),
-        "RAM_MOVE": MoveState("RAM_MOVE", ram, [attack_intent(ram_dmg)], follow_up_id="RAND"),
+        MYSTERIOUS_KNIGHT_RANDOM_STATE: rand,
+        MYSTERIOUS_KNIGHT_WAR_CHANT_MOVE: MoveState(
+            MYSTERIOUS_KNIGHT_WAR_CHANT_MOVE,
+            war_chant,
+            [buff_intent()],
+            follow_up_id=MYSTERIOUS_KNIGHT_RANDOM_STATE,
+        ),
+        MYSTERIOUS_KNIGHT_FLAIL_MOVE: MoveState(
+            MYSTERIOUS_KNIGHT_FLAIL_MOVE,
+            flail,
+            [multi_attack_intent(flail_intent_damage, MYSTERIOUS_KNIGHT_FLAIL_REPEAT)],
+            follow_up_id=MYSTERIOUS_KNIGHT_RANDOM_STATE,
+        ),
+        MYSTERIOUS_KNIGHT_RAM_MOVE: MoveState(
+            MYSTERIOUS_KNIGHT_RAM_MOVE,
+            ram,
+            [attack_intent(ram_intent_damage)],
+            follow_up_id=MYSTERIOUS_KNIGHT_RANDOM_STATE,
+        ),
     }
 
     # AfterAddedToRoom: +6 Strength, +6 Plating
-    creature.apply_power(PowerId.STRENGTH, 6)
-    creature.apply_power(PowerId.PLATING, 6)
-    return creature, MonsterAI(states, "RAM_MOVE")
+    creature.apply_power(PowerId.STRENGTH, MYSTERIOUS_KNIGHT_STRENGTH)
+    creature.apply_power(PowerId.PLATING, MYSTERIOUS_KNIGHT_PLATING)
+    return creature, MonsterAI(states, MYSTERIOUS_KNIGHT_RAM_MOVE)
 
 
 # ---- DenseVegetationWriggler (event combat, Dense Vegetation) ----

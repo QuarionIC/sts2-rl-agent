@@ -1203,33 +1203,139 @@ def create_the_forgotten(rng: Rng, ascension_level: int = 0) -> tuple[Creature, 
 
 # ---- Knights (FlailKnight, MagiKnight, SpectralKnight) ----
 
-def create_flail_knight(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 101
-    creature = Creature(max_hp=hp, monster_id="FLAIL_KNIGHT")
-    flail_dmg = 9
-    ram_dmg = 15
+FLAIL_KNIGHT_MONSTER_ID = "FLAIL_KNIGHT"
+FLAIL_KNIGHT_BASE_HP = 101
+FLAIL_KNIGHT_TOUGH_HP = 108
+FLAIL_KNIGHT_BASE_FLAIL_DAMAGE = 9
+FLAIL_KNIGHT_DEADLY_FLAIL_DAMAGE = 10
+FLAIL_KNIGHT_FLAIL_REPEAT = 2
+FLAIL_KNIGHT_BASE_RAM_DAMAGE = 15
+FLAIL_KNIGHT_DEADLY_RAM_DAMAGE = 17
+FLAIL_KNIGHT_WAR_CHANT_STRENGTH = 3
+FLAIL_KNIGHT_RANDOM_STATE = "RAND"
+FLAIL_KNIGHT_WAR_CHANT_MOVE = "WAR_CHANT"
+FLAIL_KNIGHT_FLAIL_MOVE = "FLAIL_MOVE"
+FLAIL_KNIGHT_RAM_MOVE = "RAM_MOVE"
+
+MAGI_KNIGHT_MONSTER_ID = "MAGI_KNIGHT"
+MAGI_KNIGHT_BASE_HP = 82
+MAGI_KNIGHT_TOUGH_HP = 89
+MAGI_KNIGHT_BASE_POWER_SHIELD_DAMAGE = 6
+MAGI_KNIGHT_DEADLY_POWER_SHIELD_DAMAGE = 7
+MAGI_KNIGHT_BASE_POWER_SHIELD_BLOCK = 5
+MAGI_KNIGHT_TOUGH_POWER_SHIELD_BLOCK = 9
+MAGI_KNIGHT_DAMPEN_AMOUNT = 1
+MAGI_KNIGHT_BASE_SPEAR_DAMAGE = 10
+MAGI_KNIGHT_DEADLY_SPEAR_DAMAGE = 11
+MAGI_KNIGHT_BASE_BOMB_DAMAGE = 35
+MAGI_KNIGHT_DEADLY_BOMB_DAMAGE = 40
+MAGI_KNIGHT_FIRST_POWER_SHIELD_MOVE = "FIRST_POWER_SHIELD_MOVE"
+MAGI_KNIGHT_DAMPEN_MOVE = "DAMPEN_MOVE"
+MAGI_KNIGHT_RAM_MOVE = "RAM_MOVE"
+MAGI_KNIGHT_PREP_MOVE = "PREP_MOVE"
+MAGI_KNIGHT_MAGIC_BOMB_MOVE = "MAGIC_BOMB"
+
+SPECTRAL_KNIGHT_MONSTER_ID = "SPECTRAL_KNIGHT"
+SPECTRAL_KNIGHT_BASE_HP = 93
+SPECTRAL_KNIGHT_TOUGH_HP = 97
+SPECTRAL_KNIGHT_HEX_AMOUNT = 2
+SPECTRAL_KNIGHT_BASE_SOUL_SLASH_DAMAGE = 15
+SPECTRAL_KNIGHT_DEADLY_SOUL_SLASH_DAMAGE = 17
+SPECTRAL_KNIGHT_BASE_SOUL_FLAME_DAMAGE = 3
+SPECTRAL_KNIGHT_DEADLY_SOUL_FLAME_DAMAGE = 4
+SPECTRAL_KNIGHT_SOUL_FLAME_REPEAT = 3
+SPECTRAL_KNIGHT_RANDOM_STATE = "RAND"
+SPECTRAL_KNIGHT_HEX_MOVE = "HEX"
+SPECTRAL_KNIGHT_SOUL_SLASH_MOVE = "SOUL_SLASH"
+SPECTRAL_KNIGHT_SOUL_FLAME_MOVE = "SOUL_FLAME"
+
+MECHA_KNIGHT_MONSTER_ID = "MECHA_KNIGHT"
+MECHA_KNIGHT_BASE_HP = 300
+MECHA_KNIGHT_TOUGH_HP = 320
+MECHA_KNIGHT_BASE_CHARGE_DAMAGE = 25
+MECHA_KNIGHT_DEADLY_CHARGE_DAMAGE = 30
+MECHA_KNIGHT_BASE_HEAVY_CLEAVE_DAMAGE = 35
+MECHA_KNIGHT_DEADLY_HEAVY_CLEAVE_DAMAGE = 40
+MECHA_KNIGHT_WINDUP_BLOCK = 15
+MECHA_KNIGHT_FLAMETHROWER_BURNS = 4
+MECHA_KNIGHT_WINDUP_STRENGTH = 5
+MECHA_KNIGHT_ARTIFACT = 3
+MECHA_KNIGHT_CHARGE_MOVE = "CHARGE_MOVE"
+MECHA_KNIGHT_FLAMETHROWER_MOVE = "FLAMETHROWER_MOVE"
+MECHA_KNIGHT_WINDUP_MOVE = "WINDUP_MOVE"
+MECHA_KNIGHT_HEAVY_CLEAVE_MOVE = "HEAVY_CLEAVE_MOVE"
+
+
+def create_flail_knight(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        FLAIL_KNIGHT_TOUGH_HP,
+        FLAIL_KNIGHT_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=FLAIL_KNIGHT_MONSTER_ID)
 
     def war_chant(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, 3)
+        creature.apply_power(PowerId.STRENGTH, FLAIL_KNIGHT_WAR_CHANT_STRENGTH)
 
     def flail(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, flail_dmg, hits=2)
+        flail_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FLAIL_KNIGHT_DEADLY_FLAIL_DAMAGE,
+            FLAIL_KNIGHT_BASE_FLAIL_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, flail_dmg, hits=FLAIL_KNIGHT_FLAIL_REPEAT)
 
     def ram(combat: CombatState) -> None:
+        ram_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FLAIL_KNIGHT_DEADLY_RAM_DAMAGE,
+            FLAIL_KNIGHT_BASE_RAM_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, ram_dmg)
 
-    rand = RandomBranchState("RAND")
-    rand.add_branch("WAR_CHANT", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("FLAIL_MOVE", MoveRepeatType.CAN_REPEAT_FOREVER, weight=2.0)
-    rand.add_branch("RAM_MOVE", MoveRepeatType.CAN_REPEAT_FOREVER, weight=2.0)
+    flail_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FLAIL_KNIGHT_DEADLY_FLAIL_DAMAGE,
+        FLAIL_KNIGHT_BASE_FLAIL_DAMAGE,
+    )
+    ram_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FLAIL_KNIGHT_DEADLY_RAM_DAMAGE,
+        FLAIL_KNIGHT_BASE_RAM_DAMAGE,
+    )
+
+    rand = RandomBranchState(FLAIL_KNIGHT_RANDOM_STATE)
+    rand.add_branch(FLAIL_KNIGHT_WAR_CHANT_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(FLAIL_KNIGHT_FLAIL_MOVE, MoveRepeatType.CAN_REPEAT_FOREVER, weight=2.0)
+    rand.add_branch(FLAIL_KNIGHT_RAM_MOVE, MoveRepeatType.CAN_REPEAT_FOREVER, weight=2.0)
 
     states: dict[str, MonsterState] = {
-        "RAND": rand,
-        "WAR_CHANT": MoveState("WAR_CHANT", war_chant, [buff_intent()], follow_up_id="RAND"),
-        "FLAIL_MOVE": MoveState("FLAIL_MOVE", flail, [multi_attack_intent(flail_dmg, 2)], follow_up_id="RAND"),
-        "RAM_MOVE": MoveState("RAM_MOVE", ram, [attack_intent(ram_dmg)], follow_up_id="RAND"),
+        FLAIL_KNIGHT_RANDOM_STATE: rand,
+        FLAIL_KNIGHT_WAR_CHANT_MOVE: MoveState(
+            FLAIL_KNIGHT_WAR_CHANT_MOVE,
+            war_chant,
+            [buff_intent()],
+            follow_up_id=FLAIL_KNIGHT_RANDOM_STATE,
+        ),
+        FLAIL_KNIGHT_FLAIL_MOVE: MoveState(
+            FLAIL_KNIGHT_FLAIL_MOVE,
+            flail,
+            [multi_attack_intent(flail_intent_damage, FLAIL_KNIGHT_FLAIL_REPEAT)],
+            follow_up_id=FLAIL_KNIGHT_RANDOM_STATE,
+        ),
+        FLAIL_KNIGHT_RAM_MOVE: MoveState(
+            FLAIL_KNIGHT_RAM_MOVE,
+            ram,
+            [attack_intent(ram_intent_damage)],
+            follow_up_id=FLAIL_KNIGHT_RANDOM_STATE,
+        ),
     }
-    return creature, MonsterAI(states, "RAM_MOVE")
+    return creature, MonsterAI(states, FLAIL_KNIGHT_RAM_MOVE)
 
 
 # ---- MysteriousKnight (HP 101, event combat) ----
@@ -1311,16 +1417,28 @@ def create_living_shield(rng: Rng, get_ally_count=None) -> tuple[Creature, Monst
     return creature, MonsterAI(states, "SHIELD_SLAM_MOVE")
 
 
-def create_magi_knight(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 82
-    creature = Creature(max_hp=hp, monster_id="MAGI_KNIGHT")
-    power_shield_dmg = 6
-    power_shield_block = 5
-    dampen_amount = 1
-    spear_dmg = 10
-    bomb_dmg = 35
+def create_magi_knight(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        MAGI_KNIGHT_TOUGH_HP,
+        MAGI_KNIGHT_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=MAGI_KNIGHT_MONSTER_ID)
 
     def power_shield(combat: CombatState) -> None:
+        power_shield_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            MAGI_KNIGHT_DEADLY_POWER_SHIELD_DAMAGE,
+            MAGI_KNIGHT_BASE_POWER_SHIELD_DAMAGE,
+        )
+        power_shield_block = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            MAGI_KNIGHT_TOUGH_POWER_SHIELD_BLOCK,
+            MAGI_KNIGHT_BASE_POWER_SHIELD_BLOCK,
+        )
         _deal_damage_to_player(combat, creature, power_shield_dmg)
         _gain_block(creature, power_shield_block, combat)
 
@@ -1332,7 +1450,7 @@ def create_magi_knight(rng: Rng) -> tuple[Creature, MonsterAI]:
                 if callable(add_caster):
                     add_caster(creature)
                 continue
-            combat.apply_power_to(target, PowerId.DAMPEN, dampen_amount, applier=creature)
+            combat.apply_power_to(target, PowerId.DAMPEN, MAGI_KNIGHT_DAMPEN_AMOUNT, applier=creature)
             power = target.powers.get(PowerId.DAMPEN)
             if power is not None:
                 add_caster = getattr(power, "add_caster", None)
@@ -1340,70 +1458,180 @@ def create_magi_knight(rng: Rng) -> tuple[Creature, MonsterAI]:
                     add_caster(creature)
 
     def spear(combat: CombatState) -> None:
+        spear_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            MAGI_KNIGHT_DEADLY_SPEAR_DAMAGE,
+            MAGI_KNIGHT_BASE_SPEAR_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, spear_dmg)
 
     def prep(combat: CombatState) -> None:
+        power_shield_block = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            MAGI_KNIGHT_TOUGH_POWER_SHIELD_BLOCK,
+            MAGI_KNIGHT_BASE_POWER_SHIELD_BLOCK,
+        )
         _gain_block(creature, power_shield_block, combat)
 
     def magic_bomb(combat: CombatState) -> None:
+        bomb_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            MAGI_KNIGHT_DEADLY_BOMB_DAMAGE,
+            MAGI_KNIGHT_BASE_BOMB_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, bomb_dmg)
 
+    power_shield_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        MAGI_KNIGHT_DEADLY_POWER_SHIELD_DAMAGE,
+        MAGI_KNIGHT_BASE_POWER_SHIELD_DAMAGE,
+    )
+    spear_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        MAGI_KNIGHT_DEADLY_SPEAR_DAMAGE,
+        MAGI_KNIGHT_BASE_SPEAR_DAMAGE,
+    )
+    bomb_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        MAGI_KNIGHT_DEADLY_BOMB_DAMAGE,
+        MAGI_KNIGHT_BASE_BOMB_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "FIRST_POWER_SHIELD_MOVE": MoveState("FIRST_POWER_SHIELD_MOVE", power_shield, [attack_intent(power_shield_dmg), defend_intent()], follow_up_id="DAMPEN_MOVE"),
-        "DAMPEN_MOVE": MoveState("DAMPEN_MOVE", dampen, [debuff_intent()], follow_up_id="RAM_MOVE"),
-        "RAM_MOVE": MoveState("RAM_MOVE", spear, [attack_intent(spear_dmg)], follow_up_id="PREP_MOVE"),
-        "PREP_MOVE": MoveState("PREP_MOVE", prep, [defend_intent()], follow_up_id="MAGIC_BOMB"),
-        "MAGIC_BOMB": MoveState("MAGIC_BOMB", magic_bomb, [attack_intent(bomb_dmg)], follow_up_id="RAM_MOVE"),
+        MAGI_KNIGHT_FIRST_POWER_SHIELD_MOVE: MoveState(
+            MAGI_KNIGHT_FIRST_POWER_SHIELD_MOVE,
+            power_shield,
+            [attack_intent(power_shield_intent_damage), defend_intent()],
+            follow_up_id=MAGI_KNIGHT_DAMPEN_MOVE,
+        ),
+        MAGI_KNIGHT_DAMPEN_MOVE: MoveState(
+            MAGI_KNIGHT_DAMPEN_MOVE,
+            dampen,
+            [debuff_intent()],
+            follow_up_id=MAGI_KNIGHT_RAM_MOVE,
+        ),
+        MAGI_KNIGHT_RAM_MOVE: MoveState(
+            MAGI_KNIGHT_RAM_MOVE,
+            spear,
+            [attack_intent(spear_intent_damage)],
+            follow_up_id=MAGI_KNIGHT_PREP_MOVE,
+        ),
+        MAGI_KNIGHT_PREP_MOVE: MoveState(
+            MAGI_KNIGHT_PREP_MOVE,
+            prep,
+            [defend_intent()],
+            follow_up_id=MAGI_KNIGHT_MAGIC_BOMB_MOVE,
+        ),
+        MAGI_KNIGHT_MAGIC_BOMB_MOVE: MoveState(
+            MAGI_KNIGHT_MAGIC_BOMB_MOVE,
+            magic_bomb,
+            [attack_intent(bomb_intent_damage)],
+            follow_up_id=MAGI_KNIGHT_RAM_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "FIRST_POWER_SHIELD_MOVE")
+    return creature, MonsterAI(states, MAGI_KNIGHT_FIRST_POWER_SHIELD_MOVE)
 
 
-def create_spectral_knight(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 93
-    creature = Creature(max_hp=hp, monster_id="SPECTRAL_KNIGHT")
-    hex_amount = 2
-    soul_slash_dmg = 15
-    soul_flame_dmg = 3
+def create_spectral_knight(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SPECTRAL_KNIGHT_TOUGH_HP,
+        SPECTRAL_KNIGHT_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=SPECTRAL_KNIGHT_MONSTER_ID)
 
     def hex_player(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.HEX, hex_amount, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.HEX, SPECTRAL_KNIGHT_HEX_AMOUNT, applier=creature)
 
     def soul_slash(combat: CombatState) -> None:
+        soul_slash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SPECTRAL_KNIGHT_DEADLY_SOUL_SLASH_DAMAGE,
+            SPECTRAL_KNIGHT_BASE_SOUL_SLASH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, soul_slash_dmg)
 
     def soul_flame(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, soul_flame_dmg, hits=3)
+        soul_flame_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SPECTRAL_KNIGHT_DEADLY_SOUL_FLAME_DAMAGE,
+            SPECTRAL_KNIGHT_BASE_SOUL_FLAME_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, soul_flame_dmg, hits=SPECTRAL_KNIGHT_SOUL_FLAME_REPEAT)
 
-    rand = RandomBranchState("RAND")
-    rand.add_branch("SOUL_SLASH", weight=2.0)
-    rand.add_branch("SOUL_FLAME", MoveRepeatType.CANNOT_REPEAT)
+    soul_slash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SPECTRAL_KNIGHT_DEADLY_SOUL_SLASH_DAMAGE,
+        SPECTRAL_KNIGHT_BASE_SOUL_SLASH_DAMAGE,
+    )
+    soul_flame_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SPECTRAL_KNIGHT_DEADLY_SOUL_FLAME_DAMAGE,
+        SPECTRAL_KNIGHT_BASE_SOUL_FLAME_DAMAGE,
+    )
+
+    rand = RandomBranchState(SPECTRAL_KNIGHT_RANDOM_STATE)
+    rand.add_branch(SPECTRAL_KNIGHT_SOUL_SLASH_MOVE, weight=2.0)
+    rand.add_branch(SPECTRAL_KNIGHT_SOUL_FLAME_MOVE, MoveRepeatType.CANNOT_REPEAT)
 
     states: dict[str, MonsterState] = {
-        "HEX": MoveState("HEX", hex_player, [debuff_intent()], follow_up_id="SOUL_SLASH"),
-        "RAND": rand,
-        "SOUL_SLASH": MoveState("SOUL_SLASH", soul_slash, [attack_intent(soul_slash_dmg)], follow_up_id="RAND"),
-        "SOUL_FLAME": MoveState("SOUL_FLAME", soul_flame, [multi_attack_intent(soul_flame_dmg, 3)], follow_up_id="RAND"),
+        SPECTRAL_KNIGHT_HEX_MOVE: MoveState(
+            SPECTRAL_KNIGHT_HEX_MOVE,
+            hex_player,
+            [debuff_intent()],
+            follow_up_id=SPECTRAL_KNIGHT_SOUL_SLASH_MOVE,
+        ),
+        SPECTRAL_KNIGHT_RANDOM_STATE: rand,
+        SPECTRAL_KNIGHT_SOUL_SLASH_MOVE: MoveState(
+            SPECTRAL_KNIGHT_SOUL_SLASH_MOVE,
+            soul_slash,
+            [attack_intent(soul_slash_intent_damage)],
+            follow_up_id=SPECTRAL_KNIGHT_RANDOM_STATE,
+        ),
+        SPECTRAL_KNIGHT_SOUL_FLAME_MOVE: MoveState(
+            SPECTRAL_KNIGHT_SOUL_FLAME_MOVE,
+            soul_flame,
+            [multi_attack_intent(soul_flame_intent_damage, SPECTRAL_KNIGHT_SOUL_FLAME_REPEAT)],
+            follow_up_id=SPECTRAL_KNIGHT_RANDOM_STATE,
+        ),
     }
-    return creature, MonsterAI(states, "HEX")
+    return creature, MonsterAI(states, SPECTRAL_KNIGHT_HEX_MOVE)
 
 
 # ---- MechaKnight (HP 155 / 165 asc) ----
 
-def create_mecha_knight(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 300
-    creature = Creature(max_hp=hp, monster_id="MECHA_KNIGHT")
-    charge_dmg = 25
-    heavy_cleave_dmg = 35
-    windup_block = 15
-    flamethrower_burns = 4
-    windup_strength = 5
+def create_mecha_knight(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        MECHA_KNIGHT_TOUGH_HP,
+        MECHA_KNIGHT_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=MECHA_KNIGHT_MONSTER_ID)
 
     def charge(combat: CombatState) -> None:
+        charge_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            MECHA_KNIGHT_DEADLY_CHARGE_DAMAGE,
+            MECHA_KNIGHT_BASE_CHARGE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, charge_dmg)
 
     def flamethrower(combat: CombatState) -> None:
         for target in living_player_targets(combat):
-            for _ in range(flamethrower_burns):
+            for _ in range(MECHA_KNIGHT_FLAMETHROWER_BURNS):
                 combat.add_generated_card_to_creature_hand(
                     target,
                     make_burn(),
@@ -1411,20 +1639,59 @@ def create_mecha_knight(rng: Rng) -> tuple[Creature, MonsterAI]:
                 )
 
     def windup(combat: CombatState) -> None:
-        _gain_block(creature, windup_block, combat)
-        creature.apply_power(PowerId.STRENGTH, windup_strength)
+        _gain_block(creature, MECHA_KNIGHT_WINDUP_BLOCK, combat)
+        creature.apply_power(PowerId.STRENGTH, MECHA_KNIGHT_WINDUP_STRENGTH)
 
     def heavy_cleave(combat: CombatState) -> None:
+        heavy_cleave_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            MECHA_KNIGHT_DEADLY_HEAVY_CLEAVE_DAMAGE,
+            MECHA_KNIGHT_BASE_HEAVY_CLEAVE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, heavy_cleave_dmg)
 
+    charge_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        MECHA_KNIGHT_DEADLY_CHARGE_DAMAGE,
+        MECHA_KNIGHT_BASE_CHARGE_DAMAGE,
+    )
+    heavy_cleave_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        MECHA_KNIGHT_DEADLY_HEAVY_CLEAVE_DAMAGE,
+        MECHA_KNIGHT_BASE_HEAVY_CLEAVE_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "CHARGE_MOVE": MoveState("CHARGE_MOVE", charge, [attack_intent(charge_dmg)], follow_up_id="FLAMETHROWER_MOVE"),
-        "FLAMETHROWER_MOVE": MoveState("FLAMETHROWER_MOVE", flamethrower, [status_intent()], follow_up_id="WINDUP_MOVE"),
-        "WINDUP_MOVE": MoveState("WINDUP_MOVE", windup, [defend_intent(), buff_intent()], follow_up_id="HEAVY_CLEAVE_MOVE"),
-        "HEAVY_CLEAVE_MOVE": MoveState("HEAVY_CLEAVE_MOVE", heavy_cleave, [attack_intent(heavy_cleave_dmg)], follow_up_id="FLAMETHROWER_MOVE"),
+        MECHA_KNIGHT_CHARGE_MOVE: MoveState(
+            MECHA_KNIGHT_CHARGE_MOVE,
+            charge,
+            [attack_intent(charge_intent_damage)],
+            follow_up_id=MECHA_KNIGHT_FLAMETHROWER_MOVE,
+        ),
+        MECHA_KNIGHT_FLAMETHROWER_MOVE: MoveState(
+            MECHA_KNIGHT_FLAMETHROWER_MOVE,
+            flamethrower,
+            [status_intent()],
+            follow_up_id=MECHA_KNIGHT_WINDUP_MOVE,
+        ),
+        MECHA_KNIGHT_WINDUP_MOVE: MoveState(
+            MECHA_KNIGHT_WINDUP_MOVE,
+            windup,
+            [defend_intent(), buff_intent()],
+            follow_up_id=MECHA_KNIGHT_HEAVY_CLEAVE_MOVE,
+        ),
+        MECHA_KNIGHT_HEAVY_CLEAVE_MOVE: MoveState(
+            MECHA_KNIGHT_HEAVY_CLEAVE_MOVE,
+            heavy_cleave,
+            [attack_intent(heavy_cleave_intent_damage)],
+            follow_up_id=MECHA_KNIGHT_FLAMETHROWER_MOVE,
+        ),
     }
-    creature.apply_power(PowerId.ARTIFACT, 3)
-    return creature, MonsterAI(states, "CHARGE_MOVE")
+    creature.apply_power(PowerId.ARTIFACT, MECHA_KNIGHT_ARTIFACT)
+    return creature, MonsterAI(states, MECHA_KNIGHT_CHARGE_MOVE)
 
 
 # ---- SoulNexus (HP 155 / 165 asc) + Osty ----

@@ -82,7 +82,7 @@ def setup_fake_merchant(combat: CombatState, rng: Rng) -> None:
 # Single MysteriousKnight (FlailKnight with +6 STR / +6 Plating).
 
 def setup_mysterious_knight(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_mysterious_knight(rng)
+    creature, ai = create_mysterious_knight(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 

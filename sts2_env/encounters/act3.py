@@ -142,13 +142,14 @@ NORMAL_ENCOUNTERS: list[EncounterSetup] = [
 # ---- Elite Encounters ----
 
 def setup_knights_elite(combat: CombatState, rng: Rng) -> None:
+    ascension_level = getattr(combat, "ascension_level", 0)
     for creator in (create_flail_knight, create_spectral_knight, create_magi_knight):
-        creature, ai = creator(rng)
+        creature, ai = creator(rng, ascension_level=ascension_level)
         combat.add_enemy(creature, ai)
 
 
 def setup_mecha_knight_elite(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_mecha_knight(rng)
+    creature, ai = create_mecha_knight(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
