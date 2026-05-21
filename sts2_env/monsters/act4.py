@@ -1984,109 +1984,220 @@ def create_terror_eel(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Mon
 # BOSS ENCOUNTERS
 # ========================================================================
 
-# ---- WaterfallGiant (HP 250 / 260 asc) ----
+# ---- WaterfallGiant ----
 
-def create_waterfall_giant(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 250
-    creature = Creature(max_hp=hp, monster_id="WATERFALL_GIANT")
-    stomp_dmg = 15
-    stomp_weak = 1
-    ram_dmg = 10
-    pressure_up_dmg = 13
-    pressurize_amount = 15
-    base_pressure_gun_dmg = 20
-    pressure_gun_increase = 5
-    pressure_buildup = 3
-    siphon_heal = 15
+WATERFALL_GIANT_MONSTER_ID = "WATERFALL_GIANT"
+WATERFALL_GIANT_BASE_HP = 250
+WATERFALL_GIANT_TOUGH_HP = 260
+WATERFALL_GIANT_BASE_PRESSURIZE = 15
+WATERFALL_GIANT_DEADLY_PRESSURIZE = 20
+WATERFALL_GIANT_BASE_STOMP_DAMAGE = 15
+WATERFALL_GIANT_DEADLY_STOMP_DAMAGE = 16
+WATERFALL_GIANT_STOMP_WEAK = 1
+WATERFALL_GIANT_BASE_RAM_DAMAGE = 10
+WATERFALL_GIANT_DEADLY_RAM_DAMAGE = 11
+WATERFALL_GIANT_BASE_PRESSURE_UP_DAMAGE = 13
+WATERFALL_GIANT_DEADLY_PRESSURE_UP_DAMAGE = 14
+WATERFALL_GIANT_BASE_PRESSURE_GUN_DAMAGE = 20
+WATERFALL_GIANT_DEADLY_PRESSURE_GUN_DAMAGE = 23
+WATERFALL_GIANT_PRESSURE_GUN_INCREASE = 5
+WATERFALL_GIANT_PRESSURE_BUILDUP = 3
+WATERFALL_GIANT_SIPHON_HEAL = 15
+WATERFALL_GIANT_CURRENT_PRESSURE_GUN_DAMAGE_KEY = "current_pressure_gun_damage"
+WATERFALL_GIANT_STEAM_ERUPTION_DAMAGE_KEY = "steam_eruption_damage"
+WATERFALL_GIANT_PRESSURIZE_MOVE = "PRESSURIZE_MOVE"
+WATERFALL_GIANT_STOMP_MOVE = "STOMP_MOVE"
+WATERFALL_GIANT_RAM_MOVE = "RAM_MOVE"
+WATERFALL_GIANT_SIPHON_MOVE = "SIPHON_MOVE"
+WATERFALL_GIANT_PRESSURE_GUN_MOVE = "PRESSURE_GUN_MOVE"
+WATERFALL_GIANT_PRESSURE_UP_MOVE = "PRESSURE_UP_MOVE"
+WATERFALL_GIANT_ABOUT_TO_BLOW_MOVE = "ABOUT_TO_BLOW_MOVE"
+WATERFALL_GIANT_EXPLODE_MOVE = "EXPLODE_MOVE"
 
+
+def create_waterfall_giant(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        WATERFALL_GIANT_TOUGH_HP,
+        WATERFALL_GIANT_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=WATERFALL_GIANT_MONSTER_ID)
+
+    base_pressure_gun_dmg = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        WATERFALL_GIANT_DEADLY_PRESSURE_GUN_DAMAGE,
+        WATERFALL_GIANT_BASE_PRESSURE_GUN_DAMAGE,
+    )
     _state = {
-        "current_pressure_gun_damage": base_pressure_gun_dmg,
-        "steam_eruption_damage": 0,
+        WATERFALL_GIANT_CURRENT_PRESSURE_GUN_DAMAGE_KEY: base_pressure_gun_dmg,
+        WATERFALL_GIANT_STEAM_ERUPTION_DAMAGE_KEY: 0,
     }
 
     def _gain_pressure(combat: CombatState, amount: int) -> None:
         combat.apply_power_to(creature, PowerId.STEAM_ERUPTION, amount, applier=creature)
 
     def pressurize(combat: CombatState) -> None:
+        pressurize_amount = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            WATERFALL_GIANT_DEADLY_PRESSURIZE,
+            WATERFALL_GIANT_BASE_PRESSURIZE,
+        )
         _gain_pressure(combat, pressurize_amount)
 
     def stomp(combat: CombatState) -> None:
+        stomp_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            WATERFALL_GIANT_DEADLY_STOMP_DAMAGE,
+            WATERFALL_GIANT_BASE_STOMP_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, stomp_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.WEAK, stomp_weak, applier=creature)
-        _gain_pressure(combat, pressure_buildup)
+        apply_power_to_living_player_targets(combat, PowerId.WEAK, WATERFALL_GIANT_STOMP_WEAK, applier=creature)
+        _gain_pressure(combat, WATERFALL_GIANT_PRESSURE_BUILDUP)
 
     def ram(combat: CombatState) -> None:
+        ram_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            WATERFALL_GIANT_DEADLY_RAM_DAMAGE,
+            WATERFALL_GIANT_BASE_RAM_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, ram_dmg)
-        _gain_pressure(combat, pressure_buildup)
+        _gain_pressure(combat, WATERFALL_GIANT_PRESSURE_BUILDUP)
 
     def siphon(combat: CombatState) -> None:
-        creature.heal(siphon_heal * len(combat.combat_player_states))
-        _gain_pressure(combat, pressure_buildup)
+        creature.heal(WATERFALL_GIANT_SIPHON_HEAL * len(combat.combat_player_states))
+        _gain_pressure(combat, WATERFALL_GIANT_PRESSURE_BUILDUP)
 
     def pressure_gun(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, _state["current_pressure_gun_damage"])
-        _state["current_pressure_gun_damage"] += pressure_gun_increase
-        _gain_pressure(combat, pressure_buildup)
+        _deal_damage_to_player(combat, creature, _state[WATERFALL_GIANT_CURRENT_PRESSURE_GUN_DAMAGE_KEY])
+        _state[WATERFALL_GIANT_CURRENT_PRESSURE_GUN_DAMAGE_KEY] += WATERFALL_GIANT_PRESSURE_GUN_INCREASE
+        _gain_pressure(combat, WATERFALL_GIANT_PRESSURE_BUILDUP)
 
     def pressure_up(combat: CombatState) -> None:
+        pressure_up_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            WATERFALL_GIANT_DEADLY_PRESSURE_UP_DAMAGE,
+            WATERFALL_GIANT_BASE_PRESSURE_UP_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, pressure_up_dmg)
-        _gain_pressure(combat, pressure_buildup)
+        _gain_pressure(combat, WATERFALL_GIANT_PRESSURE_BUILDUP)
 
     def about_to_blow(combat: CombatState) -> None:
-        _state["steam_eruption_damage"] = creature.get_power_amount(PowerId.STEAM_ERUPTION)
+        _state[WATERFALL_GIANT_STEAM_ERUPTION_DAMAGE_KEY] = creature.get_power_amount(PowerId.STEAM_ERUPTION)
         creature.powers.pop(PowerId.STEAM_ERUPTION, None)
 
     def explode(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, _state["steam_eruption_damage"])
+        _deal_damage_to_player(combat, creature, _state[WATERFALL_GIANT_STEAM_ERUPTION_DAMAGE_KEY])
         combat.kill_creature(creature)
 
+    stomp_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        WATERFALL_GIANT_DEADLY_STOMP_DAMAGE,
+        WATERFALL_GIANT_BASE_STOMP_DAMAGE,
+    )
+    ram_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        WATERFALL_GIANT_DEADLY_RAM_DAMAGE,
+        WATERFALL_GIANT_BASE_RAM_DAMAGE,
+    )
+    pressure_up_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        WATERFALL_GIANT_DEADLY_PRESSURE_UP_DAMAGE,
+        WATERFALL_GIANT_BASE_PRESSURE_UP_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "PRESSURIZE_MOVE": MoveState("PRESSURIZE_MOVE", pressurize, [buff_intent()], follow_up_id="STOMP_MOVE"),
-        "STOMP_MOVE": MoveState(
-            "STOMP_MOVE",
-            stomp,
-            [attack_intent(stomp_dmg), debuff_intent(), buff_intent()],
-            follow_up_id="RAM_MOVE",
+        WATERFALL_GIANT_PRESSURIZE_MOVE: MoveState(
+            WATERFALL_GIANT_PRESSURIZE_MOVE,
+            pressurize,
+            [buff_intent()],
+            follow_up_id=WATERFALL_GIANT_STOMP_MOVE,
         ),
-        "RAM_MOVE": MoveState("RAM_MOVE", ram, [attack_intent(ram_dmg), buff_intent()], follow_up_id="SIPHON_MOVE"),
-        "SIPHON_MOVE": MoveState(
-            "SIPHON_MOVE",
+        WATERFALL_GIANT_STOMP_MOVE: MoveState(
+            WATERFALL_GIANT_STOMP_MOVE,
+            stomp,
+            [attack_intent(stomp_intent_damage), debuff_intent(), buff_intent()],
+            follow_up_id=WATERFALL_GIANT_RAM_MOVE,
+        ),
+        WATERFALL_GIANT_RAM_MOVE: MoveState(
+            WATERFALL_GIANT_RAM_MOVE,
+            ram,
+            [attack_intent(ram_intent_damage), buff_intent()],
+            follow_up_id=WATERFALL_GIANT_SIPHON_MOVE,
+        ),
+        WATERFALL_GIANT_SIPHON_MOVE: MoveState(
+            WATERFALL_GIANT_SIPHON_MOVE,
             siphon,
             [Intent(IntentType.HEAL), buff_intent()],
-            follow_up_id="PRESSURE_GUN_MOVE",
+            follow_up_id=WATERFALL_GIANT_PRESSURE_GUN_MOVE,
         ),
-        "PRESSURE_GUN_MOVE": MoveState(
-            "PRESSURE_GUN_MOVE",
+        WATERFALL_GIANT_PRESSURE_GUN_MOVE: MoveState(
+            WATERFALL_GIANT_PRESSURE_GUN_MOVE,
             pressure_gun,
             [attack_intent(base_pressure_gun_dmg), buff_intent()],
-            follow_up_id="PRESSURE_UP_MOVE",
+            follow_up_id=WATERFALL_GIANT_PRESSURE_UP_MOVE,
         ),
-        "PRESSURE_UP_MOVE": MoveState(
-            "PRESSURE_UP_MOVE",
+        WATERFALL_GIANT_PRESSURE_UP_MOVE: MoveState(
+            WATERFALL_GIANT_PRESSURE_UP_MOVE,
             pressure_up,
-            [attack_intent(pressure_up_dmg), buff_intent()],
-            follow_up_id="STOMP_MOVE",
+            [attack_intent(pressure_up_intent_damage), buff_intent()],
+            follow_up_id=WATERFALL_GIANT_STOMP_MOVE,
         ),
-        "ABOUT_TO_BLOW_MOVE": MoveState(
-            "ABOUT_TO_BLOW_MOVE",
+        WATERFALL_GIANT_ABOUT_TO_BLOW_MOVE: MoveState(
+            WATERFALL_GIANT_ABOUT_TO_BLOW_MOVE,
             about_to_blow,
             [Intent(IntentType.STUN)],
-            follow_up_id="EXPLODE_MOVE",
+            follow_up_id=WATERFALL_GIANT_EXPLODE_MOVE,
             must_perform_once=True,
         ),
-        "EXPLODE_MOVE": MoveState("EXPLODE_MOVE", explode, [Intent(IntentType.DEATH_BLOW)], follow_up_id="EXPLODE_MOVE"),
+        WATERFALL_GIANT_EXPLODE_MOVE: MoveState(
+            WATERFALL_GIANT_EXPLODE_MOVE,
+            explode,
+            [Intent(IntentType.DEATH_BLOW)],
+            follow_up_id=WATERFALL_GIANT_EXPLODE_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "PRESSURIZE_MOVE")
+    return creature, MonsterAI(states, WATERFALL_GIANT_PRESSURIZE_MOVE)
 
 
-# ---- SoulFysh (HP 211 / 221 asc) ----
+# ---- SoulFysh ----
 
-def create_soul_fysh(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 211
-    creature = Creature(max_hp=hp, monster_id="SOUL_FYSH")
-    de_gas_dmg = 16
-    scream_dmg = 11
-    gaze_dmg = 7
+SOUL_FYSH_MONSTER_ID = "SOUL_FYSH"
+SOUL_FYSH_BASE_HP = 211
+SOUL_FYSH_TOUGH_HP = 221
+SOUL_FYSH_BASE_DE_GAS_DAMAGE = 16
+SOUL_FYSH_DEADLY_DE_GAS_DAMAGE = 17
+SOUL_FYSH_BASE_SCREAM_DAMAGE = 11
+SOUL_FYSH_DEADLY_SCREAM_DAMAGE = 12
+SOUL_FYSH_BASE_GAZE_DAMAGE = 7
+SOUL_FYSH_DEADLY_GAZE_DAMAGE = 8
+SOUL_FYSH_BECKON_STATUS_COUNT = 2
+SOUL_FYSH_GAZE_STATUS_COUNT = 1
+SOUL_FYSH_FADE_INTANGIBLE = 2
+SOUL_FYSH_SCREAM_VULNERABLE = 3
+SOUL_FYSH_BECKON_MOVE = "BECKON_MOVE"
+SOUL_FYSH_DE_GAS_MOVE = "DE_GAS_MOVE"
+SOUL_FYSH_GAZE_MOVE = "GAZE_MOVE"
+SOUL_FYSH_FADE_MOVE = "FADE_MOVE"
+SOUL_FYSH_SCREAM_MOVE = "SCREAM_MOVE"
+
+
+def create_soul_fysh(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SOUL_FYSH_TOUGH_HP,
+        SOUL_FYSH_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=SOUL_FYSH_MONSTER_ID)
 
     def beckon(combat: CombatState) -> None:
         from sts2_env.cards.status import make_beckon
@@ -2101,11 +2212,23 @@ def create_soul_fysh(rng: Rng) -> tuple[Creature, MonsterAI]:
             combat.add_generated_card_to_creature_discard(target, make_beckon(), added_by_player=False)
 
     def de_gas(combat: CombatState) -> None:
+        de_gas_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SOUL_FYSH_DEADLY_DE_GAS_DAMAGE,
+            SOUL_FYSH_BASE_DE_GAS_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, de_gas_dmg)
 
     def gaze(combat: CombatState) -> None:
         from sts2_env.cards.status import make_beckon
 
+        gaze_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SOUL_FYSH_DEADLY_GAZE_DAMAGE,
+            SOUL_FYSH_BASE_GAZE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, gaze_dmg)
         if combat.is_over:
             return
@@ -2113,93 +2236,218 @@ def create_soul_fysh(rng: Rng) -> tuple[Creature, MonsterAI]:
             combat.add_generated_card_to_creature_discard(target, make_beckon(), added_by_player=False)
 
     def fade(combat: CombatState) -> None:
-        creature.apply_power(PowerId.INTANGIBLE, 2, applier=creature)
+        creature.apply_power(PowerId.INTANGIBLE, SOUL_FYSH_FADE_INTANGIBLE, applier=creature)
 
     def scream(combat: CombatState) -> None:
+        scream_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SOUL_FYSH_DEADLY_SCREAM_DAMAGE,
+            SOUL_FYSH_BASE_SCREAM_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, scream_dmg)
         for target in living_player_targets(combat):
-            combat.apply_power_to(target, PowerId.VULNERABLE, 3, applier=creature)
+            combat.apply_power_to(target, PowerId.VULNERABLE, SOUL_FYSH_SCREAM_VULNERABLE, applier=creature)
+
+    de_gas_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SOUL_FYSH_DEADLY_DE_GAS_DAMAGE,
+        SOUL_FYSH_BASE_DE_GAS_DAMAGE,
+    )
+    gaze_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SOUL_FYSH_DEADLY_GAZE_DAMAGE,
+        SOUL_FYSH_BASE_GAZE_DAMAGE,
+    )
+    scream_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SOUL_FYSH_DEADLY_SCREAM_DAMAGE,
+        SOUL_FYSH_BASE_SCREAM_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "BECKON_MOVE": MoveState("BECKON_MOVE", beckon, [status_intent()], follow_up_id="DE_GAS_MOVE"),
-        "DE_GAS_MOVE": MoveState("DE_GAS_MOVE", de_gas, [attack_intent(de_gas_dmg)], follow_up_id="GAZE_MOVE"),
-        "GAZE_MOVE": MoveState(
-            "GAZE_MOVE",
-            gaze,
-            [attack_intent(gaze_dmg), status_intent()],
-            follow_up_id="FADE_MOVE",
+        SOUL_FYSH_BECKON_MOVE: MoveState(
+            SOUL_FYSH_BECKON_MOVE,
+            beckon,
+            [status_intent()],
+            follow_up_id=SOUL_FYSH_DE_GAS_MOVE,
         ),
-        "FADE_MOVE": MoveState("FADE_MOVE", fade, [buff_intent()], follow_up_id="SCREAM_MOVE"),
-        "SCREAM_MOVE": MoveState(
-            "SCREAM_MOVE",
+        SOUL_FYSH_DE_GAS_MOVE: MoveState(
+            SOUL_FYSH_DE_GAS_MOVE,
+            de_gas,
+            [attack_intent(de_gas_intent_damage)],
+            follow_up_id=SOUL_FYSH_GAZE_MOVE,
+        ),
+        SOUL_FYSH_GAZE_MOVE: MoveState(
+            SOUL_FYSH_GAZE_MOVE,
+            gaze,
+            [attack_intent(gaze_intent_damage), status_intent()],
+            follow_up_id=SOUL_FYSH_FADE_MOVE,
+        ),
+        SOUL_FYSH_FADE_MOVE: MoveState(
+            SOUL_FYSH_FADE_MOVE,
+            fade,
+            [buff_intent()],
+            follow_up_id=SOUL_FYSH_SCREAM_MOVE,
+        ),
+        SOUL_FYSH_SCREAM_MOVE: MoveState(
+            SOUL_FYSH_SCREAM_MOVE,
             scream,
-            [attack_intent(scream_dmg), debuff_intent()],
-            follow_up_id="BECKON_MOVE",
+            [attack_intent(scream_intent_damage), debuff_intent()],
+            follow_up_id=SOUL_FYSH_BECKON_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "BECKON_MOVE")
+    return creature, MonsterAI(states, SOUL_FYSH_BECKON_MOVE)
 
 
-# ---- LagavulinMatriarch (HP 222 / 233 asc) ----
-# C# cycle: SLEEP -> (branch: asleep->SLEEP, else->SLASH) ->
-#   SLASH(19) -> DISEMBOWEL(9x2) -> SLASH2(12+12blk) -> SOUL_SIPHON(debuff+buff) -> SLASH...
+# ---- LagavulinMatriarch ----
+# C# cycle: SLEEP -> branch -> SLASH -> DISEMBOWEL -> SLASH2 -> SOUL_SIPHON -> SLASH...
 
-def create_lagavulin_matriarch(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 222
-    creature = Creature(max_hp=hp, monster_id="LAGAVULIN_MATRIARCH")
-    slash_dmg = 19
-    disembowel_dmg = 9
-    slash2_dmg = 12
-    slash2_block = 12
-    soul_siphon_debuff = -2
-    soul_siphon_strength = 2
+LAGAVULIN_MATRIARCH_MONSTER_ID = "LAGAVULIN_MATRIARCH"
+LAGAVULIN_MATRIARCH_BASE_HP = 222
+LAGAVULIN_MATRIARCH_TOUGH_HP = 233
+LAGAVULIN_MATRIARCH_BASE_SLASH_DAMAGE = 19
+LAGAVULIN_MATRIARCH_DEADLY_SLASH_DAMAGE = 21
+LAGAVULIN_MATRIARCH_BASE_SLASH2_DAMAGE = 12
+LAGAVULIN_MATRIARCH_DEADLY_SLASH2_DAMAGE = 14
+LAGAVULIN_MATRIARCH_BASE_SLASH2_BLOCK = 12
+LAGAVULIN_MATRIARCH_TOUGH_SLASH2_BLOCK = 14
+LAGAVULIN_MATRIARCH_BASE_DISEMBOWEL_DAMAGE = 9
+LAGAVULIN_MATRIARCH_DEADLY_DISEMBOWEL_DAMAGE = 10
+LAGAVULIN_MATRIARCH_DISEMBOWEL_REPEAT = 2
+LAGAVULIN_MATRIARCH_PLATING = 12
+LAGAVULIN_MATRIARCH_ASLEEP = 3
+LAGAVULIN_MATRIARCH_SOUL_SIPHON_DEBUFF = -2
+LAGAVULIN_MATRIARCH_SOUL_SIPHON_STRENGTH = 2
+LAGAVULIN_MATRIARCH_SLEEP_MOVE = "SLEEP_MOVE"
+LAGAVULIN_MATRIARCH_SLEEP_BRANCH = "SLEEP_BRANCH"
+LAGAVULIN_MATRIARCH_SLASH_MOVE = "SLASH_MOVE"
+LAGAVULIN_MATRIARCH_DISEMBOWEL_MOVE = "DISEMBOWEL_MOVE"
+LAGAVULIN_MATRIARCH_SLASH2_MOVE = "SLASH2_MOVE"
+LAGAVULIN_MATRIARCH_SOUL_SIPHON_MOVE = "SOUL_SIPHON_MOVE"
+
+
+def create_lagavulin_matriarch(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        LAGAVULIN_MATRIARCH_TOUGH_HP,
+        LAGAVULIN_MATRIARCH_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=LAGAVULIN_MATRIARCH_MONSTER_ID)
 
     def sleep_move(combat: CombatState) -> None:
         pass
 
     def slash(combat: CombatState) -> None:
+        slash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            LAGAVULIN_MATRIARCH_DEADLY_SLASH_DAMAGE,
+            LAGAVULIN_MATRIARCH_BASE_SLASH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, slash_dmg)
 
     def disembowel(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, disembowel_dmg, hits=2)
+        disembowel_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            LAGAVULIN_MATRIARCH_DEADLY_DISEMBOWEL_DAMAGE,
+            LAGAVULIN_MATRIARCH_BASE_DISEMBOWEL_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, disembowel_dmg, hits=LAGAVULIN_MATRIARCH_DISEMBOWEL_REPEAT)
 
     def slash2(combat: CombatState) -> None:
+        slash2_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            LAGAVULIN_MATRIARCH_DEADLY_SLASH2_DAMAGE,
+            LAGAVULIN_MATRIARCH_BASE_SLASH2_DAMAGE,
+        )
+        slash2_block = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            LAGAVULIN_MATRIARCH_TOUGH_SLASH2_BLOCK,
+            LAGAVULIN_MATRIARCH_BASE_SLASH2_BLOCK,
+        )
         _deal_damage_to_player(combat, creature, slash2_dmg)
         _gain_block(creature, slash2_block, combat)
 
     def soul_siphon(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.STRENGTH, soul_siphon_debuff, applier=creature)
-        apply_power_to_living_player_targets(combat, PowerId.DEXTERITY, soul_siphon_debuff, applier=creature)
-        creature.apply_power(PowerId.STRENGTH, soul_siphon_strength, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.STRENGTH,
+            LAGAVULIN_MATRIARCH_SOUL_SIPHON_DEBUFF,
+            applier=creature,
+        )
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.DEXTERITY,
+            LAGAVULIN_MATRIARCH_SOUL_SIPHON_DEBUFF,
+            applier=creature,
+        )
+        creature.apply_power(PowerId.STRENGTH, LAGAVULIN_MATRIARCH_SOUL_SIPHON_STRENGTH, applier=creature)
 
-    sleep_branch = ConditionalBranchState("SLEEP_BRANCH")
-    sleep_branch.add_branch(lambda: creature.has_power(PowerId.ASLEEP), "SLEEP_MOVE")
-    sleep_branch.add_branch(lambda: True, "SLASH_MOVE")
+    slash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        LAGAVULIN_MATRIARCH_DEADLY_SLASH_DAMAGE,
+        LAGAVULIN_MATRIARCH_BASE_SLASH_DAMAGE,
+    )
+    disembowel_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        LAGAVULIN_MATRIARCH_DEADLY_DISEMBOWEL_DAMAGE,
+        LAGAVULIN_MATRIARCH_BASE_DISEMBOWEL_DAMAGE,
+    )
+    slash2_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        LAGAVULIN_MATRIARCH_DEADLY_SLASH2_DAMAGE,
+        LAGAVULIN_MATRIARCH_BASE_SLASH2_DAMAGE,
+    )
+
+    sleep_branch = ConditionalBranchState(LAGAVULIN_MATRIARCH_SLEEP_BRANCH)
+    sleep_branch.add_branch(lambda: creature.has_power(PowerId.ASLEEP), LAGAVULIN_MATRIARCH_SLEEP_MOVE)
+    sleep_branch.add_branch(lambda: True, LAGAVULIN_MATRIARCH_SLASH_MOVE)
 
     states: dict[str, MonsterState] = {
-        "SLEEP_MOVE": MoveState("SLEEP_MOVE", sleep_move, [sleep_intent()], follow_up_id="SLEEP_BRANCH"),
-        "SLEEP_BRANCH": sleep_branch,
-        "SLASH_MOVE": MoveState("SLASH_MOVE", slash, [attack_intent(slash_dmg)], follow_up_id="DISEMBOWEL_MOVE"),
-        "DISEMBOWEL_MOVE": MoveState(
-            "DISEMBOWEL_MOVE",
+        LAGAVULIN_MATRIARCH_SLEEP_MOVE: MoveState(
+            LAGAVULIN_MATRIARCH_SLEEP_MOVE,
+            sleep_move,
+            [sleep_intent()],
+            follow_up_id=LAGAVULIN_MATRIARCH_SLEEP_BRANCH,
+        ),
+        LAGAVULIN_MATRIARCH_SLEEP_BRANCH: sleep_branch,
+        LAGAVULIN_MATRIARCH_SLASH_MOVE: MoveState(
+            LAGAVULIN_MATRIARCH_SLASH_MOVE,
+            slash,
+            [attack_intent(slash_intent_damage)],
+            follow_up_id=LAGAVULIN_MATRIARCH_DISEMBOWEL_MOVE,
+        ),
+        LAGAVULIN_MATRIARCH_DISEMBOWEL_MOVE: MoveState(
+            LAGAVULIN_MATRIARCH_DISEMBOWEL_MOVE,
             disembowel,
-            [multi_attack_intent(disembowel_dmg, 2)],
-            follow_up_id="SLASH2_MOVE",
+            [multi_attack_intent(disembowel_intent_damage, LAGAVULIN_MATRIARCH_DISEMBOWEL_REPEAT)],
+            follow_up_id=LAGAVULIN_MATRIARCH_SLASH2_MOVE,
         ),
-        "SLASH2_MOVE": MoveState(
-            "SLASH2_MOVE",
+        LAGAVULIN_MATRIARCH_SLASH2_MOVE: MoveState(
+            LAGAVULIN_MATRIARCH_SLASH2_MOVE,
             slash2,
-            [attack_intent(slash2_dmg), defend_intent()],
-            follow_up_id="SOUL_SIPHON_MOVE",
+            [attack_intent(slash2_intent_damage), defend_intent()],
+            follow_up_id=LAGAVULIN_MATRIARCH_SOUL_SIPHON_MOVE,
         ),
-        "SOUL_SIPHON_MOVE": MoveState(
-            "SOUL_SIPHON_MOVE",
+        LAGAVULIN_MATRIARCH_SOUL_SIPHON_MOVE: MoveState(
+            LAGAVULIN_MATRIARCH_SOUL_SIPHON_MOVE,
             soul_siphon,
             [debuff_intent(), buff_intent()],
-            follow_up_id="SLASH_MOVE",
+            follow_up_id=LAGAVULIN_MATRIARCH_SLASH_MOVE,
         ),
     }
 
-    creature.apply_power(PowerId.PLATING, 12)
-    creature.apply_power(PowerId.ASLEEP, 3)
-    return creature, MonsterAI(states, "SLEEP_MOVE")
+    creature.apply_power(PowerId.PLATING, LAGAVULIN_MATRIARCH_PLATING)
+    creature.apply_power(PowerId.ASLEEP, LAGAVULIN_MATRIARCH_ASLEEP)
+    return creature, MonsterAI(states, LAGAVULIN_MATRIARCH_SLEEP_MOVE)

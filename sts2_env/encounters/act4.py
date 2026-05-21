@@ -184,17 +184,17 @@ ELITE_ENCOUNTERS: list[EncounterSetup] = [
 # ---- Boss Encounters ----
 
 def setup_waterfall_giant_boss(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_waterfall_giant(rng)
+    creature, ai = create_waterfall_giant(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
 def setup_soul_fysh_boss(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_soul_fysh(rng)
+    creature, ai = create_soul_fysh(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
 def setup_lagavulin_matriarch_boss(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_lagavulin_matriarch(rng)
+    creature, ai = create_lagavulin_matriarch(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 

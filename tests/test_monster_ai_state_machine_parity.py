@@ -124,6 +124,27 @@ from sts2_env.monsters.act4 import (
     HAUNTED_SHIP_RAMMING_SPEED_MOVE,
     HAUNTED_SHIP_STOMP_MOVE,
     HAUNTED_SHIP_SWIPE_MOVE,
+    LAGAVULIN_MATRIARCH_ASLEEP,
+    LAGAVULIN_MATRIARCH_BASE_DISEMBOWEL_DAMAGE,
+    LAGAVULIN_MATRIARCH_BASE_HP,
+    LAGAVULIN_MATRIARCH_BASE_SLASH2_BLOCK,
+    LAGAVULIN_MATRIARCH_BASE_SLASH2_DAMAGE,
+    LAGAVULIN_MATRIARCH_BASE_SLASH_DAMAGE,
+    LAGAVULIN_MATRIARCH_DEADLY_DISEMBOWEL_DAMAGE,
+    LAGAVULIN_MATRIARCH_DEADLY_SLASH2_DAMAGE,
+    LAGAVULIN_MATRIARCH_DEADLY_SLASH_DAMAGE,
+    LAGAVULIN_MATRIARCH_DISEMBOWEL_MOVE,
+    LAGAVULIN_MATRIARCH_DISEMBOWEL_REPEAT,
+    LAGAVULIN_MATRIARCH_MONSTER_ID,
+    LAGAVULIN_MATRIARCH_PLATING,
+    LAGAVULIN_MATRIARCH_SLASH2_MOVE,
+    LAGAVULIN_MATRIARCH_SLASH_MOVE,
+    LAGAVULIN_MATRIARCH_SLEEP_MOVE,
+    LAGAVULIN_MATRIARCH_SOUL_SIPHON_DEBUFF,
+    LAGAVULIN_MATRIARCH_SOUL_SIPHON_MOVE,
+    LAGAVULIN_MATRIARCH_SOUL_SIPHON_STRENGTH,
+    LAGAVULIN_MATRIARCH_TOUGH_HP,
+    LAGAVULIN_MATRIARCH_TOUGH_SLASH2_BLOCK,
     LIVING_FOG_ADVANCED_GAS_MOVE,
     LIVING_FOG_BLOAT_MOVE,
     LIVING_FOG_MONSTER_ID,
@@ -171,6 +192,45 @@ from sts2_env.monsters.act4 import (
     TWO_TAILED_RAT_RANDOM_STATE,
     TWO_TAILED_RAT_SCRATCH_MOVE,
     TWO_TAILED_RAT_SCREECH_MOVE,
+    SOUL_FYSH_BASE_DE_GAS_DAMAGE,
+    SOUL_FYSH_BASE_GAZE_DAMAGE,
+    SOUL_FYSH_BASE_HP,
+    SOUL_FYSH_BASE_SCREAM_DAMAGE,
+    SOUL_FYSH_BECKON_MOVE,
+    SOUL_FYSH_DEADLY_DE_GAS_DAMAGE,
+    SOUL_FYSH_DEADLY_GAZE_DAMAGE,
+    SOUL_FYSH_DEADLY_SCREAM_DAMAGE,
+    SOUL_FYSH_DE_GAS_MOVE,
+    SOUL_FYSH_FADE_INTANGIBLE,
+    SOUL_FYSH_FADE_MOVE,
+    SOUL_FYSH_GAZE_MOVE,
+    SOUL_FYSH_MONSTER_ID,
+    SOUL_FYSH_SCREAM_MOVE,
+    SOUL_FYSH_SCREAM_VULNERABLE,
+    SOUL_FYSH_TOUGH_HP,
+    WATERFALL_GIANT_BASE_HP,
+    WATERFALL_GIANT_BASE_PRESSURE_GUN_DAMAGE,
+    WATERFALL_GIANT_BASE_PRESSURE_UP_DAMAGE,
+    WATERFALL_GIANT_BASE_PRESSURIZE,
+    WATERFALL_GIANT_BASE_RAM_DAMAGE,
+    WATERFALL_GIANT_BASE_STOMP_DAMAGE,
+    WATERFALL_GIANT_ABOUT_TO_BLOW_MOVE,
+    WATERFALL_GIANT_DEADLY_PRESSURE_GUN_DAMAGE,
+    WATERFALL_GIANT_DEADLY_PRESSURE_UP_DAMAGE,
+    WATERFALL_GIANT_DEADLY_PRESSURIZE,
+    WATERFALL_GIANT_DEADLY_RAM_DAMAGE,
+    WATERFALL_GIANT_DEADLY_STOMP_DAMAGE,
+    WATERFALL_GIANT_EXPLODE_MOVE,
+    WATERFALL_GIANT_MONSTER_ID,
+    WATERFALL_GIANT_PRESSURE_BUILDUP,
+    WATERFALL_GIANT_PRESSURE_GUN_MOVE,
+    WATERFALL_GIANT_PRESSURE_UP_MOVE,
+    WATERFALL_GIANT_PRESSURIZE_MOVE,
+    WATERFALL_GIANT_RAM_MOVE,
+    WATERFALL_GIANT_SIPHON_MOVE,
+    WATERFALL_GIANT_STOMP_MOVE,
+    WATERFALL_GIANT_STOMP_WEAK,
+    WATERFALL_GIANT_TOUGH_HP,
     create_calcified_cultist,
     create_corpse_slug,
     create_damp_cultist,
@@ -932,6 +992,10 @@ DECIMILLIPEDE_SCALED_REATTACH_HP = int(
     * MULTIPLAYER_TEST_PLAYER_COUNT
     * MULTIPLAYER_ACT_SCALING[STARTING_ACT_INDEX]
 )
+DEFAULT_TEST_PLAYER_HP = 80
+WAKE_DAMAGE = 1
+BOSS_TEST_HEAL_AMOUNT = 5
+BOSS_TEST_OSTY_HP = 5
 
 
 def _expected_starting_act_multiplayer_enemy_hp(combat: CombatState, base_hp: int) -> int:
@@ -7152,62 +7216,68 @@ class TestFixedRotation:
         giant, giant_ai = create_waterfall_giant(Rng(83))
         giant_combat = _make_combat(83)
         giant_combat.add_enemy(giant, giant_ai)
-        assert giant.max_hp == 250
+        assert giant.max_hp == WATERFALL_GIANT_BASE_HP
         assert _run_ai(giant_ai, Rng(83), 7) == [
-            "PRESSURIZE_MOVE",
-            "STOMP_MOVE",
-            "RAM_MOVE",
-            "SIPHON_MOVE",
-            "PRESSURE_GUN_MOVE",
-            "PRESSURE_UP_MOVE",
-            "STOMP_MOVE",
+            WATERFALL_GIANT_PRESSURIZE_MOVE,
+            WATERFALL_GIANT_STOMP_MOVE,
+            WATERFALL_GIANT_RAM_MOVE,
+            WATERFALL_GIANT_SIPHON_MOVE,
+            WATERFALL_GIANT_PRESSURE_GUN_MOVE,
+            WATERFALL_GIANT_PRESSURE_UP_MOVE,
+            WATERFALL_GIANT_STOMP_MOVE,
         ]
 
         giant_effect, giant_effect_ai = create_waterfall_giant(Rng(84))
         giant_effect_combat = _make_combat(84)
         giant_effect_combat.add_enemy(giant_effect, giant_effect_ai)
-        giant_effect_ai.states["PRESSURIZE_MOVE"].perform(giant_effect_combat)
-        assert giant_effect.get_power_amount(PowerId.STEAM_ERUPTION) == 15
-        giant_effect_ai.states["STOMP_MOVE"].perform(giant_effect_combat)
-        assert giant_effect_combat.player.current_hp == 65
-        assert giant_effect_combat.player.get_power_amount(PowerId.WEAK) == 1
-        assert giant_effect.get_power_amount(PowerId.STEAM_ERUPTION) == 18
+        giant_effect_ai.states[WATERFALL_GIANT_PRESSURIZE_MOVE].perform(giant_effect_combat)
+        assert giant_effect.get_power_amount(PowerId.STEAM_ERUPTION) == WATERFALL_GIANT_BASE_PRESSURIZE
+        player_hp_before_stomp = giant_effect_combat.player.current_hp
+        giant_effect_ai.states[WATERFALL_GIANT_STOMP_MOVE].perform(giant_effect_combat)
+        assert giant_effect_combat.player.current_hp == player_hp_before_stomp - WATERFALL_GIANT_BASE_STOMP_DAMAGE
+        assert giant_effect_combat.player.get_power_amount(PowerId.WEAK) == WATERFALL_GIANT_STOMP_WEAK
+        assert giant_effect.get_power_amount(PowerId.STEAM_ERUPTION) == (
+            WATERFALL_GIANT_BASE_PRESSURIZE + WATERFALL_GIANT_PRESSURE_BUILDUP
+        )
 
         lethal_giant, lethal_giant_ai = create_waterfall_giant(Rng(184))
         lethal_giant_combat = _make_combat(184)
         lethal_giant_combat.add_enemy(lethal_giant, lethal_giant_ai)
-        lethal_giant.apply_power(PowerId.STEAM_ERUPTION, 15)
-        lethal_giant_combat.player.current_hp = 15
-        lethal_giant_ai.states["STOMP_MOVE"].perform(lethal_giant_combat)
+        lethal_giant.apply_power(PowerId.STEAM_ERUPTION, WATERFALL_GIANT_BASE_PRESSURIZE)
+        lethal_giant_combat.player.current_hp = WATERFALL_GIANT_BASE_STOMP_DAMAGE
+        lethal_giant_ai.states[WATERFALL_GIANT_STOMP_MOVE].perform(lethal_giant_combat)
         assert lethal_giant_combat.is_over
         assert lethal_giant_combat.player_won is False
         assert lethal_giant_combat.player.get_power_amount(PowerId.WEAK) == 0
-        assert lethal_giant.get_power_amount(PowerId.STEAM_ERUPTION) == 15
+        assert lethal_giant.get_power_amount(PowerId.STEAM_ERUPTION) == WATERFALL_GIANT_BASE_PRESSURIZE
 
-        giant_effect.current_hp = 20
-        giant_effect_ai.states["PRESSURE_GUN_MOVE"].perform(giant_effect_combat)
-        assert giant_effect_combat.player.current_hp == 45
-        giant_effect.heal(5)
-        assert giant_effect.current_hp == 25
+        giant_effect.current_hp = WATERFALL_GIANT_BASE_PRESSURE_GUN_DAMAGE
+        player_hp_before_pressure_gun = giant_effect_combat.player.current_hp
+        giant_effect_ai.states[WATERFALL_GIANT_PRESSURE_GUN_MOVE].perform(giant_effect_combat)
+        assert giant_effect_combat.player.current_hp == (
+            player_hp_before_pressure_gun - WATERFALL_GIANT_BASE_PRESSURE_GUN_DAMAGE
+        )
+        giant_effect.heal(BOSS_TEST_HEAL_AMOUNT)
+        assert giant_effect.current_hp == WATERFALL_GIANT_BASE_PRESSURE_GUN_DAMAGE + BOSS_TEST_HEAL_AMOUNT
         assert giant_effect_combat.kill_creature(giant_effect)
-        assert giant_effect_ai.current_move.state_id == "ABOUT_TO_BLOW_MOVE"
+        assert giant_effect_ai.current_move.state_id == WATERFALL_GIANT_ABOUT_TO_BLOW_MOVE
         giant_effect_ai.current_move.perform(giant_effect_combat)
         giant_effect_ai.on_move_performed()
         giant_effect_ai.roll_move(Rng(84))
         assert giant_effect.get_power_amount(PowerId.STEAM_ERUPTION) == 0
-        assert giant_effect_ai.current_move.state_id == "EXPLODE_MOVE"
+        assert giant_effect_ai.current_move.state_id == WATERFALL_GIANT_EXPLODE_MOVE
 
         soul, soul_ai = create_soul_fysh(Rng(85))
         soul_combat = _make_combat(85)
         soul_combat.add_enemy(soul, soul_ai)
-        assert soul.max_hp == 211
+        assert soul.max_hp == SOUL_FYSH_BASE_HP
         assert _run_ai(soul_ai, Rng(85), 6) == [
-            "BECKON_MOVE",
-            "DE_GAS_MOVE",
-            "GAZE_MOVE",
-            "FADE_MOVE",
-            "SCREAM_MOVE",
-            "BECKON_MOVE",
+            SOUL_FYSH_BECKON_MOVE,
+            SOUL_FYSH_DE_GAS_MOVE,
+            SOUL_FYSH_GAZE_MOVE,
+            SOUL_FYSH_FADE_MOVE,
+            SOUL_FYSH_SCREAM_MOVE,
+            SOUL_FYSH_BECKON_MOVE,
         ]
 
         soul_effect, soul_effect_ai = create_soul_fysh(Rng(86))
@@ -7215,30 +7285,33 @@ class TestFixedRotation:
         soul_effect_combat.draw_pile.clear()
         soul_effect_combat.discard_pile.clear()
         soul_effect_combat.add_enemy(soul_effect, soul_effect_ai)
-        soul_effect_ai.states["BECKON_MOVE"].perform(soul_effect_combat)
+        soul_effect_ai.states[SOUL_FYSH_BECKON_MOVE].perform(soul_effect_combat)
         assert [card.card_id for card in soul_effect_combat.draw_pile] == [CardId.BECKON]
         assert [card.card_id for card in soul_effect_combat.discard_pile] == [CardId.BECKON]
-        soul_effect_ai.states["DE_GAS_MOVE"].perform(soul_effect_combat)
-        assert soul_effect_combat.player.current_hp == 64
-        soul_effect_ai.states["GAZE_MOVE"].perform(soul_effect_combat)
-        assert soul_effect_combat.player.current_hp == 57
+        player_hp_before_de_gas = soul_effect_combat.player.current_hp
+        soul_effect_ai.states[SOUL_FYSH_DE_GAS_MOVE].perform(soul_effect_combat)
+        assert soul_effect_combat.player.current_hp == player_hp_before_de_gas - SOUL_FYSH_BASE_DE_GAS_DAMAGE
+        player_hp_before_gaze = soul_effect_combat.player.current_hp
+        soul_effect_ai.states[SOUL_FYSH_GAZE_MOVE].perform(soul_effect_combat)
+        assert soul_effect_combat.player.current_hp == player_hp_before_gaze - SOUL_FYSH_BASE_GAZE_DAMAGE
         assert [card.card_id for card in soul_effect_combat.discard_pile] == [CardId.BECKON, CardId.BECKON]
 
         lethal_soul, lethal_soul_ai = create_soul_fysh(Rng(87))
         lethal_soul_combat = _make_combat(87)
         lethal_soul_combat.add_enemy(lethal_soul, lethal_soul_ai)
         lethal_soul_combat.discard_pile.clear()
-        lethal_soul_combat.player.current_hp = 7
-        lethal_soul_ai.states["GAZE_MOVE"].perform(lethal_soul_combat)
+        lethal_soul_combat.player.current_hp = SOUL_FYSH_BASE_GAZE_DAMAGE
+        lethal_soul_ai.states[SOUL_FYSH_GAZE_MOVE].perform(lethal_soul_combat)
         assert lethal_soul_combat.is_over
         assert lethal_soul_combat.player_won is False
         assert lethal_soul_combat.discard_pile == []
 
-        soul_effect_ai.states["FADE_MOVE"].perform(soul_effect_combat)
-        assert soul_effect.get_power_amount(PowerId.INTANGIBLE) == 2
-        soul_effect_ai.states["SCREAM_MOVE"].perform(soul_effect_combat)
-        assert soul_effect_combat.player.current_hp == 46
-        assert soul_effect_combat.player.get_power_amount(PowerId.VULNERABLE) == 3
+        soul_effect_ai.states[SOUL_FYSH_FADE_MOVE].perform(soul_effect_combat)
+        assert soul_effect.get_power_amount(PowerId.INTANGIBLE) == SOUL_FYSH_FADE_INTANGIBLE
+        player_hp_before_scream = soul_effect_combat.player.current_hp
+        soul_effect_ai.states[SOUL_FYSH_SCREAM_MOVE].perform(soul_effect_combat)
+        assert soul_effect_combat.player.current_hp == player_hp_before_scream - SOUL_FYSH_BASE_SCREAM_DAMAGE
+        assert soul_effect_combat.player.get_power_amount(PowerId.VULNERABLE) == SOUL_FYSH_SCREAM_VULNERABLE
 
         soul_multiplayer, soul_multiplayer_ai = create_soul_fysh(Rng(88))
         soul_multiplayer_combat = _make_combat(88)
@@ -7261,21 +7334,21 @@ class TestFixedRotation:
         primary_state.discard.clear()
         ally_state.draw.clear()
         ally_state.discard.clear()
-        soul_multiplayer_combat.summon_osty(soul_multiplayer_combat.primary_player, 5)
+        soul_multiplayer_combat.summon_osty(soul_multiplayer_combat.primary_player, BOSS_TEST_OSTY_HP)
         soul_multiplayer_combat.add_enemy(soul_multiplayer, soul_multiplayer_ai)
-        soul_multiplayer_ai.states["BECKON_MOVE"].perform(soul_multiplayer_combat)
+        soul_multiplayer_ai.states[SOUL_FYSH_BECKON_MOVE].perform(soul_multiplayer_combat)
         assert [card.card_id for card in primary_state.draw] == [CardId.BECKON]
         assert [card.card_id for card in primary_state.discard] == [CardId.BECKON]
         assert [card.card_id for card in ally_state.draw] == [CardId.BECKON]
         assert [card.card_id for card in ally_state.discard] == [CardId.BECKON]
-        expected_gaze_damage = 7
-        expected_scream_damage = 11
-        expected_scream_vulnerable = 3
+        expected_gaze_damage = SOUL_FYSH_BASE_GAZE_DAMAGE
+        expected_scream_damage = SOUL_FYSH_BASE_SCREAM_DAMAGE
+        expected_scream_vulnerable = SOUL_FYSH_SCREAM_VULNERABLE
         assert soul_multiplayer_combat.osty is not None
         osty_hp_before_gaze = soul_multiplayer_combat.osty.current_hp
         primary_hp_before_gaze = soul_multiplayer_combat.primary_player.current_hp
         ally_hp_before_gaze = ally.current_hp
-        soul_multiplayer_ai.states["GAZE_MOVE"].perform(soul_multiplayer_combat)
+        soul_multiplayer_ai.states[SOUL_FYSH_GAZE_MOVE].perform(soul_multiplayer_combat)
         assert [card.card_id for card in primary_state.discard] == [CardId.BECKON, CardId.BECKON]
         assert [card.card_id for card in ally_state.discard] == [CardId.BECKON, CardId.BECKON]
         expected_gaze_overflow = expected_gaze_damage - osty_hp_before_gaze
@@ -7284,7 +7357,7 @@ class TestFixedRotation:
         assert ally.current_hp == ally_hp_before_gaze - expected_gaze_damage
         primary_hp_before_scream = soul_multiplayer_combat.primary_player.current_hp
         ally_hp_before_scream = ally.current_hp
-        soul_multiplayer_ai.states["SCREAM_MOVE"].perform(soul_multiplayer_combat)
+        soul_multiplayer_ai.states[SOUL_FYSH_SCREAM_MOVE].perform(soul_multiplayer_combat)
         assert soul_multiplayer_combat.primary_player.current_hp == primary_hp_before_scream - expected_scream_damage
         assert ally.current_hp == ally_hp_before_scream - expected_scream_damage
         assert soul_multiplayer_combat.primary_player.get_power_amount(PowerId.VULNERABLE) == expected_scream_vulnerable
@@ -7293,16 +7366,16 @@ class TestFixedRotation:
         matriarch, matriarch_ai = create_lagavulin_matriarch(Rng(87))
         matriarch_combat = _make_combat(87)
         matriarch_combat.add_enemy(matriarch, matriarch_ai)
-        assert matriarch.max_hp == 222
-        assert matriarch.get_power_amount(PowerId.PLATING) == 12
-        assert matriarch.get_power_amount(PowerId.ASLEEP) == 3
+        assert matriarch.max_hp == LAGAVULIN_MATRIARCH_BASE_HP
+        assert matriarch.get_power_amount(PowerId.PLATING) == LAGAVULIN_MATRIARCH_PLATING
+        assert matriarch.get_power_amount(PowerId.ASLEEP) == LAGAVULIN_MATRIARCH_ASLEEP
         matriarch.powers.pop(PowerId.ASLEEP)
         assert _run_ai(matriarch_ai, Rng(87), 5) == [
-            "SLEEP_MOVE",
-            "SLASH_MOVE",
-            "DISEMBOWEL_MOVE",
-            "SLASH2_MOVE",
-            "SOUL_SIPHON_MOVE",
+            LAGAVULIN_MATRIARCH_SLEEP_MOVE,
+            LAGAVULIN_MATRIARCH_SLASH_MOVE,
+            LAGAVULIN_MATRIARCH_DISEMBOWEL_MOVE,
+            LAGAVULIN_MATRIARCH_SLASH2_MOVE,
+            LAGAVULIN_MATRIARCH_SOUL_SIPHON_MOVE,
         ]
 
         matriarch_effect, matriarch_effect_ai = create_lagavulin_matriarch(Rng(88))
@@ -7312,40 +7385,59 @@ class TestFixedRotation:
         matriarch_effect_ai.on_move_performed()
         matriarch_effect_ai.roll_move(Rng(88))
         matriarch_effect_ai.current_move.perform(matriarch_effect_combat)
-        assert matriarch_effect_combat.player.current_hp == 61
+        assert matriarch_effect_combat.player.current_hp == DEFAULT_TEST_PLAYER_HP - LAGAVULIN_MATRIARCH_BASE_SLASH_DAMAGE
         matriarch_effect_ai.on_move_performed()
         matriarch_effect_ai.roll_move(Rng(88))
         matriarch_effect_ai.current_move.perform(matriarch_effect_combat)
-        assert matriarch_effect_combat.player.current_hp == 43
+        assert matriarch_effect_combat.player.current_hp == (
+            DEFAULT_TEST_PLAYER_HP
+            - LAGAVULIN_MATRIARCH_BASE_SLASH_DAMAGE
+            - LAGAVULIN_MATRIARCH_BASE_DISEMBOWEL_DAMAGE * LAGAVULIN_MATRIARCH_DISEMBOWEL_REPEAT
+        )
         matriarch_effect_ai.on_move_performed()
         matriarch_effect_ai.roll_move(Rng(88))
         matriarch_effect_ai.current_move.perform(matriarch_effect_combat)
-        assert matriarch_effect_combat.player.current_hp == 31
-        assert matriarch_effect.block == 12
+        assert matriarch_effect_combat.player.current_hp == (
+            DEFAULT_TEST_PLAYER_HP
+            - LAGAVULIN_MATRIARCH_BASE_SLASH_DAMAGE
+            - LAGAVULIN_MATRIARCH_BASE_DISEMBOWEL_DAMAGE * LAGAVULIN_MATRIARCH_DISEMBOWEL_REPEAT
+            - LAGAVULIN_MATRIARCH_BASE_SLASH2_DAMAGE
+        )
+        assert matriarch_effect.block == LAGAVULIN_MATRIARCH_BASE_SLASH2_BLOCK
         counter = _BlockHookCounterPower()
         matriarch_effect.powers[PowerId.JUGGERNAUT] = counter
         matriarch_effect.block = 0
-        matriarch_effect_ai.states["SLASH2_MOVE"].perform(matriarch_effect_combat)
-        assert matriarch_effect.block == 12
-        assert counter.calls == [12]
+        matriarch_effect_ai.states[LAGAVULIN_MATRIARCH_SLASH2_MOVE].perform(matriarch_effect_combat)
+        assert matriarch_effect.block == LAGAVULIN_MATRIARCH_BASE_SLASH2_BLOCK
+        assert counter.calls == [LAGAVULIN_MATRIARCH_BASE_SLASH2_BLOCK]
         matriarch_effect_ai.on_move_performed()
         matriarch_effect_ai.roll_move(Rng(88))
         matriarch_effect_ai.current_move.perform(matriarch_effect_combat)
-        assert matriarch_effect_combat.player.get_power_amount(PowerId.STRENGTH) == -2
-        assert matriarch_effect_combat.player.get_power_amount(PowerId.DEXTERITY) == -2
-        assert matriarch_effect.get_power_amount(PowerId.STRENGTH) == 2
+        assert matriarch_effect_combat.player.get_power_amount(PowerId.STRENGTH) == (
+            LAGAVULIN_MATRIARCH_SOUL_SIPHON_DEBUFF
+        )
+        assert matriarch_effect_combat.player.get_power_amount(PowerId.DEXTERITY) == (
+            LAGAVULIN_MATRIARCH_SOUL_SIPHON_DEBUFF
+        )
+        assert matriarch_effect.get_power_amount(PowerId.STRENGTH) == LAGAVULIN_MATRIARCH_SOUL_SIPHON_STRENGTH
 
         matriarch_damage_wake, matriarch_damage_wake_ai = create_lagavulin_matriarch(Rng(89))
         matriarch_damage_wake_combat = _make_combat(89)
         matriarch_damage_wake_combat.add_enemy(matriarch_damage_wake, matriarch_damage_wake_ai)
-        apply_damage(matriarch_damage_wake, 1, ValueProp.MOVE, matriarch_damage_wake_combat, matriarch_damage_wake_combat.player)
+        apply_damage(
+            matriarch_damage_wake,
+            WAKE_DAMAGE,
+            ValueProp.MOVE,
+            matriarch_damage_wake_combat,
+            matriarch_damage_wake_combat.player,
+        )
         assert PowerId.ASLEEP not in matriarch_damage_wake.powers
         assert PowerId.PLATING not in matriarch_damage_wake.powers
-        assert matriarch_damage_wake_ai.current_move.state_id == "STUNNED"
+        assert matriarch_damage_wake_ai.current_move.state_id == STUNNED_MOVE_ID
         matriarch_damage_wake_ai.current_move.perform(matriarch_damage_wake_combat)
         matriarch_damage_wake_ai.on_move_performed()
         matriarch_damage_wake_ai.roll_move(Rng(89))
-        assert matriarch_damage_wake_ai.current_move.state_id == "SLASH_MOVE"
+        assert matriarch_damage_wake_ai.current_move.state_id == LAGAVULIN_MATRIARCH_SLASH_MOVE
 
         matriarch_natural_wake, matriarch_natural_wake_ai = create_lagavulin_matriarch(Rng(90))
         matriarch_natural_wake_combat = _make_combat(90)
@@ -7358,12 +7450,105 @@ class TestFixedRotation:
         )
         assert PowerId.ASLEEP not in matriarch_natural_wake.powers
         assert PowerId.PLATING not in matriarch_natural_wake.powers
-        assert matriarch_natural_wake_ai.current_move.state_id == "SLASH_MOVE"
+        assert matriarch_natural_wake_ai.current_move.state_id == LAGAVULIN_MATRIARCH_SLASH_MOVE
 
         for setup in (setup_waterfall_giant_boss, setup_soul_fysh_boss, setup_lagavulin_matriarch_boss):
             setup_combat = _make_combat(91)
             setup(setup_combat, Rng(91))
             assert len(setup_combat.enemies) == 1
+
+    def test_act4_bosses_ascension_scaling_matches_csharp(self):
+        rng_seed = 1399
+
+        giant_combat = _make_combat(rng_seed)
+        giant_combat.ascension_level = 9
+        giant, giant_ai = create_waterfall_giant(Rng(rng_seed), ascension_level=9)
+        giant_combat.add_enemy(giant, giant_ai)
+
+        assert giant.max_hp == WATERFALL_GIANT_TOUGH_HP
+        assert giant_ai.states[WATERFALL_GIANT_STOMP_MOVE].intents[0].damage == (
+            WATERFALL_GIANT_DEADLY_STOMP_DAMAGE
+        )
+        assert giant_ai.states[WATERFALL_GIANT_RAM_MOVE].intents[0].damage == WATERFALL_GIANT_DEADLY_RAM_DAMAGE
+        assert giant_ai.states[WATERFALL_GIANT_PRESSURE_GUN_MOVE].intents[0].damage == (
+            WATERFALL_GIANT_DEADLY_PRESSURE_GUN_DAMAGE
+        )
+        assert giant_ai.states[WATERFALL_GIANT_PRESSURE_UP_MOVE].intents[0].damage == (
+            WATERFALL_GIANT_DEADLY_PRESSURE_UP_DAMAGE
+        )
+        giant_ai.states[WATERFALL_GIANT_PRESSURIZE_MOVE].perform(giant_combat)
+        assert giant.get_power_amount(PowerId.STEAM_ERUPTION) == WATERFALL_GIANT_DEADLY_PRESSURIZE
+        player_hp_before_giant = giant_combat.player.current_hp
+        giant_ai.states[WATERFALL_GIANT_STOMP_MOVE].perform(giant_combat)
+        assert giant_combat.player.current_hp == player_hp_before_giant - WATERFALL_GIANT_DEADLY_STOMP_DAMAGE
+
+        soul_combat = _make_combat(rng_seed)
+        soul_combat.ascension_level = 9
+        soul, soul_ai = create_soul_fysh(Rng(rng_seed), ascension_level=9)
+        soul_combat.add_enemy(soul, soul_ai)
+
+        assert soul.max_hp == SOUL_FYSH_TOUGH_HP
+        assert soul_ai.states[SOUL_FYSH_DE_GAS_MOVE].intents[0].damage == SOUL_FYSH_DEADLY_DE_GAS_DAMAGE
+        assert soul_ai.states[SOUL_FYSH_GAZE_MOVE].intents[0].damage == SOUL_FYSH_DEADLY_GAZE_DAMAGE
+        assert soul_ai.states[SOUL_FYSH_SCREAM_MOVE].intents[0].damage == SOUL_FYSH_DEADLY_SCREAM_DAMAGE
+        player_hp_before_soul = soul_combat.player.current_hp
+        soul_ai.states[SOUL_FYSH_GAZE_MOVE].perform(soul_combat)
+        assert soul_combat.player.current_hp == player_hp_before_soul - SOUL_FYSH_DEADLY_GAZE_DAMAGE
+
+        matriarch_combat = _make_combat(rng_seed)
+        matriarch_combat.ascension_level = 9
+        matriarch, matriarch_ai = create_lagavulin_matriarch(Rng(rng_seed), ascension_level=9)
+        matriarch_combat.add_enemy(matriarch, matriarch_ai)
+
+        assert matriarch.max_hp == LAGAVULIN_MATRIARCH_TOUGH_HP
+        assert matriarch_ai.states[LAGAVULIN_MATRIARCH_SLASH_MOVE].intents[0].damage == (
+            LAGAVULIN_MATRIARCH_DEADLY_SLASH_DAMAGE
+        )
+        disembowel = matriarch_ai.states[LAGAVULIN_MATRIARCH_DISEMBOWEL_MOVE]
+        assert disembowel.intents[0].damage == LAGAVULIN_MATRIARCH_DEADLY_DISEMBOWEL_DAMAGE
+        assert disembowel.intents[0].hits == LAGAVULIN_MATRIARCH_DISEMBOWEL_REPEAT
+        assert matriarch_ai.states[LAGAVULIN_MATRIARCH_SLASH2_MOVE].intents[0].damage == (
+            LAGAVULIN_MATRIARCH_DEADLY_SLASH2_DAMAGE
+        )
+        matriarch.powers.pop(PowerId.ASLEEP)
+        player_hp_before_matriarch = matriarch_combat.player.current_hp
+        matriarch_ai.states[LAGAVULIN_MATRIARCH_SLASH2_MOVE].perform(matriarch_combat)
+        assert matriarch_combat.player.current_hp == (
+            player_hp_before_matriarch - LAGAVULIN_MATRIARCH_DEADLY_SLASH2_DAMAGE
+        )
+        assert matriarch.block == LAGAVULIN_MATRIARCH_TOUGH_SLASH2_BLOCK
+
+        for setup, monster_id, hp, move_id, damage in (
+            (
+                setup_waterfall_giant_boss,
+                WATERFALL_GIANT_MONSTER_ID,
+                WATERFALL_GIANT_TOUGH_HP,
+                WATERFALL_GIANT_STOMP_MOVE,
+                WATERFALL_GIANT_DEADLY_STOMP_DAMAGE,
+            ),
+            (
+                setup_soul_fysh_boss,
+                SOUL_FYSH_MONSTER_ID,
+                SOUL_FYSH_TOUGH_HP,
+                SOUL_FYSH_DE_GAS_MOVE,
+                SOUL_FYSH_DEADLY_DE_GAS_DAMAGE,
+            ),
+            (
+                setup_lagavulin_matriarch_boss,
+                LAGAVULIN_MATRIARCH_MONSTER_ID,
+                LAGAVULIN_MATRIARCH_TOUGH_HP,
+                LAGAVULIN_MATRIARCH_SLASH_MOVE,
+                LAGAVULIN_MATRIARCH_DEADLY_SLASH_DAMAGE,
+            ),
+        ):
+            encounter_combat = _make_combat(rng_seed)
+            encounter_combat.ascension_level = 9
+            setup(encounter_combat, Rng(rng_seed))
+            encounter_boss = encounter_combat.enemies[0]
+            encounter_ai = encounter_combat.enemy_ais[encounter_boss.combat_id]
+            assert encounter_boss.monster_id == monster_id
+            assert encounter_boss.max_hp == hp
+            assert encounter_ai.states[move_id].intents[0].damage == damage
 
 
 # ========================================================================
