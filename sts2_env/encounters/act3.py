@@ -40,7 +40,7 @@ EncounterSetup = Callable[..., None]
 # ---- Weak Encounters ----
 
 def setup_devoted_sculptor_weak(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_devoted_sculptor(rng)
+    creature, ai = create_devoted_sculptor(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
@@ -54,7 +54,7 @@ def setup_scrolls_of_biting_weak(combat: CombatState, rng: Rng) -> None:
 def setup_turret_operator_weak(combat: CombatState, rng: Rng) -> None:
     shield, shield_ai = create_living_shield(rng)
     combat.add_enemy(shield, shield_ai)
-    creature, ai = create_turret_operator(rng)
+    creature, ai = create_turret_operator(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
@@ -85,7 +85,7 @@ def setup_construct_menagerie_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_fabricator_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_fabricator(rng)
+    creature, ai = create_fabricator(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 

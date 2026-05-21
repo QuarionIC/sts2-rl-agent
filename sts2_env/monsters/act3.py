@@ -29,6 +29,18 @@ if TYPE_CHECKING:
 
 # ---- Helpers ----
 
+TOUGH_ENEMIES_ASCENSION_LEVEL = 8
+DEADLY_ENEMIES_ASCENSION_LEVEL = 9
+
+
+def _ascension_value(ascension_level: int, threshold: int, ascension_value: int, base_value: int) -> int:
+    return ascension_value if ascension_level >= threshold else base_value
+
+
+def _combat_ascension_level(combat: CombatState) -> int:
+    return getattr(combat, "ascension_level", 0)
+
+
 def _deal_damage_to_player(combat: CombatState, creature: Creature, base_dmg: int, hits: int = 1) -> None:
     for _ in range(hits):
         targets = living_player_targets(combat)
@@ -64,22 +76,59 @@ def _gain_unpowered_block(creature: Creature, amount: int, combat: CombatState) 
 
 # ---- DevotedSculptor (HP 162 / 172 asc) ----
 
-def create_devoted_sculptor(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 162
-    creature = Creature(max_hp=hp, monster_id="DEVOTED_SCULPTOR")
-    savage_dmg = 12
+DEVOTED_SCULPTOR_MONSTER_ID = "DEVOTED_SCULPTOR"
+DEVOTED_SCULPTOR_BASE_HP = 162
+DEVOTED_SCULPTOR_TOUGH_HP = 172
+DEVOTED_SCULPTOR_RITUAL_GAIN = 9
+DEVOTED_SCULPTOR_BASE_SAVAGE_DAMAGE = 12
+DEVOTED_SCULPTOR_DEADLY_SAVAGE_DAMAGE = 15
+DEVOTED_SCULPTOR_FORBIDDEN_INCANTATION_MOVE = "FORBIDDEN_INCANTATION_MOVE"
+DEVOTED_SCULPTOR_SAVAGE_MOVE = "SAVAGE_MOVE"
+
+
+def create_devoted_sculptor(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        DEVOTED_SCULPTOR_TOUGH_HP,
+        DEVOTED_SCULPTOR_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=DEVOTED_SCULPTOR_MONSTER_ID)
 
     def forbidden_incantation(combat: CombatState) -> None:
-        creature.apply_power(PowerId.RITUAL, 9)
+        creature.apply_power(PowerId.RITUAL, DEVOTED_SCULPTOR_RITUAL_GAIN)
 
     def savage(combat: CombatState) -> None:
+        savage_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            DEVOTED_SCULPTOR_DEADLY_SAVAGE_DAMAGE,
+            DEVOTED_SCULPTOR_BASE_SAVAGE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, savage_dmg)
 
+    savage_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        DEVOTED_SCULPTOR_DEADLY_SAVAGE_DAMAGE,
+        DEVOTED_SCULPTOR_BASE_SAVAGE_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "FORBIDDEN_INCANTATION_MOVE": MoveState("FORBIDDEN_INCANTATION_MOVE", forbidden_incantation, [buff_intent()], follow_up_id="SAVAGE_MOVE"),
-        "SAVAGE_MOVE": MoveState("SAVAGE_MOVE", savage, [attack_intent(savage_dmg)], follow_up_id="SAVAGE_MOVE"),
+        DEVOTED_SCULPTOR_FORBIDDEN_INCANTATION_MOVE: MoveState(
+            DEVOTED_SCULPTOR_FORBIDDEN_INCANTATION_MOVE,
+            forbidden_incantation,
+            [buff_intent()],
+            follow_up_id=DEVOTED_SCULPTOR_SAVAGE_MOVE,
+        ),
+        DEVOTED_SCULPTOR_SAVAGE_MOVE: MoveState(
+            DEVOTED_SCULPTOR_SAVAGE_MOVE,
+            savage,
+            [attack_intent(savage_intent_damage)],
+            follow_up_id=DEVOTED_SCULPTOR_SAVAGE_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "FORBIDDEN_INCANTATION_MOVE")
+    return creature, MonsterAI(states, DEVOTED_SCULPTOR_FORBIDDEN_INCANTATION_MOVE)
 
 
 # ---- ScrollOfBiting (HP 24-26 / 26-28 asc) ----
@@ -116,23 +165,67 @@ def create_scroll_of_biting(rng: Rng, starter_move_idx: int = 0) -> tuple[Creatu
 
 # ---- TurretOperator (HP 28-30 / 30-32 asc) ----
 
-def create_turret_operator(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 41
-    creature = Creature(max_hp=hp, monster_id="TURRET_OPERATOR")
-    fire_dmg = 3
+TURRET_OPERATOR_MONSTER_ID = "TURRET_OPERATOR"
+TURRET_OPERATOR_BASE_HP = 41
+TURRET_OPERATOR_TOUGH_HP = 51
+TURRET_OPERATOR_BASE_FIRE_DAMAGE = 3
+TURRET_OPERATOR_DEADLY_FIRE_DAMAGE = 4
+TURRET_OPERATOR_FIRE_REPEAT = 5
+TURRET_OPERATOR_RELOAD_STRENGTH = 1
+TURRET_OPERATOR_UNLOAD_MOVE_1 = "UNLOAD_MOVE_1"
+TURRET_OPERATOR_UNLOAD_MOVE_2 = "UNLOAD_MOVE_2"
+TURRET_OPERATOR_RELOAD_MOVE = "RELOAD_MOVE"
+
+
+def create_turret_operator(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TURRET_OPERATOR_TOUGH_HP,
+        TURRET_OPERATOR_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=TURRET_OPERATOR_MONSTER_ID)
 
     def unload(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, fire_dmg, hits=5)
+        fire_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TURRET_OPERATOR_DEADLY_FIRE_DAMAGE,
+            TURRET_OPERATOR_BASE_FIRE_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, fire_dmg, hits=TURRET_OPERATOR_FIRE_REPEAT)
 
     def reload(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, 1, applier=creature)
+        creature.apply_power(PowerId.STRENGTH, TURRET_OPERATOR_RELOAD_STRENGTH, applier=creature)
+
+    fire_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TURRET_OPERATOR_DEADLY_FIRE_DAMAGE,
+        TURRET_OPERATOR_BASE_FIRE_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "UNLOAD_MOVE_1": MoveState("UNLOAD_MOVE_1", unload, [multi_attack_intent(fire_dmg, 5)], follow_up_id="UNLOAD_MOVE_2"),
-        "UNLOAD_MOVE_2": MoveState("UNLOAD_MOVE_2", unload, [multi_attack_intent(fire_dmg, 5)], follow_up_id="RELOAD_MOVE"),
-        "RELOAD_MOVE": MoveState("RELOAD_MOVE", reload, [buff_intent()], follow_up_id="UNLOAD_MOVE_1"),
+        TURRET_OPERATOR_UNLOAD_MOVE_1: MoveState(
+            TURRET_OPERATOR_UNLOAD_MOVE_1,
+            unload,
+            [multi_attack_intent(fire_intent_damage, TURRET_OPERATOR_FIRE_REPEAT)],
+            follow_up_id=TURRET_OPERATOR_UNLOAD_MOVE_2,
+        ),
+        TURRET_OPERATOR_UNLOAD_MOVE_2: MoveState(
+            TURRET_OPERATOR_UNLOAD_MOVE_2,
+            unload,
+            [multi_attack_intent(fire_intent_damage, TURRET_OPERATOR_FIRE_REPEAT)],
+            follow_up_id=TURRET_OPERATOR_RELOAD_MOVE,
+        ),
+        TURRET_OPERATOR_RELOAD_MOVE: MoveState(
+            TURRET_OPERATOR_RELOAD_MOVE,
+            reload,
+            [buff_intent()],
+            follow_up_id=TURRET_OPERATOR_UNLOAD_MOVE_1,
+        ),
     }
-    return creature, MonsterAI(states, "UNLOAD_MOVE_1")
+    return creature, MonsterAI(states, TURRET_OPERATOR_UNLOAD_MOVE_1)
 
 
 # ========================================================================
@@ -194,67 +287,191 @@ def create_axebot(
 
 # ---- Fabricator (HP 150 / 155 asc) + bots ----
 
-def create_zapbot(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(23, 28)
-    creature = Creature(max_hp=hp, monster_id="ZAPBOT")
-    zap_dmg = 14
+ZAPBOT_MONSTER_ID = "ZAPBOT"
+ZAPBOT_BASE_MIN_HP = 23
+ZAPBOT_BASE_MAX_HP = 28
+ZAPBOT_TOUGH_MIN_HP = 24
+ZAPBOT_TOUGH_MAX_HP = 29
+ZAPBOT_BASE_ZAP_DAMAGE = 14
+ZAPBOT_DEADLY_ZAP_DAMAGE = 15
+ZAPBOT_HIGH_VOLTAGE_AMOUNT = 2
+ZAPBOT_ZAP_MOVE = "ZAP"
+
+
+def create_zapbot(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        ZAPBOT_TOUGH_MIN_HP,
+        ZAPBOT_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        ZAPBOT_TOUGH_MAX_HP,
+        ZAPBOT_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=ZAPBOT_MONSTER_ID)
 
     def zap(combat: CombatState) -> None:
+        zap_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            ZAPBOT_DEADLY_ZAP_DAMAGE,
+            ZAPBOT_BASE_ZAP_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, zap_dmg)
 
+    zap_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        ZAPBOT_DEADLY_ZAP_DAMAGE,
+        ZAPBOT_BASE_ZAP_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "ZAP": MoveState("ZAP", zap, [attack_intent(zap_dmg)], follow_up_id="ZAP"),
+        ZAPBOT_ZAP_MOVE: MoveState(
+            ZAPBOT_ZAP_MOVE,
+            zap,
+            [attack_intent(zap_intent_damage)],
+            follow_up_id=ZAPBOT_ZAP_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "ZAP")
+    return creature, MonsterAI(states, ZAPBOT_ZAP_MOVE)
 
 
-def create_stabbot(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(23, 28)
-    creature = Creature(max_hp=hp, monster_id="STABBOT")
-    stab_dmg = 11
-    stab_frail = 1
+STABBOT_MONSTER_ID = "STABBOT"
+STABBOT_BASE_MIN_HP = 23
+STABBOT_BASE_MAX_HP = 28
+STABBOT_TOUGH_MIN_HP = 24
+STABBOT_TOUGH_MAX_HP = 29
+STABBOT_BASE_STAB_DAMAGE = 11
+STABBOT_DEADLY_STAB_DAMAGE = 12
+STABBOT_STAB_FRAIL = 1
+STABBOT_STAB_MOVE = "STAB_MOVE"
+
+
+def create_stabbot(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        STABBOT_TOUGH_MIN_HP,
+        STABBOT_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        STABBOT_TOUGH_MAX_HP,
+        STABBOT_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=STABBOT_MONSTER_ID)
 
     def stab(combat: CombatState) -> None:
+        stab_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            STABBOT_DEADLY_STAB_DAMAGE,
+            STABBOT_BASE_STAB_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, stab_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.FRAIL, stab_frail, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, STABBOT_STAB_FRAIL, applier=creature)
+
+    stab_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        STABBOT_DEADLY_STAB_DAMAGE,
+        STABBOT_BASE_STAB_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "STAB_MOVE": MoveState("STAB_MOVE", stab, [attack_intent(stab_dmg), debuff_intent()], follow_up_id="STAB_MOVE"),
+        STABBOT_STAB_MOVE: MoveState(
+            STABBOT_STAB_MOVE,
+            stab,
+            [attack_intent(stab_intent_damage), debuff_intent()],
+            follow_up_id=STABBOT_STAB_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "STAB_MOVE")
+    return creature, MonsterAI(states, STABBOT_STAB_MOVE)
 
 
-def create_guardbot(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(21, 25)
-    creature = Creature(max_hp=hp, monster_id="GUARDBOT")
-    guard_block = 15
+GUARDBOT_MONSTER_ID = "GUARDBOT"
+GUARDBOT_BASE_MIN_HP = 21
+GUARDBOT_BASE_MAX_HP = 25
+GUARDBOT_TOUGH_MIN_HP = 22
+GUARDBOT_TOUGH_MAX_HP = 26
+GUARDBOT_GUARD_BLOCK = 15
+GUARDBOT_GUARD_MOVE = "GUARD_MOVE"
+
+
+def create_guardbot(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        GUARDBOT_TOUGH_MIN_HP,
+        GUARDBOT_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        GUARDBOT_TOUGH_MAX_HP,
+        GUARDBOT_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=GUARDBOT_MONSTER_ID)
 
     def guard(combat: CombatState) -> None:
         for enemy in combat.alive_enemies:
-            if enemy.monster_id == "FABRICATOR":
-                _gain_unpowered_block(enemy, guard_block, combat)
+            if enemy.monster_id == FABRICATOR_MONSTER_ID:
+                _gain_unpowered_block(enemy, GUARDBOT_GUARD_BLOCK, combat)
 
     states: dict[str, MonsterState] = {
-        "GUARD_MOVE": MoveState("GUARD_MOVE", guard, [defend_intent()], follow_up_id="GUARD_MOVE"),
+        GUARDBOT_GUARD_MOVE: MoveState(
+            GUARDBOT_GUARD_MOVE,
+            guard,
+            [defend_intent()],
+            follow_up_id=GUARDBOT_GUARD_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "GUARD_MOVE")
+    return creature, MonsterAI(states, GUARDBOT_GUARD_MOVE)
 
 
-def create_noisebot(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(23, 28)
-    creature = Creature(max_hp=hp, monster_id="NOISEBOT")
-    dazed_to_discard = 1
-    dazed_to_draw = 1
+NOISEBOT_MONSTER_ID = "NOISEBOT"
+NOISEBOT_BASE_MIN_HP = 23
+NOISEBOT_BASE_MAX_HP = 28
+NOISEBOT_TOUGH_MIN_HP = 24
+NOISEBOT_TOUGH_MAX_HP = 29
+NOISEBOT_DAZED_TO_DISCARD = 1
+NOISEBOT_DAZED_TO_DRAW = 1
+NOISEBOT_NOISE_MOVE = "NOISE_MOVE"
+
+
+def create_noisebot(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        NOISEBOT_TOUGH_MIN_HP,
+        NOISEBOT_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        NOISEBOT_TOUGH_MAX_HP,
+        NOISEBOT_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=NOISEBOT_MONSTER_ID)
 
     def noise(combat: CombatState) -> None:
         for target in living_player_targets(combat):
-            for _ in range(dazed_to_discard):
+            for _ in range(NOISEBOT_DAZED_TO_DISCARD):
                 combat.add_generated_card_to_creature_discard(
                     target,
                     make_dazed(),
                     added_by_player=False,
                 )
-            for _ in range(dazed_to_draw):
+            for _ in range(NOISEBOT_DAZED_TO_DRAW):
                 combat.add_generated_card_to_creature_draw_pile(
                     target,
                     make_dazed(),
@@ -263,18 +480,43 @@ def create_noisebot(rng: Rng) -> tuple[Creature, MonsterAI]:
                 )
 
     states: dict[str, MonsterState] = {
-        "NOISE_MOVE": MoveState("NOISE_MOVE", noise, [status_intent()], follow_up_id="NOISE_MOVE"),
+        NOISEBOT_NOISE_MOVE: MoveState(
+            NOISEBOT_NOISE_MOVE,
+            noise,
+            [status_intent()],
+            follow_up_id=NOISEBOT_NOISE_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "NOISE_MOVE")
+    return creature, MonsterAI(states, NOISEBOT_NOISE_MOVE)
 
 
-def create_fabricator(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 150
-    creature = Creature(max_hp=hp, monster_id="FABRICATOR")
-    fabricating_strike_dmg = 18
-    disintegrate_dmg = 11
+FABRICATOR_MONSTER_ID = "FABRICATOR"
+FABRICATOR_BASE_HP = 150
+FABRICATOR_TOUGH_HP = 155
+FABRICATOR_BASE_FABRICATING_STRIKE_DAMAGE = 18
+FABRICATOR_DEADLY_FABRICATING_STRIKE_DAMAGE = 21
+FABRICATOR_BASE_DISINTEGRATE_DAMAGE = 11
+FABRICATOR_DEADLY_DISINTEGRATE_DAMAGE = 13
+FABRICATOR_MAX_LIVING_TEAMMATES_FOR_FABRICATE = 4
+FABRICATOR_MINION_AMOUNT = 1
+FABRICATOR_LAST_SPAWNED_CREATOR_KEY = "last_spawned_creator"
+FABRICATOR_FABRICATE_BRANCH = "fabricateBranch"
+FABRICATOR_RAND_MOVE = "RAND"
+FABRICATOR_FABRICATE_MOVE = "FABRICATE_MOVE"
+FABRICATOR_FABRICATING_STRIKE_MOVE = "FABRICATING_STRIKE_MOVE"
+FABRICATOR_DISINTEGRATE_MOVE = "DISINTEGRATE_MOVE"
 
-    _state = {"last_spawned_creator": None}
+
+def create_fabricator(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        FABRICATOR_TOUGH_HP,
+        FABRICATOR_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=FABRICATOR_MONSTER_ID)
+
+    _state = {FABRICATOR_LAST_SPAWNED_CREATOR_KEY: None}
 
     aggro_creators = [create_zapbot, create_stabbot]
     defense_creators = [create_guardbot, create_noisebot]
@@ -282,13 +524,13 @@ def create_fabricator(rng: Rng) -> tuple[Creature, MonsterAI]:
     def _spawn_bot(combat: CombatState, creators) -> None:
         options = [
             creator for creator in creators
-            if creator is not _state["last_spawned_creator"]
+            if creator is not _state[FABRICATOR_LAST_SPAWNED_CREATOR_KEY]
         ]
         creator = rng.choice(options)
-        _state["last_spawned_creator"] = creator
-        bot, bot_ai = creator(rng)
+        _state[FABRICATOR_LAST_SPAWNED_CREATOR_KEY] = creator
+        bot, bot_ai = creator(rng, ascension_level=_combat_ascension_level(combat))
         combat.add_enemy(bot, bot_ai)
-        combat.apply_power_to(bot, PowerId.MINION, 1, applier=creature)
+        combat.apply_power_to(bot, PowerId.MINION, FABRICATOR_MINION_AMOUNT, applier=creature)
 
     def _spawn_aggro(combat: CombatState) -> None:
         _spawn_bot(combat, aggro_creators)
@@ -301,10 +543,22 @@ def create_fabricator(rng: Rng) -> tuple[Creature, MonsterAI]:
         _spawn_aggro(combat)
 
     def fabricating_strike(combat: CombatState) -> None:
+        fabricating_strike_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FABRICATOR_DEADLY_FABRICATING_STRIKE_DAMAGE,
+            FABRICATOR_BASE_FABRICATING_STRIKE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, fabricating_strike_dmg)
         _spawn_aggro(combat)
 
     def disintegrate(combat: CombatState) -> None:
+        disintegrate_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FABRICATOR_DEADLY_DISINTEGRATE_DAMAGE,
+            FABRICATOR_BASE_DISINTEGRATE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, disintegrate_dmg)
 
     def _can_fabricate() -> bool:
@@ -315,24 +569,52 @@ def create_fabricator(rng: Rng) -> tuple[Creature, MonsterAI]:
             enemy for enemy in combat.alive_enemies
             if enemy is not creature and enemy.side == creature.side
         ]
-        return len(alive_teammates) < 4
+        return len(alive_teammates) < FABRICATOR_MAX_LIVING_TEAMMATES_FOR_FABRICATE
 
-    fab_branch = ConditionalBranchState("fabricateBranch")
-    fab_branch.add_branch(_can_fabricate, "RAND")
-    fab_branch.add_branch(lambda: True, "DISINTEGRATE_MOVE")
+    fabricating_strike_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FABRICATOR_DEADLY_FABRICATING_STRIKE_DAMAGE,
+        FABRICATOR_BASE_FABRICATING_STRIKE_DAMAGE,
+    )
+    disintegrate_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FABRICATOR_DEADLY_DISINTEGRATE_DAMAGE,
+        FABRICATOR_BASE_DISINTEGRATE_DAMAGE,
+    )
 
-    fab_rand = RandomBranchState("RAND")
-    fab_rand.add_branch("FABRICATE_MOVE")
-    fab_rand.add_branch("FABRICATING_STRIKE_MOVE")
+    fab_branch = ConditionalBranchState(FABRICATOR_FABRICATE_BRANCH)
+    fab_branch.add_branch(_can_fabricate, FABRICATOR_RAND_MOVE)
+    fab_branch.add_branch(lambda: True, FABRICATOR_DISINTEGRATE_MOVE)
+
+    fab_rand = RandomBranchState(FABRICATOR_RAND_MOVE)
+    fab_rand.add_branch(FABRICATOR_FABRICATE_MOVE)
+    fab_rand.add_branch(FABRICATOR_FABRICATING_STRIKE_MOVE)
 
     states: dict[str, MonsterState] = {
-        "fabricateBranch": fab_branch,
-        "RAND": fab_rand,
-        "FABRICATE_MOVE": MoveState("FABRICATE_MOVE", fabricate, [Intent(IntentType.SUMMON)], follow_up_id="fabricateBranch"),
-        "FABRICATING_STRIKE_MOVE": MoveState("FABRICATING_STRIKE_MOVE", fabricating_strike, [attack_intent(fabricating_strike_dmg), Intent(IntentType.SUMMON)], follow_up_id="fabricateBranch"),
-        "DISINTEGRATE_MOVE": MoveState("DISINTEGRATE_MOVE", disintegrate, [attack_intent(disintegrate_dmg)], follow_up_id="fabricateBranch"),
+        FABRICATOR_FABRICATE_BRANCH: fab_branch,
+        FABRICATOR_RAND_MOVE: fab_rand,
+        FABRICATOR_FABRICATE_MOVE: MoveState(
+            FABRICATOR_FABRICATE_MOVE,
+            fabricate,
+            [Intent(IntentType.SUMMON)],
+            follow_up_id=FABRICATOR_FABRICATE_BRANCH,
+        ),
+        FABRICATOR_FABRICATING_STRIKE_MOVE: MoveState(
+            FABRICATOR_FABRICATING_STRIKE_MOVE,
+            fabricating_strike,
+            [attack_intent(fabricating_strike_intent_damage), Intent(IntentType.SUMMON)],
+            follow_up_id=FABRICATOR_FABRICATE_BRANCH,
+        ),
+        FABRICATOR_DISINTEGRATE_MOVE: MoveState(
+            FABRICATOR_DISINTEGRATE_MOVE,
+            disintegrate,
+            [attack_intent(disintegrate_intent_damage)],
+            follow_up_id=FABRICATOR_FABRICATE_BRANCH,
+        ),
     }
-    return creature, MonsterAI(states, "fabricateBranch", rng)
+    return creature, MonsterAI(states, FABRICATOR_FABRICATE_BRANCH, rng)
 
 
 # ---- FrogKnight (HP 191 / 199 asc) ----

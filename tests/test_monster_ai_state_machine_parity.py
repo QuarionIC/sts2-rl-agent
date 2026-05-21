@@ -28,6 +28,8 @@ from sts2_env.encounters.act2 import (
 from sts2_env.encounters.act3 import (
     setup_construct_menagerie_normal,
     setup_doormaker_boss,
+    setup_devoted_sculptor_weak,
+    setup_fabricator_normal,
     setup_knights_elite,
     setup_queen_boss,
     setup_turret_operator_weak,
@@ -203,6 +205,27 @@ from sts2_env.monsters.shared import (
     create_the_adversary_mk_three,
 )
 from sts2_env.monsters.act3 import (
+    DEVOTED_SCULPTOR_FORBIDDEN_INCANTATION_MOVE,
+    DEVOTED_SCULPTOR_MONSTER_ID,
+    DEVOTED_SCULPTOR_SAVAGE_MOVE,
+    FABRICATOR_FABRICATE_BRANCH,
+    FABRICATOR_DISINTEGRATE_MOVE,
+    FABRICATOR_FABRICATE_MOVE,
+    FABRICATOR_FABRICATING_STRIKE_MOVE,
+    FABRICATOR_MONSTER_ID,
+    GUARDBOT_GUARD_BLOCK,
+    GUARDBOT_GUARD_MOVE,
+    GUARDBOT_MONSTER_ID,
+    NOISEBOT_MONSTER_ID,
+    NOISEBOT_NOISE_MOVE,
+    STABBOT_MONSTER_ID,
+    STABBOT_STAB_MOVE,
+    TURRET_OPERATOR_MONSTER_ID,
+    TURRET_OPERATOR_RELOAD_MOVE,
+    TURRET_OPERATOR_UNLOAD_MOVE_1,
+    TURRET_OPERATOR_UNLOAD_MOVE_2,
+    ZAPBOT_MONSTER_ID,
+    ZAPBOT_ZAP_MOVE,
     create_axebot,
     create_devoted_sculptor,
     create_fabricator,
@@ -428,6 +451,27 @@ ROCKET_TARGETING_RETICLE_DAMAGE_A9 = 4
 ROCKET_PRECISION_BEAM_DAMAGE_A9 = 20
 ROCKET_LASER_DAMAGE_A9 = 35
 ROCKET_CHARGE_UP_STRENGTH = 2
+DEVOTED_SCULPTOR_BASE_HP = 162
+DEVOTED_SCULPTOR_A8_HP = 172
+DEVOTED_SCULPTOR_SAVAGE_DAMAGE_A9 = 15
+TURRET_OPERATOR_BASE_HP = 41
+TURRET_OPERATOR_A8_HP = 51
+TURRET_OPERATOR_FIRE_DAMAGE_A9 = 4
+TURRET_OPERATOR_FIRE_HITS = 5
+TURRET_OPERATOR_RELOAD_STRENGTH = 1
+FABRICATOR_BASE_HP = 150
+FABRICATOR_A8_HP = 155
+FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9 = 21
+FABRICATOR_DISINTEGRATE_DAMAGE_A9 = 13
+FABRICATOR_MINION = 1
+ZAPBOT_A8_HP_RANGE = (24, 29)
+ZAPBOT_ZAP_DAMAGE_A9 = 15
+ZAPBOT_HIGH_VOLTAGE = 2
+STABBOT_A8_HP_RANGE = (24, 29)
+STABBOT_STAB_DAMAGE_A9 = 12
+STABBOT_STAB_FRAIL = 1
+GUARDBOT_A8_HP_RANGE = (22, 26)
+NOISEBOT_A8_HP_RANGE = (24, 29)
 TOUGH_EGG_MULTIPLAYER_INITIAL_HP = 16
 TOUGH_EGG_MULTIPLAYER_HATCHLING_HP = 20
 TOUGH_EGG_BASE_INITIAL_HP_RANGE = (14, 18)
@@ -4116,35 +4160,35 @@ class TestFixedRotation:
         creature, ai = create_turret_operator(Rng(34))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 41
-        assert ai.current_move.state_id == "UNLOAD_MOVE_1"
+        assert creature.max_hp == TURRET_OPERATOR_BASE_HP
+        assert ai.current_move.state_id == TURRET_OPERATOR_UNLOAD_MOVE_1
 
         ai.current_move.perform(combat)
         assert combat.player.current_hp == 65
 
         ai.on_move_performed()
         ai.roll_move(Rng(34))
-        assert ai.current_move.state_id == "UNLOAD_MOVE_2"
+        assert ai.current_move.state_id == TURRET_OPERATOR_UNLOAD_MOVE_2
 
         ai.current_move.perform(combat)
         assert combat.player.current_hp == 50
 
         ai.on_move_performed()
         ai.roll_move(Rng(34))
-        assert ai.current_move.state_id == "RELOAD_MOVE"
+        assert ai.current_move.state_id == TURRET_OPERATOR_RELOAD_MOVE
 
         ai.current_move.perform(combat)
-        assert creature.get_power_amount(PowerId.STRENGTH) == 1
+        assert creature.get_power_amount(PowerId.STRENGTH) == TURRET_OPERATOR_RELOAD_STRENGTH
 
         ai.on_move_performed()
         ai.roll_move(Rng(34))
-        assert ai.current_move.state_id == "UNLOAD_MOVE_1"
+        assert ai.current_move.state_id == TURRET_OPERATOR_UNLOAD_MOVE_1
 
     def test_turret_operator_weak_includes_living_shield_and_shield_switches_when_alone(self):
         combat = _make_combat(43)
         setup_turret_operator_weak(combat, Rng(43))
 
-        assert [enemy.monster_id for enemy in combat.enemies] == ["LIVING_SHIELD", "TURRET_OPERATOR"]
+        assert [enemy.monster_id for enemy in combat.enemies] == ["LIVING_SHIELD", TURRET_OPERATOR_MONSTER_ID]
         shield, turret = combat.enemies
         shield_ai = combat.enemy_ais[shield.combat_id]
 
@@ -4172,6 +4216,123 @@ class TestFixedRotation:
         assert lethal_combat.is_over
         assert lethal_combat.player_won is False
         assert lethal_shield.get_power_amount(PowerId.STRENGTH) == 0
+
+    def test_act3_weak_and_fabricator_ascension_scaling_matches_csharp(self):
+        rng_seed = 1290
+
+        sculptor_combat = _make_combat(rng_seed)
+        sculptor_combat.ascension_level = 9
+        sculptor, sculptor_ai = create_devoted_sculptor(Rng(rng_seed), ascension_level=9)
+        sculptor_combat.add_enemy(sculptor, sculptor_ai)
+        assert sculptor.max_hp == DEVOTED_SCULPTOR_A8_HP
+        assert sculptor_ai.current_move.state_id == DEVOTED_SCULPTOR_FORBIDDEN_INCANTATION_MOVE
+        savage = sculptor_ai.states[DEVOTED_SCULPTOR_SAVAGE_MOVE]
+        assert savage.intents[0].damage == DEVOTED_SCULPTOR_SAVAGE_DAMAGE_A9
+        player_hp_before_savage = sculptor_combat.player.current_hp
+        savage.perform(sculptor_combat)
+        assert sculptor_combat.player.current_hp == player_hp_before_savage - DEVOTED_SCULPTOR_SAVAGE_DAMAGE_A9
+
+        sculptor_encounter_combat = _make_combat(rng_seed)
+        sculptor_encounter_combat.ascension_level = 9
+        setup_devoted_sculptor_weak(sculptor_encounter_combat, Rng(rng_seed))
+        encounter_sculptor = sculptor_encounter_combat.enemies[0]
+        encounter_sculptor_ai = sculptor_encounter_combat.enemy_ais[encounter_sculptor.combat_id]
+        assert encounter_sculptor.monster_id == DEVOTED_SCULPTOR_MONSTER_ID
+        assert encounter_sculptor.max_hp == DEVOTED_SCULPTOR_A8_HP
+        assert encounter_sculptor_ai.states[DEVOTED_SCULPTOR_SAVAGE_MOVE].intents[0].damage == (
+            DEVOTED_SCULPTOR_SAVAGE_DAMAGE_A9
+        )
+
+        turret_combat = _make_combat(rng_seed)
+        turret_combat.ascension_level = 9
+        turret, turret_ai = create_turret_operator(Rng(rng_seed), ascension_level=9)
+        turret_combat.add_enemy(turret, turret_ai)
+        assert turret.max_hp == TURRET_OPERATOR_A8_HP
+        unload = turret_ai.states[TURRET_OPERATOR_UNLOAD_MOVE_1]
+        assert unload.intents[0].damage == TURRET_OPERATOR_FIRE_DAMAGE_A9
+        assert unload.intents[0].hits == TURRET_OPERATOR_FIRE_HITS
+        player_hp_before_unload = turret_combat.player.current_hp
+        unload.perform(turret_combat)
+        assert turret_combat.player.current_hp == (
+            player_hp_before_unload - TURRET_OPERATOR_FIRE_DAMAGE_A9 * TURRET_OPERATOR_FIRE_HITS
+        )
+
+        turret_ai.states[TURRET_OPERATOR_RELOAD_MOVE].perform(turret_combat)
+        assert turret.get_power_amount(PowerId.STRENGTH) == TURRET_OPERATOR_RELOAD_STRENGTH
+
+        turret_encounter_combat = _make_combat(rng_seed)
+        turret_encounter_combat.ascension_level = 9
+        setup_turret_operator_weak(turret_encounter_combat, Rng(rng_seed))
+        encounter_turret = turret_encounter_combat.enemies[1]
+        encounter_turret_ai = turret_encounter_combat.enemy_ais[encounter_turret.combat_id]
+        assert encounter_turret.monster_id == TURRET_OPERATOR_MONSTER_ID
+        assert encounter_turret.max_hp == TURRET_OPERATOR_A8_HP
+        assert encounter_turret_ai.states[TURRET_OPERATOR_UNLOAD_MOVE_1].intents[0].damage == (
+            TURRET_OPERATOR_FIRE_DAMAGE_A9
+        )
+
+        fabricator_combat = _make_combat(rng_seed)
+        fabricator_combat.ascension_level = 9
+        fabricator, fabricator_ai = create_fabricator(Rng(rng_seed), ascension_level=9)
+        fabricator_combat.add_enemy(fabricator, fabricator_ai)
+        assert fabricator.max_hp == FABRICATOR_A8_HP
+
+        fabricating_strike = fabricator_ai.states[FABRICATOR_FABRICATING_STRIKE_MOVE]
+        assert fabricating_strike.intents[0].damage == FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9
+        player_hp_before_fabricating_strike = fabricator_combat.player.current_hp
+        fabricating_strike.perform(fabricator_combat)
+        assert fabricator_combat.player.current_hp == (
+            player_hp_before_fabricating_strike - FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9
+        )
+        spawned_aggro = fabricator_combat.enemies[-1]
+        assert spawned_aggro.get_power_amount(PowerId.MINION) == FABRICATOR_MINION
+        assert spawned_aggro.monster_id in {ZAPBOT_MONSTER_ID, STABBOT_MONSTER_ID}
+        assert (
+            ZAPBOT_A8_HP_RANGE[0] <= spawned_aggro.max_hp <= ZAPBOT_A8_HP_RANGE[1]
+            or STABBOT_A8_HP_RANGE[0] <= spawned_aggro.max_hp <= STABBOT_A8_HP_RANGE[1]
+        )
+
+        disintegrate = fabricator_ai.states[FABRICATOR_DISINTEGRATE_MOVE]
+        assert disintegrate.intents[0].damage == FABRICATOR_DISINTEGRATE_DAMAGE_A9
+
+        zapbot, zapbot_ai = create_zapbot(_FixedIntsRng([ZAPBOT_A8_HP_RANGE[0]]), ascension_level=9)
+        fabricator_combat.add_enemy(zapbot, zapbot_ai)
+        assert zapbot.max_hp == ZAPBOT_A8_HP_RANGE[0]
+        assert zapbot_ai.states[ZAPBOT_ZAP_MOVE].intents[0].damage == ZAPBOT_ZAP_DAMAGE_A9
+        player_hp_before_zap = fabricator_combat.player.current_hp
+        zapbot_ai.current_move.perform(fabricator_combat)
+        assert fabricator_combat.player.current_hp == player_hp_before_zap - ZAPBOT_ZAP_DAMAGE_A9
+
+        stabbot, stabbot_ai = create_stabbot(_FixedIntsRng([STABBOT_A8_HP_RANGE[0]]), ascension_level=9)
+        fabricator_combat.add_enemy(stabbot, stabbot_ai)
+        assert stabbot.max_hp == STABBOT_A8_HP_RANGE[0]
+        assert stabbot_ai.states[STABBOT_STAB_MOVE].intents[0].damage == STABBOT_STAB_DAMAGE_A9
+        player_hp_before_stab = fabricator_combat.player.current_hp
+        stabbot_ai.current_move.perform(fabricator_combat)
+        assert fabricator_combat.player.current_hp == player_hp_before_stab - STABBOT_STAB_DAMAGE_A9
+        assert fabricator_combat.player.get_power_amount(PowerId.FRAIL) == STABBOT_STAB_FRAIL
+
+        guardbot, guardbot_ai = create_guardbot(_FixedIntsRng([GUARDBOT_A8_HP_RANGE[0]]), ascension_level=9)
+        fabricator_combat.add_enemy(guardbot, guardbot_ai)
+        assert guardbot.max_hp == GUARDBOT_A8_HP_RANGE[0]
+        guardbot_ai.current_move.perform(fabricator_combat)
+        assert fabricator.block == GUARDBOT_GUARD_BLOCK
+
+        noisebot, noisebot_ai = create_noisebot(_FixedIntsRng([NOISEBOT_A8_HP_RANGE[0]]), ascension_level=9)
+        fabricator_combat.add_enemy(noisebot, noisebot_ai)
+        assert noisebot.max_hp == NOISEBOT_A8_HP_RANGE[0]
+        assert noisebot_ai.current_move.state_id == NOISEBOT_NOISE_MOVE
+
+        fabricator_encounter_combat = _make_combat(rng_seed)
+        fabricator_encounter_combat.ascension_level = 9
+        setup_fabricator_normal(fabricator_encounter_combat, Rng(rng_seed))
+        encounter_fabricator = fabricator_encounter_combat.enemies[0]
+        encounter_fabricator_ai = fabricator_encounter_combat.enemy_ais[encounter_fabricator.combat_id]
+        assert encounter_fabricator.monster_id == FABRICATOR_MONSTER_ID
+        assert encounter_fabricator.max_hp == FABRICATOR_A8_HP
+        assert encounter_fabricator_ai.states[FABRICATOR_DISINTEGRATE_MOVE].intents[0].damage == (
+            FABRICATOR_DISINTEGRATE_DAMAGE_A9
+        )
 
     def test_doormaker_boss_starts_with_door_and_spawns_doormaker_after_door_death(self):
         combat = _make_combat(45)
@@ -4294,32 +4455,33 @@ class TestFixedRotation:
         combat = _make_combat(36)
         fabricator, fabricator_ai = create_fabricator(Rng(36))
         combat.add_enemy(fabricator, fabricator_ai)
+        assert fabricator.max_hp == FABRICATOR_BASE_HP
 
         zapbot, zapbot_ai = create_zapbot(Rng(36))
         combat.add_enemy(zapbot, zapbot_ai)
-        assert zapbot.get_power_amount(PowerId.HIGH_VOLTAGE) == 2
+        assert zapbot.get_power_amount(PowerId.HIGH_VOLTAGE) == ZAPBOT_HIGH_VOLTAGE
         assert zapbot.get_power_amount(PowerId.MINION) == 0
-        assert zapbot_ai.current_move.state_id == "ZAP"
+        assert zapbot_ai.current_move.state_id == ZAPBOT_ZAP_MOVE
 
         stabbot, stabbot_ai = create_stabbot(Rng(36))
         combat.add_enemy(stabbot, stabbot_ai)
         assert stabbot.get_power_amount(PowerId.MINION) == 0
-        assert stabbot_ai.current_move.state_id == "STAB_MOVE"
+        assert stabbot_ai.current_move.state_id == STABBOT_STAB_MOVE
         stabbot_ai.current_move.perform(combat)
         assert combat.player.current_hp == 69
-        assert combat.player.get_power_amount(PowerId.FRAIL) == 1
+        assert combat.player.get_power_amount(PowerId.FRAIL) == STABBOT_STAB_FRAIL
 
         guardbot, guardbot_ai = create_guardbot(Rng(36))
         combat.add_enemy(guardbot, guardbot_ai)
         assert guardbot.get_power_amount(PowerId.MINION) == 0
-        assert guardbot_ai.current_move.state_id == "GUARD_MOVE"
+        assert guardbot_ai.current_move.state_id == GUARDBOT_GUARD_MOVE
         guardbot_ai.current_move.perform(combat)
-        assert fabricator.block == 15
+        assert fabricator.block == GUARDBOT_GUARD_BLOCK
 
         noisebot, noisebot_ai = create_noisebot(Rng(36))
         combat.add_enemy(noisebot, noisebot_ai)
         assert noisebot.get_power_amount(PowerId.MINION) == 0
-        assert noisebot_ai.current_move.state_id == "NOISE_MOVE"
+        assert noisebot_ai.current_move.state_id == NOISEBOT_NOISE_MOVE
         rocket_punch = create_card(CardId.ROCKET_PUNCH)
         combat.hand = [rocket_punch]
         noisebot_ai.current_move.perform(combat)
@@ -4327,16 +4489,16 @@ class TestFixedRotation:
         assert [card.card_id for card in combat.draw_pile] == [CardId.DAZED]
         assert rocket_punch.cost == 0
 
-        fabricator_ai.states["FABRICATE_MOVE"].perform(combat)
+        fabricator_ai.states[FABRICATOR_FABRICATE_MOVE].perform(combat)
         assert len(combat.enemies) == 7
-        assert combat.enemies[-2].get_power_amount(PowerId.MINION) == 1
-        assert combat.enemies[-1].get_power_amount(PowerId.MINION) == 1
+        assert combat.enemies[-2].get_power_amount(PowerId.MINION) == FABRICATOR_MINION
+        assert combat.enemies[-1].get_power_amount(PowerId.MINION) == FABRICATOR_MINION
 
         lethal_combat = _make_combat(101)
         lethal_fabricator, lethal_fabricator_ai = create_fabricator(Rng(101))
         lethal_combat.add_enemy(lethal_fabricator, lethal_fabricator_ai)
         lethal_combat.player.current_hp = 18
-        lethal_fabricator_ai.states["FABRICATING_STRIKE_MOVE"].perform(lethal_combat)
+        lethal_fabricator_ai.states[FABRICATOR_FABRICATING_STRIKE_MOVE].perform(lethal_combat)
         assert lethal_combat.is_over
         assert lethal_combat.player_won is False
         assert len(lethal_combat.enemies) == 2
@@ -4348,18 +4510,17 @@ class TestFixedRotation:
         combat = _make_combat(rng_seed)
         fabricator, fabricator_ai = create_fabricator(Rng(rng_seed))
         combat.add_enemy(fabricator, fabricator_ai)
-        expected_first_fabricate = ["NOISEBOT", "STABBOT"]
-        expected_second_fabricate = ["NOISEBOT", "ZAPBOT"]
+        expected_first_fabricate = [NOISEBOT_MONSTER_ID, STABBOT_MONSTER_ID]
+        expected_second_fabricate = [NOISEBOT_MONSTER_ID, ZAPBOT_MONSTER_ID]
 
-        fabricator_ai.states["FABRICATE_MOVE"].perform(combat)
-        fabricator_ai.states["FABRICATE_MOVE"].perform(combat)
+        fabricator_ai.states[FABRICATOR_FABRICATE_MOVE].perform(combat)
+        fabricator_ai.states[FABRICATOR_FABRICATE_MOVE].perform(combat)
 
         assert [enemy.monster_id for enemy in combat.enemies[1:3]] == expected_first_fabricate
         assert [enemy.monster_id for enemy in combat.enemies[3:5]] == expected_second_fabricate
 
     def test_guardbot_guard_block_is_unpowered_like_original(self):
         rng_seed = 1239
-        guard_block = 15
         no_card_or_move_block_events = 0
         combat = _make_combat(rng_seed)
         fabricator, fabricator_ai = create_fabricator(Rng(rng_seed))
@@ -4368,9 +4529,9 @@ class TestFixedRotation:
         combat.add_enemy(guardbot, guardbot_ai)
         fabricator.powers[PowerId.JUGGERNAUT] = _BlockEventCountPower()
 
-        guardbot_ai.states["GUARD_MOVE"].perform(combat)
+        guardbot_ai.states[GUARDBOT_GUARD_MOVE].perform(combat)
 
-        assert fabricator.block == guard_block
+        assert fabricator.block == GUARDBOT_GUARD_BLOCK
         assert fabricator.powers[PowerId.JUGGERNAUT].card_or_move_block_events == [no_card_or_move_block_events]
 
     def test_noisebot_adds_dazed_to_each_living_player_not_osty(self):
@@ -4449,11 +4610,11 @@ class TestFixedRotation:
             bot, bot_ai = creator(Rng(37))
             combat.add_enemy(bot, bot_ai)
 
-        fabricator_ai._current_state_id = "fabricateBranch"  # noqa: SLF001
+        fabricator_ai._current_state_id = FABRICATOR_FABRICATE_BRANCH  # noqa: SLF001
         fabricator_ai._performed_first_move = True  # noqa: SLF001
         fabricator_ai.roll_move(Rng(37))
 
-        assert fabricator_ai.current_move.state_id == "DISINTEGRATE_MOVE"
+        assert fabricator_ai.current_move.state_id == FABRICATOR_DISINTEGRATE_MOVE
 
     def test_soul_nexus_uses_original_attack_and_debuff_moves(self):
         combat = _make_combat(38)
