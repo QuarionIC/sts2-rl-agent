@@ -1384,6 +1384,7 @@ class RunManager:
         for relic in player.get_relic_objects():
             sacrifice = getattr(relic, "sacrifice_card_reward", None)
             if callable(sacrifice):
+                reward.skip(self)
                 relic_id = sacrifice(player)
                 self._advance_post_combat_rewards()
                 return {

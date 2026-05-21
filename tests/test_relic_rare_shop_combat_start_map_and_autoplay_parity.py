@@ -17,6 +17,15 @@ from sts2_env.run.run_manager import RunManager
 from sts2_env.run.run_state import PlayerState, RunState, UNLOCK_STATE_NUMBER_OF_RUNS_KEY
 
 
+IRONCLAD_CHARACTER_ID = "Ironclad"
+PAELS_WING_RELIC_ID = "PaelsWing"
+PAELS_WING_SACRIFICE_ACTION = "sacrifice_card_reward"
+PAELS_WING_SACRIFICE_COUNTER_SEED = 1128
+PAELS_WING_ACTIVE_TRACKING_SEED = 1129
+REGULAR_CARD_REWARD_CONTEXT = "regular"
+WONGO_CUSTOMER_BADGE_RELIC_ID = "WONGO_CUSTOMER_APPRECIATION_BADGE"
+
+
 def _with_owner(cards: list, owner):
     for card in cards:
         card.owner = owner
@@ -316,27 +325,42 @@ def test_fur_coat_marks_combat_rooms_and_sets_marked_enemies_to_one_hp():
 
 
 def test_paels_wing_sacrifices_card_rewards_and_obtains_relic_every_two():
-    mgr = RunManager(seed=1128, character_id="Ironclad")
+    mgr = RunManager(seed=PAELS_WING_SACRIFICE_COUNTER_SEED, character_id=IRONCLAD_CHARACTER_ID)
     player = mgr.run_state.player
-    assert player.obtain_relic("PaelsWing")
-    player.relic_grab_bag = ["WONGO_CUSTOMER_APPRECIATION_BADGE"]
+    assert player.obtain_relic(PAELS_WING_RELIC_ID)
+    player.relic_grab_bag = [WONGO_CUSTOMER_BADGE_RELIC_ID]
     player.relic_grab_bag_by_rarity = {}
-    player.relic_grab_bag_fallback = ["WONGO_CUSTOMER_APPRECIATION_BADGE"]
+    player.relic_grab_bag_fallback = [WONGO_CUSTOMER_BADGE_RELIC_ID]
 
-    mgr._enter_card_reward(context="regular")
-    assert any(action["action"] == "sacrifice_card_reward" for action in mgr.get_available_actions())
-    first = mgr.take_action({"action": "sacrifice_card_reward"})
+    mgr._enter_card_reward(context=REGULAR_CARD_REWARD_CONTEXT)
+    assert any(action["action"] == PAELS_WING_SACRIFICE_ACTION for action in mgr.get_available_actions())
+    first = mgr.take_action({"action": PAELS_WING_SACRIFICE_ACTION})
 
     assert first["success"] is True
     assert first["obtained_relic_id"] is None
-    assert "WONGO_CUSTOMER_APPRECIATION_BADGE" not in player.relics
+    assert WONGO_CUSTOMER_BADGE_RELIC_ID not in player.relics
 
-    mgr._enter_card_reward(context="regular")
-    second = mgr.take_action({"action": "sacrifice_card_reward"})
+    mgr._enter_card_reward(context=REGULAR_CARD_REWARD_CONTEXT)
+    second = mgr.take_action({"action": PAELS_WING_SACRIFICE_ACTION})
 
     assert second["success"] is True
-    assert second["obtained_relic_id"] == "WONGO_CUSTOMER_APPRECIATION_BADGE"
-    assert "WONGO_CUSTOMER_APPRECIATION_BADGE" in player.relics
+    assert second["obtained_relic_id"] == WONGO_CUSTOMER_BADGE_RELIC_ID
+    assert WONGO_CUSTOMER_BADGE_RELIC_ID in player.relics
+
+
+def test_paels_wing_sacrifice_removes_current_card_reward_from_active_tracking():
+    mgr = RunManager(seed=PAELS_WING_ACTIVE_TRACKING_SEED, character_id=IRONCLAD_CHARACTER_ID)
+    player = mgr.run_state.player
+    assert player.obtain_relic(PAELS_WING_RELIC_ID)
+
+    mgr._enter_card_reward(context=REGULAR_CARD_REWARD_CONTEXT)
+    sacrificed_reward = mgr._current_reward
+    assert sacrificed_reward in mgr.run_state.active_card_rewards
+
+    result = mgr.take_action({"action": PAELS_WING_SACRIFICE_ACTION})
+
+    assert result["success"] is True
+    assert sacrificed_reward not in mgr.run_state.active_card_rewards
 
 
 def test_unceasing_top_draws_when_hand_is_emptied_during_play_phase():
