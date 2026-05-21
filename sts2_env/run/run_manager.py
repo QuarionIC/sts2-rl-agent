@@ -29,6 +29,7 @@ from sts2_env.core.enums import (
     CardId,
     MapPointType,
     RoomType,
+    TargetType,
 )
 from sts2_env.core.rng import INT_MAX, Rng
 from sts2_env.map.map_point import MapCoord
@@ -913,10 +914,10 @@ class RunManager:
                     "cost": card.cost,
                 }
                 target_type = card.target_type_for(selected_state.creature)
-                if target_type.name in {"ANY_ENEMY", "ANY_ALLY"}:
+                if target_type in {TargetType.ANY_ENEMY, TargetType.ANY_ALLY}:
                     targets = (
                         combat.enemies
-                        if target_type.name == "ANY_ENEMY"
+                        if target_type == TargetType.ANY_ENEMY
                         else combat.get_player_allies_of(selected_state.creature)
                     )
                     for j, creature in enumerate(targets):
