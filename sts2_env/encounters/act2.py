@@ -13,6 +13,8 @@ from sts2_env.monsters.act2 import (
     EXOSKELETON_FIRST_SLOT,
     EXOSKELETON_SECOND_SLOT,
     EXOSKELETON_THIRD_SLOT,
+    MYTE_FIRST_SLOT,
+    MYTE_SECOND_SLOT,
     apply_decimillipede_segment_room_setup,
     create_thieving_hopper,
     create_tunneler,
@@ -88,9 +90,10 @@ def setup_bowlbugs_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_chompers_normal(combat: CombatState, rng: Rng) -> None:
-    c1, a1 = create_chomper(rng, scream_first=False)
+    ascension_level = getattr(combat, "ascension_level", 0)
+    c1, a1 = create_chomper(rng, scream_first=False, ascension_level=ascension_level)
     combat.add_enemy(c1, a1)
-    c2, a2 = create_chomper(rng, scream_first=True)
+    c2, a2 = create_chomper(rng, scream_first=True, ascension_level=ascension_level)
     combat.add_enemy(c2, a2)
 
 
@@ -102,18 +105,19 @@ def setup_exoskeletons_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_hunter_killer_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_hunter_killer(rng)
+    creature, ai = create_hunter_killer(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
 def setup_louse_progenitor_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_louse_progenitor(rng)
+    creature, ai = create_louse_progenitor(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
 def setup_mytes_normal(combat: CombatState, rng: Rng) -> None:
-    for slot in ["first", "second"]:
-        creature, ai = create_myte(rng, slot=slot)
+    ascension_level = getattr(combat, "ascension_level", 0)
+    for slot in [MYTE_FIRST_SLOT, MYTE_SECOND_SLOT]:
+        creature, ai = create_myte(rng, slot=slot, ascension_level=ascension_level)
         combat.add_enemy(creature, ai)
 
 

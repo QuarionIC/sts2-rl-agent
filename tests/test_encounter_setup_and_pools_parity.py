@@ -70,6 +70,7 @@ from sts2_env.encounters.act2 import (
     setup_hunter_killer_normal,
     setup_knowledge_demon_boss,
     setup_louse_progenitor_normal,
+    setup_mytes_normal,
     setup_ovicopter_normal,
     setup_slumbering_beetle_normal,
     setup_spiny_toad_normal,
@@ -156,6 +157,17 @@ BOWLBUG_SILK_TOUGH_MAX_HP = 44
 EXOSKELETON_MONSTER_ID = "EXOSKELETON"
 EXOSKELETON_TOUGH_MIN_HP = 25
 EXOSKELETON_TOUGH_MAX_HP = 29
+CHOMPER_MONSTER_ID = "CHOMPER"
+CHOMPER_TOUGH_MIN_HP = 63
+CHOMPER_TOUGH_MAX_HP = 67
+HUNTER_KILLER_MONSTER_ID = "HUNTER_KILLER"
+HUNTER_KILLER_TOUGH_HP = 126
+LOUSE_PROGENITOR_MONSTER_ID = "LOUSE_PROGENITOR"
+LOUSE_PROGENITOR_TOUGH_MIN_HP = 138
+LOUSE_PROGENITOR_TOUGH_MAX_HP = 141
+MYTE_MONSTER_ID = "MYTE"
+MYTE_TOUGH_MIN_HP = 64
+MYTE_TOUGH_MAX_HP = 69
 
 
 class _ExclusiveHighRng:
@@ -800,6 +812,42 @@ class TestAct2Pools:
             assert len(combat.enemies) == 2
             assert combat.enemies[1].monster_id == TUNNELER_MONSTER_ID
             assert combat.enemies[1].max_hp == TUNNELER_TOUGH_HP
+
+    def test_act2_normal_tough_ascension_hp_matches_csharp(self):
+        for seed in range(5):
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_chompers_normal(combat, Rng(seed))
+
+            assert [enemy.monster_id for enemy in combat.enemies] == [CHOMPER_MONSTER_ID, CHOMPER_MONSTER_ID]
+            assert all(CHOMPER_TOUGH_MIN_HP <= enemy.max_hp <= CHOMPER_TOUGH_MAX_HP for enemy in combat.enemies)
+
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_hunter_killer_normal(combat, Rng(seed))
+
+            assert len(combat.enemies) == 1
+            assert combat.enemies[0].monster_id == HUNTER_KILLER_MONSTER_ID
+            assert combat.enemies[0].max_hp == HUNTER_KILLER_TOUGH_HP
+
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_louse_progenitor_normal(combat, Rng(seed))
+
+            assert len(combat.enemies) == 1
+            assert combat.enemies[0].monster_id == LOUSE_PROGENITOR_MONSTER_ID
+            assert LOUSE_PROGENITOR_TOUGH_MIN_HP <= combat.enemies[0].max_hp <= LOUSE_PROGENITOR_TOUGH_MAX_HP
+
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_mytes_normal(combat, Rng(seed))
+
+            assert [enemy.monster_id for enemy in combat.enemies] == [MYTE_MONSTER_ID, MYTE_MONSTER_ID]
+            assert all(MYTE_TOUGH_MIN_HP <= enemy.max_hp <= MYTE_TOUGH_MAX_HP for enemy in combat.enemies)
 
     def test_weak_encounter_count(self):
         assert len(ACT2_WEAK) == 4

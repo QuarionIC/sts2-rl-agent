@@ -273,6 +273,35 @@ EXOSKELETON_SKITTER_HITS_A9 = 4
 EXOSKELETON_MANDIBLE_DAMAGE_A9 = 9
 EXOSKELETON_ENRAGE_STRENGTH = 2
 EXOSKELETON_HARD_TO_KILL = 9
+CHOMPER_CLAMP_MOVE = "CLAMP_MOVE"
+CHOMPER_SCREECH_MOVE = "SCREECH_MOVE"
+CHOMPER_CLAMP_DAMAGE_A9 = 9
+CHOMPER_CLAMP_HITS = 2
+CHOMPER_SCREECH_DAZED = 3
+CHOMPER_ARTIFACT = 2
+HUNTER_KILLER_TENDERIZING_GOOP_MOVE = "TENDERIZING_GOOP_MOVE"
+HUNTER_KILLER_BITE_MOVE = "BITE_MOVE"
+HUNTER_KILLER_PUNCTURE_MOVE = "PUNCTURE_MOVE"
+HUNTER_KILLER_BITE_DAMAGE_A9 = 19
+HUNTER_KILLER_PUNCTURE_DAMAGE_A9 = 8
+HUNTER_KILLER_PUNCTURE_HITS = 3
+HUNTER_KILLER_TENDER = 1
+LOUSE_PROGENITOR_WEB_CANNON_MOVE = "WEB_CANNON_MOVE"
+LOUSE_PROGENITOR_CURL_AND_GROW_MOVE = "CURL_AND_GROW_MOVE"
+LOUSE_PROGENITOR_POUNCE_MOVE = "POUNCE_MOVE"
+LOUSE_PROGENITOR_WEB_DAMAGE_A9 = 10
+LOUSE_PROGENITOR_WEB_FRAIL = 2
+LOUSE_PROGENITOR_CURL_BLOCK_A8 = 18
+LOUSE_PROGENITOR_GROW_STRENGTH = 5
+LOUSE_PROGENITOR_POUNCE_DAMAGE_A9 = 16
+MYTE_FIRST_SLOT = "first"
+MYTE_TOXIC_MOVE = "TOXIC_MOVE"
+MYTE_BITE_MOVE = "BITE_MOVE"
+MYTE_SUCK_MOVE = "SUCK_MOVE"
+MYTE_BITE_DAMAGE_A9 = 15
+MYTE_SUCK_DAMAGE_A9 = 6
+MYTE_SUCK_STRENGTH_A9 = 3
+MYTE_TOXIC_COUNT = 2
 TOUGH_EGG_INITIAL_HP = 16
 TOUGH_EGG_HATCHLING_HP = 20
 MULTIPLAYER_TEST_PLAYER_COUNT = 2
@@ -2343,6 +2372,89 @@ class TestFixedRotation:
         hunter_ai.on_move_performed()
         hunter_ai.roll_move(Rng(34))
         assert hunter_ai.current_move.state_id in {"BITE_MOVE", "PUNCTURE_MOVE"}
+
+    def test_act2_normal_front_half_ascension_scaling_matches_csharp(self):
+        rng_seed = 1285
+
+        chomper_combat = _make_combat(rng_seed)
+        chomper_combat.ascension_level = 9
+        chomper_state = chomper_combat.combat_player_state_for(chomper_combat.primary_player)
+        assert chomper_state is not None
+        chomper_state.discard.clear()
+        chomper, chomper_ai = create_chomper(Rng(rng_seed), ascension_level=9)
+        chomper_combat.add_enemy(chomper, chomper_ai)
+        clamp = chomper_ai.states[CHOMPER_CLAMP_MOVE]
+        assert chomper.get_power_amount(PowerId.ARTIFACT) == CHOMPER_ARTIFACT
+        assert clamp.intents[0].damage == CHOMPER_CLAMP_DAMAGE_A9
+        assert clamp.intents[0].hits == CHOMPER_CLAMP_HITS
+        player_hp_before_clamp = chomper_combat.player.current_hp
+        clamp.perform(chomper_combat)
+        assert chomper_combat.player.current_hp == player_hp_before_clamp - CHOMPER_CLAMP_DAMAGE_A9 * CHOMPER_CLAMP_HITS
+        chomper_ai.states[CHOMPER_SCREECH_MOVE].perform(chomper_combat)
+        assert [card.card_id for card in chomper_state.discard] == [CardId.DAZED] * CHOMPER_SCREECH_DAZED
+
+        hunter_combat = _make_combat(rng_seed)
+        hunter_combat.ascension_level = 9
+        hunter, hunter_ai = create_hunter_killer(Rng(rng_seed), ascension_level=9)
+        hunter_combat.add_enemy(hunter, hunter_ai)
+        hunter_ai.states[HUNTER_KILLER_TENDERIZING_GOOP_MOVE].perform(hunter_combat)
+        assert hunter_combat.player.get_power_amount(PowerId.TENDER) == HUNTER_KILLER_TENDER
+        bite = hunter_ai.states[HUNTER_KILLER_BITE_MOVE]
+        assert bite.intents[0].damage == HUNTER_KILLER_BITE_DAMAGE_A9
+        player_hp_before_bite = hunter_combat.player.current_hp
+        bite.perform(hunter_combat)
+        assert hunter_combat.player.current_hp == player_hp_before_bite - HUNTER_KILLER_BITE_DAMAGE_A9
+        puncture = hunter_ai.states[HUNTER_KILLER_PUNCTURE_MOVE]
+        assert puncture.intents[0].damage == HUNTER_KILLER_PUNCTURE_DAMAGE_A9
+        assert puncture.intents[0].hits == HUNTER_KILLER_PUNCTURE_HITS
+        player_hp_before_puncture = hunter_combat.player.current_hp
+        puncture.perform(hunter_combat)
+        assert hunter_combat.player.current_hp == (
+            player_hp_before_puncture - HUNTER_KILLER_PUNCTURE_DAMAGE_A9 * HUNTER_KILLER_PUNCTURE_HITS
+        )
+
+        louse_combat = _make_combat(rng_seed)
+        louse_combat.ascension_level = 9
+        louse, louse_ai = create_louse_progenitor(Rng(rng_seed), ascension_level=9)
+        louse_combat.add_enemy(louse, louse_ai)
+        web = louse_ai.states[LOUSE_PROGENITOR_WEB_CANNON_MOVE]
+        assert louse.get_power_amount(PowerId.CURL_UP) == LOUSE_PROGENITOR_CURL_BLOCK_A8
+        assert web.intents[0].damage == LOUSE_PROGENITOR_WEB_DAMAGE_A9
+        player_hp_before_web = louse_combat.player.current_hp
+        web.perform(louse_combat)
+        assert louse_combat.player.current_hp == player_hp_before_web - LOUSE_PROGENITOR_WEB_DAMAGE_A9
+        assert louse_combat.player.get_power_amount(PowerId.FRAIL) == LOUSE_PROGENITOR_WEB_FRAIL
+        louse_ai.states[LOUSE_PROGENITOR_CURL_AND_GROW_MOVE].perform(louse_combat)
+        assert louse.block == LOUSE_PROGENITOR_CURL_BLOCK_A8
+        assert louse.get_power_amount(PowerId.STRENGTH) == LOUSE_PROGENITOR_GROW_STRENGTH
+        pounce = louse_ai.states[LOUSE_PROGENITOR_POUNCE_MOVE]
+        assert pounce.intents[0].damage == LOUSE_PROGENITOR_POUNCE_DAMAGE_A9
+        player_hp_before_pounce = louse_combat.player.current_hp
+        pounce.perform(louse_combat)
+        expected_pounce_damage = LOUSE_PROGENITOR_POUNCE_DAMAGE_A9 + LOUSE_PROGENITOR_GROW_STRENGTH
+        assert louse_combat.player.current_hp == player_hp_before_pounce - expected_pounce_damage
+
+        myte_combat = _make_combat(rng_seed)
+        myte_combat.ascension_level = 9
+        myte_state = myte_combat.combat_player_state_for(myte_combat.primary_player)
+        assert myte_state is not None
+        myte_state.hand.clear()
+        myte, myte_ai = create_myte(Rng(rng_seed), slot=MYTE_FIRST_SLOT, ascension_level=9)
+        myte_combat.add_enemy(myte, myte_ai)
+        myte_ai.states[MYTE_TOXIC_MOVE].perform(myte_combat)
+        assert [card.card_id for card in myte_state.hand] == [CardId.TOXIC] * MYTE_TOXIC_COUNT
+        myte_state.hand.clear()
+        bite = myte_ai.states[MYTE_BITE_MOVE]
+        assert bite.intents[0].damage == MYTE_BITE_DAMAGE_A9
+        player_hp_before_myte_bite = myte_combat.player.current_hp
+        bite.perform(myte_combat)
+        assert myte_combat.player.current_hp == player_hp_before_myte_bite - MYTE_BITE_DAMAGE_A9
+        suck = myte_ai.states[MYTE_SUCK_MOVE]
+        assert suck.intents[0].damage == MYTE_SUCK_DAMAGE_A9
+        player_hp_before_suck = myte_combat.player.current_hp
+        suck.perform(myte_combat)
+        assert myte_combat.player.current_hp == player_hp_before_suck - MYTE_SUCK_DAMAGE_A9
+        assert myte.get_power_amount(PowerId.STRENGTH) == MYTE_SUCK_STRENGTH_A9
 
     def test_act2_ovicopter_and_tough_egg_match_original_opening_cycle(self):
         egg, egg_ai = create_tough_egg(Rng(35))

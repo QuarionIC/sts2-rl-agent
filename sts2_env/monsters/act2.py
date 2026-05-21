@@ -760,72 +760,166 @@ def create_exoskeleton(rng: Rng, slot: str = EXOSKELETON_FIRST_SLOT, ascension_l
 
 # ---- Chomper (HP 60-64 / 63-67 asc) ----
 
-def create_chomper(rng: Rng, scream_first: bool = False) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(60, 64)
-    creature = Creature(max_hp=hp, monster_id="CHOMPER")
-    clamp_dmg = 8
-    screech_dazed = 3
+CHOMPER_MONSTER_ID = "CHOMPER"
+CHOMPER_BASE_MIN_HP = 60
+CHOMPER_BASE_MAX_HP = 64
+CHOMPER_TOUGH_MIN_HP = 63
+CHOMPER_TOUGH_MAX_HP = 67
+CHOMPER_BASE_CLAMP_DAMAGE = 8
+CHOMPER_DEADLY_CLAMP_DAMAGE = 9
+CHOMPER_CLAMP_REPEAT = 2
+CHOMPER_SCREECH_DAZED = 3
+CHOMPER_ARTIFACT_AMOUNT = 2
+CHOMPER_CLAMP_MOVE = "CLAMP_MOVE"
+CHOMPER_SCREECH_MOVE = "SCREECH_MOVE"
+
+
+def create_chomper(rng: Rng, scream_first: bool = False, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        CHOMPER_TOUGH_MIN_HP,
+        CHOMPER_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        CHOMPER_TOUGH_MAX_HP,
+        CHOMPER_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=CHOMPER_MONSTER_ID)
 
     def clamp(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, clamp_dmg, hits=2)
+        clamp_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CHOMPER_DEADLY_CLAMP_DAMAGE,
+            CHOMPER_BASE_CLAMP_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, clamp_dmg, hits=CHOMPER_CLAMP_REPEAT)
 
     def screech(combat: CombatState) -> None:
-        add_generated_cards_to_living_player_discards(combat, make_dazed, screech_dazed)
+        add_generated_cards_to_living_player_discards(combat, make_dazed, CHOMPER_SCREECH_DAZED)
+
+    clamp_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        CHOMPER_DEADLY_CLAMP_DAMAGE,
+        CHOMPER_BASE_CLAMP_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "CLAMP_MOVE": MoveState(
-            "CLAMP_MOVE",
+        CHOMPER_CLAMP_MOVE: MoveState(
+            CHOMPER_CLAMP_MOVE,
             clamp,
-            [multi_attack_intent(clamp_dmg, 2)],
-            follow_up_id="SCREECH_MOVE",
+            [multi_attack_intent(clamp_intent_damage, CHOMPER_CLAMP_REPEAT)],
+            follow_up_id=CHOMPER_SCREECH_MOVE,
         ),
-        "SCREECH_MOVE": MoveState("SCREECH_MOVE", screech, [status_intent()], follow_up_id="CLAMP_MOVE"),
+        CHOMPER_SCREECH_MOVE: MoveState(
+            CHOMPER_SCREECH_MOVE,
+            screech,
+            [status_intent()],
+            follow_up_id=CHOMPER_CLAMP_MOVE,
+        ),
     }
 
-    creature.apply_power(PowerId.ARTIFACT, 2)
-    initial = "SCREECH_MOVE" if scream_first else "CLAMP_MOVE"
+    creature.apply_power(PowerId.ARTIFACT, CHOMPER_ARTIFACT_AMOUNT)
+    initial = CHOMPER_SCREECH_MOVE if scream_first else CHOMPER_CLAMP_MOVE
     return creature, MonsterAI(states, initial, rng)
 
 
-# ---- HunterKiller (HP 60-65 / 63-68 asc) ----
+# ---- HunterKiller (HP 121 / 126 asc) ----
 
-def create_hunter_killer(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 121
-    creature = Creature(max_hp=hp, monster_id="HUNTER_KILLER")
-    bite_dmg = 17
-    puncture_dmg = 7
-    tenderizing_goop_tender = 1
+HUNTER_KILLER_MONSTER_ID = "HUNTER_KILLER"
+HUNTER_KILLER_BASE_HP = 121
+HUNTER_KILLER_TOUGH_HP = 126
+HUNTER_KILLER_BASE_BITE_DAMAGE = 17
+HUNTER_KILLER_DEADLY_BITE_DAMAGE = 19
+HUNTER_KILLER_BASE_PUNCTURE_DAMAGE = 7
+HUNTER_KILLER_DEADLY_PUNCTURE_DAMAGE = 8
+HUNTER_KILLER_PUNCTURE_REPEAT = 3
+HUNTER_KILLER_TENDER_AMOUNT = 1
+HUNTER_KILLER_PUNCTURE_MAX_REPEAT = 2
+HUNTER_KILLER_TENDERIZING_GOOP_MOVE = "TENDERIZING_GOOP_MOVE"
+HUNTER_KILLER_BITE_MOVE = "BITE_MOVE"
+HUNTER_KILLER_PUNCTURE_MOVE = "PUNCTURE_MOVE"
+HUNTER_KILLER_RANDOM_STATE = "RAND"
+
+
+def create_hunter_killer(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        HUNTER_KILLER_TOUGH_HP,
+        HUNTER_KILLER_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=HUNTER_KILLER_MONSTER_ID)
 
     def tenderizing_goop(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.TENDER, tenderizing_goop_tender, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.TENDER, HUNTER_KILLER_TENDER_AMOUNT, applier=creature)
 
     def bite(combat: CombatState) -> None:
+        bite_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            HUNTER_KILLER_DEADLY_BITE_DAMAGE,
+            HUNTER_KILLER_BASE_BITE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, bite_dmg)
 
     def puncture(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, puncture_dmg, hits=3)
+        puncture_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            HUNTER_KILLER_DEADLY_PUNCTURE_DAMAGE,
+            HUNTER_KILLER_BASE_PUNCTURE_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, puncture_dmg, hits=HUNTER_KILLER_PUNCTURE_REPEAT)
 
-    rand = RandomBranchState("RAND")
-    rand.add_branch("BITE_MOVE", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("PUNCTURE_MOVE", MoveRepeatType.CAN_REPEAT_X_TIMES, max_times=2)
+    bite_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        HUNTER_KILLER_DEADLY_BITE_DAMAGE,
+        HUNTER_KILLER_BASE_BITE_DAMAGE,
+    )
+    puncture_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        HUNTER_KILLER_DEADLY_PUNCTURE_DAMAGE,
+        HUNTER_KILLER_BASE_PUNCTURE_DAMAGE,
+    )
+
+    rand = RandomBranchState(HUNTER_KILLER_RANDOM_STATE)
+    rand.add_branch(HUNTER_KILLER_BITE_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(
+        HUNTER_KILLER_PUNCTURE_MOVE,
+        MoveRepeatType.CAN_REPEAT_X_TIMES,
+        max_times=HUNTER_KILLER_PUNCTURE_MAX_REPEAT,
+    )
 
     states: dict[str, MonsterState] = {
-        "TENDERIZING_GOOP_MOVE": MoveState(
-            "TENDERIZING_GOOP_MOVE",
+        HUNTER_KILLER_TENDERIZING_GOOP_MOVE: MoveState(
+            HUNTER_KILLER_TENDERIZING_GOOP_MOVE,
             tenderizing_goop,
             [debuff_intent()],
-            follow_up_id="RAND",
+            follow_up_id=HUNTER_KILLER_RANDOM_STATE,
         ),
-        "BITE_MOVE": MoveState("BITE_MOVE", bite, [attack_intent(bite_dmg)], follow_up_id="RAND"),
-        "PUNCTURE_MOVE": MoveState(
-            "PUNCTURE_MOVE",
+        HUNTER_KILLER_BITE_MOVE: MoveState(
+            HUNTER_KILLER_BITE_MOVE,
+            bite,
+            [attack_intent(bite_intent_damage)],
+            follow_up_id=HUNTER_KILLER_RANDOM_STATE,
+        ),
+        HUNTER_KILLER_PUNCTURE_MOVE: MoveState(
+            HUNTER_KILLER_PUNCTURE_MOVE,
             puncture,
-            [multi_attack_intent(puncture_dmg, 3)],
-            follow_up_id="RAND",
+            [multi_attack_intent(puncture_intent_damage, HUNTER_KILLER_PUNCTURE_REPEAT)],
+            follow_up_id=HUNTER_KILLER_RANDOM_STATE,
         ),
-        "RAND": rand,
+        HUNTER_KILLER_RANDOM_STATE: rand,
     }
-    return creature, MonsterAI(states, "TENDERIZING_GOOP_MOVE")
+    return creature, MonsterAI(states, HUNTER_KILLER_TENDERIZING_GOOP_MOVE)
 
 
 # ---- Wriggler (HP 17-21 / 18-22 asc) ----
@@ -883,65 +977,161 @@ def create_wriggler(
 
 # ---- LouseProgenitor (HP 134-136 / 138-141 asc) ----
 
-def create_louse_progenitor(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(134, 136)
-    creature = Creature(max_hp=hp, monster_id="LOUSE_PROGENITOR")
-    web_dmg = 9
-    web_frail = 2
-    pounce_dmg = 14
-    curl_block = 14
-    grow_str = 5
+LOUSE_PROGENITOR_MONSTER_ID = "LOUSE_PROGENITOR"
+LOUSE_PROGENITOR_BASE_MIN_HP = 134
+LOUSE_PROGENITOR_BASE_MAX_HP = 136
+LOUSE_PROGENITOR_TOUGH_MIN_HP = 138
+LOUSE_PROGENITOR_TOUGH_MAX_HP = 141
+LOUSE_PROGENITOR_BASE_WEB_DAMAGE = 9
+LOUSE_PROGENITOR_DEADLY_WEB_DAMAGE = 10
+LOUSE_PROGENITOR_WEB_FRAIL = 2
+LOUSE_PROGENITOR_BASE_POUNCE_DAMAGE = 14
+LOUSE_PROGENITOR_DEADLY_POUNCE_DAMAGE = 16
+LOUSE_PROGENITOR_BASE_CURL_BLOCK = 14
+LOUSE_PROGENITOR_TOUGH_CURL_BLOCK = 18
+LOUSE_PROGENITOR_GROW_STRENGTH = 5
+LOUSE_PROGENITOR_WEB_CANNON_MOVE = "WEB_CANNON_MOVE"
+LOUSE_PROGENITOR_CURL_AND_GROW_MOVE = "CURL_AND_GROW_MOVE"
+LOUSE_PROGENITOR_POUNCE_MOVE = "POUNCE_MOVE"
+
+
+def create_louse_progenitor(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        LOUSE_PROGENITOR_TOUGH_MIN_HP,
+        LOUSE_PROGENITOR_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        LOUSE_PROGENITOR_TOUGH_MAX_HP,
+        LOUSE_PROGENITOR_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=LOUSE_PROGENITOR_MONSTER_ID)
 
     def web(combat: CombatState) -> None:
+        web_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            LOUSE_PROGENITOR_DEADLY_WEB_DAMAGE,
+            LOUSE_PROGENITOR_BASE_WEB_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, web_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.FRAIL, web_frail, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, LOUSE_PROGENITOR_WEB_FRAIL, applier=creature)
 
     def curl_and_grow(combat: CombatState) -> None:
+        curl_block = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            LOUSE_PROGENITOR_TOUGH_CURL_BLOCK,
+            LOUSE_PROGENITOR_BASE_CURL_BLOCK,
+        )
         _gain_block(creature, curl_block, combat)
-        creature.apply_power(PowerId.STRENGTH, grow_str)
+        creature.apply_power(PowerId.STRENGTH, LOUSE_PROGENITOR_GROW_STRENGTH)
 
     def pounce(combat: CombatState) -> None:
+        pounce_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            LOUSE_PROGENITOR_DEADLY_POUNCE_DAMAGE,
+            LOUSE_PROGENITOR_BASE_POUNCE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, pounce_dmg)
 
+    web_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        LOUSE_PROGENITOR_DEADLY_WEB_DAMAGE,
+        LOUSE_PROGENITOR_BASE_WEB_DAMAGE,
+    )
+    pounce_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        LOUSE_PROGENITOR_DEADLY_POUNCE_DAMAGE,
+        LOUSE_PROGENITOR_BASE_POUNCE_DAMAGE,
+    )
+    curl_block = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        LOUSE_PROGENITOR_TOUGH_CURL_BLOCK,
+        LOUSE_PROGENITOR_BASE_CURL_BLOCK,
+    )
+
     states: dict[str, MonsterState] = {
-        "WEB_CANNON_MOVE": MoveState(
-            "WEB_CANNON_MOVE",
+        LOUSE_PROGENITOR_WEB_CANNON_MOVE: MoveState(
+            LOUSE_PROGENITOR_WEB_CANNON_MOVE,
             web,
-            [attack_intent(web_dmg), debuff_intent()],
-            follow_up_id="CURL_AND_GROW_MOVE",
+            [attack_intent(web_intent_damage), debuff_intent()],
+            follow_up_id=LOUSE_PROGENITOR_CURL_AND_GROW_MOVE,
         ),
-        "CURL_AND_GROW_MOVE": MoveState(
-            "CURL_AND_GROW_MOVE",
+        LOUSE_PROGENITOR_CURL_AND_GROW_MOVE: MoveState(
+            LOUSE_PROGENITOR_CURL_AND_GROW_MOVE,
             curl_and_grow,
             [defend_intent(), buff_intent()],
-            follow_up_id="POUNCE_MOVE",
+            follow_up_id=LOUSE_PROGENITOR_POUNCE_MOVE,
         ),
-        "POUNCE_MOVE": MoveState(
-            "POUNCE_MOVE",
+        LOUSE_PROGENITOR_POUNCE_MOVE: MoveState(
+            LOUSE_PROGENITOR_POUNCE_MOVE,
             pounce,
-            [attack_intent(pounce_dmg)],
-            follow_up_id="WEB_CANNON_MOVE",
+            [attack_intent(pounce_intent_damage)],
+            follow_up_id=LOUSE_PROGENITOR_WEB_CANNON_MOVE,
         ),
     }
     creature.apply_power(PowerId.CURL_UP, curl_block)
-    return creature, MonsterAI(states, "WEB_CANNON_MOVE")
+    return creature, MonsterAI(states, LOUSE_PROGENITOR_WEB_CANNON_MOVE)
 
 
 # ---- Myte (HP 61-67 / 64-69 asc) ----
 
-def create_myte(rng: Rng, slot: str = "first") -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(61, 67)
-    creature = Creature(max_hp=hp, monster_id="MYTE")
-    bite_dmg = 13
-    suck_dmg = 4
-    toxic_count = 2
+MYTE_MONSTER_ID = "MYTE"
+MYTE_BASE_MIN_HP = 61
+MYTE_BASE_MAX_HP = 67
+MYTE_TOUGH_MIN_HP = 64
+MYTE_TOUGH_MAX_HP = 69
+MYTE_BASE_BITE_DAMAGE = 13
+MYTE_DEADLY_BITE_DAMAGE = 15
+MYTE_BASE_SUCK_DAMAGE = 4
+MYTE_DEADLY_SUCK_DAMAGE = 6
+MYTE_BASE_SUCK_STRENGTH = 2
+MYTE_DEADLY_SUCK_STRENGTH = 3
+MYTE_TOXIC_COUNT = 2
+MYTE_FIRST_SLOT = "first"
+MYTE_SECOND_SLOT = "second"
+MYTE_TOXIC_MOVE = "TOXIC_MOVE"
+MYTE_BITE_MOVE = "BITE_MOVE"
+MYTE_SUCK_MOVE = "SUCK_MOVE"
+
+
+def create_myte(rng: Rng, slot: str = MYTE_FIRST_SLOT, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        MYTE_TOUGH_MIN_HP,
+        MYTE_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        MYTE_TOUGH_MAX_HP,
+        MYTE_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=MYTE_MONSTER_ID)
 
     def bite(combat: CombatState) -> None:
+        bite_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            MYTE_DEADLY_BITE_DAMAGE,
+            MYTE_BASE_BITE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, bite_dmg)
 
     def toxic(combat: CombatState) -> None:
         for target in living_player_targets(combat):
-            for _ in range(toxic_count):
+            for _ in range(MYTE_TOXIC_COUNT):
                 combat.add_generated_card_to_creature_hand(
                     target,
                     make_toxic(),
@@ -949,16 +1139,56 @@ def create_myte(rng: Rng, slot: str = "first") -> tuple[Creature, MonsterAI]:
                 )
 
     def suck(combat: CombatState) -> None:
+        suck_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            MYTE_DEADLY_SUCK_DAMAGE,
+            MYTE_BASE_SUCK_DAMAGE,
+        )
+        suck_strength = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            MYTE_DEADLY_SUCK_STRENGTH,
+            MYTE_BASE_SUCK_STRENGTH,
+        )
         _deal_damage_to_player(combat, creature, suck_dmg)
-        combat.apply_power_to(creature, PowerId.STRENGTH, 2, applier=creature)
+        combat.apply_power_to(creature, PowerId.STRENGTH, suck_strength, applier=creature)
+
+    bite_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        MYTE_DEADLY_BITE_DAMAGE,
+        MYTE_BASE_BITE_DAMAGE,
+    )
+    suck_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        MYTE_DEADLY_SUCK_DAMAGE,
+        MYTE_BASE_SUCK_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "TOXIC_MOVE": MoveState("TOXIC_MOVE", toxic, [status_intent()], follow_up_id="BITE_MOVE"),
-        "BITE_MOVE": MoveState("BITE_MOVE", bite, [attack_intent(bite_dmg)], follow_up_id="SUCK_MOVE"),
-        "SUCK_MOVE": MoveState("SUCK_MOVE", suck, [attack_intent(suck_dmg), buff_intent()], follow_up_id="TOXIC_MOVE"),
+        MYTE_TOXIC_MOVE: MoveState(
+            MYTE_TOXIC_MOVE,
+            toxic,
+            [status_intent()],
+            follow_up_id=MYTE_BITE_MOVE,
+        ),
+        MYTE_BITE_MOVE: MoveState(
+            MYTE_BITE_MOVE,
+            bite,
+            [attack_intent(bite_intent_damage)],
+            follow_up_id=MYTE_SUCK_MOVE,
+        ),
+        MYTE_SUCK_MOVE: MoveState(
+            MYTE_SUCK_MOVE,
+            suck,
+            [attack_intent(suck_intent_damage), buff_intent()],
+            follow_up_id=MYTE_TOXIC_MOVE,
+        ),
     }
 
-    initial = "TOXIC_MOVE" if slot == "first" else "SUCK_MOVE"
+    initial = MYTE_TOXIC_MOVE if slot == MYTE_FIRST_SLOT else MYTE_SUCK_MOVE
     return creature, MonsterAI(states, initial, rng)
 
 
