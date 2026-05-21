@@ -67,21 +67,17 @@ def can_enchant_card(card: CardInstance, name: str) -> bool:
         return card.rarity == CardRarity.BASIC and (
             CardTag.STRIKE in card.tags
             or CardTag.DEFEND in card.tags
-            or "STRIKE" in card.card_id.name
-            or "DEFEND" in card.card_id.name
         )
     if name == "Nimble":
         return card.gains_block
     if name == "Goopy":
-        return CardTag.DEFEND in card.tags or "DEFEND" in card.card_id.name
+        return CardTag.DEFEND in card.tags
     if name == "SoulsPower":
         return card.exhausts
     if name == "Slither":
         return not card.has_energy_cost_x
     if name == "TezcatarasEmber":
-        return card.rarity == CardRarity.BASIC and (
-            CardTag.STRIKE in card.tags or "STRIKE" in card.card_id.name
-        )
+        return card.rarity == CardRarity.BASIC and CardTag.STRIKE in card.tags
     return True
 
 

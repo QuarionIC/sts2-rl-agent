@@ -524,6 +524,18 @@ def card_preview(card_id: CardId) -> CardInstance:
     return create_reference_card(card_id, allow_generation=False)
 
 
+@lru_cache(maxsize=None)
+def is_basic_strike_or_defend_card_id(card_id: CardId) -> bool:
+    from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+
+    metadata = reference_metadata_by_card_id().get(card_id)
+    return (
+        metadata is not None
+        and metadata.rarity == CardRarity.BASIC
+        and (CardTag.STRIKE in metadata.tags or CardTag.DEFEND in metadata.tags)
+    )
+
+
 def _coerce_rarity(rarity: str | CardRarity | None) -> CardRarity | None:
     if rarity is None or isinstance(rarity, CardRarity):
         return rarity
@@ -776,14 +788,11 @@ def eligible_transform_cards(
         ]
 
     candidates = [card_id for card_id in candidates if card_id != original.card_id]
-    if original.rarity == CardRarity.BASIC and ("STRIKE" in original.card_id.name or "DEFEND" in original.card_id.name):
+    if is_basic_strike_or_defend_card_id(original.card_id):
         candidates = [
             card_id
             for card_id in candidates
-            if not (
-                card_metadata(card_id).rarity == CardRarity.BASIC
-                and ("STRIKE" in card_id.name or "DEFEND" in card_id.name)
-            )
+            if not is_basic_strike_or_defend_card_id(card_id)
         ]
     if candidates:
         return candidates

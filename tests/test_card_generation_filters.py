@@ -2,9 +2,11 @@
 
 from sts2_env.cards.factory import (
     create_character_cards,
+    create_card,
     create_cards_from_ids,
     eligible_character_cards,
     eligible_registered_cards,
+    eligible_transform_cards,
 )
 from sts2_env.cards.ironclad import make_feed
 from sts2_env.core.enums import CardId, CardType
@@ -77,6 +79,15 @@ def test_card_generation_filters_multiplayer_constraints_like_reference():
     assert CardId.STRATAGEM not in multiplayer_colorless
     assert CardId.WELL_LAID_PLANS in singleplayer_silent
     assert CardId.WELL_LAID_PLANS not in multiplayer_silent
+
+
+def test_basic_strike_transform_excludes_only_basic_strike_defend_candidates():
+    candidates = set(eligible_transform_cards(create_card(CardId.STRIKE_IRONCLAD), character_id="Ironclad"))
+
+    assert CardId.STRIKE_IRONCLAD not in candidates
+    assert CardId.DEFEND_IRONCLAD not in candidates
+    assert CardId.ASHEN_STRIKE in candidates
+    assert CardId.POMMEL_STRIKE in candidates
 
 
 def test_combat_card_creation_uses_multiplayer_constraints():

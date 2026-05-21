@@ -6,7 +6,7 @@ from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.ironclad_basic import make_defend_ironclad, make_strike_ironclad
 from sts2_env.core.combat import CombatState
-from sts2_env.core.enums import CardId, CardType, PowerId
+from sts2_env.core.enums import CardId, CardRarity, CardTag, CardType, PowerId
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 from sts2_env.relics.shop_event import Claws
@@ -29,6 +29,10 @@ def _make_combat(deck, character_id="Ironclad") -> CombatState:
     return combat
 
 
+def _basic_strikes(cards):
+    return [card for card in cards if card.rarity == CardRarity.BASIC and CardTag.STRIKE in card.tags]
+
+
 def test_player_state_enchant_helpers_mark_cards():
     player = PlayerState(character_id="Ironclad", deck=create_ironclad_starter_deck())
 
@@ -36,7 +40,7 @@ def test_player_state_enchant_helpers_mark_cards():
     assert enchanted == 1
     assert any(card.has_enchantment("Clone") for card in player.deck)
 
-    basic_strikes = [card for card in player.deck if card.rarity.name == "BASIC" and "STRIKE" in card.card_id.name]
+    basic_strikes = _basic_strikes(player.deck)
     player.enchant_basic_strikes("TezcatarasEmber")
     assert all(
         card.has_enchantment("TezcatarasEmber")
@@ -127,7 +131,7 @@ def test_event_enchant_relics_apply_expected_enchantments():
     player.deck = create_ironclad_starter_deck()
 
     assert player.obtain_relic("NUTRITIOUS_SOUP")
-    basic_strikes = [card for card in player.deck if card.rarity.name == "BASIC" and "STRIKE" in card.card_id.name]
+    basic_strikes = _basic_strikes(player.deck)
     assert all(card.has_enchantment("TezcatarasEmber") for card in basic_strikes)
 
     goopy_candidates = [card for card in player.deck if can_enchant_card(card, "Goopy")]
