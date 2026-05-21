@@ -364,6 +364,7 @@ class TestDeferredChoiceParity:
         assert len(generated) == 4
         assert sum(1 for card in generated if card.base_damage == 6) == 3
         assert sum(1 for card in generated if card.base_damage == 99) == 1
+        assert PowerId.NIGHTMARE not in combat.player.powers
 
     def test_multiple_nightmares_keep_separate_selected_cards(self):
         """Matches NightmarePower.cs: each applied instance stores its own selected card."""
@@ -395,3 +396,4 @@ class TestDeferredChoiceParity:
         assert len(generated_defends) == 4
         assert sum(1 for card in generated_strikes if card.base_damage == 6) == 3
         assert sum(1 for card in generated_defends if card.base_block == 5) == 3
+        assert PowerId.NIGHTMARE not in combat.player.powers

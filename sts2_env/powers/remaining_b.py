@@ -1173,8 +1173,8 @@ class NightmarePower(PowerInstance):
                     for _ in range(amount):
                         clone_fn(owner, selected_card)
             self._selected_cards.clear()
+            combat._remove_power(owner, self.power_id)
             self.selected_card = None
-            owner.powers.pop(self.power_id, None)
 
 
 # ---------------------------------------------------------------------------
