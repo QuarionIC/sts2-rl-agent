@@ -48,9 +48,12 @@ from sts2_env.encounters.act4 import (
     setup_cultists_normal,
     setup_fossil_stalker_normal,
     setup_gremlin_merc_normal,
+    setup_haunted_ship_normal,
     setup_lagavulin_matriarch_boss,
+    setup_living_fog_normal,
     setup_phantasmal_gardeners_elite,
     setup_seapunk_weak,
+    setup_sewer_clam_normal,
     setup_sludge_spinner_weak,
     setup_soul_fysh_boss,
     setup_toadpoles_normal,
@@ -106,9 +109,24 @@ from sts2_env.monsters.act4 import (
     GREMLIN_MERC_MONSTER_ID,
     GREMLIN_SPAWNED_MOVE,
     GREMLIN_TACKLE_MOVE,
+    GAS_BOMB_EXPLODE_MOVE,
+    GAS_BOMB_MONSTER_ID,
+    HAUNTED_SHIP_HAUNT_MOVE,
+    HAUNTED_SHIP_MONSTER_ID,
+    HAUNTED_SHIP_RANDOM_STATE,
+    HAUNTED_SHIP_RAMMING_SPEED_MOVE,
+    HAUNTED_SHIP_STOMP_MOVE,
+    HAUNTED_SHIP_SWIPE_MOVE,
+    LIVING_FOG_ADVANCED_GAS_MOVE,
+    LIVING_FOG_BLOAT_MOVE,
+    LIVING_FOG_MONSTER_ID,
+    LIVING_FOG_SUPER_GAS_BLAST_MOVE,
     SEAPUNK_BUBBLE_BURP_MOVE,
     SEAPUNK_MONSTER_ID,
     SEAPUNK_SEA_KICK_MOVE,
+    SEWER_CLAM_JET_MOVE,
+    SEWER_CLAM_MONSTER_ID,
+    SEWER_CLAM_PRESSURIZE_MOVE,
     SEAPUNK_SPINNING_KICK_MOVE,
     SNEAKY_GREMLIN_MONSTER_ID,
     SLUDGE_SPINNER_OIL_SPRAY_MOVE,
@@ -706,6 +724,25 @@ GREMLIN_MERC_THIEVERY = 20
 SNEAKY_GREMLIN_A8_HP_RANGE = (11, 15)
 SNEAKY_GREMLIN_TACKLE_DAMAGE_A9 = 10
 FAT_GREMLIN_A8_HP_RANGE = (14, 18)
+HAUNTED_SHIP_A8_HP = 67
+HAUNTED_SHIP_RAMMING_SPEED_DAMAGE_A9 = 11
+HAUNTED_SHIP_RAMMING_SPEED_WOUNDS = 2
+HAUNTED_SHIP_SWIPE_DAMAGE_A9 = 14
+HAUNTED_SHIP_STOMP_DAMAGE_A9 = 5
+HAUNTED_SHIP_STOMP_HITS = 3
+HAUNTED_SHIP_HAUNT_DEBUFF = 2
+LIVING_FOG_A8_HP = 82
+LIVING_FOG_ADVANCED_GAS_DAMAGE_A9 = 9
+LIVING_FOG_ADVANCED_GAS_SMOGGY = 1
+LIVING_FOG_BLOAT_DAMAGE_A9 = 6
+LIVING_FOG_SUPER_GAS_BLAST_DAMAGE_A9 = 9
+GAS_BOMB_A8_HP = 12
+GAS_BOMB_EXPLODE_DAMAGE_A9 = 9
+GAS_BOMB_MINION = 1
+SEWER_CLAM_A8_HP = 58
+SEWER_CLAM_JET_DAMAGE_A9 = 11
+SEWER_CLAM_PRESSURIZE_STRENGTH = 4
+SEWER_CLAM_PLATING_A8 = 9
 FABRICATOR_BASE_HP = 150
 FABRICATOR_A8_HP = 155
 FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9 = 21
@@ -5868,6 +5905,140 @@ class TestFixedRotation:
         assert encounter_sneaky.max_hp >= SNEAKY_GREMLIN_A8_HP_RANGE[0]
         assert encounter_fat.max_hp >= FAT_GREMLIN_A8_HP_RANGE[0]
         assert encounter_merc_ai.states[GREMLIN_MERC_HEHE_MOVE].intents[0].damage == GREMLIN_MERC_HEHE_DAMAGE_A8
+
+    def test_act4_normal_ship_fog_bomb_and_clam_ascension_scaling_matches_csharp(self):
+        rng_seed = 1323
+
+        ship_combat = _make_combat(rng_seed)
+        ship_combat.ascension_level = 9
+        ship, ship_ai = create_haunted_ship(Rng(rng_seed), ascension_level=9)
+        ship_combat.add_enemy(ship, ship_ai)
+
+        assert ship.max_hp == HAUNTED_SHIP_A8_HP
+        assert ship_ai.current_move.state_id == HAUNTED_SHIP_RAMMING_SPEED_MOVE
+        assert {
+            HAUNTED_SHIP_RANDOM_STATE,
+            HAUNTED_SHIP_RAMMING_SPEED_MOVE,
+            HAUNTED_SHIP_SWIPE_MOVE,
+            HAUNTED_SHIP_STOMP_MOVE,
+            HAUNTED_SHIP_HAUNT_MOVE,
+        }.issubset(ship_ai.states)
+        ramming_speed = ship_ai.states[HAUNTED_SHIP_RAMMING_SPEED_MOVE]
+        assert ramming_speed.intents[0].damage == HAUNTED_SHIP_RAMMING_SPEED_DAMAGE_A9
+        assert ramming_speed.intents[1].hits == HAUNTED_SHIP_RAMMING_SPEED_WOUNDS
+        ship_combat.discard_pile.clear()
+        player_hp_before_ramming = ship_combat.player.current_hp
+        ramming_speed.perform(ship_combat)
+        assert ship_combat.player.current_hp == player_hp_before_ramming - HAUNTED_SHIP_RAMMING_SPEED_DAMAGE_A9
+        assert [card.card_id for card in ship_combat.discard_pile] == [CardId.WOUND] * HAUNTED_SHIP_RAMMING_SPEED_WOUNDS
+
+        ship_combat = _make_combat(rng_seed)
+        ship_combat.ascension_level = 9
+        ship, ship_ai = create_haunted_ship(Rng(rng_seed), ascension_level=9)
+        ship_combat.add_enemy(ship, ship_ai)
+        swipe = ship_ai.states[HAUNTED_SHIP_SWIPE_MOVE]
+        assert swipe.intents[0].damage == HAUNTED_SHIP_SWIPE_DAMAGE_A9
+        player_hp_before_swipe = ship_combat.player.current_hp
+        swipe.perform(ship_combat)
+        assert ship_combat.player.current_hp == player_hp_before_swipe - HAUNTED_SHIP_SWIPE_DAMAGE_A9
+
+        stomp = ship_ai.states[HAUNTED_SHIP_STOMP_MOVE]
+        assert stomp.intents[0].damage == HAUNTED_SHIP_STOMP_DAMAGE_A9
+        assert stomp.intents[0].hits == HAUNTED_SHIP_STOMP_HITS
+        player_hp_before_stomp = ship_combat.player.current_hp
+        stomp.perform(ship_combat)
+        assert ship_combat.player.current_hp == (
+            player_hp_before_stomp - HAUNTED_SHIP_STOMP_DAMAGE_A9 * HAUNTED_SHIP_STOMP_HITS
+        )
+
+        ship_ai.states[HAUNTED_SHIP_HAUNT_MOVE].perform(ship_combat)
+        assert ship_combat.player.get_power_amount(PowerId.WEAK) == HAUNTED_SHIP_HAUNT_DEBUFF
+        assert ship_combat.player.get_power_amount(PowerId.FRAIL) == HAUNTED_SHIP_HAUNT_DEBUFF
+        assert ship_combat.player.get_power_amount(PowerId.VULNERABLE) == HAUNTED_SHIP_HAUNT_DEBUFF
+
+        fog_combat = _make_combat(rng_seed)
+        fog_combat.ascension_level = 9
+        fog, fog_ai = create_living_fog(Rng(rng_seed), ascension_level=9)
+        fog_combat.add_enemy(fog, fog_ai)
+        assert fog.max_hp == LIVING_FOG_A8_HP
+        assert fog_ai.current_move.state_id == LIVING_FOG_ADVANCED_GAS_MOVE
+
+        advanced_gas = fog_ai.states[LIVING_FOG_ADVANCED_GAS_MOVE]
+        assert advanced_gas.intents[0].damage == LIVING_FOG_ADVANCED_GAS_DAMAGE_A9
+        player_hp_before_advanced = fog_combat.player.current_hp
+        advanced_gas.perform(fog_combat)
+        assert fog_combat.player.current_hp == player_hp_before_advanced - LIVING_FOG_ADVANCED_GAS_DAMAGE_A9
+        assert fog_combat.player.get_power_amount(PowerId.SMOGGY) == LIVING_FOG_ADVANCED_GAS_SMOGGY
+
+        bloat = fog_ai.states[LIVING_FOG_BLOAT_MOVE]
+        assert bloat.intents[0].damage == LIVING_FOG_BLOAT_DAMAGE_A9
+        player_hp_before_bloat = fog_combat.player.current_hp
+        bloat.perform(fog_combat)
+        assert fog_combat.player.current_hp == player_hp_before_bloat - LIVING_FOG_BLOAT_DAMAGE_A9
+        assert [enemy.monster_id for enemy in fog_combat.enemies] == [LIVING_FOG_MONSTER_ID, GAS_BOMB_MONSTER_ID]
+        spawned_bomb = fog_combat.enemies[-1]
+        spawned_bomb_ai = fog_combat.enemy_ais[spawned_bomb.combat_id]
+        assert spawned_bomb.max_hp == GAS_BOMB_A8_HP
+        assert spawned_bomb.get_power_amount(PowerId.MINION) == GAS_BOMB_MINION
+        assert spawned_bomb_ai.states[GAS_BOMB_EXPLODE_MOVE].intents[0].damage == GAS_BOMB_EXPLODE_DAMAGE_A9
+
+        super_gas_blast = fog_ai.states[LIVING_FOG_SUPER_GAS_BLAST_MOVE]
+        assert super_gas_blast.intents[0].damage == LIVING_FOG_SUPER_GAS_BLAST_DAMAGE_A9
+        player_hp_before_super = fog_combat.player.current_hp
+        super_gas_blast.perform(fog_combat)
+        assert fog_combat.player.current_hp == player_hp_before_super - LIVING_FOG_SUPER_GAS_BLAST_DAMAGE_A9
+
+        bomb_combat = _make_combat(rng_seed)
+        bomb_combat.ascension_level = 9
+        bomb, bomb_ai = create_gas_bomb(Rng(rng_seed), ascension_level=9)
+        bomb_combat.add_enemy(bomb, bomb_ai)
+        assert bomb.max_hp == GAS_BOMB_A8_HP
+        assert bomb.get_power_amount(PowerId.MINION) == GAS_BOMB_MINION
+        assert bomb_ai.current_move.state_id == GAS_BOMB_EXPLODE_MOVE
+        player_hp_before_bomb = bomb_combat.player.current_hp
+        bomb_ai.current_move.perform(bomb_combat)
+        assert bomb_combat.player.current_hp == player_hp_before_bomb - GAS_BOMB_EXPLODE_DAMAGE_A9
+        assert bomb.is_dead
+
+        clam_combat = _make_combat(rng_seed)
+        clam_combat.ascension_level = 9
+        clam, clam_ai = create_sewer_clam(Rng(rng_seed), ascension_level=9)
+        clam_combat.add_enemy(clam, clam_ai)
+        assert clam.max_hp == SEWER_CLAM_A8_HP
+        assert clam.get_power_amount(PowerId.PLATING) == SEWER_CLAM_PLATING_A8
+        assert clam_ai.current_move.state_id == SEWER_CLAM_JET_MOVE
+
+        jet = clam_ai.states[SEWER_CLAM_JET_MOVE]
+        assert jet.intents[0].damage == SEWER_CLAM_JET_DAMAGE_A9
+        player_hp_before_jet = clam_combat.player.current_hp
+        jet.perform(clam_combat)
+        assert clam_combat.player.current_hp == player_hp_before_jet - SEWER_CLAM_JET_DAMAGE_A9
+        clam_ai.states[SEWER_CLAM_PRESSURIZE_MOVE].perform(clam_combat)
+        assert clam.get_power_amount(PowerId.STRENGTH) == SEWER_CLAM_PRESSURIZE_STRENGTH
+
+        ship_encounter = _make_combat(rng_seed)
+        ship_encounter.ascension_level = 9
+        setup_haunted_ship_normal(ship_encounter, Rng(rng_seed))
+        encounter_ship = ship_encounter.enemies[0]
+        encounter_ship_ai = ship_encounter.enemy_ais[encounter_ship.combat_id]
+        assert encounter_ship.max_hp == HAUNTED_SHIP_A8_HP
+        assert encounter_ship_ai.states[HAUNTED_SHIP_STOMP_MOVE].intents[0].damage == HAUNTED_SHIP_STOMP_DAMAGE_A9
+
+        fog_encounter = _make_combat(rng_seed)
+        fog_encounter.ascension_level = 9
+        setup_living_fog_normal(fog_encounter, Rng(rng_seed))
+        encounter_fog = fog_encounter.enemies[0]
+        encounter_fog_ai = fog_encounter.enemy_ais[encounter_fog.combat_id]
+        assert encounter_fog.max_hp == LIVING_FOG_A8_HP
+        assert encounter_fog_ai.states[LIVING_FOG_BLOAT_MOVE].intents[0].damage == LIVING_FOG_BLOAT_DAMAGE_A9
+
+        clam_encounter = _make_combat(rng_seed)
+        clam_encounter.ascension_level = 9
+        setup_sewer_clam_normal(clam_encounter, Rng(rng_seed))
+        encounter_clam = clam_encounter.enemies[0]
+        encounter_clam_ai = clam_encounter.enemy_ais[encounter_clam.combat_id]
+        assert encounter_clam.max_hp == SEWER_CLAM_A8_HP
+        assert encounter_clam_ai.states[SEWER_CLAM_JET_MOVE].intents[0].damage == SEWER_CLAM_JET_DAMAGE_A9
 
     def test_act4_weak_monsters_use_original_move_ids_and_stats(self):
         slug, slug_ai = create_corpse_slug(Rng(50), starter_idx=0)

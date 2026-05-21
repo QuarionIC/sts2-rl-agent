@@ -854,14 +854,33 @@ def create_gremlin_merc(rng: Rng, ascension_level: int = 0) -> tuple[Creature, M
 
 # ---- HauntedShip (HP 63 / 67 asc) ----
 
-def create_haunted_ship(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 63
-    creature = Creature(max_hp=hp, monster_id="HAUNTED_SHIP")
-    ramming_speed_dmg = 10
-    ramming_speed_wounds = 2
-    swipe_dmg = 13
-    stomp_dmg = 4
-    haunt_debuff = 2
+HAUNTED_SHIP_MONSTER_ID = "HAUNTED_SHIP"
+HAUNTED_SHIP_BASE_HP = 63
+HAUNTED_SHIP_TOUGH_HP = 67
+HAUNTED_SHIP_BASE_RAMMING_SPEED_DAMAGE = 10
+HAUNTED_SHIP_DEADLY_RAMMING_SPEED_DAMAGE = 11
+HAUNTED_SHIP_RAMMING_SPEED_STATUS_COUNT = 2
+HAUNTED_SHIP_BASE_SWIPE_DAMAGE = 13
+HAUNTED_SHIP_DEADLY_SWIPE_DAMAGE = 14
+HAUNTED_SHIP_BASE_STOMP_DAMAGE = 4
+HAUNTED_SHIP_DEADLY_STOMP_DAMAGE = 5
+HAUNTED_SHIP_STOMP_REPEAT = 3
+HAUNTED_SHIP_HAUNT_DEBUFF = 2
+HAUNTED_SHIP_RANDOM_STATE = "RAND"
+HAUNTED_SHIP_RAMMING_SPEED_MOVE = "RAMMING_SPEED_MOVE"
+HAUNTED_SHIP_SWIPE_MOVE = "SWIPE_MOVE"
+HAUNTED_SHIP_STOMP_MOVE = "STOMP_MOVE"
+HAUNTED_SHIP_HAUNT_MOVE = "HAUNT_MOVE"
+
+
+def create_haunted_ship(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        HAUNTED_SHIP_TOUGH_HP,
+        HAUNTED_SHIP_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=HAUNTED_SHIP_MONSTER_ID)
 
     def _odd_round_weight() -> float:
         combat = creature.combat_state
@@ -872,114 +891,255 @@ def create_haunted_ship(rng: Rng) -> tuple[Creature, MonsterAI]:
         return 1.0 if combat is not None and combat.round_number % 2 == 0 else 0.0
 
     def ramming_speed(combat: CombatState) -> None:
+        ramming_speed_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            HAUNTED_SHIP_DEADLY_RAMMING_SPEED_DAMAGE,
+            HAUNTED_SHIP_BASE_RAMMING_SPEED_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, ramming_speed_dmg)
         if combat.is_over:
             return
-        add_generated_cards_to_living_player_discards(combat, make_wound, ramming_speed_wounds)
+        add_generated_cards_to_living_player_discards(
+            combat,
+            make_wound,
+            HAUNTED_SHIP_RAMMING_SPEED_STATUS_COUNT,
+        )
 
     def swipe(combat: CombatState) -> None:
+        swipe_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            HAUNTED_SHIP_DEADLY_SWIPE_DAMAGE,
+            HAUNTED_SHIP_BASE_SWIPE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, swipe_dmg)
 
     def stomp(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, stomp_dmg, hits=3)
+        stomp_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            HAUNTED_SHIP_DEADLY_STOMP_DAMAGE,
+            HAUNTED_SHIP_BASE_STOMP_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, stomp_dmg, hits=HAUNTED_SHIP_STOMP_REPEAT)
 
     def haunt(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.WEAK, haunt_debuff, applier=creature)
-        apply_power_to_living_player_targets(combat, PowerId.FRAIL, haunt_debuff, applier=creature)
-        apply_power_to_living_player_targets(combat, PowerId.VULNERABLE, haunt_debuff, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.WEAK, HAUNTED_SHIP_HAUNT_DEBUFF, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, HAUNTED_SHIP_HAUNT_DEBUFF, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.VULNERABLE, HAUNTED_SHIP_HAUNT_DEBUFF, applier=creature)
 
-    rand = RandomBranchState("RAND")
-    rand.add_branch("RAMMING_SPEED_MOVE", MoveRepeatType.CANNOT_REPEAT, weight=_odd_round_weight)
-    rand.add_branch("SWIPE_MOVE", MoveRepeatType.CANNOT_REPEAT, weight=_odd_round_weight)
-    rand.add_branch("STOMP_MOVE", MoveRepeatType.CANNOT_REPEAT, weight=_odd_round_weight)
-    rand.add_branch("HAUNT_MOVE", MoveRepeatType.USE_ONLY_ONCE, weight=_even_round_weight)
+    ramming_speed_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        HAUNTED_SHIP_DEADLY_RAMMING_SPEED_DAMAGE,
+        HAUNTED_SHIP_BASE_RAMMING_SPEED_DAMAGE,
+    )
+    swipe_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        HAUNTED_SHIP_DEADLY_SWIPE_DAMAGE,
+        HAUNTED_SHIP_BASE_SWIPE_DAMAGE,
+    )
+    stomp_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        HAUNTED_SHIP_DEADLY_STOMP_DAMAGE,
+        HAUNTED_SHIP_BASE_STOMP_DAMAGE,
+    )
+
+    rand = RandomBranchState(HAUNTED_SHIP_RANDOM_STATE)
+    rand.add_branch(HAUNTED_SHIP_RAMMING_SPEED_MOVE, MoveRepeatType.CANNOT_REPEAT, weight=_odd_round_weight)
+    rand.add_branch(HAUNTED_SHIP_SWIPE_MOVE, MoveRepeatType.CANNOT_REPEAT, weight=_odd_round_weight)
+    rand.add_branch(HAUNTED_SHIP_STOMP_MOVE, MoveRepeatType.CANNOT_REPEAT, weight=_odd_round_weight)
+    rand.add_branch(HAUNTED_SHIP_HAUNT_MOVE, MoveRepeatType.USE_ONLY_ONCE, weight=_even_round_weight)
 
     states: dict[str, MonsterState] = {
-        "RAND": rand,
-        "RAMMING_SPEED_MOVE": MoveState(
-            "RAMMING_SPEED_MOVE",
+        HAUNTED_SHIP_RANDOM_STATE: rand,
+        HAUNTED_SHIP_RAMMING_SPEED_MOVE: MoveState(
+            HAUNTED_SHIP_RAMMING_SPEED_MOVE,
             ramming_speed,
-            [attack_intent(ramming_speed_dmg), status_intent()],
-            follow_up_id="RAND",
+            [attack_intent(ramming_speed_intent_damage), status_intent()],
+            follow_up_id=HAUNTED_SHIP_RANDOM_STATE,
         ),
-        "SWIPE_MOVE": MoveState("SWIPE_MOVE", swipe, [attack_intent(swipe_dmg)], follow_up_id="RAND"),
-        "STOMP_MOVE": MoveState(
-            "STOMP_MOVE",
+        HAUNTED_SHIP_SWIPE_MOVE: MoveState(
+            HAUNTED_SHIP_SWIPE_MOVE,
+            swipe,
+            [attack_intent(swipe_intent_damage)],
+            follow_up_id=HAUNTED_SHIP_RANDOM_STATE,
+        ),
+        HAUNTED_SHIP_STOMP_MOVE: MoveState(
+            HAUNTED_SHIP_STOMP_MOVE,
             stomp,
-            [multi_attack_intent(stomp_dmg, 3)],
-            follow_up_id="RAND",
+            [multi_attack_intent(stomp_intent_damage, HAUNTED_SHIP_STOMP_REPEAT)],
+            follow_up_id=HAUNTED_SHIP_RANDOM_STATE,
         ),
-        "HAUNT_MOVE": MoveState("HAUNT_MOVE", haunt, [debuff_intent()], follow_up_id="RAND"),
+        HAUNTED_SHIP_HAUNT_MOVE: MoveState(
+            HAUNTED_SHIP_HAUNT_MOVE,
+            haunt,
+            [debuff_intent()],
+            follow_up_id=HAUNTED_SHIP_RANDOM_STATE,
+        ),
     }
-    return creature, MonsterAI(states, "RAMMING_SPEED_MOVE")
+    states[HAUNTED_SHIP_RAMMING_SPEED_MOVE].intents[1].hits = HAUNTED_SHIP_RAMMING_SPEED_STATUS_COUNT
+    return creature, MonsterAI(states, HAUNTED_SHIP_RAMMING_SPEED_MOVE)
 
 
 # ---- LivingFog (HP 80 / 82 asc) + GasBomb ----
 
-def create_gas_bomb(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 10
-    creature = Creature(max_hp=hp, monster_id="GAS_BOMB")
-    explode_dmg = 8
+GAS_BOMB_MONSTER_ID = "GAS_BOMB"
+GAS_BOMB_BASE_HP = 10
+GAS_BOMB_TOUGH_HP = 12
+GAS_BOMB_BASE_EXPLODE_DAMAGE = 8
+GAS_BOMB_DEADLY_EXPLODE_DAMAGE = 9
+GAS_BOMB_EXPLODE_MOVE = "EXPLODE_MOVE"
+
+
+def create_gas_bomb(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        GAS_BOMB_TOUGH_HP,
+        GAS_BOMB_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=GAS_BOMB_MONSTER_ID)
 
     def explode(combat: CombatState) -> None:
+        explode_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            GAS_BOMB_DEADLY_EXPLODE_DAMAGE,
+            GAS_BOMB_BASE_EXPLODE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, explode_dmg)
         combat.kill_creature(creature)
 
+    explode_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        GAS_BOMB_DEADLY_EXPLODE_DAMAGE,
+        GAS_BOMB_BASE_EXPLODE_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "EXPLODE_MOVE": MoveState(
-            "EXPLODE_MOVE",
+        GAS_BOMB_EXPLODE_MOVE: MoveState(
+            GAS_BOMB_EXPLODE_MOVE,
             explode,
-            [Intent(IntentType.DEATH_BLOW, damage=explode_dmg)],
-            follow_up_id="EXPLODE_MOVE",
+            [Intent(IntentType.DEATH_BLOW, damage=explode_intent_damage)],
+            follow_up_id=GAS_BOMB_EXPLODE_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "EXPLODE_MOVE")
+    return creature, MonsterAI(states, GAS_BOMB_EXPLODE_MOVE)
 
 
-def create_living_fog(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 80
-    creature = Creature(max_hp=hp, monster_id="LIVING_FOG")
-    advanced_gas_dmg = 8
-    advanced_gas_smoggy = 1
-    bloat_dmg = 5
-    super_gas_blast_dmg = 8
-    state = {"bloat_amount": 1}
+LIVING_FOG_MONSTER_ID = "LIVING_FOG"
+LIVING_FOG_BASE_HP = 80
+LIVING_FOG_TOUGH_HP = 82
+LIVING_FOG_BASE_ADVANCED_GAS_DAMAGE = 8
+LIVING_FOG_DEADLY_ADVANCED_GAS_DAMAGE = 9
+LIVING_FOG_ADVANCED_GAS_SMOGGY = 1
+LIVING_FOG_BASE_BLOAT_DAMAGE = 5
+LIVING_FOG_DEADLY_BLOAT_DAMAGE = 6
+LIVING_FOG_BASE_SUPER_GAS_BLAST_DAMAGE = 8
+LIVING_FOG_DEADLY_SUPER_GAS_BLAST_DAMAGE = 9
+LIVING_FOG_INITIAL_BLOAT_AMOUNT = 1
+LIVING_FOG_MAX_BLOAT_AMOUNT = 5
+LIVING_FOG_BLOAT_AMOUNT_KEY = "bloat_amount"
+LIVING_FOG_ADVANCED_GAS_MOVE = "ADVANCED_GAS_MOVE"
+LIVING_FOG_BLOAT_MOVE = "BLOAT_MOVE"
+LIVING_FOG_SUPER_GAS_BLAST_MOVE = "SUPER_GAS_BLAST_MOVE"
+
+
+def create_living_fog(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        LIVING_FOG_TOUGH_HP,
+        LIVING_FOG_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=LIVING_FOG_MONSTER_ID)
+    state = {LIVING_FOG_BLOAT_AMOUNT_KEY: LIVING_FOG_INITIAL_BLOAT_AMOUNT}
 
     def advanced_gas(combat: CombatState) -> None:
+        advanced_gas_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            LIVING_FOG_DEADLY_ADVANCED_GAS_DAMAGE,
+            LIVING_FOG_BASE_ADVANCED_GAS_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, advanced_gas_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.SMOGGY, advanced_gas_smoggy, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.SMOGGY,
+            LIVING_FOG_ADVANCED_GAS_SMOGGY,
+            applier=creature,
+        )
 
     def bloat(combat: CombatState) -> None:
-        for _ in range(state["bloat_amount"]):
-            bomb, bomb_ai = create_gas_bomb(rng)
+        bloat_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            LIVING_FOG_DEADLY_BLOAT_DAMAGE,
+            LIVING_FOG_BASE_BLOAT_DAMAGE,
+        )
+        for _ in range(state[LIVING_FOG_BLOAT_AMOUNT_KEY]):
+            bomb, bomb_ai = create_gas_bomb(rng, ascension_level=_combat_ascension_level(combat))
             combat.add_enemy(bomb, bomb_ai)
-        state["bloat_amount"] = min(state["bloat_amount"] + 1, 5)
+        state[LIVING_FOG_BLOAT_AMOUNT_KEY] = min(
+            state[LIVING_FOG_BLOAT_AMOUNT_KEY] + 1,
+            LIVING_FOG_MAX_BLOAT_AMOUNT,
+        )
         _deal_damage_to_player(combat, creature, bloat_dmg)
 
     def super_gas_blast(combat: CombatState) -> None:
+        super_gas_blast_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            LIVING_FOG_DEADLY_SUPER_GAS_BLAST_DAMAGE,
+            LIVING_FOG_BASE_SUPER_GAS_BLAST_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, super_gas_blast_dmg)
 
+    advanced_gas_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        LIVING_FOG_DEADLY_ADVANCED_GAS_DAMAGE,
+        LIVING_FOG_BASE_ADVANCED_GAS_DAMAGE,
+    )
+    bloat_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        LIVING_FOG_DEADLY_BLOAT_DAMAGE,
+        LIVING_FOG_BASE_BLOAT_DAMAGE,
+    )
+    super_gas_blast_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        LIVING_FOG_DEADLY_SUPER_GAS_BLAST_DAMAGE,
+        LIVING_FOG_BASE_SUPER_GAS_BLAST_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "ADVANCED_GAS_MOVE": MoveState(
-            "ADVANCED_GAS_MOVE",
+        LIVING_FOG_ADVANCED_GAS_MOVE: MoveState(
+            LIVING_FOG_ADVANCED_GAS_MOVE,
             advanced_gas,
-            [attack_intent(advanced_gas_dmg), Intent(IntentType.CARD_DEBUFF)],
-            follow_up_id="BLOAT_MOVE",
+            [attack_intent(advanced_gas_intent_damage), Intent(IntentType.CARD_DEBUFF)],
+            follow_up_id=LIVING_FOG_BLOAT_MOVE,
         ),
-        "BLOAT_MOVE": MoveState(
-            "BLOAT_MOVE",
+        LIVING_FOG_BLOAT_MOVE: MoveState(
+            LIVING_FOG_BLOAT_MOVE,
             bloat,
-            [attack_intent(bloat_dmg), Intent(IntentType.SUMMON)],
-            follow_up_id="SUPER_GAS_BLAST_MOVE",
+            [attack_intent(bloat_intent_damage), Intent(IntentType.SUMMON)],
+            follow_up_id=LIVING_FOG_SUPER_GAS_BLAST_MOVE,
         ),
-        "SUPER_GAS_BLAST_MOVE": MoveState(
-            "SUPER_GAS_BLAST_MOVE",
+        LIVING_FOG_SUPER_GAS_BLAST_MOVE: MoveState(
+            LIVING_FOG_SUPER_GAS_BLAST_MOVE,
             super_gas_blast,
-            [attack_intent(super_gas_blast_dmg)],
-            follow_up_id="BLOAT_MOVE",
+            [attack_intent(super_gas_blast_intent_damage)],
+            follow_up_id=LIVING_FOG_BLOAT_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "ADVANCED_GAS_MOVE")
+    return creature, MonsterAI(states, LIVING_FOG_ADVANCED_GAS_MOVE)
 
 
 # ---- PunchConstruct (HP 55 / 60 asc) ----
@@ -1037,34 +1197,68 @@ def create_punch_construct(
 
 # ---- SewerClam (HP 56 / 58 asc) ----
 
-def create_sewer_clam(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 56
-    creature = Creature(max_hp=hp, monster_id="SEWER_CLAM")
-    jet_dmg = 10
-    pressurize_str = 4
+SEWER_CLAM_MONSTER_ID = "SEWER_CLAM"
+SEWER_CLAM_BASE_HP = 56
+SEWER_CLAM_TOUGH_HP = 58
+SEWER_CLAM_BASE_JET_DAMAGE = 10
+SEWER_CLAM_DEADLY_JET_DAMAGE = 11
+SEWER_CLAM_PRESSURIZE_STRENGTH = 4
+SEWER_CLAM_BASE_PLATING = 8
+SEWER_CLAM_TOUGH_PLATING = 9
+SEWER_CLAM_PRESSURIZE_MOVE = "PRESSURIZE_MOVE"
+SEWER_CLAM_JET_MOVE = "JET_MOVE"
+
+
+def create_sewer_clam(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SEWER_CLAM_TOUGH_HP,
+        SEWER_CLAM_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=SEWER_CLAM_MONSTER_ID)
 
     def pressurize(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, pressurize_str, applier=creature)
+        creature.apply_power(PowerId.STRENGTH, SEWER_CLAM_PRESSURIZE_STRENGTH, applier=creature)
 
     def jet(combat: CombatState) -> None:
+        jet_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SEWER_CLAM_DEADLY_JET_DAMAGE,
+            SEWER_CLAM_BASE_JET_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, jet_dmg)
 
+    jet_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SEWER_CLAM_DEADLY_JET_DAMAGE,
+        SEWER_CLAM_BASE_JET_DAMAGE,
+    )
+    plating = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SEWER_CLAM_TOUGH_PLATING,
+        SEWER_CLAM_BASE_PLATING,
+    )
+
     states: dict[str, MonsterState] = {
-        "PRESSURIZE_MOVE": MoveState(
-            "PRESSURIZE_MOVE",
+        SEWER_CLAM_PRESSURIZE_MOVE: MoveState(
+            SEWER_CLAM_PRESSURIZE_MOVE,
             pressurize,
             [buff_intent()],
-            follow_up_id="JET_MOVE",
+            follow_up_id=SEWER_CLAM_JET_MOVE,
         ),
-        "JET_MOVE": MoveState(
-            "JET_MOVE",
+        SEWER_CLAM_JET_MOVE: MoveState(
+            SEWER_CLAM_JET_MOVE,
             jet,
-            [attack_intent(jet_dmg)],
-            follow_up_id="PRESSURIZE_MOVE",
+            [attack_intent(jet_intent_damage)],
+            follow_up_id=SEWER_CLAM_PRESSURIZE_MOVE,
         ),
     }
-    creature.apply_power(PowerId.PLATING, 8)
-    return creature, MonsterAI(states, "JET_MOVE")
+    creature.apply_power(PowerId.PLATING, plating)
+    return creature, MonsterAI(states, SEWER_CLAM_JET_MOVE)
 
 
 # ---- TwoTailedRat (HP 17-21 / 18-22 asc) ----

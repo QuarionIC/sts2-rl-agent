@@ -101,12 +101,12 @@ def setup_gremlin_merc_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_haunted_ship_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_haunted_ship(rng)
+    creature, ai = create_haunted_ship(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
 def setup_living_fog_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_living_fog(rng)
+    creature, ai = create_living_fog(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
@@ -116,7 +116,7 @@ def setup_punch_construct_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_sewer_clam_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_sewer_clam(rng)
+    creature, ai = create_sewer_clam(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
