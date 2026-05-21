@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from sts2_env.cards.base import new_card_instance_id, new_card_instance_id_after
 from sts2_env.cards.enchantments import can_enchant_card
+from sts2_env.cards.factory import reference_card_entry
 from sts2_env.characters.all import ALL_CHARACTERS
 from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import (
@@ -2715,7 +2716,7 @@ class PaelsTooth(RelicInstance):
         self._stored_cards: list[CardInstance] = []
 
     def _store_and_remove_cards(self, owner: Creature, cards: list[CardInstance]) -> int:
-        selected = sorted(cards[:self.CARDS], key=lambda card: card.card_id.name)
+        selected = sorted(cards[:self.CARDS], key=lambda card: reference_card_entry(card.card_id))
         stored_cards: list[CardInstance] = []
         for card in selected:
             stored_cards.append(card.clone(new_card_instance_id_after([*owner.deck, *stored_cards])))

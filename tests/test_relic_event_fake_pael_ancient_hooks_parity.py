@@ -382,6 +382,21 @@ class TestRelicEventFakePaelAncientHooksParity:
 
         assert run_state.player.deck == [grimoire]
 
+    def test_paels_tooth_stores_cards_by_reference_entry_order(self):
+        run_state = RunState(seed=997, character_id="Ironclad")
+        run_state.player.deck = [
+            create_card(CardId.THUNDERCLAP),
+            create_card(CardId.THUNDER_CARD),
+        ]
+
+        assert run_state.player.obtain_relic("PAELS_TOOTH")
+        tooth = next(relic for relic in run_state.player.relic_objects if relic.relic_id.name == "PAELS_TOOTH")
+
+        assert [card.card_id for card in tooth._stored_cards] == [  # noqa: SLF001
+            CardId.THUNDER_CARD,
+            CardId.THUNDERCLAP,
+        ]
+
     def test_paels_legion_doubles_block_then_enters_two_turn_cooldown(self):
         combat = _make_combat(["PaelsLegion"], seed=998)
         pet = _event_pet(combat, "PAELS_LEGION")

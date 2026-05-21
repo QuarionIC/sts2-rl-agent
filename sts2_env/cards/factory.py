@@ -252,6 +252,13 @@ def _reference_definition(card_id: CardId) -> ReferenceCardDefinition | None:
     return None
 
 
+def reference_card_entry(card_id: CardId) -> str:
+    definition = _reference_definition(card_id)
+    if definition is not None:
+        return definition.card_id_text
+    return card_id.name
+
+
 @lru_cache(maxsize=1)
 def _decompiled_card_static_metadata():
     from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
