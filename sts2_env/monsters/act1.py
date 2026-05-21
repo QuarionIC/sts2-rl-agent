@@ -827,29 +827,59 @@ def create_slithering_strangler(rng: Rng, ascension_level: int = 0) -> tuple[Cre
 
 # ---- SnappingJaxfruit (HP 31-33 / 34-36 asc) ----
 
-def create_snapping_jaxfruit(rng: Rng) -> tuple[Creature, MonsterAI]:
-    min_initial_hp = 31
-    max_initial_hp = 33
+SNAPPING_JAXFRUIT_BASE_MIN_HP = 31
+SNAPPING_JAXFRUIT_BASE_MAX_HP = 33
+SNAPPING_JAXFRUIT_TOUGH_MIN_HP = 34
+SNAPPING_JAXFRUIT_TOUGH_MAX_HP = 36
+SNAPPING_JAXFRUIT_BASE_ENERGY_DAMAGE = 3
+SNAPPING_JAXFRUIT_DEADLY_ENERGY_DAMAGE = 4
+SNAPPING_JAXFRUIT_ENERGY_STRENGTH = 2
+SNAPPING_JAXFRUIT_ENERGY_ORB_MOVE = "ENERGY_ORB_MOVE"
+
+
+def create_snapping_jaxfruit(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_initial_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SNAPPING_JAXFRUIT_TOUGH_MIN_HP,
+        SNAPPING_JAXFRUIT_BASE_MIN_HP,
+    )
+    max_initial_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SNAPPING_JAXFRUIT_TOUGH_MAX_HP,
+        SNAPPING_JAXFRUIT_BASE_MAX_HP,
+    )
     hp = rng.next_int(min_initial_hp, max_initial_hp)
     creature = Creature(max_hp=hp, monster_id="SNAPPING_JAXFRUIT")
-    energy_orb_move = "ENERGY_ORB_MOVE"
-    energy_dmg = 3
-    energy_strength = 2
 
     def energy_orb(combat: CombatState) -> None:
+        energy_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SNAPPING_JAXFRUIT_DEADLY_ENERGY_DAMAGE,
+            SNAPPING_JAXFRUIT_BASE_ENERGY_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, energy_dmg)
-        combat.apply_power_to(creature, PowerId.STRENGTH, energy_strength, applier=creature)
+        combat.apply_power_to(creature, PowerId.STRENGTH, SNAPPING_JAXFRUIT_ENERGY_STRENGTH, applier=creature)
+
+    energy_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SNAPPING_JAXFRUIT_DEADLY_ENERGY_DAMAGE,
+        SNAPPING_JAXFRUIT_BASE_ENERGY_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        energy_orb_move: MoveState(
-            energy_orb_move,
+        SNAPPING_JAXFRUIT_ENERGY_ORB_MOVE: MoveState(
+            SNAPPING_JAXFRUIT_ENERGY_ORB_MOVE,
             energy_orb,
-            [attack_intent(energy_dmg), buff_intent()],
-            follow_up_id=energy_orb_move,
+            [attack_intent(energy_intent_damage), buff_intent()],
+            follow_up_id=SNAPPING_JAXFRUIT_ENERGY_ORB_MOVE,
         ),
     }
 
-    return creature, MonsterAI(states, energy_orb_move)
+    return creature, MonsterAI(states, SNAPPING_JAXFRUIT_ENERGY_ORB_MOVE)
 
 
 # ---- RubyRaiders ----

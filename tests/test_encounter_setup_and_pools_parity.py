@@ -466,6 +466,17 @@ class TestAct1NormalEncounters:
         assert 31 <= combat.enemies[0].max_hp <= 33
         assert combat.enemy_ais[combat.enemies[0].combat_id].current_move.state_id == "ENERGY_ORB_MOVE"
 
+    def test_snapping_jaxfruit_tough_ascension_hp_matches_csharp(self):
+        combat = _make_combat()
+        combat.ascension_level = 8
+        setup_snapping_jaxfruit_normal(combat, Rng(42))
+        assert [enemy.monster_id for enemy in combat.enemies] == [
+            "SNAPPING_JAXFRUIT",
+            "FLYCONID",
+        ]
+        assert 34 <= combat.enemies[0].max_hp <= 36
+        assert combat.enemy_ais[combat.enemies[0].combat_id].current_move.state_id == "ENERGY_ORB_MOVE"
+
     def test_vine_shambler_count(self):
         combat = _make_combat()
         setup_vine_shambler_normal(combat, Rng(42))

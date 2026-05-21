@@ -671,6 +671,21 @@ class TestFixedRotation:
         lash.perform(combat)
         assert ally.current_hp == ally_hp_before_lash - 13
 
+    def test_snapping_jaxfruit_ascension_scaling_matches_csharp(self):
+        rng_seed = 1277
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=80)
+        jaxfruit, jaxfruit_ai = create_snapping_jaxfruit(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(jaxfruit, jaxfruit_ai)
+
+        energy_orb = jaxfruit_ai.states["ENERGY_ORB_MOVE"]
+        assert energy_orb.intents[0].damage == 4
+        ally_hp_before = ally.current_hp
+        energy_orb.perform(combat)
+        assert ally.current_hp == ally_hp_before - 4
+        assert jaxfruit.get_power_amount(PowerId.STRENGTH) == 2
+
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle
 

@@ -179,7 +179,7 @@ def setup_slithering_strangler_normal(combat: CombatState, rng: Rng) -> None:
 
     for creator in secondary_creators:
         if creator is create_snapping_jaxfruit:
-            creature, ai = creator(rng)
+            creature, ai = creator(rng, ascension_level=combat.ascension_level)
         else:
             creature, ai = creator(rng, ascension_level=combat.ascension_level)
         combat.add_enemy(creature, ai)
@@ -189,7 +189,7 @@ def setup_slithering_strangler_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_snapping_jaxfruit_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_snapping_jaxfruit(rng)
+    creature, ai = create_snapping_jaxfruit(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
     flyconid, flyconid_ai = create_flyconid(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(flyconid, flyconid_ai)
