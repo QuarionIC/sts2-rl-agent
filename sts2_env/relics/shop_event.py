@@ -337,7 +337,14 @@ class DragonFruit(RelicInstance):
 
     def on_gold_gained(self, owner: Creature, amount: int) -> None:
         if amount > 0:
-            owner.gain_max_hp(self.MAX_HP)
+            combat = getattr(owner, "combat_state", None)
+            gain_max_hp = getattr(combat, "gain_max_hp", None) if combat is not None else None
+            combat_player_state_for = getattr(combat, "combat_player_state_for", None) if combat is not None else None
+            in_combat = callable(combat_player_state_for) and combat_player_state_for(owner) is not None
+            if callable(gain_max_hp) and in_combat:
+                gain_max_hp(owner, self.MAX_HP)
+            else:
+                owner.gain_max_hp(self.MAX_HP)
 
 
 @register_relic

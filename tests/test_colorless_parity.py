@@ -11,6 +11,8 @@ from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import CardId
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
+from sts2_env.relics.shop_event import DragonFruit
+from sts2_env.relics.uncommon import BowlerHat
 
 
 def _make_combat(relics: list[str] | None = None) -> CombatState:
@@ -74,6 +76,25 @@ class TestColorlessParity:
         assert enemy.is_dead
         assert combat.gold == 20
         assert combat.player.max_hp == 81
+
+    def test_hand_of_greed_bowler_hat_bonus_uses_combat_gold_pipeline(self):
+        """Matches BowlerHat.cs + DragonFruit.cs: bonus gold is a nested standard gold gain."""
+        combat = _make_combat(["BowlerHat", "DragonFruit"])
+        enemy = combat.enemies[0]
+        hand_of_greed = make_hand_of_greed()
+        enemy.current_hp = max(1, hand_of_greed.base_damage // 2)
+        enemy.max_hp = enemy.current_hp
+        combat.hand = [hand_of_greed]
+        combat.energy = hand_of_greed.cost
+        starting_max_hp = combat.player.max_hp
+        hand_of_greed_gold = hand_of_greed.effect_vars["gold"]
+        bowler_hat_bonus_gold = int(hand_of_greed_gold * BowlerHat.MULTIPLIER)
+
+        assert combat.play_card(0, 0)
+        assert enemy.is_dead
+        assert combat.gold == hand_of_greed_gold + bowler_hat_bonus_gold
+        assert combat.player.max_hp == starting_max_hp + DragonFruit.MAX_HP * 2
+        assert combat.current_player_state.player_state.max_hp == starting_max_hp + DragonFruit.MAX_HP * 2
 
     def test_hand_of_greed_respects_gold_gain_prevention_relics(self):
         """Matches HandOfGreed.cs fatal semantics plus relic-based gold prevention."""

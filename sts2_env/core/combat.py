@@ -2133,7 +2133,7 @@ class CombatState:
         for relic in self.relics_for_creature(owner):
             if relic.should_gain_gold(owner, amount) is False:
                 return 0
-        state.player_state.gain_gold(amount)
+        state.player_state.gold += int(amount)
         for relic in self.relics_for_creature(owner):
             on_gold_gained = getattr(relic, "on_gold_gained", None)
             if callable(on_gold_gained):
