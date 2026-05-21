@@ -7,7 +7,7 @@ import pytest
 from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.status import make_decay, make_doubt
-from sts2_env.core.enums import CardId
+from sts2_env.core.enums import CardId, CardRarity, CardTag
 from sts2_env.events.shared import (
     AbyssalBaths,
     Amalgamator,
@@ -89,13 +89,13 @@ def test_abyssal_baths_immerse_linger_and_exit_scale_hp_and_damage():
 
 
 @pytest.mark.parametrize(
-    ("option_id", "expected_card", "tag_fragment"),
+    ("option_id", "expected_card", "required_tag"),
     [
-        ("combine_strikes", CardId.ULTIMATE_STRIKE, "STRIKE"),
-        ("combine_defends", CardId.ULTIMATE_DEFEND, "DEFEND"),
+        ("combine_strikes", CardId.ULTIMATE_STRIKE, CardTag.STRIKE),
+        ("combine_defends", CardId.ULTIMATE_DEFEND, CardTag.DEFEND),
     ],
 )
-def test_amalgamator_combines_two_basics_into_ultimate_card(option_id, expected_card, tag_fragment):
+def test_amalgamator_combines_two_basics_into_ultimate_card(option_id, expected_card, required_tag):
     run_state = _make_run_state(502)
     event = Amalgamator()
 
@@ -103,7 +103,7 @@ def test_amalgamator_combines_two_basics_into_ultimate_card(option_id, expected_
     before_basics = sum(
         1
         for card in run_state.player.deck
-        if tag_fragment in card.card_id.name and card.rarity.name == "BASIC"
+        if required_tag in card.tags and card.rarity is CardRarity.BASIC
     )
 
     first = event.choose(run_state, option_id)
@@ -121,10 +121,31 @@ def test_amalgamator_combines_two_basics_into_ultimate_card(option_id, expected_
         sum(
             1
             for card in run_state.player.deck
-            if tag_fragment in card.card_id.name and card.rarity.name == "BASIC"
+            if required_tag in card.tags and card.rarity is CardRarity.BASIC
         )
         == before_basics - 2
     )
+
+
+def test_amalgamator_uses_card_tags_not_name_fragments():
+    run_state = _make_run_state(5022)
+    run_state.player.deck = [
+        create_card(CardId.SETUP_STRIKE_CARD),
+        create_card(CardId.POMMEL_STRIKE),
+        create_card(CardId.ULTIMATE_STRIKE),
+        create_card(CardId.STRIKE_IRONCLAD),
+        create_card(CardId.STRIKE_IRONCLAD),
+        create_card(CardId.DEFEND_IRONCLAD),
+        create_card(CardId.DEFEND_IRONCLAD),
+    ]
+    event = Amalgamator()
+
+    candidates = [card for card in run_state.player.deck if event._is_valid(card, CardTag.STRIKE)]  # noqa: SLF001
+
+    assert [card.card_id for card in candidates] == [
+        CardId.STRIKE_IRONCLAD,
+        CardId.STRIKE_IRONCLAD,
+    ]
 
 
 def test_amalgamator_requires_all_players_to_have_enough_basic_strikes_and_defends():

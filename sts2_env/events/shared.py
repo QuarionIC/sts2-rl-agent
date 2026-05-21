@@ -16,7 +16,7 @@ from sts2_env.cards.base import (
 )
 from sts2_env.cards.enchantments import can_enchant_card
 from sts2_env.cards.factory import create_card, create_transform_card, eligible_character_cards
-from sts2_env.core.enums import CardId, CardRarity, CardType, TargetType
+from sts2_env.core.enums import CardId, CardRarity, CardTag, CardType, TargetType
 from sts2_env.cards.status import (
     make_bad_luck,
     make_clumsy,
@@ -504,17 +504,20 @@ class Amalgamator(EventModel):
     """Remove 2 Strike/Defend cards and gain UltimateStrike/UltimateDefend."""
 
     event_id = "Amalgamator"
+    _REQUIRED_BASIC_CARDS = 2
+    _STRIKE_TAG = CardTag.STRIKE
+    _DEFEND_TAG = CardTag.DEFEND
 
     @staticmethod
-    def _is_valid(card, tag: str) -> bool:
+    def _is_valid(card, tag: CardTag) -> bool:
         if card.rarity != CardRarity.BASIC or not card.is_removable:
             return False
-        return tag in card.card_id.name
+        return tag in card.tags
 
     def is_allowed(self, run_state: RunState) -> bool:
         return all(
-            sum(1 for c in player.deck if self._is_valid(c, "STRIKE")) >= 2
-            and sum(1 for c in player.deck if self._is_valid(c, "DEFEND")) >= 2
+            sum(1 for c in player.deck if self._is_valid(c, self._STRIKE_TAG)) >= self._REQUIRED_BASIC_CARDS
+            and sum(1 for c in player.deck if self._is_valid(c, self._DEFEND_TAG)) >= self._REQUIRED_BASIC_CARDS
             for player in run_state.players
         )
 
@@ -528,8 +531,8 @@ class Amalgamator(EventModel):
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         if option_id == "combine_strikes":
-            candidates = [card for card in run_state.player.deck if self._is_valid(card, "STRIKE")]
-            if len(candidates) < 2:
+            candidates = [card for card in run_state.player.deck if self._is_valid(card, self._STRIKE_TAG)]
+            if len(candidates) < self._REQUIRED_BASIC_CARDS:
                 return EventResult(finished=True, description="No valid Strikes to combine.")
             if _should_defer_event_rewards(run_state):
                 return _event_result_with_rewards(
@@ -537,7 +540,7 @@ class Amalgamator(EventModel):
                     [
                         RemoveCardReward(
                             run_state.player.player_id,
-                            count=2,
+                            count=self._REQUIRED_BASIC_CARDS,
                             cards=candidates,
                             after_selected=lambda: run_state.player.add_card_instance_to_deck(
                                 create_card(CardId.ULTIMATE_STRIKE)
@@ -555,13 +558,13 @@ class Amalgamator(EventModel):
                     EventResult(finished=True, description="Combined 2 Strikes into Ultimate Strike."),
                 )[-1],
                 allow_skip=False,
-                min_count=2,
-                max_count=2,
+                min_count=self._REQUIRED_BASIC_CARDS,
+                max_count=self._REQUIRED_BASIC_CARDS,
                 description="Choose 2 Strikes to remove.",
             )
         if option_id == "combine_defends":
-            candidates = [card for card in run_state.player.deck if self._is_valid(card, "DEFEND")]
-            if len(candidates) < 2:
+            candidates = [card for card in run_state.player.deck if self._is_valid(card, self._DEFEND_TAG)]
+            if len(candidates) < self._REQUIRED_BASIC_CARDS:
                 return EventResult(finished=True, description="No valid Defends to combine.")
             if _should_defer_event_rewards(run_state):
                 return _event_result_with_rewards(
@@ -569,7 +572,7 @@ class Amalgamator(EventModel):
                     [
                         RemoveCardReward(
                             run_state.player.player_id,
-                            count=2,
+                            count=self._REQUIRED_BASIC_CARDS,
                             cards=candidates,
                             after_selected=lambda: run_state.player.add_card_instance_to_deck(
                                 create_card(CardId.ULTIMATE_DEFEND)
@@ -587,8 +590,8 @@ class Amalgamator(EventModel):
                     EventResult(finished=True, description="Combined 2 Defends into Ultimate Defend."),
                 )[-1],
                 allow_skip=False,
-                min_count=2,
-                max_count=2,
+                min_count=self._REQUIRED_BASIC_CARDS,
+                max_count=self._REQUIRED_BASIC_CARDS,
                 description="Choose 2 Defends to remove.",
             )
         return EventResult(finished=True, description="Nothing happened.")
