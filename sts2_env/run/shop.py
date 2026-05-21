@@ -15,7 +15,7 @@ from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import CardRarity, CardType, PotionRarity, RelicRarity
 from sts2_env.core.rng import Rng
 from sts2_env.potions.base import normal_pool_models
-from sts2_env.relics.base import RelicPool
+from sts2_env.relics.base import RelicId, RelicPool
 from sts2_env.relics.registry import RELIC_REGISTRY, load_all_relics
 
 if TYPE_CHECKING:
@@ -103,7 +103,7 @@ def roll_potion_rarity(rng: Rng) -> PotionRarity:
 # ── Shop Inventory ────────────────────────────────────────────────────
 
 SHOP_ENTRY_SOLD_OUT_PRICE = 999999
-SHOP_BLACKLISTED_RELICS = {"TheCourier", "THE_COURIER", "OldCoin", "OLD_COIN"}
+SHOP_BLACKLISTED_RELICS = frozenset({RelicId.THE_COURIER, RelicId.OLD_COIN})
 MERCHANT_CHARACTER_CARD_TYPES = ("Attack", "Attack", "Skill", "Skill", "Power")
 MERCHANT_COLORLESS_CARD_RARITIES = (CardRarity.UNCOMMON, CardRarity.RARE)
 MERCHANT_ROLLED_RELIC_COUNT = 2
@@ -301,7 +301,8 @@ def _create_relic_shop_entry(
     desired_pool = getattr(RelicPool, run_state.player.character_id.upper(), None)
     candidates: list[str] = []
     for relic_id, relic_cls in RELIC_REGISTRY.items():
-        if relic_id.name in owned or relic_id.name in SHOP_BLACKLISTED_RELICS:
+        relic_name = relic_id.name
+        if relic_name in owned or relic_id in SHOP_BLACKLISTED_RELICS:
             continue
         if relic_cls.pool in {RelicPool.EVENT, RelicPool.FALLBACK, RelicPool.DEPRECATED}:
             continue
@@ -312,7 +313,7 @@ def _create_relic_shop_entry(
             continue
         if desired_pool is not None and relic_cls.pool not in {RelicPool.SHARED, desired_pool} and relic_cls.rarity is not RelicRarity.SHOP:
             continue
-        candidates.append(relic_id.name)
+        candidates.append(relic_name)
     chosen = rng.choice(candidates) if candidates else ""
     if chosen:
         owned.add(chosen)

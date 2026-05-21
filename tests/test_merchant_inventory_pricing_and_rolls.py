@@ -7,6 +7,7 @@ import pytest
 
 from sts2_env.core.enums import CardRarity, PotionRarity, RelicRarity
 from sts2_env.core.rng import Rng
+from sts2_env.relics.base import RelicId
 from sts2_env.run.shop import (
     card_base_cost,
     card_price,
@@ -217,8 +218,8 @@ class TestPotionRarityRoll:
 
 class TestShopBlacklist:
     def test_blacklisted_relics(self):
-        assert "TheCourier" in SHOP_BLACKLISTED_RELICS
-        assert "OldCoin" in SHOP_BLACKLISTED_RELICS
+        assert RelicId.THE_COURIER in SHOP_BLACKLISTED_RELICS
+        assert RelicId.OLD_COIN in SHOP_BLACKLISTED_RELICS
 
 
 class TestShopDeterminism:
