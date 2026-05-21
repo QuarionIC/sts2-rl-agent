@@ -1836,8 +1836,10 @@ class RampartPower(PowerInstance):
     def after_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side != CombatSide.PLAYER:
             return
+        from sts2_env.monsters.act3 import TURRET_OPERATOR_MONSTER_ID
+
         for enemy in getattr(combat, "enemies", []):
-            if enemy.is_alive and getattr(enemy, "monster_id", None) == "TURRET_OPERATOR":
+            if enemy.is_alive and getattr(enemy, "monster_id", None) == TURRET_OPERATOR_MONSTER_ID:
                 _gain_unpowered_block(enemy, self.amount, combat)
 
 

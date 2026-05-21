@@ -795,13 +795,19 @@ class SteamEruptionPower(PowerInstance):
         combat: CombatState,
         was_removal_prevented: bool = False,
     ) -> None:
-        if was_removal_prevented or creature is not owner or owner.monster_id != "WATERFALL_GIANT":
+        from sts2_env.monsters.act4 import (
+            WATERFALL_GIANT_ABOUT_TO_BLOW_HP,
+            WATERFALL_GIANT_ABOUT_TO_BLOW_MOVE,
+            WATERFALL_GIANT_MONSTER_ID,
+        )
+
+        if was_removal_prevented or creature is not owner or owner.monster_id != WATERFALL_GIANT_MONSTER_ID:
             return
-        owner.max_hp = 999_999_999
-        owner.current_hp = 999_999_999
+        owner.max_hp = WATERFALL_GIANT_ABOUT_TO_BLOW_HP
+        owner.current_hp = WATERFALL_GIANT_ABOUT_TO_BLOW_HP
         owner.escaped = False
         owner._death_processed = False
-        combat.set_enemy_state(owner, "ABOUT_TO_BLOW_MOVE")
+        combat.set_enemy_state(owner, WATERFALL_GIANT_ABOUT_TO_BLOW_MOVE)
 
     def should_stop_combat_ending(self) -> bool:
         return True
@@ -1327,8 +1333,10 @@ class DoorRevivalPower(PowerInstance):
         current_combat = combat or getattr(owner, "combat_state", None)
         if current_combat is None:
             return True
+        from sts2_env.monsters.act3 import DOORMAKER_MONSTER_ID
+
         return any(
-            enemy.monster_id == "DOORMAKER" and enemy.is_alive
+            enemy.monster_id == DOORMAKER_MONSTER_ID and enemy.is_alive
             for enemy in current_combat.enemies
         )
 

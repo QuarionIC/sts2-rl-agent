@@ -22,6 +22,7 @@ from sts2_env.monsters.state_machine import (
 from sts2_env.monsters.block import gain_move_block
 from sts2_env.monsters.targets import apply_power_to_living_player_targets, living_player_targets
 from sts2_env.cards.status import make_burn, make_dazed, make_slimed
+from sts2_env.monsters.shared import TORCH_HEAD_AMALGAM_MONSTER_ID
 
 if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
@@ -2041,7 +2042,7 @@ def create_queen(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterA
         combat = creature.combat_state
         if combat is None:
             return True
-        return any(enemy.monster_id == "TORCH_HEAD_AMALGAM" and enemy.is_alive for enemy in combat.enemies)
+        return any(enemy.monster_id == TORCH_HEAD_AMALGAM_MONSTER_ID and enemy.is_alive for enemy in combat.enemies)
 
     def puppet_strings(combat: CombatState) -> None:
         apply_power_to_living_player_targets(combat, PowerId.CHAINS_OF_BINDING, QUEEN_CHAINS_OF_BINDING, applier=creature)

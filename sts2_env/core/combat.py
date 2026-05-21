@@ -79,10 +79,6 @@ if TYPE_CHECKING:
 _NO_CARD_PLAY_FILTER = object()
 _NO_CARD_FILTER = object()
 
-_TORCH_HEAD_AMALGAM_ID = "TORCH_HEAD_AMALGAM"
-_QUEEN_ID = "QUEEN"
-_QUEEN_BURN_BRIGHT_MOVE_ID = "BURN_BRIGHT_FOR_ME_MOVE"
-_QUEEN_ENRAGE_MOVE_ID = "ENRAGE_MOVE"
 _STUNNED_MOVE_ID = "STUNNED"
 
 
@@ -706,10 +702,13 @@ class CombatState:
             )
         self.enemies.append(creature)
         self.enemy_ais[creature.combat_id] = ai
-        if creature.monster_id == "GAS_BOMB":
-            self.apply_power_to(creature, PowerId.MINION, 1, applier=creature)
-        if creature.monster_id == "ZAPBOT":
-            self.apply_power_to(creature, PowerId.HIGH_VOLTAGE, 2, applier=creature)
+        from sts2_env.monsters.act3 import ZAPBOT_HIGH_VOLTAGE_AMOUNT, ZAPBOT_MONSTER_ID
+        from sts2_env.monsters.act4 import GAS_BOMB_MINION_AMOUNT, GAS_BOMB_MONSTER_ID
+
+        if creature.monster_id == GAS_BOMB_MONSTER_ID:
+            self.apply_power_to(creature, PowerId.MINION, GAS_BOMB_MINION_AMOUNT, applier=creature)
+        if creature.monster_id == ZAPBOT_MONSTER_ID:
+            self.apply_power_to(creature, PowerId.HIGH_VOLTAGE, ZAPBOT_HIGH_VOLTAGE_AMOUNT, applier=creature)
         if self._combat_started:
             fire_after_creature_added_to_combat(creature, self)
 
@@ -3076,12 +3075,15 @@ class CombatState:
                 fire_card_after_death(card, creature, was_removal_prevented, self)
 
     def _sync_monster_death_move_responses(self, creature: Creature) -> None:
-        if creature.monster_id != _TORCH_HEAD_AMALGAM_ID:
+        from sts2_env.monsters.act3 import QUEEN_BURN_BRIGHT_FOR_ME_MOVE, QUEEN_ENRAGE_MOVE, QUEEN_MONSTER_ID
+        from sts2_env.monsters.shared import TORCH_HEAD_AMALGAM_MONSTER_ID
+
+        if creature.monster_id != TORCH_HEAD_AMALGAM_MONSTER_ID:
             return
         queen = next(
             (
                 enemy for enemy in self.enemies
-                if enemy.monster_id == _QUEEN_ID
+                if enemy.monster_id == QUEEN_MONSTER_ID
                 and enemy.side == creature.side
                 and enemy.is_alive
             ),
@@ -3090,9 +3092,9 @@ class CombatState:
         if queen is None:
             return
         queen_ai = self.enemy_ais.get(queen.combat_id)
-        if queen_ai is None or queen_ai.current_move.state_id != _QUEEN_BURN_BRIGHT_MOVE_ID:
+        if queen_ai is None or queen_ai.current_move.state_id != QUEEN_BURN_BRIGHT_FOR_ME_MOVE:
             return
-        self.set_enemy_state(queen, _QUEEN_ENRAGE_MOVE_ID)
+        self.set_enemy_state(queen, QUEEN_ENRAGE_MOVE)
 
     def _remove_power(self, owner: Creature, power_id: PowerId) -> None:
         power = owner.powers.pop(power_id, None)
@@ -3403,10 +3405,10 @@ class CombatState:
         return spawned
 
     def spawn_doormaker(self) -> Creature | None:
-        from sts2_env.monsters.act3 import create_doormaker
+        from sts2_env.monsters.act3 import DOORMAKER_MONSTER_ID, create_doormaker
 
         existing = next(
-            (enemy for enemy in self.enemies if enemy.monster_id == "DOORMAKER" and enemy.is_alive),
+            (enemy for enemy in self.enemies if enemy.monster_id == DOORMAKER_MONSTER_ID and enemy.is_alive),
             None,
         )
         if existing is not None:
@@ -3421,6 +3423,8 @@ class CombatState:
     def revive_door(self) -> Creature | None:
         from sts2_env.monsters.act3 import (
             DEADLY_ENEMIES_ASCENSION_LEVEL,
+            DOOR_DRAMATIC_OPEN_MOVE,
+            DOOR_MONSTER_ID,
             DOORMAKER_BASE_DOOR_HP_SCALE,
             DOORMAKER_BASE_DOOR_STRENGTH_SCALE,
             DOORMAKER_DEADLY_DOOR_STRENGTH_SCALE,
@@ -3431,7 +3435,7 @@ class CombatState:
         target = next(
             (
                 enemy for enemy in self.enemies
-                if enemy.monster_id == "DOOR"
+                if enemy.monster_id == DOOR_MONSTER_ID
                 and PowerId.DOOR_REVIVAL in enemy.powers
             ),
             None,
@@ -3463,7 +3467,7 @@ class CombatState:
         )
         target.max_hp = initial_max_hp + door_hp_scale * return_count
         target.current_hp = target.max_hp
-        self.set_enemy_state(target, "DRAMATIC_OPEN_MOVE")
+        self.set_enemy_state(target, DOOR_DRAMATIC_OPEN_MOVE)
         strength = target.powers.get(PowerId.STRENGTH)
         if strength is None:
             target.apply_power(PowerId.STRENGTH, door_strength_scale * return_count)
