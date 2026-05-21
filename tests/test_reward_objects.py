@@ -1,5 +1,7 @@
 """Tests for reward objects and rewards-set assembly."""
 
+import pytest
+
 from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.status import make_curse_of_the_bell
@@ -26,7 +28,7 @@ from sts2_env.run.reward_objects import (
     TUTORIAL_MONSTER_POTION_REWARDS,
 )
 from sts2_env.run.modifiers import ModifierModel
-from sts2_env.run.rooms import CombatRoom
+from sts2_env.run.rooms import CombatRoom, Room, TreasureRoom
 from sts2_env.run.run_state import (
     RunState,
     UNLOCK_STATE_EPOCH_UNLOCK_COUNT_KEY,
@@ -268,6 +270,28 @@ def test_tutorial_rewards_require_explicit_first_run_unlock_state():
     card_reward = next(reward for reward in rewards.rewards if isinstance(reward, CardReward))
 
     assert not card_reward.cards
+
+
+def test_tutorial_rewards_require_combat_room_instance():
+    run_state = _tutorial_run_state(seed=51)
+    _set_tutorial_map_point_history(run_state, RoomType.MONSTER, MapPointType.MONSTER, 1)
+
+    with pytest.raises(ValueError, match="invalid room type"):
+        RewardsSet(run_state.player.player_id).with_rewards_from_room(
+            Room(room_type=RoomType.MONSTER),
+            run_state,
+        )
+
+
+def test_rewards_set_allows_treasure_room_without_default_rewards():
+    run_state = RunState(seed=52, character_id=IRONCLAD.character_id)
+
+    rewards = RewardsSet(run_state.player.player_id).with_rewards_from_room(
+        TreasureRoom(),
+        run_state,
+    )
+
+    assert rewards.rewards == []
 
 
 def test_cauldron_after_obtained_queues_five_potion_rewards():

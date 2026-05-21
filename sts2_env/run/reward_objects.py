@@ -13,6 +13,7 @@ from sts2_env.core.enums import CardId, CardRarity, CardType, MapPointType, Room
 from sts2_env.potions.base import create_potion, roll_random_potion_model
 from sts2_env.relics.base import RelicId, RelicPool, RelicRarity
 from sts2_env.relics.registry import RELIC_REGISTRY, load_all_relics
+from sts2_env.run.rooms import CombatRoom, TreasureRoom
 from sts2_env.run.rewards import (
     CardRewardGenerationOptions,
     DEFAULT_CARD_REWARD_OPTION_COUNT,
@@ -21,7 +22,7 @@ from sts2_env.run.rewards import (
 )
 
 if TYPE_CHECKING:
-    from sts2_env.run.rooms import CombatRoom, Room
+    from sts2_env.run.rooms import Room
     from sts2_env.run.run_manager import RunManager
     from sts2_env.run.run_state import RunState
 from sts2_env.run.run_state import UNLOCK_STATE_EPOCH_UNLOCK_COUNT_KEY, UNLOCK_STATE_NUMBER_OF_RUNS_KEY
@@ -891,7 +892,10 @@ class RewardsSet:
             if hasattr(room, "extra_rewards"):
                 self.rewards.extend(room.extra_rewards.get(self.player_id, []))
             return self
-        if room.room_type in ENCOUNTER_GOLD_REWARD_RANGES:
+        if not isinstance(room, CombatRoom):
+            if not isinstance(room, TreasureRoom):
+                raise ValueError(f"Tried to generate a reward for invalid room type: {type(room).__name__}")
+        elif room.room_type in ENCOUNTER_GOLD_REWARD_RANGES:
             low, high = ENCOUNTER_GOLD_REWARD_RANGES[room.room_type]
             if run_state.ascension_level >= POVERTY_ASCENSION_LEVEL:
                 low = round(low * POVERTY_ASCENSION_GOLD_MULTIPLIER)
@@ -1008,6 +1012,8 @@ class RewardsSet:
         return False
 
     def _should_use_tutorial_rewards(self, player: object, room: Room, run_state: RunState) -> bool:
+        if not isinstance(room, CombatRoom):
+            return False
         if player.character_id != IRONCLAD.character_id:
             return False
         unlock_state = getattr(player, "unlock_state", {})
