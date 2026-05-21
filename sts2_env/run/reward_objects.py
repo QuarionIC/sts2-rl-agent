@@ -56,6 +56,8 @@ RELIC_REWARD_SET_INDEX = 3
 SPECIAL_REWARD_SET_INDEX = 4
 CARD_REWARD_SET_INDEX = 5
 CARD_REMOVAL_REWARD_SET_INDEX = 7
+MAX_CARD_REWARD_ALTERNATIVES = 2
+CARD_REWARD_ALTERNATIVE_LIMIT_MESSAGE = "More than 2 card reward alternatives are not supported."
 
 
 @dataclass
@@ -416,6 +418,11 @@ class CardReward(Reward):
             for relic in player.get_relic_objects():
                 if relic.allow_card_reward_reroll(player, self, room, run_state):
                     self.max_rerolls = max(self.max_rerolls, 1)
+        alternatives = int(self.skippable) + int(self.rerolls_remaining > 0)
+        if any(callable(getattr(relic, "sacrifice_card_reward", None)) for relic in player.get_relic_objects()):
+            alternatives += 1
+        if alternatives > MAX_CARD_REWARD_ALTERNATIVES:
+            raise ValueError(CARD_REWARD_ALTERNATIVE_LIMIT_MESSAGE)
         self.option_count = len(self.cards)
         self.is_populated = True
         if self._can_regenerate:

@@ -1,5 +1,7 @@
 """Parity tests for rare/shop/event relic combat-start, map, and autoplay hooks."""
 
+import pytest
+
 import sts2_env.potions  # noqa: F401
 import sts2_env.powers  # noqa: F401
 
@@ -13,10 +15,13 @@ from sts2_env.core.enums import MapPointType, PowerId, RoomType, ValueProp
 from sts2_env.core.rng import Rng, deterministic_hash_code
 from sts2_env.monsters.act1_weak import create_shrinker_beetle, create_twig_slime_s
 from sts2_env.potions.base import create_potion
+from sts2_env.run.reward_objects import CARD_REWARD_ALTERNATIVE_LIMIT_MESSAGE
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.run_state import PlayerState, RunState, UNLOCK_STATE_NUMBER_OF_RUNS_KEY
 
 
+CARD_REWARD_ALTERNATIVE_LIMIT_SEED = 1130
+DRIFTWOOD_RELIC_ID = "DRIFTWOOD"
 IRONCLAD_CHARACTER_ID = "Ironclad"
 PAELS_WING_RELIC_ID = "PaelsWing"
 PAELS_WING_SACRIFICE_ACTION = "sacrifice_card_reward"
@@ -361,6 +366,16 @@ def test_paels_wing_sacrifice_removes_current_card_reward_from_active_tracking()
 
     assert result["success"] is True
     assert sacrificed_reward not in mgr.run_state.active_card_rewards
+
+
+def test_card_reward_alternative_limit_rejects_skip_reroll_and_paels_wing_sacrifice():
+    mgr = RunManager(seed=CARD_REWARD_ALTERNATIVE_LIMIT_SEED, character_id=IRONCLAD_CHARACTER_ID)
+    player = mgr.run_state.player
+    assert player.obtain_relic(DRIFTWOOD_RELIC_ID)
+    assert player.obtain_relic(PAELS_WING_RELIC_ID)
+
+    with pytest.raises(ValueError, match=CARD_REWARD_ALTERNATIVE_LIMIT_MESSAGE):
+        mgr._enter_card_reward(context=REGULAR_CARD_REWARD_CONTEXT)
 
 
 def test_unceasing_top_draws_when_hand_is_emptied_during_play_phase():

@@ -68,6 +68,12 @@ from sts2_env.run.shop import (
 )
 
 
+CARD_REWARD_ACTION_PICK_CARD = "pick_card"
+CARD_REWARD_ACTION_REROLL = "reroll_card_reward"
+CARD_REWARD_ACTION_SKIP = "skip"
+CARD_REWARD_ACTION_SACRIFICE = "sacrifice_card_reward"
+
+
 # ---------------------------------------------------------------------------
 # Character configuration
 # ---------------------------------------------------------------------------
@@ -357,15 +363,15 @@ class RunManager:
             return self._do_combat_confirm_choice()
         if self._phase == self.PHASE_COMBAT and action_type == "end_turn":
             return self._do_combat_end_turn()
-        if self._phase == self.PHASE_CARD_REWARD and action_type == "pick_card":
+        if self._phase == self.PHASE_CARD_REWARD and action_type == CARD_REWARD_ACTION_PICK_CARD:
             return self._do_card_reward_pick(action)
         if self._phase == self.PHASE_CARD_REWARD and action_type == "pick_card_bundle":
             return self._do_card_bundle_pick(action)
-        if self._phase == self.PHASE_CARD_REWARD and action_type == "reroll_card_reward":
+        if self._phase == self.PHASE_CARD_REWARD and action_type == CARD_REWARD_ACTION_REROLL:
             return self._do_card_reward_reroll()
-        if self._phase == self.PHASE_CARD_REWARD and action_type == "sacrifice_card_reward":
+        if self._phase == self.PHASE_CARD_REWARD and action_type == CARD_REWARD_ACTION_SACRIFICE:
             return self._do_card_reward_sacrifice()
-        if self._phase == self.PHASE_CARD_REWARD and action_type == "skip":
+        if self._phase == self.PHASE_CARD_REWARD and action_type == CARD_REWARD_ACTION_SKIP:
             return self._do_card_reward_skip()
         if self._phase == self.PHASE_CARD_REWARD and action_type == "pick_potion":
             return self._do_potion_reward_pick()
@@ -585,6 +591,8 @@ class RunManager:
         self._offered_card_bundles = []
         self._offered_potion = None
         self._offered_relic = None
+        if isinstance(reward, CardReward):
+            self._card_reward_alternatives(reward)
 
     def _prime_next_card_bundles_reward(self) -> None:
         reward = self._current_reward
@@ -934,16 +942,10 @@ class RunManager:
             ]
 
         reward = self._current_reward
-        actions: list[dict] = [{"action": "skip"}] if reward is None or reward.skippable else []
-        if isinstance(reward, CardReward) and reward.rerolls_remaining > 0:
-            actions.append({
-                "action": "reroll_card_reward",
-                "rerolls_remaining": reward.rerolls_remaining,
-            })
         if isinstance(reward, CardReward):
-            player = self._run_state.get_player(reward.player_id)
-            if any(callable(getattr(relic, "sacrifice_card_reward", None)) for relic in player.get_relic_objects()):
-                actions.append({"action": "sacrifice_card_reward"})
+            actions: list[dict] = self._card_reward_alternatives(reward)
+        else:
+            actions = [{"action": CARD_REWARD_ACTION_SKIP}] if reward is None or reward.skippable else []
         for i, bundle in enumerate(self._offered_card_bundles):
             actions.append({
                 "action": "pick_card_bundle",
@@ -954,13 +956,27 @@ class RunManager:
             })
         for i, card in enumerate(self._offered_cards):
             actions.append({
-                "action": "pick_card",
+                "action": CARD_REWARD_ACTION_PICK_CARD,
                 "index": i,
                 "card_id": card.card_id.name,
                 "rarity": card.rarity.name,
                 "upgraded": card.upgraded,
                 "enchantments": dict(card.enchantments),
             })
+        return actions
+
+    def _card_reward_alternatives(self, reward: CardReward) -> list[dict]:
+        actions: list[dict] = []
+        if reward.skippable:
+            actions.append({"action": CARD_REWARD_ACTION_SKIP})
+        if reward.rerolls_remaining > 0:
+            actions.append({
+                "action": CARD_REWARD_ACTION_REROLL,
+                "rerolls_remaining": reward.rerolls_remaining,
+            })
+        player = self._run_state.get_player(reward.player_id)
+        if any(callable(getattr(relic, "sacrifice_card_reward", None)) for relic in player.get_relic_objects()):
+            actions.append({"action": CARD_REWARD_ACTION_SACRIFICE})
         return actions
 
     def _actions_boss_relic(self) -> list[dict]:
