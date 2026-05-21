@@ -421,53 +421,119 @@ def create_fogmog(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Monster
 
 # ---- Inklet (HP 11-17 / 12-18 asc) ----
 
-def create_inklet(rng: Rng, *, middle_inklet: bool = False) -> tuple[Creature, MonsterAI]:
-    min_initial_hp = 11
-    max_initial_hp = 17
+INKLET_BASE_MIN_HP = 11
+INKLET_BASE_MAX_HP = 17
+INKLET_TOUGH_MIN_HP = 12
+INKLET_TOUGH_MAX_HP = 18
+INKLET_BASE_JAB_DAMAGE = 3
+INKLET_DEADLY_JAB_DAMAGE = 4
+INKLET_BASE_WHIRLWIND_DAMAGE = 2
+INKLET_DEADLY_WHIRLWIND_DAMAGE = 3
+INKLET_WHIRLWIND_HITS = 3
+INKLET_BASE_PIERCING_GAZE_DAMAGE = 10
+INKLET_DEADLY_PIERCING_GAZE_DAMAGE = 11
+INKLET_SLIPPERY_AMOUNT = 1
+INKLET_JAB_MOVE = "JAB_MOVE"
+INKLET_WHIRLWIND_MOVE = "WHIRLWIND_MOVE"
+INKLET_PIERCING_GAZE_MOVE = "PIERCING_GAZE_MOVE"
+INKLET_RANDOM_MOVE = "RAND"
+
+
+def create_inklet(
+    rng: Rng,
+    *,
+    middle_inklet: bool = False,
+    ascension_level: int = 0,
+) -> tuple[Creature, MonsterAI]:
+    min_initial_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        INKLET_TOUGH_MIN_HP,
+        INKLET_BASE_MIN_HP,
+    )
+    max_initial_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        INKLET_TOUGH_MAX_HP,
+        INKLET_BASE_MAX_HP,
+    )
     hp = rng.next_int(min_initial_hp, max_initial_hp)
     creature = Creature(max_hp=hp, monster_id="INKLET")
-    jab_move = "JAB_MOVE"
-    whirlwind_move = "WHIRLWIND_MOVE"
-    piercing_gaze_move = "PIERCING_GAZE_MOVE"
-    rand_move = "RAND"
-    jab_dmg = 3
-    whirlwind_dmg = 2
-    whirlwind_hits = 3
-    piercing_gaze_dmg = 10
-    slippery_amount = 1
 
     def jab(combat: CombatState) -> None:
+        jab_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            INKLET_DEADLY_JAB_DAMAGE,
+            INKLET_BASE_JAB_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, jab_dmg)
 
     def whirlwind(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, whirlwind_dmg, hits=whirlwind_hits)
+        whirlwind_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            INKLET_DEADLY_WHIRLWIND_DAMAGE,
+            INKLET_BASE_WHIRLWIND_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, whirlwind_dmg, hits=INKLET_WHIRLWIND_HITS)
 
     def piercing_gaze(combat: CombatState) -> None:
+        piercing_gaze_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            INKLET_DEADLY_PIERCING_GAZE_DAMAGE,
+            INKLET_BASE_PIERCING_GAZE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, piercing_gaze_dmg)
 
-    rand = RandomBranchState(rand_move)
-    rand.add_branch(piercing_gaze_move, MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch(whirlwind_move, MoveRepeatType.CANNOT_REPEAT)
+    jab_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        INKLET_DEADLY_JAB_DAMAGE,
+        INKLET_BASE_JAB_DAMAGE,
+    )
+    whirlwind_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        INKLET_DEADLY_WHIRLWIND_DAMAGE,
+        INKLET_BASE_WHIRLWIND_DAMAGE,
+    )
+    piercing_gaze_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        INKLET_DEADLY_PIERCING_GAZE_DAMAGE,
+        INKLET_BASE_PIERCING_GAZE_DAMAGE,
+    )
+
+    rand = RandomBranchState(INKLET_RANDOM_MOVE)
+    rand.add_branch(INKLET_PIERCING_GAZE_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(INKLET_WHIRLWIND_MOVE, MoveRepeatType.CANNOT_REPEAT)
 
     states: dict[str, MonsterState] = {
-        jab_move: MoveState(jab_move, jab, [attack_intent(jab_dmg)], follow_up_id=rand_move),
-        whirlwind_move: MoveState(
-            whirlwind_move,
+        INKLET_JAB_MOVE: MoveState(
+            INKLET_JAB_MOVE,
+            jab,
+            [attack_intent(jab_intent_damage)],
+            follow_up_id=INKLET_RANDOM_MOVE,
+        ),
+        INKLET_WHIRLWIND_MOVE: MoveState(
+            INKLET_WHIRLWIND_MOVE,
             whirlwind,
-            [multi_attack_intent(whirlwind_dmg, whirlwind_hits)],
-            follow_up_id=jab_move,
+            [multi_attack_intent(whirlwind_intent_damage, INKLET_WHIRLWIND_HITS)],
+            follow_up_id=INKLET_JAB_MOVE,
         ),
-        piercing_gaze_move: MoveState(
-            piercing_gaze_move,
+        INKLET_PIERCING_GAZE_MOVE: MoveState(
+            INKLET_PIERCING_GAZE_MOVE,
             piercing_gaze,
-            [attack_intent(piercing_gaze_dmg)],
-            follow_up_id=jab_move,
+            [attack_intent(piercing_gaze_intent_damage)],
+            follow_up_id=INKLET_JAB_MOVE,
         ),
-        rand_move: rand,
+        INKLET_RANDOM_MOVE: rand,
     }
 
-    creature.apply_power(PowerId.SLIPPERY, slippery_amount)
-    initial = whirlwind_move if middle_inklet else jab_move
+    creature.apply_power(PowerId.SLIPPERY, INKLET_SLIPPERY_AMOUNT)
+    initial = INKLET_WHIRLWIND_MOVE if middle_inklet else INKLET_JAB_MOVE
     return creature, MonsterAI(states, initial, rng)
 
 

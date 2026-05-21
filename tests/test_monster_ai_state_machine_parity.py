@@ -565,6 +565,37 @@ class TestFixedRotation:
         headbutt.perform(combat)
         assert ally.current_hp == ally_hp_before_headbutt - 16
 
+    def test_inklet_ascension_scaling_matches_csharp(self):
+        rng_seed = 1273
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=70)
+        inklet, inklet_ai = create_inklet(Rng(rng_seed), ascension_level=9)
+        middle_inklet, middle_inklet_ai = create_inklet(Rng(rng_seed), middle_inklet=True, ascension_level=9)
+
+        assert inklet.get_power_amount(PowerId.SLIPPERY) == 1
+        assert middle_inklet_ai.current_move.state_id == "WHIRLWIND_MOVE"
+        assert middle_inklet.get_power_amount(PowerId.SLIPPERY) == 1
+        combat.add_enemy(inklet, inklet_ai)
+
+        jab = inklet_ai.states["JAB_MOVE"]
+        assert jab.intents[0].damage == 4
+        ally_hp_before_jab = ally.current_hp
+        jab.perform(combat)
+        assert ally.current_hp == ally_hp_before_jab - 4
+
+        whirlwind = inklet_ai.states["WHIRLWIND_MOVE"]
+        assert whirlwind.intents[0].damage == 3
+        ally_hp_before_whirlwind = ally.current_hp
+        whirlwind.perform(combat)
+        assert ally.current_hp == ally_hp_before_whirlwind - 9
+
+        piercing_gaze = inklet_ai.states["PIERCING_GAZE_MOVE"]
+        assert piercing_gaze.intents[0].damage == 11
+        ally_hp_before_piercing_gaze = ally.current_hp
+        piercing_gaze.perform(combat)
+        assert ally.current_hp == ally_hp_before_piercing_gaze - 11
+
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle
 

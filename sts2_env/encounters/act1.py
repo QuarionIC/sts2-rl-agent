@@ -103,11 +103,11 @@ def setup_fogmog_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_inklets_normal(combat: CombatState, rng: Rng) -> None:
-    first, first_ai = create_inklet(rng)
+    first, first_ai = create_inklet(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(first, first_ai)
-    middle, middle_ai = create_inklet(rng, middle_inklet=True)
+    middle, middle_ai = create_inklet(rng, middle_inklet=True, ascension_level=combat.ascension_level)
     combat.add_enemy(middle, middle_ai)
-    last, last_ai = create_inklet(rng)
+    last, last_ai = create_inklet(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(last, last_ai)
 
 

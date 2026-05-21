@@ -341,6 +341,14 @@ class TestAct1NormalEncounters:
         assert all(11 <= enemy.max_hp <= 17 for enemy in combat.enemies)
         assert all(enemy.get_power_amount(PowerId.SLIPPERY) == 1 for enemy in combat.enemies)
 
+    def test_inklets_tough_ascension_hp_matches_csharp(self):
+        combat = _make_combat()
+        combat.ascension_level = 8
+        setup_inklets_normal(combat, Rng(42))
+        assert [enemy.monster_id for enemy in combat.enemies] == ["INKLET", "INKLET", "INKLET"]
+        assert all(12 <= enemy.max_hp <= 18 for enemy in combat.enemies)
+        assert all(enemy.get_power_amount(PowerId.SLIPPERY) == 1 for enemy in combat.enemies)
+
     def test_mawler_count(self):
         combat = _make_combat()
         setup_mawler_normal(combat, Rng(42))
