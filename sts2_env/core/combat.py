@@ -3413,11 +3413,23 @@ class CombatState:
         )
         if existing is not None:
             return existing
-        doormaker, doormaker_ai = create_doormaker(Rng(self.rng.next_int(0, INT_MAX)))
+        doormaker, doormaker_ai = create_doormaker(
+            Rng(self.rng.next_int(0, INT_MAX)),
+            ascension_level=self.ascension_level,
+        )
         self.add_enemy(doormaker, doormaker_ai)
         return doormaker
 
     def revive_door(self) -> Creature | None:
+        from sts2_env.monsters.act3 import (
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            DOORMAKER_BASE_DOOR_HP_SCALE,
+            DOORMAKER_BASE_DOOR_STRENGTH_SCALE,
+            DOORMAKER_DEADLY_DOOR_STRENGTH_SCALE,
+            DOORMAKER_TOUGH_DOOR_HP_SCALE,
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+        )
+
         target = next(
             (
                 enemy for enemy in self.enemies
@@ -3441,15 +3453,25 @@ class CombatState:
         if callable(revive):
             revive(target, initial_max_hp)
         target.block = 0
-        target.max_hp = initial_max_hp + 20 * return_count
+        door_hp_scale = (
+            DOORMAKER_TOUGH_DOOR_HP_SCALE
+            if self.ascension_level >= TOUGH_ENEMIES_ASCENSION_LEVEL
+            else DOORMAKER_BASE_DOOR_HP_SCALE
+        )
+        door_strength_scale = (
+            DOORMAKER_DEADLY_DOOR_STRENGTH_SCALE
+            if self.ascension_level >= DEADLY_ENEMIES_ASCENSION_LEVEL
+            else DOORMAKER_BASE_DOOR_STRENGTH_SCALE
+        )
+        target.max_hp = initial_max_hp + door_hp_scale * return_count
         target.current_hp = target.max_hp
         self.set_enemy_state(target, "DRAMATIC_OPEN_MOVE")
         strength = target.powers.get(PowerId.STRENGTH)
         if strength is None:
-            target.apply_power(PowerId.STRENGTH, 3 * return_count)
+            target.apply_power(PowerId.STRENGTH, door_strength_scale * return_count)
             strength = target.powers.get(PowerId.STRENGTH)
         if strength is not None:
-            strength.amount = 3 * return_count
+            strength.amount = door_strength_scale * return_count
         return target
 
     def auto_play_card(

@@ -1817,63 +1817,175 @@ def create_soul_nexus(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Mon
 
 # ---- Door + Doormaker ----
 
-def create_door(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 155
-    creature = Creature(max_hp=hp, monster_id="DOOR")
-    dramatic_open_dmg = 25
-    enforce_dmg = 20
-    door_slam_dmg = 15
+DOOR_MONSTER_ID = "DOOR"
+DOOR_BASE_HP = 155
+DOOR_TOUGH_HP = 165
+DOOR_BASE_DRAMATIC_OPEN_DAMAGE = 25
+DOOR_DEADLY_DRAMATIC_OPEN_DAMAGE = 28
+DOOR_ENFORCE_DAMAGE = 20
+DOOR_BASE_ENFORCE_STRENGTH = 3
+DOOR_DEADLY_ENFORCE_STRENGTH = 4
+DOOR_SLAM_DAMAGE = 15
+DOOR_SLAM_REPEAT = 2
+DOOR_REVIVAL_AMOUNT = 1
+DOOR_DRAMATIC_OPEN_MOVE = "DRAMATIC_OPEN_MOVE"
+DOOR_DOOR_SLAM_MOVE = "DOOR_SLAM_MOVE"
+DOOR_ENFORCE_MOVE = "ENFORCE_MOVE"
+DOOR_DEAD_MOVE = "DEAD_MOVE"
+
+DOORMAKER_MONSTER_ID = "DOORMAKER"
+DOORMAKER_BASE_HP = 489
+DOORMAKER_TOUGH_HP = 512
+DOORMAKER_BASE_BEAM_DAMAGE = 31
+DOORMAKER_DEADLY_BEAM_DAMAGE = 34
+DOORMAKER_BASE_GET_BACK_IN_DAMAGE = 40
+DOORMAKER_DEADLY_GET_BACK_IN_DAMAGE = 45
+DOORMAKER_STRENGTH = 5
+DOORMAKER_BASE_DOOR_STRENGTH_SCALE = 3
+DOORMAKER_DEADLY_DOOR_STRENGTH_SCALE = 4
+DOORMAKER_BASE_DOOR_HP_SCALE = 20
+DOORMAKER_TOUGH_DOOR_HP_SCALE = 25
+DOORMAKER_WHAT_IS_IT_MOVE = "WHAT_IS_IT_MOVE"
+DOORMAKER_BEAM_MOVE = "BEAM_MOVE"
+DOORMAKER_GET_BACK_IN_MOVE = "GET_BACK_IN_MOVE"
+
+
+def create_door(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        DOOR_TOUGH_HP,
+        DOOR_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=DOOR_MONSTER_ID)
 
     def dramatic_open(combat: CombatState) -> None:
+        dramatic_open_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            DOOR_DEADLY_DRAMATIC_OPEN_DAMAGE,
+            DOOR_BASE_DRAMATIC_OPEN_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, dramatic_open_dmg)
 
     def enforce(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, enforce_dmg)
-        combat.apply_power_to(creature, PowerId.STRENGTH, 3, applier=creature)
+        _deal_damage_to_player(combat, creature, DOOR_ENFORCE_DAMAGE)
+        enforce_strength = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            DOOR_DEADLY_ENFORCE_STRENGTH,
+            DOOR_BASE_ENFORCE_STRENGTH,
+        )
+        combat.apply_power_to(creature, PowerId.STRENGTH, enforce_strength, applier=creature)
 
     def door_slam(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, door_slam_dmg, hits=2)
+        _deal_damage_to_player(combat, creature, DOOR_SLAM_DAMAGE, hits=DOOR_SLAM_REPEAT)
 
     def dead_move(combat: CombatState) -> None:
         pass
 
+    dramatic_open_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        DOOR_DEADLY_DRAMATIC_OPEN_DAMAGE,
+        DOOR_BASE_DRAMATIC_OPEN_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "DRAMATIC_OPEN_MOVE": MoveState("DRAMATIC_OPEN_MOVE", dramatic_open, [attack_intent(dramatic_open_dmg)], follow_up_id="DOOR_SLAM_MOVE"),
-        "DOOR_SLAM_MOVE": MoveState("DOOR_SLAM_MOVE", door_slam, [multi_attack_intent(door_slam_dmg, 2)], follow_up_id="ENFORCE_MOVE"),
-        "ENFORCE_MOVE": MoveState("ENFORCE_MOVE", enforce, [attack_intent(enforce_dmg), buff_intent()], follow_up_id="DRAMATIC_OPEN_MOVE"),
-        "DEAD_MOVE": MoveState("DEAD_MOVE", dead_move, [Intent(IntentType.UNKNOWN)], follow_up_id="DEAD_MOVE"),
+        DOOR_DRAMATIC_OPEN_MOVE: MoveState(
+            DOOR_DRAMATIC_OPEN_MOVE,
+            dramatic_open,
+            [attack_intent(dramatic_open_intent_damage)],
+            follow_up_id=DOOR_DOOR_SLAM_MOVE,
+        ),
+        DOOR_DOOR_SLAM_MOVE: MoveState(
+            DOOR_DOOR_SLAM_MOVE,
+            door_slam,
+            [multi_attack_intent(DOOR_SLAM_DAMAGE, DOOR_SLAM_REPEAT)],
+            follow_up_id=DOOR_ENFORCE_MOVE,
+        ),
+        DOOR_ENFORCE_MOVE: MoveState(
+            DOOR_ENFORCE_MOVE,
+            enforce,
+            [attack_intent(DOOR_ENFORCE_DAMAGE), buff_intent()],
+            follow_up_id=DOOR_DRAMATIC_OPEN_MOVE,
+        ),
+        DOOR_DEAD_MOVE: MoveState(DOOR_DEAD_MOVE, dead_move, [Intent(IntentType.UNKNOWN)], follow_up_id=DOOR_DEAD_MOVE),
     }
 
-    creature.apply_power(PowerId.DOOR_REVIVAL, 1)
-    return creature, MonsterAI(states, "DRAMATIC_OPEN_MOVE")
+    creature.apply_power(PowerId.DOOR_REVIVAL, DOOR_REVIVAL_AMOUNT)
+    return creature, MonsterAI(states, DOOR_DRAMATIC_OPEN_MOVE)
 
 
-def create_doormaker(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 489
-    creature = Creature(max_hp=hp, monster_id="DOORMAKER")
-    laser_beam_dmg = 31
-    get_back_in_dmg = 40
+def create_doormaker(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        DOORMAKER_TOUGH_HP,
+        DOORMAKER_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=DOORMAKER_MONSTER_ID)
 
     def what_is_it(combat: CombatState) -> None:
         pass
 
     def beam(combat: CombatState) -> None:
+        laser_beam_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            DOORMAKER_DEADLY_BEAM_DAMAGE,
+            DOORMAKER_BASE_BEAM_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, laser_beam_dmg)
 
     def get_back_in(combat: CombatState) -> None:
+        get_back_in_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            DOORMAKER_DEADLY_GET_BACK_IN_DAMAGE,
+            DOORMAKER_BASE_GET_BACK_IN_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, get_back_in_dmg)
         if combat.is_over or creature.is_dead:
             return
-        combat.apply_power_to(creature, PowerId.STRENGTH, 5, applier=creature)
+        combat.apply_power_to(creature, PowerId.STRENGTH, DOORMAKER_STRENGTH, applier=creature)
         combat.revive_door()
         combat.escape_creature(creature)
 
+    laser_beam_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        DOORMAKER_DEADLY_BEAM_DAMAGE,
+        DOORMAKER_BASE_BEAM_DAMAGE,
+    )
+    get_back_in_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        DOORMAKER_DEADLY_GET_BACK_IN_DAMAGE,
+        DOORMAKER_BASE_GET_BACK_IN_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "WHAT_IS_IT_MOVE": MoveState("WHAT_IS_IT_MOVE", what_is_it, [Intent(IntentType.STUN)], follow_up_id="BEAM_MOVE"),
-        "BEAM_MOVE": MoveState("BEAM_MOVE", beam, [attack_intent(laser_beam_dmg)], follow_up_id="GET_BACK_IN_MOVE"),
-        "GET_BACK_IN_MOVE": MoveState("GET_BACK_IN_MOVE", get_back_in, [attack_intent(get_back_in_dmg), buff_intent()], follow_up_id="GET_BACK_IN_MOVE"),
+        DOORMAKER_WHAT_IS_IT_MOVE: MoveState(
+            DOORMAKER_WHAT_IS_IT_MOVE,
+            what_is_it,
+            [Intent(IntentType.STUN)],
+            follow_up_id=DOORMAKER_BEAM_MOVE,
+        ),
+        DOORMAKER_BEAM_MOVE: MoveState(
+            DOORMAKER_BEAM_MOVE,
+            beam,
+            [attack_intent(laser_beam_intent_damage)],
+            follow_up_id=DOORMAKER_GET_BACK_IN_MOVE,
+        ),
+        DOORMAKER_GET_BACK_IN_MOVE: MoveState(
+            DOORMAKER_GET_BACK_IN_MOVE,
+            get_back_in,
+            [attack_intent(get_back_in_intent_damage), buff_intent()],
+            follow_up_id=DOORMAKER_GET_BACK_IN_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "WHAT_IS_IT_MOVE")
+    return creature, MonsterAI(states, DOORMAKER_WHAT_IS_IT_MOVE)
 
 
 # ---- Queen (HP 302 / 322 asc) ----

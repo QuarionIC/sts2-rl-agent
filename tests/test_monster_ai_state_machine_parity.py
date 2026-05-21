@@ -215,6 +215,15 @@ from sts2_env.monsters.act3 import (
     DEVOTED_SCULPTOR_FORBIDDEN_INCANTATION_MOVE,
     DEVOTED_SCULPTOR_MONSTER_ID,
     DEVOTED_SCULPTOR_SAVAGE_MOVE,
+    DOOR_DEAD_MOVE,
+    DOOR_DOOR_SLAM_MOVE,
+    DOOR_DRAMATIC_OPEN_MOVE,
+    DOOR_ENFORCE_MOVE,
+    DOOR_MONSTER_ID,
+    DOORMAKER_BEAM_MOVE,
+    DOORMAKER_GET_BACK_IN_MOVE,
+    DOORMAKER_MONSTER_ID,
+    DOORMAKER_WHAT_IS_IT_MOVE,
     FABRICATOR_FABRICATE_BRANCH,
     FABRICATOR_DISINTEGRATE_MOVE,
     FABRICATOR_FABRICATE_MOVE,
@@ -556,6 +565,21 @@ SOUL_NEXUS_MAELSTROM_DAMAGE_A9 = 7
 SOUL_NEXUS_MAELSTROM_HITS = 4
 SOUL_NEXUS_DRAIN_LIFE_DAMAGE_A9 = 19
 SOUL_NEXUS_DRAIN_LIFE_DEBUFF = 2
+DOOR_BASE_HP = 155
+DOOR_A8_HP = 165
+DOOR_DRAMATIC_OPEN_DAMAGE_A9 = 28
+DOOR_ENFORCE_DAMAGE = 20
+DOOR_ENFORCE_STRENGTH_A9 = 4
+DOOR_SLAM_DAMAGE = 15
+DOOR_SLAM_HITS = 2
+DOOR_REVIVAL = 1
+DOORMAKER_BASE_HP = 489
+DOORMAKER_A8_HP = 512
+DOORMAKER_BEAM_DAMAGE_A9 = 34
+DOORMAKER_GET_BACK_IN_DAMAGE_A9 = 45
+DOORMAKER_STRENGTH = 5
+DOORMAKER_DOOR_HP_SCALE_A8 = 25
+DOORMAKER_DOOR_STRENGTH_SCALE_A9 = 4
 FABRICATOR_BASE_HP = 150
 FABRICATOR_A8_HP = 155
 FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9 = 21
@@ -4858,19 +4882,19 @@ class TestFixedRotation:
         combat = _make_combat(45)
         setup_doormaker_boss(combat, Rng(45))
 
-        assert [enemy.monster_id for enemy in combat.enemies] == ["DOOR"]
+        assert [enemy.monster_id for enemy in combat.enemies] == [DOOR_MONSTER_ID]
 
         door = combat.enemies[0]
         assert combat.kill_creature(door)
 
-        assert [enemy.monster_id for enemy in combat.enemies] == ["DOOR", "DOORMAKER"]
-        assert combat.enemy_ais[door.combat_id].current_move.state_id == "DEAD_MOVE"
+        assert [enemy.monster_id for enemy in combat.enemies] == [DOOR_MONSTER_ID, DOORMAKER_MONSTER_ID]
+        assert combat.enemy_ais[door.combat_id].current_move.state_id == DOOR_DEAD_MOVE
 
         lethal_door_combat = _make_combat(145)
         lethal_door, lethal_door_ai = create_door(Rng(145))
         lethal_door_combat.add_enemy(lethal_door, lethal_door_ai)
         lethal_door_combat.player.current_hp = 20
-        lethal_door_ai.states["ENFORCE_MOVE"].perform(lethal_door_combat)
+        lethal_door_ai.states[DOOR_ENFORCE_MOVE].perform(lethal_door_combat)
         assert lethal_door_combat.is_over
         assert lethal_door_combat.player_won is False
         assert lethal_door.get_power_amount(PowerId.STRENGTH) == 0
@@ -4882,12 +4906,87 @@ class TestFixedRotation:
         lethal_doormaker_combat.add_enemy(lethal_doormaker, lethal_doormaker_ai)
         lethal_door_2.current_hp = 0
         lethal_doormaker_combat.player.current_hp = 40
-        lethal_doormaker_ai.states["GET_BACK_IN_MOVE"].perform(lethal_doormaker_combat)
+        lethal_doormaker_ai.states[DOORMAKER_GET_BACK_IN_MOVE].perform(lethal_doormaker_combat)
         assert lethal_doormaker_combat.is_over
         assert lethal_doormaker_combat.player_won is False
         assert lethal_doormaker.get_power_amount(PowerId.STRENGTH) == 0
         assert lethal_door_2.current_hp == 0
         assert lethal_doormaker.is_alive
+
+    def test_doormaker_boss_ascension_scaling_matches_csharp(self):
+        rng_seed = 1295
+        player_hp = 250
+
+        door_combat = _make_combat(rng_seed)
+        door_combat.player.max_hp = player_hp
+        door_combat.player.current_hp = player_hp
+        door_combat.ascension_level = 9
+        door, door_ai = create_door(Rng(rng_seed), ascension_level=9)
+        door_combat.add_enemy(door, door_ai)
+        assert door.max_hp == DOOR_A8_HP
+        assert door.get_power_amount(PowerId.DOOR_REVIVAL) == DOOR_REVIVAL
+
+        dramatic_open = door_ai.states[DOOR_DRAMATIC_OPEN_MOVE]
+        assert dramatic_open.intents[0].damage == DOOR_DRAMATIC_OPEN_DAMAGE_A9
+        player_hp_before_open = door_combat.player.current_hp
+        dramatic_open.perform(door_combat)
+        assert door_combat.player.current_hp == player_hp_before_open - DOOR_DRAMATIC_OPEN_DAMAGE_A9
+
+        slam = door_ai.states[DOOR_DOOR_SLAM_MOVE]
+        assert slam.intents[0].damage == DOOR_SLAM_DAMAGE
+        assert slam.intents[0].hits == DOOR_SLAM_HITS
+        player_hp_before_slam = door_combat.player.current_hp
+        slam.perform(door_combat)
+        assert door_combat.player.current_hp == player_hp_before_slam - DOOR_SLAM_DAMAGE * DOOR_SLAM_HITS
+
+        enforce = door_ai.states[DOOR_ENFORCE_MOVE]
+        assert enforce.intents[0].damage == DOOR_ENFORCE_DAMAGE
+        player_hp_before_enforce = door_combat.player.current_hp
+        enforce.perform(door_combat)
+        assert door_combat.player.current_hp == player_hp_before_enforce - DOOR_ENFORCE_DAMAGE
+        assert door.get_power_amount(PowerId.STRENGTH) == DOOR_ENFORCE_STRENGTH_A9
+
+        doormaker_combat = _make_combat(rng_seed)
+        doormaker_combat.player.max_hp = player_hp
+        doormaker_combat.player.current_hp = player_hp
+        doormaker_combat.ascension_level = 9
+        doormaker, doormaker_ai = create_doormaker(Rng(rng_seed), ascension_level=9)
+        doormaker_combat.add_enemy(doormaker, doormaker_ai)
+        assert doormaker.max_hp == DOORMAKER_A8_HP
+        assert doormaker_ai.current_move.state_id == DOORMAKER_WHAT_IS_IT_MOVE
+
+        beam = doormaker_ai.states[DOORMAKER_BEAM_MOVE]
+        assert beam.intents[0].damage == DOORMAKER_BEAM_DAMAGE_A9
+        player_hp_before_beam = doormaker_combat.player.current_hp
+        beam.perform(doormaker_combat)
+        assert doormaker_combat.player.current_hp == player_hp_before_beam - DOORMAKER_BEAM_DAMAGE_A9
+
+        get_back_in = doormaker_ai.states[DOORMAKER_GET_BACK_IN_MOVE]
+        assert get_back_in.intents[0].damage == DOORMAKER_GET_BACK_IN_DAMAGE_A9
+
+        revival_combat = _make_combat(rng_seed)
+        revival_combat.ascension_level = 9
+        revival_door, revival_door_ai = create_door(Rng(rng_seed), ascension_level=9)
+        revival_doormaker, revival_doormaker_ai = create_doormaker(Rng(rng_seed), ascension_level=9)
+        revival_combat.add_enemy(revival_door, revival_door_ai)
+        revival_combat.add_enemy(revival_doormaker, revival_doormaker_ai)
+        assert revival_combat.kill_creature(revival_door)
+        starting_max_hp = revival_door.max_hp
+        revival_doormaker_ai.states[DOORMAKER_GET_BACK_IN_MOVE].perform(revival_combat)
+        assert revival_door.max_hp == starting_max_hp + DOORMAKER_DOOR_HP_SCALE_A8
+        assert revival_door.current_hp == revival_door.max_hp
+        assert revival_door.get_power_amount(PowerId.STRENGTH) == DOORMAKER_DOOR_STRENGTH_SCALE_A9
+        assert revival_combat.enemy_ais[revival_door.combat_id].current_move.state_id == DOOR_DRAMATIC_OPEN_MOVE
+        assert revival_doormaker.escaped is True
+
+        encounter_combat = _make_combat(rng_seed)
+        encounter_combat.ascension_level = 9
+        setup_doormaker_boss(encounter_combat, Rng(rng_seed))
+        encounter_door = encounter_combat.enemies[0]
+        encounter_door_ai = encounter_combat.enemy_ais[encounter_door.combat_id]
+        assert encounter_door.monster_id == DOOR_MONSTER_ID
+        assert encounter_door.max_hp == DOOR_A8_HP
+        assert encounter_door_ai.states[DOOR_DRAMATIC_OPEN_MOVE].intents[0].damage == DOOR_DRAMATIC_OPEN_DAMAGE_A9
 
     def test_axebot_stock_spawns_replacements_with_decremented_stock(self):
         combat = _make_combat(35)

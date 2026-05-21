@@ -168,7 +168,7 @@ ELITE_ENCOUNTERS: list[EncounterSetup] = [
 # ---- Boss Encounters ----
 
 def setup_doormaker_boss(combat: CombatState, rng: Rng) -> None:
-    door, door_ai = create_door(rng)
+    door, door_ai = create_door(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(door, door_ai)
 
 
