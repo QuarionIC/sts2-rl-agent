@@ -281,6 +281,7 @@ class DingyRug(RelicInstance):
             card_type=options.card_type,
             card_creation_source=options.card_creation_source,
             allow_card_pool_modifications=options.allow_card_pool_modifications,
+            allow_rarity_modifications=options.allow_rarity_modifications,
             has_custom_card_pool=options.has_custom_card_pool,
             custom_card_ids=options.custom_card_ids,
         )
@@ -2891,6 +2892,7 @@ class PrismaticGem(RelicInstance):
             card_type=options.card_type,
             card_creation_source=options.card_creation_source,
             allow_card_pool_modifications=options.allow_card_pool_modifications,
+            allow_rarity_modifications=options.allow_rarity_modifications,
             has_custom_card_pool=options.has_custom_card_pool,
             custom_card_ids=options.custom_card_ids,
         )

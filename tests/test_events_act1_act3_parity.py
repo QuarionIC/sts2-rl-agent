@@ -360,6 +360,22 @@ def test_big_game_hunter_modifier_respects_locked_reward_rarities():
     assert all(card.rarity == CardRarity.COMMON for card in reward.cards)
 
 
+def test_big_game_hunter_modifier_respects_no_rarity_modification_flag():
+    run_state = RunState(seed=2414, character_id="Ironclad")
+    run_state.modifiers = [BigGameHunterModifier()]
+    reward = CardReward(
+        run_state.player.player_id,
+        context="elite",
+        allow_rarity_modifications=False,
+    )
+
+    reward.populate(run_state, create_room(RoomType.ELITE))
+
+    assert reward.cards
+    assert reward.has_custom_card_pool is False
+    assert any(card.rarity is not CardRarity.RARE for card in reward.cards)
+
+
 def test_character_cards_modifier_expands_card_reward_pool():
     run_state = RunState(seed=2411, character_id="Ironclad")
     modifier = CharacterCardsModifier("Silent")

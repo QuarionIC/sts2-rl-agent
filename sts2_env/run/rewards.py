@@ -41,8 +41,13 @@ class CardRewardGenerationOptions:
     card_type: CardType | None = None
     card_creation_source: str = "encounter"
     allow_card_pool_modifications: bool = True
+    allow_rarity_modifications: bool = True
     has_custom_card_pool: bool = False
     custom_card_ids: tuple[CardId, ...] = field(default_factory=tuple)
+
+    @property
+    def rarity_modifications_allowed(self) -> bool:
+        return self.allow_rarity_modifications and not self.forced_rarities
 
 
 def _get_next_highest_rarity(rarity: CardRarity) -> CardRarity:

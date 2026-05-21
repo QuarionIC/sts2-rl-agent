@@ -204,6 +204,7 @@ class CardReward(Reward):
     use_default_character_pool: bool = True
     card_creation_source: str = "encounter"
     allow_card_pool_modifications: bool = True
+    allow_rarity_modifications: bool = True
     has_custom_card_pool: bool = False
     custom_card_ids: tuple[CardId, ...] = field(default_factory=tuple)
     upgrade_after_generation: bool = False
@@ -229,6 +230,7 @@ class CardReward(Reward):
         use_default_character_pool: bool = True,
         card_creation_source: str | None = None,
         allow_card_pool_modifications: bool = True,
+        allow_rarity_modifications: bool = True,
         has_custom_card_pool: bool = False,
         custom_card_ids: tuple[CardId, ...] | None = None,
         upgrade_after_generation: bool = False,
@@ -255,6 +257,7 @@ class CardReward(Reward):
         self.use_default_character_pool = use_default_character_pool
         self.card_creation_source = card_creation_source or ("other" if generation_context is None else "encounter")
         self.allow_card_pool_modifications = allow_card_pool_modifications
+        self.allow_rarity_modifications = allow_rarity_modifications
         self.has_custom_card_pool = has_custom_card_pool
         self.custom_card_ids = tuple(custom_card_ids or ())
         self.upgrade_after_generation = upgrade_after_generation
@@ -277,6 +280,7 @@ class CardReward(Reward):
             card_type=self.card_type,
             card_creation_source=self.card_creation_source,
             allow_card_pool_modifications=self.allow_card_pool_modifications,
+            allow_rarity_modifications=self.allow_rarity_modifications,
             has_custom_card_pool=self.has_custom_card_pool,
             custom_card_ids=self.custom_card_ids,
         )
@@ -328,6 +332,7 @@ class CardReward(Reward):
         self.card_type = options.card_type
         self.card_creation_source = options.card_creation_source
         self.allow_card_pool_modifications = options.allow_card_pool_modifications
+        self.allow_rarity_modifications = options.allow_rarity_modifications
         self.has_custom_card_pool = options.has_custom_card_pool
         self.custom_card_ids = options.custom_card_ids
         for relic in player.get_relic_objects():

@@ -267,7 +267,7 @@ class BigGameHunterModifier(ModifierModel):
     def modify_card_reward_creation_options(self, player, options, reward, room, run_state):
         if options.card_creation_source != "encounter" or options.context != "elite":
             return options
-        if not options.allow_card_pool_modifications or options.forced_rarities:
+        if not options.allow_card_pool_modifications or not options.rarity_modifications_allowed:
             return options
         candidate_ids = tuple(options.custom_card_ids)
         rare_ids: tuple
@@ -327,6 +327,7 @@ class BigGameHunterModifier(ModifierModel):
             card_type=options.card_type,
             card_creation_source=options.card_creation_source,
             allow_card_pool_modifications=options.allow_card_pool_modifications,
+            allow_rarity_modifications=options.allow_rarity_modifications,
             has_custom_card_pool=True,
             custom_card_ids=rare_ids,
         )
@@ -360,6 +361,7 @@ class CharacterCardsModifier(ModifierModel):
             card_type=options.card_type,
             card_creation_source=options.card_creation_source,
             allow_card_pool_modifications=options.allow_card_pool_modifications,
+            allow_rarity_modifications=options.allow_rarity_modifications,
             has_custom_card_pool=options.has_custom_card_pool,
             custom_card_ids=options.custom_card_ids,
         )
