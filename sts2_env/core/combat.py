@@ -2792,7 +2792,8 @@ class CombatState:
         candidates = [card for card in pile if not card.upgraded]
         if not candidates or count <= 0:
             return []
-        chosen = self.combat_card_selection_rng.sample(candidates, min(count, len(candidates)))
+        self.combat_card_selection_rng.shuffle(candidates)
+        chosen = candidates[:count]
         for card in chosen:
             self.upgrade_card(card)
         return chosen

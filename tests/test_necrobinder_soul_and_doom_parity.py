@@ -25,6 +25,15 @@ class _NoShuffleRng:
         raise AssertionError("Reave should not use random draw-pile insertion")
 
 
+class _ReverseShuffleRng:
+    def __init__(self) -> None:
+        self.shuffle_lengths: list[int] = []
+
+    def shuffle(self, seq) -> None:
+        self.shuffle_lengths.append(len(seq))
+        seq.reverse()
+
+
 def _with_owner(cards: list, owner):
     for card in cards:
         card.owner = owner
@@ -57,10 +66,14 @@ class TestNecrobinderSoulAndDoomParity:
         combat.discard_pile = [strike_a, defend, strike_b]
         combat.hand = [make_drain_power()]
         combat.energy = 1
+        combat.rng = _ReverseShuffleRng()
 
         assert combat.play_card(0, 0)
         assert enemy.current_hp == starting_hp - 10
-        assert sum(1 for card in combat.discard_pile if card.upgraded) == 2
+        assert combat.rng.shuffle_lengths == [3]
+        assert strike_b.upgraded is True
+        assert defend.upgraded is True
+        assert strike_a.upgraded is False
 
     def test_end_of_days_applies_doom_to_all_enemies_then_kills_only_doomed_targets(self):
         """Matches EndOfDays.cs: apply Doom to all hittable enemies, then doom-kill."""
