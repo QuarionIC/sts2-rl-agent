@@ -28,11 +28,16 @@ IRONCLAD_CHARACTER_ID = "Ironclad"
 SILENT_CHARACTER_ID = "Silent"
 FROZEN_EGG_RELIC_NAME = "FROZEN_EGG"
 LASTING_CANDY_RELIC_NAME = "LASTING_CANDY"
+SILVER_CRUCIBLE_RELIC_NAME = "SILVER_CRUCIBLE"
 LASTING_CANDY_TRIGGERING_COMBATS_SEEN = 2
+FIRST_TREASURE_ROOM_COUNT = 1
 MANUAL_REWARD_PARITY_SEED = 218
 EMPTY_MANUAL_REWARD_CARD_COUNT = 0
 ACTIVE_REWARD_RELIC_UPDATE_SEED = 107
 DRIFTWOOD_REWARD_SET_HOOK_SEED = 206
+SILVER_CRUCIBLE_TREASURE_SKIP_SEED = 210
+SILVER_CRUCIBLE_CARD_REWARD_LIMIT_SEED = 211
+SILVER_CRUCIBLE_REROLL_SEED = 212
 FRESNEL_LENS_RELIC_NAME = "FRESNEL_LENS"
 FRESNEL_LENS_NIMBLE_AMOUNT = 2
 ALLY_PLAYER_ID = 2
@@ -138,10 +143,10 @@ def test_lava_rock_adds_two_relic_rewards_only_to_act_one_boss_once():
 
 
 def test_silver_crucible_upgrades_three_card_rewards_and_skips_first_treasure():
-    mgr = RunManager(seed=210, character_id="Ironclad")
+    mgr = RunManager(seed=SILVER_CRUCIBLE_TREASURE_SKIP_SEED, character_id=IRONCLAD_CHARACTER_ID)
     run_state = mgr.run_state
-    assert run_state.player.obtain_relic("SILVER_CRUCIBLE")
-    crucible = next(relic for relic in run_state.player.get_relic_objects() if relic.relic_id.name == "SILVER_CRUCIBLE")
+    assert run_state.player.obtain_relic(SILVER_CRUCIBLE_RELIC_NAME)
+    crucible = next(relic for relic in run_state.player.get_relic_objects() if relic.relic_id.name == SILVER_CRUCIBLE_RELIC_NAME)
 
     for _ in range(3):
         reward = CardReward(
@@ -159,6 +164,17 @@ def test_silver_crucible_upgrades_three_card_rewards_and_skips_first_treasure():
 
     assert mgr.phase == RunManager.PHASE_MAP_CHOICE
     assert crucible.enabled is False
+
+
+def test_silver_crucible_counts_treasure_room_type_without_string_name_lookup():
+    run_state = RunState(seed=SILVER_CRUCIBLE_TREASURE_SKIP_SEED, character_id=IRONCLAD_CHARACTER_ID)
+    assert run_state.player.obtain_relic(SILVER_CRUCIBLE_RELIC_NAME)
+    crucible = next(relic for relic in run_state.player.get_relic_objects() if relic.relic_id.name == SILVER_CRUCIBLE_RELIC_NAME)
+
+    crucible.after_room_entered(run_state.player, RoomType.TREASURE)
+
+    assert crucible._treasure_rooms_entered == FIRST_TREASURE_ROOM_COUNT
+    assert crucible.should_generate_treasure(run_state.player) is False
 
 
 def test_toy_box_wax_rewards_melt_after_three_combats():
@@ -1059,9 +1075,9 @@ def test_lava_lamp_ignores_unblockable_damage_for_reward_upgrade():
 
 
 def test_silver_crucible_upgrades_first_three_card_rewards_only():
-    run_state = RunState(seed=211, character_id="Ironclad")
-    assert run_state.player.obtain_relic("SILVER_CRUCIBLE")
-    silver = next(relic for relic in run_state.player.get_relic_objects() if relic.relic_id.name == "SILVER_CRUCIBLE")
+    run_state = RunState(seed=SILVER_CRUCIBLE_CARD_REWARD_LIMIT_SEED, character_id=IRONCLAD_CHARACTER_ID)
+    assert run_state.player.obtain_relic(SILVER_CRUCIBLE_RELIC_NAME)
+    silver = next(relic for relic in run_state.player.get_relic_objects() if relic.relic_id.name == SILVER_CRUCIBLE_RELIC_NAME)
 
     upgraded_flags: list[bool] = []
     for _ in range(4):
@@ -1077,10 +1093,10 @@ def test_silver_crucible_upgrades_first_three_card_rewards_only():
 
 
 def test_silver_crucible_reroll_consumes_next_card_reward_upgrade():
-    mgr = RunManager(seed=212, character_id="Ironclad")
-    assert mgr.run_state.player.obtain_relic("SILVER_CRUCIBLE")
+    mgr = RunManager(seed=SILVER_CRUCIBLE_REROLL_SEED, character_id=IRONCLAD_CHARACTER_ID)
+    assert mgr.run_state.player.obtain_relic(SILVER_CRUCIBLE_RELIC_NAME)
     assert mgr.run_state.player.obtain_relic("DRIFTWOOD")
-    silver = next(relic for relic in mgr.run_state.player.get_relic_objects() if relic.relic_id.name == "SILVER_CRUCIBLE")
+    silver = next(relic for relic in mgr.run_state.player.get_relic_objects() if relic.relic_id.name == SILVER_CRUCIBLE_RELIC_NAME)
 
     mgr._enter_card_reward(context="regular")
     assert all(card.upgraded for card in mgr._offered_cards)

@@ -3303,7 +3303,8 @@ class SilverCrucible(RelicInstance):
             self.enabled = False
 
     def after_room_entered(self, owner: Creature, room_type: object) -> None:
-        if hasattr(room_type, "room_type") and room_type.room_type.name == "TREASURE":
+        visit_room_type = getattr(room_type, "room_type", room_type)
+        if visit_room_type == RoomType.TREASURE:
             self._treasure_rooms_entered += 1
             self._refresh_enabled()
 
