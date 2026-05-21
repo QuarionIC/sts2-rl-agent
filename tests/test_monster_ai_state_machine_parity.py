@@ -647,6 +647,30 @@ class TestFixedRotation:
         chomp.perform(combat)
         assert ally.current_hp == ally_hp_before_chomp - 18
 
+    def test_slithering_strangler_ascension_scaling_matches_csharp(self):
+        rng_seed = 1276
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=80)
+        strangler, strangler_ai = create_slithering_strangler(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(strangler, strangler_ai)
+
+        strangler_ai.states["CONSTRICT"].perform(combat)
+        assert ally.get_power_amount(PowerId.CONSTRICT) == 3
+
+        twack = strangler_ai.states["TWACK"]
+        assert twack.intents[0].damage == 8
+        ally_hp_before_twack = ally.current_hp
+        twack.perform(combat)
+        assert ally.current_hp == ally_hp_before_twack - 8
+        assert strangler.block == 11
+
+        lash = strangler_ai.states["LASH"]
+        assert lash.intents[0].damage == 13
+        ally_hp_before_lash = ally.current_hp
+        lash.perform(combat)
+        assert ally.current_hp == ally_hp_before_lash - 13
+
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle
 

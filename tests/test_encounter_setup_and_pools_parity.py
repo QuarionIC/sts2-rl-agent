@@ -445,6 +445,17 @@ class TestAct1NormalEncounters:
             for monster_id in secondary_shape
         }
 
+    def test_slithering_strangler_tough_ascension_hp_matches_csharp(self):
+        for seed in range(30):
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_slithering_strangler_normal(combat, Rng(seed))
+
+            strangler = combat.enemies[-1]
+            assert strangler.monster_id == "SLITHERING_STRANGLER"
+            assert 54 <= strangler.max_hp <= 56
+
     def test_snapping_jaxfruit_count(self):
         combat = _make_combat()
         setup_snapping_jaxfruit_normal(combat, Rng(42))

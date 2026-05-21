@@ -724,37 +724,105 @@ def create_vine_shambler(rng: Rng, ascension_level: int = 0) -> tuple[Creature, 
 
 # ---- SlitheringStrangler (HP 53-55 / 54-56 asc) ----
 
-def create_slithering_strangler(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(53, 55)
+SLITHERING_STRANGLER_BASE_MIN_HP = 53
+SLITHERING_STRANGLER_BASE_MAX_HP = 55
+SLITHERING_STRANGLER_TOUGH_MIN_HP = 54
+SLITHERING_STRANGLER_TOUGH_MAX_HP = 56
+SLITHERING_STRANGLER_BASE_TWACK_DAMAGE = 7
+SLITHERING_STRANGLER_DEADLY_TWACK_DAMAGE = 8
+SLITHERING_STRANGLER_BASE_LASH_DAMAGE = 12
+SLITHERING_STRANGLER_DEADLY_LASH_DAMAGE = 13
+SLITHERING_STRANGLER_TWACK_BLOCK = 5
+SLITHERING_STRANGLER_CONSTRICT_AMOUNT = 3
+SLITHERING_STRANGLER_RANDOM_MOVE = "rand"
+SLITHERING_STRANGLER_CONSTRICT_MOVE = "CONSTRICT"
+SLITHERING_STRANGLER_TWACK_MOVE = "TWACK"
+SLITHERING_STRANGLER_LASH_MOVE = "LASH"
+
+
+def create_slithering_strangler(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SLITHERING_STRANGLER_TOUGH_MIN_HP,
+        SLITHERING_STRANGLER_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SLITHERING_STRANGLER_TOUGH_MAX_HP,
+        SLITHERING_STRANGLER_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
     creature = Creature(max_hp=hp, monster_id="SLITHERING_STRANGLER")
 
-    twack_dmg = 7
-    lash_dmg = 12
-    twack_block = 5
-    constrict_amount = 3
-
     def constrict(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.CONSTRICT, constrict_amount, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.CONSTRICT,
+            SLITHERING_STRANGLER_CONSTRICT_AMOUNT,
+            applier=creature,
+        )
 
     def twack(combat: CombatState) -> None:
+        twack_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SLITHERING_STRANGLER_DEADLY_TWACK_DAMAGE,
+            SLITHERING_STRANGLER_BASE_TWACK_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, twack_dmg)
-        _gain_block(creature, twack_block, combat)
+        _gain_block(creature, SLITHERING_STRANGLER_TWACK_BLOCK, combat)
 
     def lash(combat: CombatState) -> None:
+        lash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SLITHERING_STRANGLER_DEADLY_LASH_DAMAGE,
+            SLITHERING_STRANGLER_BASE_LASH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, lash_dmg)
 
-    rand = RandomBranchState("rand")
-    rand.add_branch("TWACK")
-    rand.add_branch("LASH")
+    twack_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SLITHERING_STRANGLER_DEADLY_TWACK_DAMAGE,
+        SLITHERING_STRANGLER_BASE_TWACK_DAMAGE,
+    )
+    lash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SLITHERING_STRANGLER_DEADLY_LASH_DAMAGE,
+        SLITHERING_STRANGLER_BASE_LASH_DAMAGE,
+    )
+
+    rand = RandomBranchState(SLITHERING_STRANGLER_RANDOM_MOVE)
+    rand.add_branch(SLITHERING_STRANGLER_TWACK_MOVE, MoveRepeatType.CAN_REPEAT_FOREVER)
+    rand.add_branch(SLITHERING_STRANGLER_LASH_MOVE, MoveRepeatType.CAN_REPEAT_FOREVER)
 
     states: dict[str, MonsterState] = {
-        "CONSTRICT": MoveState("CONSTRICT", constrict, [debuff_intent()], follow_up_id="rand"),
-        "TWACK": MoveState("TWACK", twack, [attack_intent(twack_dmg), defend_intent()], follow_up_id="CONSTRICT"),
-        "LASH": MoveState("LASH", lash, [attack_intent(lash_dmg)], follow_up_id="CONSTRICT"),
-        "rand": rand,
+        SLITHERING_STRANGLER_CONSTRICT_MOVE: MoveState(
+            SLITHERING_STRANGLER_CONSTRICT_MOVE,
+            constrict,
+            [debuff_intent()],
+            follow_up_id=SLITHERING_STRANGLER_RANDOM_MOVE,
+        ),
+        SLITHERING_STRANGLER_TWACK_MOVE: MoveState(
+            SLITHERING_STRANGLER_TWACK_MOVE,
+            twack,
+            [attack_intent(twack_intent_damage), defend_intent()],
+            follow_up_id=SLITHERING_STRANGLER_CONSTRICT_MOVE,
+        ),
+        SLITHERING_STRANGLER_LASH_MOVE: MoveState(
+            SLITHERING_STRANGLER_LASH_MOVE,
+            lash,
+            [attack_intent(lash_intent_damage)],
+            follow_up_id=SLITHERING_STRANGLER_CONSTRICT_MOVE,
+        ),
+        SLITHERING_STRANGLER_RANDOM_MOVE: rand,
     }
 
-    return creature, MonsterAI(states, "CONSTRICT")
+    return creature, MonsterAI(states, SLITHERING_STRANGLER_CONSTRICT_MOVE)
 
 
 # ---- SnappingJaxfruit (HP 31-33 / 34-36 asc) ----

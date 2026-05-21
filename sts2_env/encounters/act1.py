@@ -184,7 +184,7 @@ def setup_slithering_strangler_normal(combat: CombatState, rng: Rng) -> None:
             creature, ai = creator(rng, ascension_level=combat.ascension_level)
         combat.add_enemy(creature, ai)
 
-    strangler, strangler_ai = create_slithering_strangler(rng)
+    strangler, strangler_ai = create_slithering_strangler(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(strangler, strangler_ai)
 
 
