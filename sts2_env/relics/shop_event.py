@@ -3329,13 +3329,12 @@ class SilverCrucible(RelicInstance):
     ) -> list[CardInstance]:
         if not self.enabled:
             return cards
-        if getattr(reward, "_silver_crucible_upgraded", False) or self._times_used < self.CARD_REWARDS:
-            if not getattr(reward, "_silver_crucible_upgraded", False):
-                reward._silver_crucible_upgraded = True
-                self._times_used += 1
-                self._refresh_enabled()
-            for card in cards:
-                owner.upgrade_card_instance(card)
+        if self._times_used >= self.CARD_REWARDS:
+            return cards
+        self._times_used += 1
+        self._refresh_enabled()
+        for card in cards:
+            owner.upgrade_card_instance(card)
         return cards
 
 

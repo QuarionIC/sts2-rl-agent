@@ -1009,7 +1009,7 @@ def test_silver_crucible_upgrades_first_three_card_rewards_only():
     assert silver._times_used == 3
 
 
-def test_silver_crucible_reroll_keeps_same_reward_screen_upgraded_without_double_counting():
+def test_silver_crucible_reroll_consumes_next_card_reward_upgrade():
     mgr = RunManager(seed=212, character_id="Ironclad")
     assert mgr.run_state.player.obtain_relic("SILVER_CRUCIBLE")
     assert mgr.run_state.player.obtain_relic("DRIFTWOOD")
@@ -1022,7 +1022,7 @@ def test_silver_crucible_reroll_keeps_same_reward_screen_upgraded_without_double
     mgr.take_action({"action": "reroll_card_reward"})
 
     assert all(card.upgraded for card in mgr._offered_cards)
-    assert silver._times_used == 1
+    assert silver._times_used == 2
 
 
 def test_calling_bell_enqueues_common_uncommon_rare_relic_rewards():
