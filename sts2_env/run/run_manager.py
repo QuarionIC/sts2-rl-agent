@@ -53,6 +53,8 @@ from sts2_env.run.reward_objects import (
     RewardsSet,
     TransformCardsReward,
     UpgradeCardsReward,
+    CARD_REWARD_ALTERNATIVE_LIMIT_MESSAGE,
+    MAX_CARD_REWARD_ALTERNATIVES,
 )
 from sts2_env.run.rest_site import RestSiteOption, generate_rest_site_options
 from sts2_env.run.rewards import generate_combat_reward_cards
@@ -977,6 +979,8 @@ class RunManager:
         player = self._run_state.get_player(reward.player_id)
         if any(callable(getattr(relic, "sacrifice_card_reward", None)) for relic in player.get_relic_objects()):
             actions.append({"action": CARD_REWARD_ACTION_SACRIFICE})
+        if len(actions) > MAX_CARD_REWARD_ALTERNATIVES:
+            raise ValueError(CARD_REWARD_ALTERNATIVE_LIMIT_MESSAGE)
         return actions
 
     def _actions_boss_relic(self) -> list[dict]:

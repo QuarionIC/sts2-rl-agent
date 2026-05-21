@@ -32,6 +32,7 @@ LASTING_CANDY_TRIGGERING_COMBATS_SEEN = 2
 MANUAL_REWARD_PARITY_SEED = 218
 EMPTY_MANUAL_REWARD_CARD_COUNT = 0
 ACTIVE_REWARD_RELIC_UPDATE_SEED = 107
+DRIFTWOOD_REWARD_SET_HOOK_SEED = 206
 FRESNEL_LENS_RELIC_NAME = "FRESNEL_LENS"
 FRESNEL_LENS_NIMBLE_AMOUNT = 2
 ALLY_PLAYER_ID = 2
@@ -316,6 +317,25 @@ def test_driftwood_allows_rerolling_card_rewards():
     assert result["success"] is True
     assert [card.card_id for card in mgr._offered_cards] != original_ids
     assert not any(action["action"] == "reroll_card_reward" for action in mgr.get_available_actions())
+
+
+def test_driftwood_reroll_is_added_by_rewards_set_late_hook_not_direct_populate():
+    run_state = RunState(seed=DRIFTWOOD_REWARD_SET_HOOK_SEED, character_id=IRONCLAD_CHARACTER_ID)
+    assert run_state.player.obtain_relic("DRIFTWOOD")
+    room = create_room(RoomType.MONSTER)
+    direct_reward = CardReward(run_state.player.player_id)
+
+    direct_reward.populate(run_state, room)
+
+    assert direct_reward.rerolls_remaining == 0
+
+    rewards = RewardsSet(run_state.player.player_id, room=room).with_custom_rewards([
+        CardReward(run_state.player.player_id),
+    ])
+    generated = rewards.generate_without_offering(run_state)
+    set_reward = next(reward for reward in generated if isinstance(reward, CardReward))
+
+    assert set_reward.rerolls_remaining == 1
 
 
 def test_miniature_tent_keeps_rest_site_open_after_heal_reward_resolution():

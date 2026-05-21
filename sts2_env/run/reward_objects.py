@@ -414,10 +414,6 @@ class CardReward(Reward):
         if self.upgrade_after_generation:
             for card in self.cards:
                 player.upgrade_card_instance(card)
-        if self.max_rerolls == 0 and self._can_regenerate:
-            for relic in player.get_relic_objects():
-                if relic.allow_card_reward_reroll(player, self, room, run_state):
-                    self.max_rerolls = max(self.max_rerolls, 1)
         alternatives = int(self.skippable) + int(self.rerolls_remaining > 0)
         if any(callable(getattr(relic, "sacrifice_card_reward", None)) for relic in player.get_relic_objects()):
             alternatives += 1

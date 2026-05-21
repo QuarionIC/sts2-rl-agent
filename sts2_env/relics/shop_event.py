@@ -1575,16 +1575,6 @@ class Driftwood(RelicInstance):
                 reward.max_rerolls = max(reward.max_rerolls, 1)
         return rewards
 
-    def allow_card_reward_reroll(
-        self,
-        owner: Creature,
-        reward: CardReward,
-        room: Room | None,
-        run_state: RunState,
-    ) -> bool:
-        return True
-
-
 @register_relic
 class DustyTome(RelicInstance):
     """Add 1 random Ancient-rarity upgraded card to deck."""
