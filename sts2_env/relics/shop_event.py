@@ -1994,6 +1994,7 @@ class GlassEye(RelicInstance):
     relic_id = RelicId.GLASS_EYE
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    OPTIONS_PER_REWARD = 3
 
     def after_obtained(self, owner: Creature) -> None:
         from sts2_env.run.reward_objects import CardReward
@@ -2008,7 +2009,7 @@ class GlassEye(RelicInstance):
             owner.run_state.pending_rewards.append(
                 CardReward(
                     owner.player_id,
-                    option_count=3,
+                    option_count=self.OPTIONS_PER_REWARD,
                     forced_rarities=(rarity, rarity, rarity),
                     generation_context=None,
                     roll_upgrade=False,
@@ -2257,9 +2258,10 @@ class LeadPaperweight(RelicInstance):
     relic_id = RelicId.LEAD_PAPERWEIGHT
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    CARDS = 2
 
     def after_obtained(self, owner: Creature) -> None:
-        owner.offer_colorless_cards(2)
+        owner.offer_colorless_cards(self.CARDS)
 
 
 @register_relic
@@ -2346,9 +2348,10 @@ class MassiveScroll(RelicInstance):
     relic_id = RelicId.MASSIVE_SCROLL
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    CARDS = 3
 
     def after_obtained(self, owner: Creature) -> None:
-        owner.offer_multiplayer_cards(3)
+        owner.offer_multiplayer_cards(self.CARDS)
 
 
 @register_relic
