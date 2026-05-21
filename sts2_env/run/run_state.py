@@ -45,6 +45,7 @@ UNLOCK_STATE_EPOCH_UNLOCK_COUNT_KEY = "epoch_unlock_count"
 FIRST_RUN_COUNT = 0
 SCROLL_BOXES_BUNDLE_COUNT = 2
 SCROLL_BOXES_COMMON_CARDS_PER_BUNDLE = 2
+SCROLL_BOXES_UNCOMMON_CARDS_PER_BUNDLE = 1
 SCROLL_BOXES_CLAW_CARDS_PER_BUNDLE = 3
 SCROLL_BOXES_CLAW_BUNDLE_CHANCE_PERCENT = 1
 SCROLL_BOXES_CLAW_BUNDLE_ROLL_BOUND = 100
@@ -1154,9 +1155,11 @@ class PlayerState:
                 used_ids.add(card_id)
                 available_common.remove(card_id)
             available_uncommon = [card_id for card_id in uncommon_ids if card_id not in used_ids]
-            card_id = self.run_state.rng.rewards.choice(available_uncommon)
-            bundle.append(create_card(card_id))
-            used_ids.add(card_id)
+            for _ in range(SCROLL_BOXES_UNCOMMON_CARDS_PER_BUNDLE):
+                card_id = self.run_state.rng.rewards.choice(available_uncommon)
+                bundle.append(create_card(card_id))
+                used_ids.add(card_id)
+                available_uncommon.remove(card_id)
             bundles.append(bundle)
         self.run_state.pending_rewards.append(CardBundlesReward(self.player_id, bundles))
 

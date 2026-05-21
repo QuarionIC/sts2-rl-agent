@@ -145,11 +145,14 @@ class LiftOption(RestSiteOption):
 class CookOption(RestSiteOption):
     """Remove 2 cards, gain +9 Max HP."""
 
+    CARD_COUNT = 2
+    MAX_HP = 9
+
     def __init__(self, has_enough_removable: bool = True) -> None:
         super().__init__(
             option_id="COOK",
             label="Cook",
-            description="Remove 2 cards, gain 9 Max HP",
+            description=f"Remove {self.CARD_COUNT} cards, gain {self.MAX_HP} Max HP",
             enabled=has_enough_removable,
         )
 
@@ -157,27 +160,27 @@ class CookOption(RestSiteOption):
         card_indices = kwargs.get("card_indices", [])
         removed = 0
         for idx in sorted(card_indices, reverse=True):
-            if 0 <= idx < len(player.deck) and removed < 2 and player.deck[idx].is_removable:
+            if 0 <= idx < len(player.deck) and removed < self.CARD_COUNT and player.deck[idx].is_removable:
                 player.deck.pop(idx)
                 removed += 1
-        if removed == 2:
-            player.gain_max_hp(9)
-            return "Cooked: removed 2 cards, gained 9 Max HP"
+        if removed == self.CARD_COUNT:
+            player.gain_max_hp(self.MAX_HP)
+            return f"Cooked: removed {self.CARD_COUNT} cards, gained {self.MAX_HP} Max HP"
         candidates = player.removable_deck_cards()
-        if len(candidates) >= 2:
+        if len(candidates) >= self.CARD_COUNT:
             if player.request_deck_choice(
-                prompt="Choose 2 cards to cook away",
+                prompt=f"Choose {self.CARD_COUNT} cards to cook away",
                 cards=candidates,
                 resolver=lambda selected: (
                     [player.deck.remove(card) for card in selected if card in player.deck],
-                    player.gain_max_hp(9),
+                    player.gain_max_hp(self.MAX_HP),
                 ),
                 allow_skip=False,
-                min_count=2,
-                max_count=2,
+                min_count=self.CARD_COUNT,
+                max_count=self.CARD_COUNT,
                 require_manual_confirmation=True,
             ):
-                return "Choose 2 cards to remove"
+                return f"Choose {self.CARD_COUNT} cards to remove"
         return "Cook cancelled"
 
 

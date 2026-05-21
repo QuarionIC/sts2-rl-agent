@@ -30,6 +30,12 @@ if TYPE_CHECKING:
     from sts2_env.run.rooms import Room
     from sts2_env.run.run_state import RunState
 
+from sts2_env.run.run_state import (
+    SCROLL_BOXES_BUNDLE_COUNT,
+    SCROLL_BOXES_COMMON_CARDS_PER_BUNDLE,
+    SCROLL_BOXES_UNCOMMON_CARDS_PER_BUNDLE,
+)
+
 
 def _gain_unpowered_block(owner: Creature, amount: int, combat: CombatState) -> int:
     before = owner.block
@@ -1724,9 +1730,10 @@ class FakeLeesWaffle(RelicInstance):
     relic_id = RelicId.FAKE_LEES_WAFFLE
     rarity = RelicRarity.EVENT
     pool = RelicPool.EVENT
+    HEAL_PCT = 10
 
     def after_obtained(self, owner: Creature) -> None:
-        owner.heal(owner.max_hp // 10)
+        owner.heal(owner.max_hp * self.HEAL_PCT // PERCENT_DENOMINATOR)
 
 
 @register_relic
@@ -2396,7 +2403,7 @@ class MeatCleaver(RelicInstance):
 
         removable_count = len(owner.removable_deck_cards())
         if not any(getattr(option, "option_id", "") == "COOK" for option in options):
-            options = [*options, CookOption(has_enough_removable=removable_count >= 2)]
+            options = [*options, CookOption(has_enough_removable=removable_count >= CookOption.CARD_COUNT)]
         return options
 
 
@@ -2616,13 +2623,14 @@ class PaelsHorn(RelicInstance):
     relic_id = RelicId.PAELS_HORN
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    CARDS = 2
 
     def after_obtained(self, owner: Creature) -> None:
         if getattr(owner.run_state, "defer_followup_rewards", False):
             from sts2_env.cards.factory import create_card
-            owner.offer_add_cards_reward([create_card(CardId.RELAX), create_card(CardId.RELAX)])
+            owner.offer_add_cards_reward([create_card(CardId.RELAX) for _ in range(self.CARDS)])
             return
-        for _ in range(2):
+        for _ in range(self.CARDS):
             owner.add_card_to_deck("Relax")
 
 
@@ -3093,6 +3101,8 @@ class ScrollBoxes(RelicInstance):
     relic_id = RelicId.SCROLL_BOXES
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    COMMON_CARDS_NEEDED = SCROLL_BOXES_BUNDLE_COUNT * SCROLL_BOXES_COMMON_CARDS_PER_BUNDLE
+    UNCOMMON_CARDS_NEEDED = SCROLL_BOXES_BUNDLE_COUNT * SCROLL_BOXES_UNCOMMON_CARDS_PER_BUNDLE
 
     @staticmethod
     def can_generate_bundles(owner: Creature) -> bool:
@@ -3100,7 +3110,10 @@ class ScrollBoxes(RelicInstance):
 
         common_cards = eligible_character_cards(owner.character_id, rarity="common", generation_context="combat")
         uncommon_cards = eligible_character_cards(owner.character_id, rarity="uncommon", generation_context="combat")
-        return len(common_cards) >= 4 and len(uncommon_cards) >= 2
+        return (
+            len(common_cards) >= ScrollBoxes.COMMON_CARDS_NEEDED
+            and len(uncommon_cards) >= ScrollBoxes.UNCOMMON_CARDS_NEEDED
+        )
 
     def after_obtained(self, owner: Creature) -> None:
         owner.lose_all_gold()
@@ -3114,6 +3127,8 @@ class SeaGlass(RelicInstance):
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
     CARDS = 15
+    RARITY_GROUPS = 3
+    DEFAULT_CHARACTER_ID = "Ironclad"
 
     def __init__(self, relic_id: RelicId):
         super().__init__(relic_id)
@@ -3121,15 +3136,16 @@ class SeaGlass(RelicInstance):
 
     def after_obtained(self, owner: Creature) -> None:
         if self._character_id is None:
-            self._character_id = "Ironclad"
+            self._character_id = self.DEFAULT_CHARACTER_ID
+        cards_per_rarity = self.CARDS // self.RARITY_GROUPS
         owner.offer_custom_card_reward(
             option_count=self.CARDS,
             cards_to_pick=self.CARDS,
             character_ids=(self._character_id,),
             forced_rarities=(
-                (CardRarity.COMMON,) * 5
-                + (CardRarity.UNCOMMON,) * 5
-                + (CardRarity.RARE,) * 5
+                (CardRarity.COMMON,) * cards_per_rarity
+                + (CardRarity.UNCOMMON,) * cards_per_rarity
+                + (CardRarity.RARE,) * cards_per_rarity
             ),
             generation_context=None,
             roll_upgrade=False,
