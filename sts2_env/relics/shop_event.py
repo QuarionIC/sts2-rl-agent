@@ -3154,25 +3154,27 @@ class SereTalon(RelicInstance):
     relic_id = RelicId.SERE_TALON
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    CURSES = 2
+    WISHES = 3
 
     def after_obtained(self, owner: Creature) -> None:
         if getattr(owner.run_state, "defer_followup_rewards", False):
             from sts2_env.cards.factory import create_card, eligible_registered_cards
 
             curse_ids = eligible_registered_cards(card_pool=CardPoolId.CURSE, generation_context="modifier")
-            chosen_curses = owner.run_state.rng.niche.sample(curse_ids, min(2, len(curse_ids)))
+            chosen_curses = owner.run_state.rng.niche.sample(curse_ids, min(self.CURSES, len(curse_ids)))
             generated = [
                 create_card(card_id)
                 for card_id in chosen_curses
             ]
             wish_id = owner._coerce_card_id("Wish")
             if wish_id is not None:
-                generated.extend(create_card(wish_id) for _ in range(3))
+                generated.extend(create_card(wish_id) for _ in range(self.WISHES))
             if generated:
                 owner.offer_add_cards_reward(generated)
                 return
-        owner.add_random_curses(2, rng=owner.run_state.rng.niche)
-        for _ in range(3):
+        owner.add_random_curses(self.CURSES, rng=owner.run_state.rng.niche)
+        for _ in range(self.WISHES):
             owner.add_card_to_deck("Wish")
 
 
