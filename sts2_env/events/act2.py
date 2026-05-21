@@ -1089,6 +1089,12 @@ register_event(SpiralingWhirlpool())
 
 # ── StoneOfAllTime ────────────────────────────────────────────────────
 
+STONE_OF_ALL_TIME_DRINK_MAX_HP_GAIN = 10
+STONE_OF_ALL_TIME_PUSH_HP_LOSS = 6
+STONE_OF_ALL_TIME_VIGOROUS_AMOUNT = 8
+STONE_OF_ALL_TIME_POST_CHOICE_RNG_BOUND = 100
+
+
 class StoneOfAllTime(EventModel):
     """Lift: Discard a potion, gain 10 Max HP.
     Push: Take 6 damage, enchant a card with Vigorous +8.
@@ -1111,6 +1117,9 @@ class StoneOfAllTime(EventModel):
     def on_event_finished(self, run_state: RunState) -> None:
         run_state.player.can_remove_potions = True
 
+    def _consume_post_choice_rng(self, run_state: RunState) -> None:
+        self.get_rng(run_state).next_int(0, STONE_OF_ALL_TIME_POST_CHOICE_RNG_BOUND - 1)
+
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         held = run_state.player.held_potions()
         lift_potion = self.get_rng(run_state).choice(held) if held else None
@@ -1130,11 +1139,11 @@ class StoneOfAllTime(EventModel):
                 self._lift_potion_slot = lift_potion.slot_index if lift_potion is not None else None
             if self._lift_potion_slot is not None:
                 run_state.player.remove_potion(self._lift_potion_slot)
-            run_state.player.gain_max_hp(10)
-            self.get_rng(run_state).next_int(0, 99)
+            run_state.player.gain_max_hp(STONE_OF_ALL_TIME_DRINK_MAX_HP_GAIN)
+            self._consume_post_choice_rng(run_state)
             return EventResult(finished=True,
                                description="Discarded a potion, gained 10 Max HP.")
-        run_state.player.lose_hp(6)
+        run_state.player.lose_hp(STONE_OF_ALL_TIME_PUSH_HP_LOSS)
         candidates = [card for card in run_state.player.deck if can_enchant_card(card, "Vigorous")]
         if not candidates:
             return EventResult(finished=True, description="Took 6 damage, but had no card to enchant.")
@@ -1145,9 +1154,10 @@ class StoneOfAllTime(EventModel):
                     EnchantCardsReward(
                         run_state.player.player_id,
                         enchantment="Vigorous",
-                        amount=8,
+                        amount=STONE_OF_ALL_TIME_VIGOROUS_AMOUNT,
                         count=1,
                         cards=candidates,
+                        after_selected=lambda: self._consume_post_choice_rng(run_state),
                     )
                 ],
             )
@@ -1156,8 +1166,8 @@ class StoneOfAllTime(EventModel):
             cards=candidates,
             source_pile="deck",
             resolver=lambda selected: (
-                selected and selected[0].add_enchantment("Vigorous", 8),
-                self.get_rng(run_state).next_int(0, 99),
+                selected and selected[0].add_enchantment("Vigorous", STONE_OF_ALL_TIME_VIGOROUS_AMOUNT),
+                self._consume_post_choice_rng(run_state),
                 EventResult(finished=True, description="Took 6 damage, enchanted a card with Vigorous +8."),
             )[-1],
             description="Choose a card to enchant.",

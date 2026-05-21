@@ -31,6 +31,7 @@ class _LastChoiceCountingRng:
     def __init__(self) -> None:
         self.choice_calls = 0
         self.next_int_calls = 0
+        self.next_int_args: list[tuple[int, int]] = []
 
     def choice(self, seq):
         self.choice_calls += 1
@@ -38,6 +39,7 @@ class _LastChoiceCountingRng:
 
     def next_int(self, low: int, high: int) -> int:
         self.next_int_calls += 1
+        self.next_int_args.append((low, high))
         return low
 
 
@@ -227,6 +229,7 @@ def test_stone_of_all_time_lift_uses_preselected_event_rng_potion_and_consumes_r
     assert result.finished
     assert event.rng.choice_calls == 1
     assert event.rng.next_int_calls == 1
+    assert event.rng.next_int_args == [(0, 99)]
     assert [potion.potion_id for potion in run_state.player.held_potions()] == ["FirePotion"]
 
 
@@ -246,6 +249,31 @@ def test_stone_of_all_time_push_consumes_event_rng_after_enchanting():
     assert resolved.finished
     assert target.enchantments.get("Vigorous") == 8
     assert event.rng.next_int_calls == 1
+    assert event.rng.next_int_args == [(0, 99)]
+
+
+def test_stone_of_all_time_deferred_push_consumes_event_rng_after_reward_choice():
+    mgr = RunManager(seed=4044, character_id="Ironclad")
+    mgr.run_state.current_act_index = 1
+    mgr.run_state.player.add_potion(create_potion("FirePotion"))
+    mgr._phase = RunManager.PHASE_EVENT
+    event = StoneOfAllTime()
+    event.rng = _LastChoiceCountingRng()
+    mgr._event_model = event
+    mgr._event_options = event.generate_initial_options(mgr.run_state)
+
+    result = mgr._do_event_choice({"option_id": "push"})
+
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert event.rng.next_int_calls == 0
+    assert mgr.run_state.pending_choice is not None
+
+    final = mgr.take_action({"action": "choose", "index": 0})
+
+    assert final["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert any(card.enchantments.get("Vigorous") == 8 for card in mgr.run_state.player.deck)
+    assert event.rng.next_int_calls == 1
+    assert event.rng.next_int_args == [(0, 99)]
 
 
 def test_future_of_potions_trade_discards_potion_and_builds_upgraded_rewards():

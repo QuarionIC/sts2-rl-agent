@@ -6,7 +6,7 @@ Matches RunState.cs from MegaCrit.Sts2.Core.Runs.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from sts2_env.cards.enchantments import can_enchant_card
 from sts2_env.cards.factory import (
@@ -403,36 +403,39 @@ class PlayerState:
         *,
         cards: list[CardInstance] | None = None,
         min_count: int | None = None,
+        after_selected: Callable[[], None] | None = None,
     ) -> int:
         candidates = list(cards) if cards is not None else [card for card in self.deck if can_enchant_card(card, enchantment)]
         max_count = min(count, len(candidates))
         required = min_count if min_count is not None else max_count
         allow_skip = required == 0
+
+        def apply_enchantment(selected: list[CardInstance]) -> int:
+            for card in selected:
+                card.add_enchantment(enchantment, amount)
+            if after_selected is not None:
+                after_selected()
+            return len(selected)
+
+        if count <= 0:
+            return 0
         if count > 0 and candidates and self._can_auto_resolve_deck_choice(
             candidates,
             allow_skip=allow_skip,
             min_count=required,
             max_count=max_count,
         ):
-            for card in candidates[:max_count]:
-                card.add_enchantment(enchantment, amount)
-            return max_count
+            return apply_enchantment(candidates[:max_count])
         if count > 0 and candidates and self.request_deck_choice(
             prompt=f"Choose {count} cards to enchant with {enchantment}",
             cards=candidates,
-            resolver=lambda selected: [card.add_enchantment(enchantment, amount) for card in selected],
+            resolver=apply_enchantment,
             allow_skip=allow_skip,
             min_count=required,
             max_count=max_count,
         ):
             return 0
-        enchanted = 0
-        for card in candidates:
-            if enchanted >= count:
-                break
-            card.add_enchantment(enchantment, amount)
-            enchanted += 1
-        return enchanted
+        return apply_enchantment(candidates[:count])
 
     def enchant_all_cards(self, enchantment: str, amount: int = 1) -> int:
         enchanted = 0

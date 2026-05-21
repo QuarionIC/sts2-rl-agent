@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from sts2_env.cards.base import CardInstance
 from sts2_env.cards.factory import create_card
@@ -804,6 +804,7 @@ class EnchantCardsReward(Reward):
     count: int = 1
     cards: list[CardInstance] | None = None
     min_count: int | None = None
+    after_selected: Callable[[], None] | None = None
 
     def __init__(
         self,
@@ -814,6 +815,7 @@ class EnchantCardsReward(Reward):
         cards: list[CardInstance] | None = None,
         *,
         min_count: int | None = None,
+        after_selected: Callable[[], None] | None = None,
     ):
         super().__init__(
             player_id=player_id,
@@ -826,6 +828,7 @@ class EnchantCardsReward(Reward):
         self.count = count
         self.cards = cards
         self.min_count = min_count
+        self.after_selected = after_selected
 
     def select(self, run_manager: RunManager, **_: object) -> dict:
         player = run_manager.run_state.get_player(self.player_id)
@@ -835,6 +838,7 @@ class EnchantCardsReward(Reward):
             self.count,
             cards=self.cards,
             min_count=self.min_count,
+            after_selected=self.after_selected,
         )
         if run_manager.run_state.pending_choice is not None:
             return {
