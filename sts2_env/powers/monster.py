@@ -99,6 +99,7 @@ class SlipperyPower(PowerInstance):
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.COUNTER
+    should_scale_in_multiplayer = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.SLIPPERY, amount)
@@ -211,6 +212,7 @@ class HardenedShellPower(PowerInstance):
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.COUNTER
+    should_scale_in_multiplayer = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.HARDENED_SHELL, amount)
@@ -265,6 +267,7 @@ class SkittishPower(PowerInstance):
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.COUNTER
+    should_scale_in_multiplayer = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.SKITTISH, amount)
@@ -427,6 +430,7 @@ class PlowPower(PowerInstance):
 
     power_type = PowerType.DEBUFF
     stack_type = PowerStackType.COUNTER
+    should_scale_in_multiplayer = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.PLOW, amount)
@@ -832,6 +836,7 @@ class ShriekPower(PowerInstance):
     power_type = PowerType.DEBUFF
     stack_type = PowerStackType.COUNTER
     allow_negative = True
+    should_scale_in_multiplayer = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.SHRIEK, amount)

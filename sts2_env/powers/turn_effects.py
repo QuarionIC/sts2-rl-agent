@@ -109,6 +109,7 @@ class RegenPower(PowerInstance):
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.COUNTER
+    should_scale_in_multiplayer = True
 
     def __init__(self, amount: int):
         super().__init__(PowerId.REGEN, amount)

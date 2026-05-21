@@ -109,6 +109,44 @@ class TestPowerApplication:
         assert not player.has_power(PowerId.STRENGTH)
         assert not player.has_power(PowerId.ARTIFACT)
 
+    def test_multiplayer_scaling_applies_to_primary_enemy_power_amount(self, simple_combat):
+        simple_combat.add_ally_player(PlayerState(player_id=2, character_id="Ironclad", max_hp=70, current_hp=70))
+        enemy = simple_combat.enemies[0]
+
+        simple_combat.apply_power_to(enemy, PowerId.SKITTISH, 6, applier=enemy)
+
+        assert enemy.get_power_amount(PowerId.SKITTISH) == 13
+
+    def test_multiplayer_scaling_uses_charge_rule_for_artifact_like_powers(self, simple_combat):
+        simple_combat.add_ally_player(PlayerState(player_id=2, character_id="Ironclad", max_hp=70, current_hp=70))
+        simple_combat.add_ally_player(PlayerState(player_id=3, character_id="Silent", max_hp=70, current_hp=70))
+        enemy = simple_combat.enemies[0]
+
+        simple_combat.apply_power_to(enemy, PowerId.ARTIFACT, 1, applier=enemy)
+
+        assert enemy.get_power_amount(PowerId.ARTIFACT) == 5
+
+    def test_multiplayer_scaling_applies_to_secondary_enemy_targets_but_not_players(self, simple_combat):
+        simple_combat.add_ally_player(PlayerState(player_id=2, character_id="Ironclad", max_hp=70, current_hp=70))
+        secondary_enemy = Creature(max_hp=20, current_hp=20, side=CombatSide.ENEMY, monster_id="MINION")
+        simple_combat.add_enemy(secondary_enemy, simple_combat.enemy_ais[simple_combat.enemies[0].combat_id])
+        simple_combat.apply_power_to(secondary_enemy, PowerId.MINION, 1, applier=secondary_enemy)
+
+        simple_combat.apply_power_to(simple_combat.player, PowerId.REGEN, 5, applier=simple_combat.player)
+        simple_combat.apply_power_to(secondary_enemy, PowerId.SKITTISH, 6, applier=secondary_enemy)
+
+        assert simple_combat.player.get_power_amount(PowerId.REGEN) == 5
+        assert secondary_enemy.get_power_amount(PowerId.SKITTISH) == 13
+
+    def test_multiplayer_scaling_normalizes_enemy_powers_added_before_combat(self, simple_combat):
+        simple_combat.add_ally_player(PlayerState(player_id=2, character_id="Ironclad", max_hp=70, current_hp=70))
+        enemy = Creature(max_hp=20, current_hp=20, side=CombatSide.ENEMY, monster_id="PREPOWERED")
+        enemy.apply_power(PowerId.SKITTISH, 6, applier=enemy)
+
+        simple_combat.add_enemy(enemy, simple_combat.enemy_ais[simple_combat.enemies[0].combat_id])
+
+        assert enemy.get_power_amount(PowerId.SKITTISH) == 13
+
     def test_artifact_does_not_block_positive_strength(self, player):
         player.apply_power(PowerId.ARTIFACT, 1)
         player.apply_power(PowerId.STRENGTH, 2)

@@ -29,6 +29,7 @@ class PowerInstance:
     stack_type: PowerStackType = PowerStackType.COUNTER
     allow_negative: bool = False
     is_temporary: bool = False
+    should_scale_in_multiplayer: bool = False
 
     def __init__(self, power_id: PowerId, amount: int):
         self.power_id = power_id

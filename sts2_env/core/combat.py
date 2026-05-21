@@ -687,10 +687,18 @@ class CombatState:
     def add_enemy(self, creature: Creature, ai: MonsterAI) -> None:
         """Add an enemy to this combat."""
         from sts2_env.core.hooks import fire_after_creature_added_to_combat
+        from sts2_env.core.hooks import scaled_multiplayer_power_amount
 
         creature.combat_id = len(self.enemies)
         creature.side = CombatSide.ENEMY
         creature.combat_state = self
+        for power in creature.powers.values():
+            power.amount = scaled_multiplayer_power_amount(
+                power.power_id,
+                power.amount,
+                creature,
+                self,
+            )
         self.enemies.append(creature)
         self.enemy_ais[creature.combat_id] = ai
         if creature.monster_id == "GAS_BOMB":

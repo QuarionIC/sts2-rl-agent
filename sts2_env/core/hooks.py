@@ -22,6 +22,13 @@ from sts2_env.cards.enchantments import (
 )
 from sts2_env.core.enums import CardPilePosition, CombatSide, PileType, PowerId, ValueProp
 
+_MULTIPLAYER_CHARGE_SCALED_POWER_IDS = frozenset({
+    PowerId.ARTIFACT,
+    PowerId.BUFFER,
+    PowerId.PLATING,
+    PowerId.SLIPPERY,
+})
+
 if TYPE_CHECKING:
     from sts2_env.core.creature import Creature
     from sts2_env.core.combat import CombatState
@@ -57,6 +64,59 @@ def _iter_modifier_listeners(combat: CombatState) -> Iterator[object]:
     player_state = getattr(primary_state, "player_state", None)
     run_state = getattr(player_state, "run_state", None)
     yield from getattr(run_state, "modifiers", ())
+
+
+def _combat_run_state(combat: CombatState) -> object | None:
+    primary_state = getattr(combat, "_primary_player_state", None)
+    player_state = getattr(primary_state, "player_state", None)
+    return getattr(player_state, "run_state", None)
+
+
+def _multiplayer_enemy_scaling_factor(combat: CombatState) -> float:
+    from sts2_env.core.constants import MULTIPLAYER_ACT_3_BOSS_SCALING, MULTIPLAYER_ACT_SCALING
+    from sts2_env.core.enums import RoomType
+
+    run_state = _combat_run_state(combat)
+    act_index = getattr(run_state, "current_act_index", 0)
+    room_type = getattr(getattr(combat, "room", None), "room_type", None)
+    if act_index == 2 and room_type == RoomType.BOSS:
+        return MULTIPLAYER_ACT_3_BOSS_SCALING
+    if 0 <= act_index < len(MULTIPLAYER_ACT_SCALING):
+        return MULTIPLAYER_ACT_SCALING[act_index]
+    return MULTIPLAYER_ACT_SCALING[-1]
+
+
+def _is_multiplayer_scaled_enemy(creature: Creature) -> bool:
+    return creature.side == CombatSide.ENEMY
+
+
+def _should_scale_power_in_multiplayer(power_id: PowerId) -> bool:
+    from sts2_env.core.creature import get_power_class
+
+    power_cls = get_power_class(power_id)
+    return bool(getattr(power_cls, "should_scale_in_multiplayer", False))
+
+
+def scaled_multiplayer_power_amount(
+    power_id: PowerId,
+    amount: int,
+    target: Creature | None,
+    combat: CombatState,
+) -> int:
+    from sts2_env.core.constants import MULTIPLAYER_CHARGE_EXTRA_PER_ADDITIONAL_PLAYER
+
+    if target is None or not _is_multiplayer_scaled_enemy(target):
+        return amount
+    if not _should_scale_power_in_multiplayer(power_id):
+        return amount
+    player_count = len(combat.combat_player_states)
+    if player_count == 1:
+        return amount
+    if power_id in _MULTIPLAYER_CHARGE_SCALED_POWER_IDS:
+        multiplier = (player_count - 1) * MULTIPLAYER_CHARGE_EXTRA_PER_ADDITIONAL_PLAYER + 1
+        return amount * multiplier
+    scaled = amount * player_count * _multiplayer_enemy_scaling_factor(combat)
+    return int(scaled)
 
 
 # ─── Damage Modification ───────────────────────────────────────────────
@@ -122,7 +182,7 @@ def modify_power_amount_given(
     combat: CombatState,
 ) -> int:
     """Apply giver-owned relic modifiers to a power amount before it is applied."""
-    modified = amount
+    modified = scaled_multiplayer_power_amount(power_id, amount, target, combat)
     for owner, relic in _iter_relic_listeners(combat):
         if owner is giver:
             modified = relic.modify_power_amount_given(

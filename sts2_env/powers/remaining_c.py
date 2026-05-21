@@ -77,6 +77,7 @@ class ReattachPower(PowerInstance):
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.SINGLE
+    should_scale_in_multiplayer = True
 
     def __init__(self, amount: int = 1):
         super().__init__(PowerId.REATTACH, amount)

@@ -1540,6 +1540,7 @@ class FlutterPower(PowerInstance):
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.COUNTER
+    should_scale_in_multiplayer = True
 
     _DAMAGE_DECREASE_PCT = 50
 

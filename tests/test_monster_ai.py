@@ -1041,7 +1041,7 @@ class TestFixedRotation:
         combat.add_enemy(creature, ai)
 
         assert creature.max_hp == 173
-        assert creature.get_power_amount(PowerId.SLIPPERY) == 9
+        assert creature.get_power_amount(PowerId.SLIPPERY) == 27
         assert _run_ai(ai, Rng(rng_seed), 5) == [
             "INK_BLOT_MOVE",
             "INKY_LANCE_MOVE",
