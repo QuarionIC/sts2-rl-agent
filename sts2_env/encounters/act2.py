@@ -10,6 +10,7 @@ from sts2_env.core.rng import Rng
 if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
 from sts2_env.monsters.act2 import (
+    apply_decimillipede_segment_room_setup,
     create_thieving_hopper,
     create_tunneler,
     create_bowlbug_egg,
@@ -156,9 +157,13 @@ NORMAL_ENCOUNTERS: list[EncounterSetup] = [
 
 def setup_decimillipede_elite(combat: CombatState, rng: Rng) -> None:
     starter_idx = rng.next_int_exclusive(0, 3)
+    segments = []
     for offset in range(3):
         creature, ai = create_decimillipede_segment(rng, starter_idx=(starter_idx + offset) % 3)
         combat.add_enemy(creature, ai)
+        segments.append(creature)
+    for creature in segments:
+        apply_decimillipede_segment_room_setup(creature, combat)
 
 
 def setup_entomancer_elite(combat: CombatState, rng: Rng) -> None:

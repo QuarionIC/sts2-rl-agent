@@ -16,6 +16,7 @@ from sts2_env.core.enums import MoveRepeatType
 from sts2_env.core.hooks import fire_after_turn_end
 from sts2_env.core.rng import Rng
 from sts2_env.encounters.act2 import (
+    setup_decimillipede_elite,
     setup_infested_prisms_elite,
     setup_kaiser_crab_boss,
     setup_mytes_normal,
@@ -94,7 +95,12 @@ from sts2_env.monsters.act4 import (
     create_waterfall_giant,
 )
 from sts2_env.monsters.act2 import (
+    DECIMILLIPEDE_HP_STEP,
+    DECIMILLIPEDE_REATTACH_HP,
+    DECIMILLIPEDE_SEGMENT_MAX_HP,
+    DECIMILLIPEDE_SEGMENT_MIN_HP,
     _steal_card_with_swipe,
+    apply_decimillipede_segment_room_setup,
     create_bowlbug_egg,
     create_bowlbug_nectar,
     create_bowlbug_rock,
@@ -181,10 +187,37 @@ NIBBIT_SLICE_MOVE_ID = "SLICE_MOVE"
 NIBBIT_SLICE_MOVE_BLOCK = 5
 TOUGH_EGG_INITIAL_HP = 16
 TOUGH_EGG_HATCHLING_HP = 20
+MULTIPLAYER_TEST_PLAYER_COUNT = 2
+DECIMILLIPEDE_STARTER_MOVE_IDX = 0
+DECIMILLIPEDE_ODD_SEGMENT_HP = DECIMILLIPEDE_SEGMENT_MIN_HP + 1
+DECIMILLIPEDE_NEAR_MAX_SEGMENT_HP = DECIMILLIPEDE_SEGMENT_MAX_HP - 1
+DECIMILLIPEDE_SCALED_REATTACH_HP = int(
+    DECIMILLIPEDE_REATTACH_HP
+    * MULTIPLAYER_TEST_PLAYER_COUNT
+    * MULTIPLAYER_ACT_SCALING[STARTING_ACT_INDEX]
+)
 
 
 def _expected_starting_act_multiplayer_enemy_hp(combat: CombatState, base_hp: int) -> int:
     return int(base_hp * len(combat.combat_player_states) * MULTIPLAYER_ACT_SCALING[STARTING_ACT_INDEX])
+
+
+def _expected_test_multiplayer_enemy_hp(base_hp: int) -> int:
+    return int(base_hp * MULTIPLAYER_TEST_PLAYER_COUNT * MULTIPLAYER_ACT_SCALING[STARTING_ACT_INDEX])
+
+
+def _expected_decimillipede_room_hp(base_hp: int) -> int:
+    max_hp = _expected_test_multiplayer_enemy_hp(base_hp)
+    if max_hp % DECIMILLIPEDE_HP_STEP == DECIMILLIPEDE_HP_STEP - 1:
+        max_hp += 1
+    return max_hp
+
+
+DECIMILLIPEDE_MULTIPLAYER_EXPECTED_HP = [
+    _expected_decimillipede_room_hp(DECIMILLIPEDE_NEAR_MAX_SEGMENT_HP),
+    _expected_decimillipede_room_hp(DECIMILLIPEDE_SEGMENT_MAX_HP),
+    _expected_decimillipede_room_hp(DECIMILLIPEDE_ODD_SEGMENT_HP),
+]
 
 
 class _FixedIntsRng:
@@ -193,6 +226,21 @@ class _FixedIntsRng:
 
     def next_int(self, low: int, high: int) -> int:
         value = self.values.pop(0)
+        assert low <= value <= high
+        return value
+
+
+class _FixedDecimillipedeRng:
+    def __init__(self, starter_idx: int, segment_hps: list[int]):
+        self.starter_idx = starter_idx
+        self.segment_hps = list(segment_hps)
+
+    def next_int_exclusive(self, low: int, high: int) -> int:
+        assert low <= self.starter_idx < high
+        return self.starter_idx
+
+    def next_int(self, low: int, high: int) -> int:
+        value = self.segment_hps.pop(0)
         assert low <= value <= high
         return value
 
@@ -1809,11 +1857,60 @@ class TestFixedRotation:
         segment, segment_ai = create_decimillipede_segment(Rng(40), starter_idx=2)
         assert segment_ai.current_move.state_id == "CONSTRICT_MOVE"
         assert {"DEAD_MOVE", "REATTACH_MOVE", "RAND"}.issubset(segment_ai.states)
-        assert segment.get_power_amount(PowerId.REATTACH) == 25
+        assert segment.get_power_amount(PowerId.REATTACH) == 0
+
+        segment_combat = _make_combat(40)
+        segment_combat.add_enemy(segment, segment_ai)
+        apply_decimillipede_segment_room_setup(segment, segment_combat)
+        assert segment.max_hp % 2 == 0
+        assert segment.get_power_amount(PowerId.REATTACH) == DECIMILLIPEDE_REATTACH_HP
+
+        unique_hp_combat = _make_combat(141)
+        setup_decimillipede_elite(
+            unique_hp_combat,
+            _FixedDecimillipedeRng(
+                DECIMILLIPEDE_STARTER_MOVE_IDX,
+                [
+                    DECIMILLIPEDE_ODD_SEGMENT_HP,
+                    DECIMILLIPEDE_ODD_SEGMENT_HP,
+                    DECIMILLIPEDE_NEAR_MAX_SEGMENT_HP,
+                ],
+            ),
+        )
+        unique_expected_hp = [
+            DECIMILLIPEDE_ODD_SEGMENT_HP + 1,
+            DECIMILLIPEDE_ODD_SEGMENT_HP + DECIMILLIPEDE_HP_STEP + 1,
+            DECIMILLIPEDE_NEAR_MAX_SEGMENT_HP + 1,
+        ]
+        assert [enemy.max_hp for enemy in unique_hp_combat.enemies] == unique_expected_hp
+        assert [enemy.current_hp for enemy in unique_hp_combat.enemies] == unique_expected_hp
+        assert [enemy.get_power_amount(PowerId.REATTACH) for enemy in unique_hp_combat.enemies] == [
+            DECIMILLIPEDE_REATTACH_HP
+        ] * len(unique_expected_hp)
+
+        multiplayer_combat = _make_combat(142)
+        _add_test_ally(multiplayer_combat)
+        setup_decimillipede_elite(
+            multiplayer_combat,
+            _FixedDecimillipedeRng(
+                DECIMILLIPEDE_STARTER_MOVE_IDX,
+                [
+                    DECIMILLIPEDE_NEAR_MAX_SEGMENT_HP,
+                    DECIMILLIPEDE_SEGMENT_MAX_HP,
+                    DECIMILLIPEDE_ODD_SEGMENT_HP,
+                ],
+            ),
+        )
+        assert [enemy.max_hp for enemy in multiplayer_combat.enemies] == DECIMILLIPEDE_MULTIPLAYER_EXPECTED_HP
+        assert [enemy.current_hp for enemy in multiplayer_combat.enemies] == DECIMILLIPEDE_MULTIPLAYER_EXPECTED_HP
+        assert [enemy.get_power_amount(PowerId.REATTACH) for enemy in multiplayer_combat.enemies] == [
+            DECIMILLIPEDE_SCALED_REATTACH_HP
+        ] * len(DECIMILLIPEDE_MULTIPLAYER_EXPECTED_HP)
 
         lethal_segment, lethal_segment_ai = create_decimillipede_segment(Rng(140), starter_idx=1)
         lethal_combat = _make_combat(140)
         lethal_combat.add_enemy(lethal_segment, lethal_segment_ai)
+        apply_decimillipede_segment_room_setup(lethal_segment, lethal_combat)
         lethal_combat.player.current_hp = 6
         lethal_segment_ai.states["BULK_MOVE"].perform(lethal_combat)
         assert lethal_combat.is_over

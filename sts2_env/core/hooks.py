@@ -91,16 +91,20 @@ def _is_multiplayer_scaled_enemy(creature: Creature) -> bool:
     return creature.side == CombatSide.ENEMY
 
 
-def scaled_multiplayer_enemy_max_hp(creature: Creature, combat: CombatState) -> int:
+def scaled_multiplayer_enemy_hp(base_hp: int, combat: CombatState) -> int:
     from sts2_env.core.constants import SOLO_PLAYER_COUNT
 
-    if not _is_multiplayer_scaled_enemy(creature):
-        return creature.max_hp
     player_count = len(combat.combat_player_states)
     if player_count == SOLO_PLAYER_COUNT:
-        return creature.max_hp
-    scaled = creature.max_hp * player_count * _multiplayer_enemy_scaling_factor(combat)
+        return base_hp
+    scaled = base_hp * player_count * _multiplayer_enemy_scaling_factor(combat)
     return int(scaled)
+
+
+def scaled_multiplayer_enemy_max_hp(creature: Creature, combat: CombatState) -> int:
+    if not _is_multiplayer_scaled_enemy(creature):
+        return creature.max_hp
+    return scaled_multiplayer_enemy_hp(creature.max_hp, combat)
 
 
 def _multiplayer_enemy_block_multiplier(target: Creature, props: ValueProp, combat: CombatState) -> float:

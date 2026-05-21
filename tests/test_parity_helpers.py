@@ -148,6 +148,7 @@ from sts2_env.core.creature import Creature
 from sts2_env.core.enums import CardId, CardRarity, CardType, CombatSide, PowerId, RoomType, TargetType, ValueProp
 from sts2_env.gym_env.action_space import get_action_mask
 from sts2_env.core.rng import Rng
+from sts2_env.monsters.act2 import apply_decimillipede_segment_room_setup
 from sts2_env.monsters.act2 import create_rocket
 from sts2_env.monsters.act2 import create_decimillipede_segment
 from sts2_env.monsters.act1 import create_eye_with_teeth, create_parafright
@@ -1167,6 +1168,8 @@ class TestUntargetableReviveStates:
         back, back_ai = create_decimillipede_segment(Rng(100), 1)
         combat.add_enemy(front, front_ai)
         combat.add_enemy(back, back_ai)
+        apply_decimillipede_segment_room_setup(front, combat)
+        apply_decimillipede_segment_room_setup(back, combat)
         combat.start_combat()
 
         assert front.get_power_amount(PowerId.REATTACH) == 25

@@ -839,8 +839,32 @@ def create_the_obscura(rng: Rng) -> tuple[Creature, MonsterAI]:
 
 # ---- Decimillipede (3 segments) (HP 42-48 / 48-56 asc) ----
 
+DECIMILLIPEDE_SEGMENT_MIN_HP = 42
+DECIMILLIPEDE_SEGMENT_MAX_HP = 48
+DECIMILLIPEDE_HP_STEP = 2
+DECIMILLIPEDE_REATTACH_HP = 25
+
+
+def apply_decimillipede_segment_room_setup(creature: Creature, combat: CombatState) -> None:
+    from sts2_env.core.hooks import scaled_multiplayer_enemy_hp
+
+    max_hp = creature.max_hp
+    if max_hp % DECIMILLIPEDE_HP_STEP == 1:
+        max_hp += 1
+    min_hp = scaled_multiplayer_enemy_hp(DECIMILLIPEDE_SEGMENT_MIN_HP, combat)
+    max_initial_hp = scaled_multiplayer_enemy_hp(DECIMILLIPEDE_SEGMENT_MAX_HP, combat)
+    teammates = combat.get_teammates_of(creature)
+    while any(teammate.max_hp == max_hp for teammate in teammates):
+        max_hp += DECIMILLIPEDE_HP_STEP
+        if max_hp > max_initial_hp:
+            max_hp = min_hp
+    creature.max_hp = max_hp
+    creature.current_hp = max_hp
+    combat.apply_power_to(creature, PowerId.REATTACH, DECIMILLIPEDE_REATTACH_HP, applier=creature)
+
+
 def create_decimillipede_segment(rng: Rng, starter_idx: int = 0) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(42, 48)
+    hp = rng.next_int(DECIMILLIPEDE_SEGMENT_MIN_HP, DECIMILLIPEDE_SEGMENT_MAX_HP)
     creature = Creature(max_hp=hp, monster_id="DECIMILLIPEDE_SEGMENT")
     writhe_dmg = 5
     constrict_dmg = 8
@@ -867,7 +891,7 @@ def create_decimillipede_segment(rng: Rng, starter_idx: int = 0) -> tuple[Creatu
         if callable(do_reattach):
             do_reattach(creature)
         else:
-            creature.heal(25)
+            creature.heal(DECIMILLIPEDE_REATTACH_HP)
 
     rand = RandomBranchState("RAND")
     rand.add_branch("WRITHE_MOVE", MoveRepeatType.CANNOT_REPEAT)
@@ -906,7 +930,6 @@ def create_decimillipede_segment(rng: Rng, starter_idx: int = 0) -> tuple[Creatu
 
     starter_map = {0: "WRITHE_MOVE", 1: "BULK_MOVE", 2: "CONSTRICT_MOVE"}
     initial = starter_map.get(starter_idx, "WRITHE_MOVE")
-    creature.apply_power(PowerId.REATTACH, 25)
     return creature, MonsterAI(states, initial, rng)
 
 
