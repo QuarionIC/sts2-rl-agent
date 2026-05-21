@@ -46,12 +46,12 @@ def setup_corpse_slugs_weak(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_seapunk_weak(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_seapunk(rng)
+    creature, ai = create_seapunk(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
 def setup_sludge_spinner_weak(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_sludge_spinner(rng)
+    creature, ai = create_sludge_spinner(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 

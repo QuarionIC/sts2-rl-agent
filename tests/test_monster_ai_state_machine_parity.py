@@ -86,6 +86,15 @@ from sts2_env.monsters.act1_weak import create_leaf_slime_m
 from sts2_env.monsters.act1_weak import create_twig_slime_s
 from sts2_env.monsters.act1_weak import create_twig_slime_m
 from sts2_env.monsters.act4 import (
+    SEAPUNK_BUBBLE_BURP_MOVE,
+    SEAPUNK_MONSTER_ID,
+    SEAPUNK_SEA_KICK_MOVE,
+    SEAPUNK_SPINNING_KICK_MOVE,
+    SLUDGE_SPINNER_OIL_SPRAY_MOVE,
+    SLUDGE_SPINNER_RANDOM_STATE,
+    SLUDGE_SPINNER_RAGE_MOVE,
+    SLUDGE_SPINNER_SLAM_MOVE,
+    SLUDGE_SPINNER_MONSTER_ID,
     create_calcified_cultist,
     create_corpse_slug,
     create_damp_cultist,
@@ -638,6 +647,18 @@ TEST_SUBJECT_BURNING_GROWL_BURNS_A9 = 5
 TEST_SUBJECT_BURNING_GROWL_STRENGTH_A9 = 3
 TEST_SUBJECT_PAINFUL_STABS = 1
 TEST_SUBJECT_NEMESIS = 1
+SEAPUNK_A8_HP_RANGE = (47, 49)
+SEAPUNK_SEA_KICK_DAMAGE_A9 = 12
+SEAPUNK_SPINNING_KICK_DAMAGE = 2
+SEAPUNK_SPINNING_KICK_HITS = 4
+SEAPUNK_BUBBLE_BLOCK_A8 = 8
+SEAPUNK_BUBBLE_STRENGTH_A9 = 2
+SLUDGE_SPINNER_A8_HP_RANGE = (41, 42)
+SLUDGE_SPINNER_OIL_SPRAY_DAMAGE_A9 = 9
+SLUDGE_SPINNER_OIL_SPRAY_WEAK = 1
+SLUDGE_SPINNER_SLAM_DAMAGE_A9 = 12
+SLUDGE_SPINNER_RAGE_DAMAGE_A9 = 7
+SLUDGE_SPINNER_RAGE_STRENGTH = 3
 FABRICATOR_BASE_HP = 150
 FABRICATOR_A8_HP = 155
 FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9 = 21
@@ -5557,6 +5578,86 @@ class TestFixedRotation:
         encounter_subject_ai = encounter_combat.enemy_ais[encounter_subject.combat_id]
         assert encounter_subject.max_hp == TEST_SUBJECT_A8_FIRST_FORM_HP
         assert encounter_subject_ai.states[TEST_SUBJECT_BITE_MOVE].intents[0].damage == TEST_SUBJECT_BITE_DAMAGE_A9
+
+    def test_act4_weak_seapunk_and_sludge_spinner_ascension_scaling_matches_csharp(self):
+        rng_seed = 1311
+
+        seapunk_combat = _make_combat(rng_seed)
+        seapunk_combat.ascension_level = 9
+        seapunk, seapunk_ai = create_seapunk(Rng(rng_seed), ascension_level=9)
+        seapunk_combat.add_enemy(seapunk, seapunk_ai)
+
+        assert SEAPUNK_A8_HP_RANGE[0] <= seapunk.max_hp <= SEAPUNK_A8_HP_RANGE[1]
+        assert seapunk_ai.current_move.state_id == SEAPUNK_SEA_KICK_MOVE
+        sea_kick = seapunk_ai.states[SEAPUNK_SEA_KICK_MOVE]
+        assert sea_kick.intents[0].damage == SEAPUNK_SEA_KICK_DAMAGE_A9
+        player_hp_before_sea_kick = seapunk_combat.player.current_hp
+        sea_kick.perform(seapunk_combat)
+        assert seapunk_combat.player.current_hp == player_hp_before_sea_kick - SEAPUNK_SEA_KICK_DAMAGE_A9
+
+        spinning_kick = seapunk_ai.states[SEAPUNK_SPINNING_KICK_MOVE]
+        assert spinning_kick.intents[0].damage == SEAPUNK_SPINNING_KICK_DAMAGE
+        assert spinning_kick.intents[0].hits == SEAPUNK_SPINNING_KICK_HITS
+        player_hp_before_spinning_kick = seapunk_combat.player.current_hp
+        spinning_kick.perform(seapunk_combat)
+        assert seapunk_combat.player.current_hp == (
+            player_hp_before_spinning_kick - SEAPUNK_SPINNING_KICK_DAMAGE * SEAPUNK_SPINNING_KICK_HITS
+        )
+
+        seapunk_ai.states[SEAPUNK_BUBBLE_BURP_MOVE].perform(seapunk_combat)
+        assert seapunk.block == SEAPUNK_BUBBLE_BLOCK_A8
+        assert seapunk.get_power_amount(PowerId.STRENGTH) == SEAPUNK_BUBBLE_STRENGTH_A9
+
+        sludge_combat = _make_combat(rng_seed)
+        sludge_combat.ascension_level = 9
+        sludge, sludge_ai = create_sludge_spinner(Rng(rng_seed), ascension_level=9)
+        sludge_combat.add_enemy(sludge, sludge_ai)
+
+        assert SLUDGE_SPINNER_A8_HP_RANGE[0] <= sludge.max_hp <= SLUDGE_SPINNER_A8_HP_RANGE[1]
+        assert sludge_ai.current_move.state_id == SLUDGE_SPINNER_OIL_SPRAY_MOVE
+        assert {
+            SLUDGE_SPINNER_RANDOM_STATE,
+            SLUDGE_SPINNER_OIL_SPRAY_MOVE,
+            SLUDGE_SPINNER_SLAM_MOVE,
+            SLUDGE_SPINNER_RAGE_MOVE,
+        }.issubset(sludge_ai.states)
+
+        oil_spray = sludge_ai.states[SLUDGE_SPINNER_OIL_SPRAY_MOVE]
+        assert oil_spray.intents[0].damage == SLUDGE_SPINNER_OIL_SPRAY_DAMAGE_A9
+        player_hp_before_oil_spray = sludge_combat.player.current_hp
+        oil_spray.perform(sludge_combat)
+        assert sludge_combat.player.current_hp == player_hp_before_oil_spray - SLUDGE_SPINNER_OIL_SPRAY_DAMAGE_A9
+        assert sludge_combat.player.get_power_amount(PowerId.WEAK) == SLUDGE_SPINNER_OIL_SPRAY_WEAK
+        sludge_combat.player.powers.pop(PowerId.WEAK, None)
+
+        slam = sludge_ai.states[SLUDGE_SPINNER_SLAM_MOVE]
+        assert slam.intents[0].damage == SLUDGE_SPINNER_SLAM_DAMAGE_A9
+        player_hp_before_slam = sludge_combat.player.current_hp
+        slam.perform(sludge_combat)
+        assert sludge_combat.player.current_hp == player_hp_before_slam - SLUDGE_SPINNER_SLAM_DAMAGE_A9
+
+        rage = sludge_ai.states[SLUDGE_SPINNER_RAGE_MOVE]
+        assert rage.intents[0].damage == SLUDGE_SPINNER_RAGE_DAMAGE_A9
+        player_hp_before_rage = sludge_combat.player.current_hp
+        rage.perform(sludge_combat)
+        assert sludge_combat.player.current_hp == player_hp_before_rage - SLUDGE_SPINNER_RAGE_DAMAGE_A9
+        assert sludge.get_power_amount(PowerId.STRENGTH) == SLUDGE_SPINNER_RAGE_STRENGTH
+
+        encounter_seapunk_combat = _make_combat(rng_seed)
+        encounter_seapunk_combat.ascension_level = 9
+        setup_seapunk_weak(encounter_seapunk_combat, Rng(rng_seed))
+        encounter_seapunk = encounter_seapunk_combat.enemies[0]
+        encounter_seapunk_ai = encounter_seapunk_combat.enemy_ais[encounter_seapunk.combat_id]
+        assert encounter_seapunk.max_hp >= SEAPUNK_A8_HP_RANGE[0]
+        assert encounter_seapunk_ai.states[SEAPUNK_SEA_KICK_MOVE].intents[0].damage == SEAPUNK_SEA_KICK_DAMAGE_A9
+
+        encounter_sludge_combat = _make_combat(rng_seed)
+        encounter_sludge_combat.ascension_level = 9
+        setup_sludge_spinner_weak(encounter_sludge_combat, Rng(rng_seed))
+        encounter_sludge = encounter_sludge_combat.enemies[0]
+        encounter_sludge_ai = encounter_sludge_combat.enemy_ais[encounter_sludge.combat_id]
+        assert encounter_sludge.max_hp >= SLUDGE_SPINNER_A8_HP_RANGE[0]
+        assert encounter_sludge_ai.states[SLUDGE_SPINNER_RAGE_MOVE].intents[0].damage == SLUDGE_SPINNER_RAGE_DAMAGE_A9
 
     def test_act4_weak_monsters_use_original_move_ids_and_stats(self):
         slug, slug_ai = create_corpse_slug(Rng(50), starter_idx=0)

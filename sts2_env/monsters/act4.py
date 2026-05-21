@@ -33,6 +33,18 @@ if TYPE_CHECKING:
 
 # ---- Helpers ----
 
+TOUGH_ENEMIES_ASCENSION_LEVEL = 8
+DEADLY_ENEMIES_ASCENSION_LEVEL = 9
+
+
+def _ascension_value(ascension_level: int, threshold: int, ascension_value: int, base_value: int) -> int:
+    return ascension_value if ascension_level >= threshold else base_value
+
+
+def _combat_ascension_level(combat: CombatState) -> int:
+    return combat.ascension_level
+
+
 def _deal_damage_to_player(combat: CombatState, creature: Creature, base_dmg: int, hits: int = 1) -> None:
     for _ in range(hits):
         targets = living_player_targets(combat)
@@ -92,90 +104,220 @@ def create_corpse_slug(rng: Rng, starter_idx: int = 0) -> tuple[Creature, Monste
 
 # ---- Seapunk (HP 44-46 / 47-49 asc) ----
 
-def create_seapunk(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(44, 46)
-    creature = Creature(max_hp=hp, monster_id="SEAPUNK")
-    sea_kick_dmg = 11
-    spinning_kick_dmg = 2
-    bubble_block = 7
-    bubble_str = 1
+SEAPUNK_MONSTER_ID = "SEAPUNK"
+SEAPUNK_BASE_MIN_HP = 44
+SEAPUNK_BASE_MAX_HP = 46
+SEAPUNK_TOUGH_MIN_HP = 47
+SEAPUNK_TOUGH_MAX_HP = 49
+SEAPUNK_BASE_SEA_KICK_DAMAGE = 11
+SEAPUNK_DEADLY_SEA_KICK_DAMAGE = 12
+SEAPUNK_SPINNING_KICK_DAMAGE = 2
+SEAPUNK_SPINNING_KICK_REPEAT = 4
+SEAPUNK_BASE_BUBBLE_BLOCK = 7
+SEAPUNK_TOUGH_BUBBLE_BLOCK = 8
+SEAPUNK_BASE_BUBBLE_STRENGTH = 1
+SEAPUNK_DEADLY_BUBBLE_STRENGTH = 2
+SEAPUNK_SEA_KICK_MOVE = "SEA_KICK_MOVE"
+SEAPUNK_SPINNING_KICK_MOVE = "SPINNING_KICK_MOVE"
+SEAPUNK_BUBBLE_BURP_MOVE = "BUBBLE_BURP_MOVE"
+
+
+def create_seapunk(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SEAPUNK_TOUGH_MIN_HP,
+        SEAPUNK_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SEAPUNK_TOUGH_MAX_HP,
+        SEAPUNK_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=SEAPUNK_MONSTER_ID)
 
     def sea_kick(combat: CombatState) -> None:
+        sea_kick_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SEAPUNK_DEADLY_SEA_KICK_DAMAGE,
+            SEAPUNK_BASE_SEA_KICK_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, sea_kick_dmg)
 
     def spinning_kick(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, spinning_kick_dmg, hits=4)
+        _deal_damage_to_player(
+            combat,
+            creature,
+            SEAPUNK_SPINNING_KICK_DAMAGE,
+            hits=SEAPUNK_SPINNING_KICK_REPEAT,
+        )
 
     def bubble_burp(combat: CombatState) -> None:
+        bubble_block = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            SEAPUNK_TOUGH_BUBBLE_BLOCK,
+            SEAPUNK_BASE_BUBBLE_BLOCK,
+        )
+        bubble_strength = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SEAPUNK_DEADLY_BUBBLE_STRENGTH,
+            SEAPUNK_BASE_BUBBLE_STRENGTH,
+        )
         _gain_block(creature, bubble_block, combat)
-        creature.apply_power(PowerId.STRENGTH, bubble_str, applier=creature)
+        creature.apply_power(PowerId.STRENGTH, bubble_strength, applier=creature)
+
+    sea_kick_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SEAPUNK_DEADLY_SEA_KICK_DAMAGE,
+        SEAPUNK_BASE_SEA_KICK_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "SEA_KICK_MOVE": MoveState(
-            "SEA_KICK_MOVE",
+        SEAPUNK_SEA_KICK_MOVE: MoveState(
+            SEAPUNK_SEA_KICK_MOVE,
             sea_kick,
-            [attack_intent(sea_kick_dmg)],
-            follow_up_id="SPINNING_KICK_MOVE",
+            [attack_intent(sea_kick_intent_damage)],
+            follow_up_id=SEAPUNK_SPINNING_KICK_MOVE,
         ),
-        "SPINNING_KICK_MOVE": MoveState(
-            "SPINNING_KICK_MOVE",
+        SEAPUNK_SPINNING_KICK_MOVE: MoveState(
+            SEAPUNK_SPINNING_KICK_MOVE,
             spinning_kick,
-            [multi_attack_intent(spinning_kick_dmg, 4)],
-            follow_up_id="BUBBLE_BURP_MOVE",
+            [multi_attack_intent(SEAPUNK_SPINNING_KICK_DAMAGE, SEAPUNK_SPINNING_KICK_REPEAT)],
+            follow_up_id=SEAPUNK_BUBBLE_BURP_MOVE,
         ),
-        "BUBBLE_BURP_MOVE": MoveState(
-            "BUBBLE_BURP_MOVE",
+        SEAPUNK_BUBBLE_BURP_MOVE: MoveState(
+            SEAPUNK_BUBBLE_BURP_MOVE,
             bubble_burp,
             [buff_intent(), defend_intent()],
-            follow_up_id="SEA_KICK_MOVE",
+            follow_up_id=SEAPUNK_SEA_KICK_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "SEA_KICK_MOVE")
+    return creature, MonsterAI(states, SEAPUNK_SEA_KICK_MOVE)
 
 
 # ---- SludgeSpinner (HP 37-39 / 41-42 asc) ----
 
-def create_sludge_spinner(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(37, 39)
-    creature = Creature(max_hp=hp, monster_id="SLUDGE_SPINNER")
-    oil_spray_dmg = 8
-    oil_spray_weak = 1
-    slam_dmg = 11
-    rage_dmg = 6
+SLUDGE_SPINNER_MONSTER_ID = "SLUDGE_SPINNER"
+SLUDGE_SPINNER_BASE_MIN_HP = 37
+SLUDGE_SPINNER_BASE_MAX_HP = 39
+SLUDGE_SPINNER_TOUGH_MIN_HP = 41
+SLUDGE_SPINNER_TOUGH_MAX_HP = 42
+SLUDGE_SPINNER_BASE_OIL_SPRAY_DAMAGE = 8
+SLUDGE_SPINNER_DEADLY_OIL_SPRAY_DAMAGE = 9
+SLUDGE_SPINNER_OIL_SPRAY_WEAK = 1
+SLUDGE_SPINNER_BASE_SLAM_DAMAGE = 11
+SLUDGE_SPINNER_DEADLY_SLAM_DAMAGE = 12
+SLUDGE_SPINNER_BASE_RAGE_DAMAGE = 6
+SLUDGE_SPINNER_DEADLY_RAGE_DAMAGE = 7
+SLUDGE_SPINNER_RAGE_STRENGTH = 3
+SLUDGE_SPINNER_RANDOM_STATE = "RAND"
+SLUDGE_SPINNER_OIL_SPRAY_MOVE = "OIL_SPRAY_MOVE"
+SLUDGE_SPINNER_SLAM_MOVE = "SLAM_MOVE"
+SLUDGE_SPINNER_RAGE_MOVE = "RAGE_MOVE"
+
+
+def create_sludge_spinner(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SLUDGE_SPINNER_TOUGH_MIN_HP,
+        SLUDGE_SPINNER_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SLUDGE_SPINNER_TOUGH_MAX_HP,
+        SLUDGE_SPINNER_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=SLUDGE_SPINNER_MONSTER_ID)
 
     def oil_spray(combat: CombatState) -> None:
+        oil_spray_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SLUDGE_SPINNER_DEADLY_OIL_SPRAY_DAMAGE,
+            SLUDGE_SPINNER_BASE_OIL_SPRAY_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, oil_spray_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.WEAK, oil_spray_weak, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.WEAK,
+            SLUDGE_SPINNER_OIL_SPRAY_WEAK,
+            applier=creature,
+        )
 
     def slam(combat: CombatState) -> None:
+        slam_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SLUDGE_SPINNER_DEADLY_SLAM_DAMAGE,
+            SLUDGE_SPINNER_BASE_SLAM_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, slam_dmg)
 
     def rage(combat: CombatState) -> None:
+        rage_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SLUDGE_SPINNER_DEADLY_RAGE_DAMAGE,
+            SLUDGE_SPINNER_BASE_RAGE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, rage_dmg)
-        combat.apply_power_to(creature, PowerId.STRENGTH, 3, applier=creature)
+        combat.apply_power_to(creature, PowerId.STRENGTH, SLUDGE_SPINNER_RAGE_STRENGTH, applier=creature)
 
-    rand = RandomBranchState("RAND")
-    rand.add_branch("OIL_SPRAY_MOVE", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("SLAM_MOVE", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("RAGE_MOVE", MoveRepeatType.CANNOT_REPEAT)
+    oil_spray_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SLUDGE_SPINNER_DEADLY_OIL_SPRAY_DAMAGE,
+        SLUDGE_SPINNER_BASE_OIL_SPRAY_DAMAGE,
+    )
+    slam_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SLUDGE_SPINNER_DEADLY_SLAM_DAMAGE,
+        SLUDGE_SPINNER_BASE_SLAM_DAMAGE,
+    )
+    rage_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SLUDGE_SPINNER_DEADLY_RAGE_DAMAGE,
+        SLUDGE_SPINNER_BASE_RAGE_DAMAGE,
+    )
+
+    rand = RandomBranchState(SLUDGE_SPINNER_RANDOM_STATE)
+    rand.add_branch(SLUDGE_SPINNER_OIL_SPRAY_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(SLUDGE_SPINNER_SLAM_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(SLUDGE_SPINNER_RAGE_MOVE, MoveRepeatType.CANNOT_REPEAT)
 
     states: dict[str, MonsterState] = {
-        "RAND": rand,
-        "OIL_SPRAY_MOVE": MoveState(
-            "OIL_SPRAY_MOVE",
+        SLUDGE_SPINNER_RANDOM_STATE: rand,
+        SLUDGE_SPINNER_OIL_SPRAY_MOVE: MoveState(
+            SLUDGE_SPINNER_OIL_SPRAY_MOVE,
             oil_spray,
-            [attack_intent(oil_spray_dmg), debuff_intent()],
-            follow_up_id="RAND",
+            [attack_intent(oil_spray_intent_damage), debuff_intent()],
+            follow_up_id=SLUDGE_SPINNER_RANDOM_STATE,
         ),
-        "SLAM_MOVE": MoveState("SLAM_MOVE", slam, [attack_intent(slam_dmg)], follow_up_id="RAND"),
-        "RAGE_MOVE": MoveState(
-            "RAGE_MOVE",
+        SLUDGE_SPINNER_SLAM_MOVE: MoveState(
+            SLUDGE_SPINNER_SLAM_MOVE,
+            slam,
+            [attack_intent(slam_intent_damage)],
+            follow_up_id=SLUDGE_SPINNER_RANDOM_STATE,
+        ),
+        SLUDGE_SPINNER_RAGE_MOVE: MoveState(
+            SLUDGE_SPINNER_RAGE_MOVE,
             rage,
-            [attack_intent(rage_dmg), buff_intent()],
-            follow_up_id="RAND",
+            [attack_intent(rage_intent_damage), buff_intent()],
+            follow_up_id=SLUDGE_SPINNER_RANDOM_STATE,
         ),
     }
-    return creature, MonsterAI(states, "OIL_SPRAY_MOVE")
+    return creature, MonsterAI(states, SLUDGE_SPINNER_OIL_SPRAY_MOVE)
 
 
 # ---- Toadpole (HP 21-25 / 22-26 asc) ----
