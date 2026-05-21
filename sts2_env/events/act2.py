@@ -169,7 +169,7 @@ class DollRoom(EventModel):
                                description="Got a random doll relic.")
         if option_id == "take_time":
             run_state.player.lose_hp(self.TAKE_TIME_HP_LOSS)
-            dolls = list(self._DOLLS)
+            dolls = sorted(self._DOLLS)
             self.get_rng(run_state).shuffle(dolls)
             shown = dolls[: self.TAKE_TIME_DOLL_COUNT]
             self._doll_choices = {f"doll_{i + 1}": relic_id for i, (relic_id, _) in enumerate(shown)}
@@ -183,7 +183,7 @@ class DollRoom(EventModel):
             )
         if option_id == "examine":
             run_state.player.lose_hp(self.EXAMINE_HP_LOSS)
-            dolls = list(self._DOLLS)
+            dolls = sorted(self._DOLLS)
             self.get_rng(run_state).shuffle(dolls)
             self._doll_choices = {f"doll_{i + 1}": relic_id for i, (relic_id, _) in enumerate(dolls)}
             return EventResult(

@@ -22,6 +22,7 @@ class _NoopShuffleFirstChoiceRng:
     def __init__(self) -> None:
         self.choice_calls = 0
         self.shuffle_calls = 0
+        self.shuffle_inputs = []
 
     def choice(self, seq):
         self.choice_calls += 1
@@ -29,6 +30,7 @@ class _NoopShuffleFirstChoiceRng:
 
     def shuffle(self, seq) -> None:
         self.shuffle_calls += 1
+        self.shuffle_inputs.append(list(seq))
         pass
 
 
@@ -166,3 +168,17 @@ def test_doll_room_uses_expected_rng_streams_without_advancing_up_front_rng():
     assert event.rng.choice_calls == 0
     assert event.rng.shuffle_calls == 2
     assert run_state.rng.up_front.counter == up_front_counter
+
+
+def test_doll_room_sorts_dolls_before_choice_shuffle_like_stable_shuffle():
+    run_state = _make_run_state(1007)
+    run_state.current_act_index = 1
+    event = DollRoom()
+    event.rng = _NoopShuffleFirstChoiceRng()
+
+    take_time_result = event.choose(run_state, "take_time")
+    examine_result = event.choose(run_state, "examine")
+
+    assert take_time_result.finished is False
+    assert examine_result.finished is False
+    assert event.rng.shuffle_inputs == [sorted(DollRoom._DOLLS), sorted(DollRoom._DOLLS)]  # noqa: SLF001
