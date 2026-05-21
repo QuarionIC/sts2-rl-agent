@@ -127,6 +127,10 @@ RUBY_RAIDER_TOUGH_HP_RANGES = {
     "CROSSBOW_RUBY_RAIDER": (19, 22),
     "TRACKER_RUBY_RAIDER": (22, 26),
 }
+BYGONE_EFFIGY_TOUGH_HP = 132
+BYRDONIS_TOUGH_HP = 99
+PHROG_PARASITE_TOUGH_MIN_HP = 66
+PHROG_PARASITE_TOUGH_MAX_HP = 68
 
 
 class _ExclusiveHighRng:
@@ -530,15 +534,43 @@ class TestAct1EliteEncounters:
         setup_bygone_effigy_elite(combat, Rng(42))
         assert len(combat.enemies) == 1
 
+    def test_bygone_effigy_tough_ascension_hp_matches_csharp(self):
+        combat = _make_combat()
+        combat.ascension_level = 8
+
+        setup_bygone_effigy_elite(combat, Rng(42))
+
+        assert len(combat.enemies) == 1
+        assert combat.enemies[0].max_hp == BYGONE_EFFIGY_TOUGH_HP
+
     def test_byrdonis_count(self):
         combat = _make_combat()
         setup_byrdonis_elite(combat, Rng(42))
         assert len(combat.enemies) == 1
 
+    def test_byrdonis_tough_ascension_hp_matches_csharp(self):
+        combat = _make_combat()
+        combat.ascension_level = 8
+
+        setup_byrdonis_elite(combat, Rng(42))
+
+        assert len(combat.enemies) == 1
+        assert combat.enemies[0].max_hp == BYRDONIS_TOUGH_HP
+
     def test_phrog_parasite_count(self):
         combat = _make_combat()
         setup_phrog_parasite_elite(combat, Rng(42))
         assert len(combat.enemies) == 1
+
+    def test_phrog_parasite_tough_ascension_hp_matches_csharp(self):
+        for seed in range(5):
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_phrog_parasite_elite(combat, Rng(seed))
+
+            assert len(combat.enemies) == 1
+            assert PHROG_PARASITE_TOUGH_MIN_HP <= combat.enemies[0].max_hp <= PHROG_PARASITE_TOUGH_MAX_HP
 
 
 # ========================================================================

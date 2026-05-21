@@ -198,6 +198,17 @@ RUBY_RAIDER_RELOAD_BLOCK = 3
 RUBY_RAIDER_HOUNDS_DAMAGE = 1
 RUBY_RAIDER_HOUNDS_HITS_A9 = 9
 RUBY_RAIDER_TRACK_FRAIL = 2
+BYGONE_EFFIGY_SLASH_DAMAGE_A9 = 17
+BYGONE_EFFIGY_WAKE_STRENGTH = 10
+BYGONE_EFFIGY_SLOW = 1
+BYRDONIS_PECK_DAMAGE_A9 = 4
+BYRDONIS_PECK_HITS = 3
+BYRDONIS_SWOOP_DAMAGE_A9 = 18
+BYRDONIS_TERRITORIAL = 1
+PHROG_PARASITE_LASH_DAMAGE_A9 = 5
+PHROG_PARASITE_LASH_HITS = 4
+PHROG_PARASITE_INFECTIONS = 3
+PHROG_PARASITE_INFESTED = 4
 TOUGH_EGG_INITIAL_HP = 16
 TOUGH_EGG_HATCHLING_HP = 20
 MULTIPLAYER_TEST_PLAYER_COUNT = 2
@@ -760,6 +771,58 @@ class TestFixedRotation:
         assert ally.current_hp == ally_hp_before_hounds - RUBY_RAIDER_HOUNDS_DAMAGE * RUBY_RAIDER_HOUNDS_HITS_A9
         tracker_ai.states["TRACK_MOVE"].perform(combat)
         assert ally.get_power_amount(PowerId.FRAIL) == RUBY_RAIDER_TRACK_FRAIL
+
+    def test_act1_elite_ascension_scaling_matches_csharp(self):
+        rng_seed = 1279
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=100)
+        effigy, effigy_ai = create_bygone_effigy(Rng(rng_seed), ascension_level=9)
+        byrdonis, byrdonis_ai = create_byrdonis(Rng(rng_seed), ascension_level=9)
+        phrog, phrog_ai = create_phrog_parasite(Rng(rng_seed), ascension_level=9)
+        for creature, ai in (
+            (effigy, effigy_ai),
+            (byrdonis, byrdonis_ai),
+            (phrog, phrog_ai),
+        ):
+            combat.add_enemy(creature, ai)
+
+        slashes = effigy_ai.states["SLASHES_MOVE"]
+        assert effigy.get_power_amount(PowerId.SLOW) == BYGONE_EFFIGY_SLOW
+        assert slashes.intents[0].damage == BYGONE_EFFIGY_SLASH_DAMAGE_A9
+        ally_hp_before_slashes = ally.current_hp
+        slashes.perform(combat)
+        assert ally.current_hp == ally_hp_before_slashes - BYGONE_EFFIGY_SLASH_DAMAGE_A9
+        effigy_ai.states["WAKE_MOVE"].perform(combat)
+        assert effigy.get_power_amount(PowerId.STRENGTH) == BYGONE_EFFIGY_WAKE_STRENGTH
+
+        swoop = byrdonis_ai.states["SWOOP_MOVE"]
+        assert byrdonis.get_power_amount(PowerId.TERRITORIAL) == BYRDONIS_TERRITORIAL
+        assert swoop.intents[0].damage == BYRDONIS_SWOOP_DAMAGE_A9
+        ally_hp_before_swoop = ally.current_hp
+        swoop.perform(combat)
+        assert ally.current_hp == ally_hp_before_swoop - BYRDONIS_SWOOP_DAMAGE_A9
+
+        peck = byrdonis_ai.states["PECK_MOVE"]
+        assert peck.intents[0].damage == BYRDONIS_PECK_DAMAGE_A9
+        assert peck.intents[0].hits == BYRDONIS_PECK_HITS
+        ally_hp_before_peck = ally.current_hp
+        peck.perform(combat)
+        assert ally.current_hp == ally_hp_before_peck - BYRDONIS_PECK_DAMAGE_A9 * BYRDONIS_PECK_HITS
+
+        lash = phrog_ai.states["LASH_MOVE"]
+        assert phrog.get_power_amount(PowerId.INFESTED) == PHROG_PARASITE_INFESTED
+        assert lash.intents[0].damage == PHROG_PARASITE_LASH_DAMAGE_A9
+        assert lash.intents[0].hits == PHROG_PARASITE_LASH_HITS
+        ally_hp_before_lash = ally.current_hp
+        lash.perform(combat)
+        assert ally.current_hp == ally_hp_before_lash - PHROG_PARASITE_LASH_DAMAGE_A9 * PHROG_PARASITE_LASH_HITS
+
+        ally_state = combat.combat_player_state_for(ally)
+        assert ally_state is not None
+        ally_state.discard.clear()
+        phrog_ai.states["INFECT_MOVE"].perform(combat)
+        assert [card.card_id for card in ally_state.discard] == [CardId.INFECTION] * PHROG_PARASITE_INFECTIONS
 
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle

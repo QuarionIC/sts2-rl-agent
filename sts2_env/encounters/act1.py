@@ -219,17 +219,17 @@ NORMAL_ENCOUNTERS: list[EncounterSetup] = [
 # ---- Elite Encounters ----
 
 def setup_bygone_effigy_elite(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_bygone_effigy(rng)
+    creature, ai = create_bygone_effigy(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
 def setup_byrdonis_elite(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_byrdonis(rng)
+    creature, ai = create_byrdonis(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
 def setup_phrog_parasite_elite(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_phrog_parasite(rng)
+    creature, ai = create_phrog_parasite(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 

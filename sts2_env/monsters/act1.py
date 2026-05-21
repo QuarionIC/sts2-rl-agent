@@ -1226,100 +1226,244 @@ def create_tracker_ruby_raider(rng: Rng, ascension_level: int = 0) -> tuple[Crea
 
 # ---- BygoneEffigy (HP 127 / 132 asc) ----
 
-def create_bygone_effigy(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 127
-    creature = Creature(max_hp=hp, monster_id="BYGONE_EFFIGY")
-    slash_dmg = 15
+BYGONE_EFFIGY_ID = "BYGONE_EFFIGY"
+BYGONE_EFFIGY_BASE_HP = 127
+BYGONE_EFFIGY_TOUGH_HP = 132
+BYGONE_EFFIGY_BASE_SLASH_DAMAGE = 15
+BYGONE_EFFIGY_DEADLY_SLASH_DAMAGE = 17
+BYGONE_EFFIGY_WAKE_STRENGTH = 10
+BYGONE_EFFIGY_SLOW = 1
+BYGONE_EFFIGY_INITIAL_SLEEP_MOVE = "INITIAL_SLEEP_MOVE"
+BYGONE_EFFIGY_WAKE_MOVE = "WAKE_MOVE"
+BYGONE_EFFIGY_SLEEP_MOVE = "SLEEP_MOVE"
+BYGONE_EFFIGY_SLASHES_MOVE = "SLASHES_MOVE"
+
+
+def create_bygone_effigy(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        BYGONE_EFFIGY_TOUGH_HP,
+        BYGONE_EFFIGY_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=BYGONE_EFFIGY_ID)
 
     def initial_sleep(combat: CombatState) -> None:
         pass  # Does nothing
 
     def wake(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, 10)
+        creature.apply_power(PowerId.STRENGTH, BYGONE_EFFIGY_WAKE_STRENGTH)
 
     def sleep_move(combat: CombatState) -> None:
         pass
 
     def slashes(combat: CombatState) -> None:
+        slash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            BYGONE_EFFIGY_DEADLY_SLASH_DAMAGE,
+            BYGONE_EFFIGY_BASE_SLASH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, slash_dmg)
 
+    slash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        BYGONE_EFFIGY_DEADLY_SLASH_DAMAGE,
+        BYGONE_EFFIGY_BASE_SLASH_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "INITIAL_SLEEP_MOVE": MoveState(
-            "INITIAL_SLEEP_MOVE",
+        BYGONE_EFFIGY_INITIAL_SLEEP_MOVE: MoveState(
+            BYGONE_EFFIGY_INITIAL_SLEEP_MOVE,
             initial_sleep,
             [sleep_intent()],
-            follow_up_id="WAKE_MOVE",
+            follow_up_id=BYGONE_EFFIGY_WAKE_MOVE,
         ),
-        "WAKE_MOVE": MoveState("WAKE_MOVE", wake, [buff_intent()], follow_up_id="SLASHES_MOVE"),
-        "SLEEP_MOVE": MoveState("SLEEP_MOVE", sleep_move, [sleep_intent()], follow_up_id="SLASHES_MOVE"),
-        "SLASHES_MOVE": MoveState(
-            "SLASHES_MOVE",
+        BYGONE_EFFIGY_WAKE_MOVE: MoveState(
+            BYGONE_EFFIGY_WAKE_MOVE,
+            wake,
+            [buff_intent()],
+            follow_up_id=BYGONE_EFFIGY_SLASHES_MOVE,
+        ),
+        BYGONE_EFFIGY_SLEEP_MOVE: MoveState(
+            BYGONE_EFFIGY_SLEEP_MOVE,
+            sleep_move,
+            [sleep_intent()],
+            follow_up_id=BYGONE_EFFIGY_SLASHES_MOVE,
+        ),
+        BYGONE_EFFIGY_SLASHES_MOVE: MoveState(
+            BYGONE_EFFIGY_SLASHES_MOVE,
             slashes,
-            [attack_intent(slash_dmg)],
-            follow_up_id="SLASHES_MOVE",
+            [attack_intent(slash_intent_damage)],
+            follow_up_id=BYGONE_EFFIGY_SLASHES_MOVE,
         ),
     }
 
     # AfterAddedToRoom: applies Slow power
-    creature.apply_power(PowerId.SLOW, 1)
+    creature.apply_power(PowerId.SLOW, BYGONE_EFFIGY_SLOW)
 
-    return creature, MonsterAI(states, "INITIAL_SLEEP_MOVE")
+    return creature, MonsterAI(states, BYGONE_EFFIGY_INITIAL_SLEEP_MOVE)
 
 
 # ---- Byrdonis (HP 91-94 / 99 asc) ----
 
-def create_byrdonis(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(91, 94)
-    creature = Creature(max_hp=hp, monster_id="BYRDONIS")
-    peck_dmg = 3
-    peck_hits = 3
-    swoop_dmg = 16
+BYRDONIS_ID = "BYRDONIS"
+BYRDONIS_BASE_MIN_HP = 91
+BYRDONIS_BASE_MAX_HP = 94
+BYRDONIS_TOUGH_HP = 99
+BYRDONIS_BASE_PECK_DAMAGE = 3
+BYRDONIS_DEADLY_PECK_DAMAGE = 4
+BYRDONIS_PECK_HITS = 3
+BYRDONIS_BASE_SWOOP_DAMAGE = 16
+BYRDONIS_DEADLY_SWOOP_DAMAGE = 18
+BYRDONIS_TERRITORIAL = 1
+BYRDONIS_SWOOP_MOVE = "SWOOP_MOVE"
+BYRDONIS_PECK_MOVE = "PECK_MOVE"
+
+
+def create_byrdonis(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        BYRDONIS_TOUGH_HP,
+        BYRDONIS_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        BYRDONIS_TOUGH_HP,
+        BYRDONIS_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=BYRDONIS_ID)
 
     def peck(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, peck_dmg, hits=peck_hits)
+        peck_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            BYRDONIS_DEADLY_PECK_DAMAGE,
+            BYRDONIS_BASE_PECK_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, peck_dmg, hits=BYRDONIS_PECK_HITS)
 
     def swoop(combat: CombatState) -> None:
+        swoop_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            BYRDONIS_DEADLY_SWOOP_DAMAGE,
+            BYRDONIS_BASE_SWOOP_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, swoop_dmg)
 
+    peck_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        BYRDONIS_DEADLY_PECK_DAMAGE,
+        BYRDONIS_BASE_PECK_DAMAGE,
+    )
+    swoop_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        BYRDONIS_DEADLY_SWOOP_DAMAGE,
+        BYRDONIS_BASE_SWOOP_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "SWOOP_MOVE": MoveState("SWOOP_MOVE", swoop, [attack_intent(swoop_dmg)], follow_up_id="PECK_MOVE"),
-        "PECK_MOVE": MoveState(
-            "PECK_MOVE",
+        BYRDONIS_SWOOP_MOVE: MoveState(
+            BYRDONIS_SWOOP_MOVE,
+            swoop,
+            [attack_intent(swoop_intent_damage)],
+            follow_up_id=BYRDONIS_PECK_MOVE,
+        ),
+        BYRDONIS_PECK_MOVE: MoveState(
+            BYRDONIS_PECK_MOVE,
             peck,
-            [multi_attack_intent(peck_dmg, peck_hits)],
-            follow_up_id="SWOOP_MOVE",
+            [multi_attack_intent(peck_intent_damage, BYRDONIS_PECK_HITS)],
+            follow_up_id=BYRDONIS_SWOOP_MOVE,
         ),
     }
 
     # AfterAddedToRoom: applies Territorial power
-    creature.apply_power(PowerId.TERRITORIAL, 1)
+    creature.apply_power(PowerId.TERRITORIAL, BYRDONIS_TERRITORIAL)
 
-    return creature, MonsterAI(states, "SWOOP_MOVE")
+    return creature, MonsterAI(states, BYRDONIS_SWOOP_MOVE)
 
 
 # ---- PhrogParasite (HP 61-64 / 66-68 asc) ----
 
-def create_phrog_parasite(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(61, 64)
-    creature = Creature(max_hp=hp, monster_id="PHROG_PARASITE")
-    bite_dmg = 4
-    infect_infections = 3
+PHROG_PARASITE_ID = "PHROG_PARASITE"
+PHROG_PARASITE_BASE_MIN_HP = 61
+PHROG_PARASITE_BASE_MAX_HP = 64
+PHROG_PARASITE_TOUGH_MIN_HP = 66
+PHROG_PARASITE_TOUGH_MAX_HP = 68
+PHROG_PARASITE_BASE_LASH_DAMAGE = 4
+PHROG_PARASITE_DEADLY_LASH_DAMAGE = 5
+PHROG_PARASITE_LASH_HITS = 4
+PHROG_PARASITE_INFECT_INFECTIONS = 3
+PHROG_PARASITE_INFESTED = 4
+PHROG_PARASITE_INFECT_MOVE = "INFECT_MOVE"
+PHROG_PARASITE_LASH_MOVE = "LASH_MOVE"
+
+
+def create_phrog_parasite(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        PHROG_PARASITE_TOUGH_MIN_HP,
+        PHROG_PARASITE_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        PHROG_PARASITE_TOUGH_MAX_HP,
+        PHROG_PARASITE_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=PHROG_PARASITE_ID)
 
     def infest(combat: CombatState) -> None:
-        add_generated_cards_to_living_player_discards(combat, make_infection, infect_infections)
+        add_generated_cards_to_living_player_discards(
+            combat,
+            make_infection,
+            PHROG_PARASITE_INFECT_INFECTIONS,
+        )
 
     def bite(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, bite_dmg, hits=4)
+        lash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            PHROG_PARASITE_DEADLY_LASH_DAMAGE,
+            PHROG_PARASITE_BASE_LASH_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, lash_dmg, hits=PHROG_PARASITE_LASH_HITS)
+
+    lash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        PHROG_PARASITE_DEADLY_LASH_DAMAGE,
+        PHROG_PARASITE_BASE_LASH_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "INFECT_MOVE": MoveState("INFECT_MOVE", infest, [status_intent()], follow_up_id="LASH_MOVE"),
-        "LASH_MOVE": MoveState("LASH_MOVE", bite, [multi_attack_intent(bite_dmg, 4)], follow_up_id="INFECT_MOVE"),
+        PHROG_PARASITE_INFECT_MOVE: MoveState(
+            PHROG_PARASITE_INFECT_MOVE,
+            infest,
+            [status_intent()],
+            follow_up_id=PHROG_PARASITE_LASH_MOVE,
+        ),
+        PHROG_PARASITE_LASH_MOVE: MoveState(
+            PHROG_PARASITE_LASH_MOVE,
+            bite,
+            [multi_attack_intent(lash_intent_damage, PHROG_PARASITE_LASH_HITS)],
+            follow_up_id=PHROG_PARASITE_INFECT_MOVE,
+        ),
     }
 
     # AfterAddedToRoom: Infested(4)
-    creature.apply_power(PowerId.INFESTED, 4)
+    creature.apply_power(PowerId.INFESTED, PHROG_PARASITE_INFESTED)
 
-    return creature, MonsterAI(states, "INFECT_MOVE")
+    return creature, MonsterAI(states, PHROG_PARASITE_INFECT_MOVE)
 
 
 # ========================================================================
