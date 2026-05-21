@@ -1144,54 +1144,102 @@ def create_living_fog(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Mon
 
 # ---- PunchConstruct (HP 55 / 60 asc) ----
 
+PUNCH_CONSTRUCT_MONSTER_ID = "PUNCH_CONSTRUCT"
+PUNCH_CONSTRUCT_BASE_HP = 55
+PUNCH_CONSTRUCT_TOUGH_HP = 60
+PUNCH_CONSTRUCT_BASE_STRONG_PUNCH_DAMAGE = 14
+PUNCH_CONSTRUCT_DEADLY_STRONG_PUNCH_DAMAGE = 16
+PUNCH_CONSTRUCT_BASE_FAST_PUNCH_DAMAGE = 5
+PUNCH_CONSTRUCT_DEADLY_FAST_PUNCH_DAMAGE = 6
+PUNCH_CONSTRUCT_FAST_PUNCH_REPEAT = 2
+PUNCH_CONSTRUCT_FAST_PUNCH_WEAK = 1
+PUNCH_CONSTRUCT_READY_BLOCK = 10
+PUNCH_CONSTRUCT_ARTIFACT = 1
+PUNCH_CONSTRUCT_READY_MOVE = "READY_MOVE"
+PUNCH_CONSTRUCT_STRONG_PUNCH_MOVE = "STRONG_PUNCH_MOVE"
+PUNCH_CONSTRUCT_FAST_PUNCH_MOVE = "FAST_PUNCH_MOVE"
+
+
 def create_punch_construct(
     rng: Rng,
     *,
     starts_with_strong_punch: bool = False,
     starting_hp_reduction: int = 0,
+    ascension_level: int = 0,
 ) -> tuple[Creature, MonsterAI]:
-    hp = 55
-    creature = Creature(max_hp=hp, monster_id="PUNCH_CONSTRUCT")
-    strong_punch_dmg = 14
-    fast_punch_dmg = 5
-    fast_punch_weak = 1
-    ready_block = 10
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        PUNCH_CONSTRUCT_TOUGH_HP,
+        PUNCH_CONSTRUCT_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=PUNCH_CONSTRUCT_MONSTER_ID)
 
     if starting_hp_reduction > 0:
         creature.current_hp = max(1, creature.current_hp - starting_hp_reduction)
-    creature.apply_power(PowerId.ARTIFACT, 1)
+    creature.apply_power(PowerId.ARTIFACT, PUNCH_CONSTRUCT_ARTIFACT)
 
     def ready(combat: CombatState) -> None:
-        _gain_block(creature, ready_block, combat)
+        _gain_block(creature, PUNCH_CONSTRUCT_READY_BLOCK, combat)
 
     def strong_punch(combat: CombatState) -> None:
+        strong_punch_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            PUNCH_CONSTRUCT_DEADLY_STRONG_PUNCH_DAMAGE,
+            PUNCH_CONSTRUCT_BASE_STRONG_PUNCH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, strong_punch_dmg)
 
     def fast_punch(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, fast_punch_dmg, hits=2)
-        apply_power_to_living_player_targets(combat, PowerId.WEAK, fast_punch_weak, applier=creature)
+        fast_punch_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            PUNCH_CONSTRUCT_DEADLY_FAST_PUNCH_DAMAGE,
+            PUNCH_CONSTRUCT_BASE_FAST_PUNCH_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, fast_punch_dmg, hits=PUNCH_CONSTRUCT_FAST_PUNCH_REPEAT)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.WEAK,
+            PUNCH_CONSTRUCT_FAST_PUNCH_WEAK,
+            applier=creature,
+        )
+
+    strong_punch_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        PUNCH_CONSTRUCT_DEADLY_STRONG_PUNCH_DAMAGE,
+        PUNCH_CONSTRUCT_BASE_STRONG_PUNCH_DAMAGE,
+    )
+    fast_punch_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        PUNCH_CONSTRUCT_DEADLY_FAST_PUNCH_DAMAGE,
+        PUNCH_CONSTRUCT_BASE_FAST_PUNCH_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "READY_MOVE": MoveState(
-            "READY_MOVE",
+        PUNCH_CONSTRUCT_READY_MOVE: MoveState(
+            PUNCH_CONSTRUCT_READY_MOVE,
             ready,
             [defend_intent()],
-            follow_up_id="STRONG_PUNCH_MOVE",
+            follow_up_id=PUNCH_CONSTRUCT_STRONG_PUNCH_MOVE,
         ),
-        "STRONG_PUNCH_MOVE": MoveState(
-            "STRONG_PUNCH_MOVE",
+        PUNCH_CONSTRUCT_STRONG_PUNCH_MOVE: MoveState(
+            PUNCH_CONSTRUCT_STRONG_PUNCH_MOVE,
             strong_punch,
-            [attack_intent(strong_punch_dmg)],
-            follow_up_id="FAST_PUNCH_MOVE",
+            [attack_intent(strong_punch_intent_damage)],
+            follow_up_id=PUNCH_CONSTRUCT_FAST_PUNCH_MOVE,
         ),
-        "FAST_PUNCH_MOVE": MoveState(
-            "FAST_PUNCH_MOVE",
+        PUNCH_CONSTRUCT_FAST_PUNCH_MOVE: MoveState(
+            PUNCH_CONSTRUCT_FAST_PUNCH_MOVE,
             fast_punch,
-            [multi_attack_intent(fast_punch_dmg, 2), debuff_intent()],
-            follow_up_id="READY_MOVE",
+            [multi_attack_intent(fast_punch_intent_damage, PUNCH_CONSTRUCT_FAST_PUNCH_REPEAT), debuff_intent()],
+            follow_up_id=PUNCH_CONSTRUCT_READY_MOVE,
         ),
     }
-    initial = "STRONG_PUNCH_MOVE" if starts_with_strong_punch else "READY_MOVE"
+    initial = PUNCH_CONSTRUCT_STRONG_PUNCH_MOVE if starts_with_strong_punch else PUNCH_CONSTRUCT_READY_MOVE
     return creature, MonsterAI(states, initial)
 
 
@@ -1263,129 +1311,198 @@ def create_sewer_clam(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Mon
 
 # ---- TwoTailedRat (HP 17-21 / 18-22 asc) ----
 
-def create_two_tailed_rat(rng: Rng, starter_move_idx: int = -1) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(17, 21)
-    creature = Creature(max_hp=hp, monster_id="TWO_TAILED_RAT")
-    scratch_dmg = 8
-    disease_bite_dmg = 6
-    screech_frail = 1
+TWO_TAILED_RAT_MONSTER_ID = "TWO_TAILED_RAT"
+TWO_TAILED_RAT_BASE_MIN_HP = 17
+TWO_TAILED_RAT_BASE_MAX_HP = 21
+TWO_TAILED_RAT_TOUGH_MIN_HP = 18
+TWO_TAILED_RAT_TOUGH_MAX_HP = 22
+TWO_TAILED_RAT_BASE_SCRATCH_DAMAGE = 8
+TWO_TAILED_RAT_DEADLY_SCRATCH_DAMAGE = 9
+TWO_TAILED_RAT_BASE_DISEASE_BITE_DAMAGE = 6
+TWO_TAILED_RAT_DEADLY_DISEASE_BITE_DAMAGE = 7
+TWO_TAILED_RAT_SCREECH_FRAIL = 1
+TWO_TAILED_RAT_INITIAL_TURNS_UNTIL_SUMMONABLE = 2
+TWO_TAILED_RAT_CALL_FOR_BACKUP_LIMIT = 3
+TWO_TAILED_RAT_MAX_ALIVE_RATS = 5
+TWO_TAILED_RAT_ATTACK_WEIGHT_WHEN_SUMMONABLE = 1.0 / 12.0
+TWO_TAILED_RAT_ATTACK_WEIGHT = 1.0
+TWO_TAILED_RAT_SCREECH_WEIGHT = 3.0
+TWO_TAILED_RAT_CALL_FOR_BACKUP_WEIGHT = 0.75
+TWO_TAILED_RAT_TURNS_UNTIL_SUMMONABLE_KEY = "turns_until_summonable"
+TWO_TAILED_RAT_CALL_FOR_BACKUP_COUNT_KEY = "call_for_backup_count"
+TWO_TAILED_RAT_RANDOM_STATE = "RAND"
+TWO_TAILED_RAT_SCRATCH_MOVE = "SCRATCH_MOVE"
+TWO_TAILED_RAT_DISEASE_BITE_MOVE = "DISEASE_BITE_MOVE"
+TWO_TAILED_RAT_SCREECH_MOVE = "SCREECH_MOVE"
+TWO_TAILED_RAT_CALL_FOR_BACKUP_MOVE = "CALL_FOR_BACKUP_MOVE"
+
+
+def create_two_tailed_rat(
+    rng: Rng,
+    starter_move_idx: int = -1,
+    ascension_level: int = 0,
+) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TWO_TAILED_RAT_TOUGH_MIN_HP,
+        TWO_TAILED_RAT_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TWO_TAILED_RAT_TOUGH_MAX_HP,
+        TWO_TAILED_RAT_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=TWO_TAILED_RAT_MONSTER_ID)
     state = {
-        "turns_until_summonable": 2,
-        "call_for_backup_count": 0,
+        TWO_TAILED_RAT_TURNS_UNTIL_SUMMONABLE_KEY: TWO_TAILED_RAT_INITIAL_TURNS_UNTIL_SUMMONABLE,
+        TWO_TAILED_RAT_CALL_FOR_BACKUP_COUNT_KEY: 0,
     }
 
     def can_summon(combat: CombatState | None = None) -> bool:
         combat = combat or creature.combat_state
         if combat is None:
             return False
-        if state["turns_until_summonable"] > 0:
+        if state[TWO_TAILED_RAT_TURNS_UNTIL_SUMMONABLE_KEY] > 0:
             return False
-        if state["call_for_backup_count"] >= 3:
+        if state[TWO_TAILED_RAT_CALL_FOR_BACKUP_COUNT_KEY] >= TWO_TAILED_RAT_CALL_FOR_BACKUP_LIMIT:
             return False
         alive_rats = [
             enemy
             for enemy in combat.enemies
-            if enemy.monster_id == "TWO_TAILED_RAT" and enemy.is_alive
+            if enemy.monster_id == TWO_TAILED_RAT_MONSTER_ID and enemy.is_alive
         ]
-        if len(alive_rats) >= 5:
+        if len(alive_rats) >= TWO_TAILED_RAT_MAX_ALIVE_RATS:
             return False
         for enemy in alive_rats:
             if enemy is creature:
                 continue
             ai = combat.enemy_ais.get(enemy.combat_id)
-            if ai is not None and ai.current_move.state_id == "CALL_FOR_BACKUP_MOVE":
+            if ai is not None and ai.current_move.state_id == TWO_TAILED_RAT_CALL_FOR_BACKUP_MOVE:
                 return False
         return True
 
     def _attack_performed() -> None:
-        state["turns_until_summonable"] -= 1
+        state[TWO_TAILED_RAT_TURNS_UNTIL_SUMMONABLE_KEY] -= 1
 
     def scratch(combat: CombatState) -> None:
+        scratch_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TWO_TAILED_RAT_DEADLY_SCRATCH_DAMAGE,
+            TWO_TAILED_RAT_BASE_SCRATCH_DAMAGE,
+        )
         _attack_performed()
         _deal_damage_to_player(combat, creature, scratch_dmg)
 
     def disease_bite(combat: CombatState) -> None:
+        disease_bite_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TWO_TAILED_RAT_DEADLY_DISEASE_BITE_DAMAGE,
+            TWO_TAILED_RAT_BASE_DISEASE_BITE_DAMAGE,
+        )
         _attack_performed()
         _deal_damage_to_player(combat, creature, disease_bite_dmg)
 
     def screech(combat: CombatState) -> None:
         _attack_performed()
-        apply_power_to_living_player_targets(combat, PowerId.FRAIL, screech_frail, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.FRAIL,
+            TWO_TAILED_RAT_SCREECH_FRAIL,
+            applier=creature,
+        )
 
     def call_for_backup(combat: CombatState) -> None:
         if can_summon(combat):
-            backup, backup_ai = create_two_tailed_rat(rng)
+            backup, backup_ai = create_two_tailed_rat(rng, ascension_level=_combat_ascension_level(combat))
             combat.add_enemy(backup, backup_ai)
         rat_ais = [
             combat.enemy_ais[enemy.combat_id]
             for enemy in combat.enemies
-            if enemy.monster_id == "TWO_TAILED_RAT" and enemy.combat_id in combat.enemy_ais
+            if enemy.monster_id == TWO_TAILED_RAT_MONSTER_ID and enemy.combat_id in combat.enemy_ais
         ]
         max_count = max(
-            getattr(ai, "_two_tailed_rat_state", {}).get("call_for_backup_count", 0) + 1
+            getattr(ai, "_two_tailed_rat_state", {}).get(TWO_TAILED_RAT_CALL_FOR_BACKUP_COUNT_KEY, 0) + 1
             for ai in rat_ais
         )
         for ai in rat_ais:
             rat_state = getattr(ai, "_two_tailed_rat_state", None)
             if rat_state is not None:
-                rat_state["call_for_backup_count"] = max_count
+                rat_state[TWO_TAILED_RAT_CALL_FOR_BACKUP_COUNT_KEY] = max_count
 
-    rand = RandomBranchState("RAND")
+    scratch_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TWO_TAILED_RAT_DEADLY_SCRATCH_DAMAGE,
+        TWO_TAILED_RAT_BASE_SCRATCH_DAMAGE,
+    )
+    disease_bite_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TWO_TAILED_RAT_DEADLY_DISEASE_BITE_DAMAGE,
+        TWO_TAILED_RAT_BASE_DISEASE_BITE_DAMAGE,
+    )
+
+    rand = RandomBranchState(TWO_TAILED_RAT_RANDOM_STATE)
     rand.add_branch(
-        "SCRATCH_MOVE",
+        TWO_TAILED_RAT_SCRATCH_MOVE,
         MoveRepeatType.CANNOT_REPEAT,
-        weight=lambda: 1.0 / 12.0 if can_summon() else 1.0,
+        weight=lambda: TWO_TAILED_RAT_ATTACK_WEIGHT_WHEN_SUMMONABLE if can_summon() else TWO_TAILED_RAT_ATTACK_WEIGHT,
     )
     rand.add_branch(
-        "DISEASE_BITE_MOVE",
+        TWO_TAILED_RAT_DISEASE_BITE_MOVE,
         MoveRepeatType.CANNOT_REPEAT,
-        weight=lambda: 1.0 / 12.0 if can_summon() else 1.0,
+        weight=lambda: TWO_TAILED_RAT_ATTACK_WEIGHT_WHEN_SUMMONABLE if can_summon() else TWO_TAILED_RAT_ATTACK_WEIGHT,
     )
     rand.add_branch(
-        "SCREECH_MOVE",
+        TWO_TAILED_RAT_SCREECH_MOVE,
         MoveRepeatType.CANNOT_REPEAT,
-        weight=lambda: 1.0 / 12.0 if can_summon() else 3.0,
+        weight=lambda: TWO_TAILED_RAT_ATTACK_WEIGHT_WHEN_SUMMONABLE if can_summon() else TWO_TAILED_RAT_SCREECH_WEIGHT,
     )
     rand.add_branch(
-        "CALL_FOR_BACKUP_MOVE",
+        TWO_TAILED_RAT_CALL_FOR_BACKUP_MOVE,
         MoveRepeatType.USE_ONLY_ONCE,
-        weight=lambda: 0.75 if can_summon() else 0.0,
+        weight=lambda: TWO_TAILED_RAT_CALL_FOR_BACKUP_WEIGHT if can_summon() else 0.0,
     )
 
     states: dict[str, MonsterState] = {
-        "RAND": rand,
-        "SCRATCH_MOVE": MoveState(
-            "SCRATCH_MOVE",
+        TWO_TAILED_RAT_RANDOM_STATE: rand,
+        TWO_TAILED_RAT_SCRATCH_MOVE: MoveState(
+            TWO_TAILED_RAT_SCRATCH_MOVE,
             scratch,
-            [attack_intent(scratch_dmg)],
-            follow_up_id="RAND",
+            [attack_intent(scratch_intent_damage)],
+            follow_up_id=TWO_TAILED_RAT_RANDOM_STATE,
         ),
-        "DISEASE_BITE_MOVE": MoveState(
-            "DISEASE_BITE_MOVE",
+        TWO_TAILED_RAT_DISEASE_BITE_MOVE: MoveState(
+            TWO_TAILED_RAT_DISEASE_BITE_MOVE,
             disease_bite,
-            [attack_intent(disease_bite_dmg)],
-            follow_up_id="RAND",
+            [attack_intent(disease_bite_intent_damage)],
+            follow_up_id=TWO_TAILED_RAT_RANDOM_STATE,
         ),
-        "SCREECH_MOVE": MoveState(
-            "SCREECH_MOVE",
+        TWO_TAILED_RAT_SCREECH_MOVE: MoveState(
+            TWO_TAILED_RAT_SCREECH_MOVE,
             screech,
             [debuff_intent()],
-            follow_up_id="RAND",
+            follow_up_id=TWO_TAILED_RAT_RANDOM_STATE,
         ),
-        "CALL_FOR_BACKUP_MOVE": MoveState(
-            "CALL_FOR_BACKUP_MOVE",
+        TWO_TAILED_RAT_CALL_FOR_BACKUP_MOVE: MoveState(
+            TWO_TAILED_RAT_CALL_FOR_BACKUP_MOVE,
             call_for_backup,
             [Intent(IntentType.SUMMON)],
-            follow_up_id="RAND",
+            follow_up_id=TWO_TAILED_RAT_RANDOM_STATE,
         ),
     }
 
     starter_map = {
-        0: "SCRATCH_MOVE",
-        1: "DISEASE_BITE_MOVE",
-        2: "SCREECH_MOVE",
+        0: TWO_TAILED_RAT_SCRATCH_MOVE,
+        1: TWO_TAILED_RAT_DISEASE_BITE_MOVE,
+        2: TWO_TAILED_RAT_SCREECH_MOVE,
     }
-    initial = starter_map.get(starter_move_idx, "RAND")
+    initial = starter_map.get(starter_move_idx, TWO_TAILED_RAT_RANDOM_STATE)
     ai = MonsterAI(states, initial, rng)
     ai._two_tailed_rat_state = state  # noqa: SLF001
     return creature, ai

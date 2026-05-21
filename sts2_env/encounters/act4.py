@@ -111,7 +111,7 @@ def setup_living_fog_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_punch_construct_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_punch_construct(rng)
+    creature, ai = create_punch_construct(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
@@ -130,7 +130,11 @@ def setup_toadpoles_normal(combat: CombatState, rng: Rng) -> None:
 def setup_two_tailed_rats_normal(combat: CombatState, rng: Rng) -> None:
     starter_idx = rng.next_int(0, 2)
     for offset in range(3):
-        creature, ai = create_two_tailed_rat(rng, starter_move_idx=(starter_idx + offset) % 3)
+        creature, ai = create_two_tailed_rat(
+            rng,
+            starter_move_idx=(starter_idx + offset) % 3,
+            ascension_level=combat.ascension_level,
+        )
         combat.add_enemy(creature, ai)
 
 

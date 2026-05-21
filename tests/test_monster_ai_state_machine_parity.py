@@ -52,6 +52,7 @@ from sts2_env.encounters.act4 import (
     setup_lagavulin_matriarch_boss,
     setup_living_fog_normal,
     setup_phantasmal_gardeners_elite,
+    setup_punch_construct_normal,
     setup_seapunk_weak,
     setup_sewer_clam_normal,
     setup_sludge_spinner_weak,
@@ -121,6 +122,11 @@ from sts2_env.monsters.act4 import (
     LIVING_FOG_BLOAT_MOVE,
     LIVING_FOG_MONSTER_ID,
     LIVING_FOG_SUPER_GAS_BLAST_MOVE,
+    PUNCH_CONSTRUCT_ARTIFACT,
+    PUNCH_CONSTRUCT_FAST_PUNCH_MOVE,
+    PUNCH_CONSTRUCT_MONSTER_ID,
+    PUNCH_CONSTRUCT_READY_MOVE,
+    PUNCH_CONSTRUCT_STRONG_PUNCH_MOVE,
     SEAPUNK_BUBBLE_BURP_MOVE,
     SEAPUNK_MONSTER_ID,
     SEAPUNK_SEA_KICK_MOVE,
@@ -134,6 +140,12 @@ from sts2_env.monsters.act4 import (
     SLUDGE_SPINNER_RAGE_MOVE,
     SLUDGE_SPINNER_SLAM_MOVE,
     SLUDGE_SPINNER_MONSTER_ID,
+    TWO_TAILED_RAT_CALL_FOR_BACKUP_MOVE,
+    TWO_TAILED_RAT_DISEASE_BITE_MOVE,
+    TWO_TAILED_RAT_MONSTER_ID,
+    TWO_TAILED_RAT_RANDOM_STATE,
+    TWO_TAILED_RAT_SCRATCH_MOVE,
+    TWO_TAILED_RAT_SCREECH_MOVE,
     create_calcified_cultist,
     create_corpse_slug,
     create_damp_cultist,
@@ -743,6 +755,17 @@ SEWER_CLAM_A8_HP = 58
 SEWER_CLAM_JET_DAMAGE_A9 = 11
 SEWER_CLAM_PRESSURIZE_STRENGTH = 4
 SEWER_CLAM_PLATING_A8 = 9
+PUNCH_CONSTRUCT_A8_HP = 60
+PUNCH_CONSTRUCT_STRONG_PUNCH_DAMAGE_A9 = 16
+PUNCH_CONSTRUCT_FAST_PUNCH_DAMAGE_A9 = 6
+PUNCH_CONSTRUCT_FAST_PUNCH_HITS = 2
+PUNCH_CONSTRUCT_FAST_PUNCH_WEAK = 1
+PUNCH_CONSTRUCT_READY_BLOCK = 10
+PUNCH_CONSTRUCT_STARTING_HP_REDUCTION = 7
+TWO_TAILED_RAT_A8_HP_RANGE = (18, 22)
+TWO_TAILED_RAT_SCRATCH_DAMAGE_A9 = 9
+TWO_TAILED_RAT_DISEASE_BITE_DAMAGE_A9 = 7
+TWO_TAILED_RAT_SCREECH_FRAIL = 1
 FABRICATOR_BASE_HP = 150
 FABRICATOR_A8_HP = 155
 FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9 = 21
@@ -6039,6 +6062,116 @@ class TestFixedRotation:
         encounter_clam_ai = clam_encounter.enemy_ais[encounter_clam.combat_id]
         assert encounter_clam.max_hp == SEWER_CLAM_A8_HP
         assert encounter_clam_ai.states[SEWER_CLAM_JET_MOVE].intents[0].damage == SEWER_CLAM_JET_DAMAGE_A9
+
+    def test_act4_normal_punch_construct_and_two_tailed_rat_ascension_scaling_matches_csharp(self):
+        rng_seed = 1329
+
+        punch_combat = _make_combat(rng_seed)
+        punch_combat.ascension_level = 9
+        punch, punch_ai = create_punch_construct(
+            Rng(rng_seed),
+            ascension_level=9,
+            starting_hp_reduction=PUNCH_CONSTRUCT_STARTING_HP_REDUCTION,
+        )
+        punch_combat.add_enemy(punch, punch_ai)
+        assert punch.max_hp == PUNCH_CONSTRUCT_A8_HP
+        assert punch.current_hp == PUNCH_CONSTRUCT_A8_HP - PUNCH_CONSTRUCT_STARTING_HP_REDUCTION
+        assert punch.get_power_amount(PowerId.ARTIFACT) == PUNCH_CONSTRUCT_ARTIFACT
+        assert punch_ai.current_move.state_id == PUNCH_CONSTRUCT_READY_MOVE
+
+        punch_ai.states[PUNCH_CONSTRUCT_READY_MOVE].perform(punch_combat)
+        assert punch.block == PUNCH_CONSTRUCT_READY_BLOCK
+
+        strong_punch = punch_ai.states[PUNCH_CONSTRUCT_STRONG_PUNCH_MOVE]
+        assert strong_punch.intents[0].damage == PUNCH_CONSTRUCT_STRONG_PUNCH_DAMAGE_A9
+        player_hp_before_strong = punch_combat.player.current_hp
+        strong_punch.perform(punch_combat)
+        assert punch_combat.player.current_hp == player_hp_before_strong - PUNCH_CONSTRUCT_STRONG_PUNCH_DAMAGE_A9
+
+        fast_punch = punch_ai.states[PUNCH_CONSTRUCT_FAST_PUNCH_MOVE]
+        assert fast_punch.intents[0].damage == PUNCH_CONSTRUCT_FAST_PUNCH_DAMAGE_A9
+        assert fast_punch.intents[0].hits == PUNCH_CONSTRUCT_FAST_PUNCH_HITS
+        player_hp_before_fast = punch_combat.player.current_hp
+        fast_punch.perform(punch_combat)
+        assert punch_combat.player.current_hp == (
+            player_hp_before_fast - PUNCH_CONSTRUCT_FAST_PUNCH_DAMAGE_A9 * PUNCH_CONSTRUCT_FAST_PUNCH_HITS
+        )
+        assert punch_combat.player.get_power_amount(PowerId.WEAK) == PUNCH_CONSTRUCT_FAST_PUNCH_WEAK
+
+        strong_start_punch, strong_start_ai = create_punch_construct(
+            Rng(rng_seed),
+            ascension_level=9,
+            starts_with_strong_punch=True,
+        )
+        assert strong_start_punch.max_hp == PUNCH_CONSTRUCT_A8_HP
+        assert strong_start_ai.current_move.state_id == PUNCH_CONSTRUCT_STRONG_PUNCH_MOVE
+
+        rat_combat = _make_combat(rng_seed)
+        rat_combat.ascension_level = 9
+        rat, rat_ai = create_two_tailed_rat(Rng(rng_seed), starter_move_idx=0, ascension_level=9)
+        rat_combat.add_enemy(rat, rat_ai)
+        assert TWO_TAILED_RAT_A8_HP_RANGE[0] <= rat.max_hp <= TWO_TAILED_RAT_A8_HP_RANGE[1]
+        assert rat_ai.current_move.state_id == TWO_TAILED_RAT_SCRATCH_MOVE
+        assert {
+            TWO_TAILED_RAT_RANDOM_STATE,
+            TWO_TAILED_RAT_SCRATCH_MOVE,
+            TWO_TAILED_RAT_DISEASE_BITE_MOVE,
+            TWO_TAILED_RAT_SCREECH_MOVE,
+            TWO_TAILED_RAT_CALL_FOR_BACKUP_MOVE,
+        }.issubset(rat_ai.states)
+
+        scratch = rat_ai.states[TWO_TAILED_RAT_SCRATCH_MOVE]
+        assert scratch.intents[0].damage == TWO_TAILED_RAT_SCRATCH_DAMAGE_A9
+        player_hp_before_scratch = rat_combat.player.current_hp
+        scratch.perform(rat_combat)
+        assert rat_combat.player.current_hp == player_hp_before_scratch - TWO_TAILED_RAT_SCRATCH_DAMAGE_A9
+
+        bite = rat_ai.states[TWO_TAILED_RAT_DISEASE_BITE_MOVE]
+        assert bite.intents[0].damage == TWO_TAILED_RAT_DISEASE_BITE_DAMAGE_A9
+        player_hp_before_bite = rat_combat.player.current_hp
+        bite.perform(rat_combat)
+        assert rat_combat.player.current_hp == player_hp_before_bite - TWO_TAILED_RAT_DISEASE_BITE_DAMAGE_A9
+
+        rat_ai.states[TWO_TAILED_RAT_SCREECH_MOVE].perform(rat_combat)
+        assert rat_combat.player.get_power_amount(PowerId.FRAIL) == TWO_TAILED_RAT_SCREECH_FRAIL
+
+        rat_ai.states[TWO_TAILED_RAT_CALL_FOR_BACKUP_MOVE].perform(rat_combat)
+        assert [enemy.monster_id for enemy in rat_combat.enemies] == [
+            TWO_TAILED_RAT_MONSTER_ID,
+            TWO_TAILED_RAT_MONSTER_ID,
+        ]
+        backup_rat = rat_combat.enemies[-1]
+        backup_ai = rat_combat.enemy_ais[backup_rat.combat_id]
+        assert TWO_TAILED_RAT_A8_HP_RANGE[0] <= backup_rat.max_hp <= TWO_TAILED_RAT_A8_HP_RANGE[1]
+        assert backup_ai.states[TWO_TAILED_RAT_SCRATCH_MOVE].intents[0].damage == TWO_TAILED_RAT_SCRATCH_DAMAGE_A9
+
+        punch_encounter = _make_combat(rng_seed)
+        punch_encounter.ascension_level = 9
+        setup_punch_construct_normal(punch_encounter, Rng(rng_seed))
+        encounter_punch = punch_encounter.enemies[0]
+        encounter_punch_ai = punch_encounter.enemy_ais[encounter_punch.combat_id]
+        assert encounter_punch.max_hp == PUNCH_CONSTRUCT_A8_HP
+        assert encounter_punch_ai.states[PUNCH_CONSTRUCT_STRONG_PUNCH_MOVE].intents[0].damage == (
+            PUNCH_CONSTRUCT_STRONG_PUNCH_DAMAGE_A9
+        )
+
+        rats_encounter = _make_combat(rng_seed)
+        rats_encounter.ascension_level = 9
+        setup_two_tailed_rats_normal(rats_encounter, Rng(rng_seed))
+        assert [enemy.monster_id for enemy in rats_encounter.enemies] == [
+            TWO_TAILED_RAT_MONSTER_ID,
+            TWO_TAILED_RAT_MONSTER_ID,
+            TWO_TAILED_RAT_MONSTER_ID,
+        ]
+        assert all(TWO_TAILED_RAT_A8_HP_RANGE[0] <= enemy.max_hp <= TWO_TAILED_RAT_A8_HP_RANGE[1] for enemy in rats_encounter.enemies)
+        assert {
+            rats_encounter.enemy_ais[enemy.combat_id].current_move.state_id
+            for enemy in rats_encounter.enemies
+        } == {
+            TWO_TAILED_RAT_SCRATCH_MOVE,
+            TWO_TAILED_RAT_DISEASE_BITE_MOVE,
+            TWO_TAILED_RAT_SCREECH_MOVE,
+        }
 
     def test_act4_weak_monsters_use_original_move_ids_and_stats(self):
         slug, slug_ai = create_corpse_slug(Rng(50), starter_idx=0)
