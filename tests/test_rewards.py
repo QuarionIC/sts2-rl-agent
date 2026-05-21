@@ -78,6 +78,24 @@ class TestCardRarityOdds:
         odds.roll_without_changing_odds(rng, context="shop")
         assert odds.current_value == initial
 
+    def test_shop_roll_updates_pity_like_original_roll_api(self):
+        odds = CardRarityOdds()
+        initial = odds.current_value
+        rng = Rng(42)
+
+        result = odds.roll(rng, context="shop")
+
+        assert result is not CardRarity.RARE
+        assert odds.current_value == pytest.approx(initial + odds.rarity_growth)
+
+    def test_uniform_base_odds_without_pity_change_api(self):
+        odds = CardRarityOdds()
+        odds.current_value = 0.4
+        rng = Rng(42)
+
+        assert odds.roll_with_base_odds(rng, context="uniform") == CardRarity.COMMON
+        assert odds.current_value == pytest.approx(0.4)
+
     def test_a7_changes_odds(self):
         odds_normal = CardRarityOdds(ascension_level=0)
         odds_a7 = CardRarityOdds(ascension_level=7)

@@ -121,34 +121,72 @@ class CardRarityOdds:
     Boss encounters ignore pity. Shop rolls don't change pity.
     """
 
+    BASE_RARITY_OFFSET = -0.05
+    MAX_RARITY_OFFSET = 0.40
+    SCARCITY_ASCENSION_LEVEL = 7
+
+    REGULAR_COMMON_ODDS = 0.60
+    REGULAR_COMMON_ODDS_SCARCITY = 0.615
+    REGULAR_UNCOMMON_ODDS = 0.37
+    REGULAR_RARE_ODDS = 0.03
+    REGULAR_RARE_ODDS_SCARCITY = 0.0149
+
+    ELITE_COMMON_ODDS = 0.50
+    ELITE_COMMON_ODDS_SCARCITY = 0.549
+    ELITE_UNCOMMON_ODDS = 0.40
+    ELITE_RARE_ODDS = 0.10
+    ELITE_RARE_ODDS_SCARCITY = 0.05
+
+    BOSS_COMMON_ODDS = 0.00
+    BOSS_UNCOMMON_ODDS = 0.00
+    BOSS_RARE_ODDS = 1.00
+
+    SHOP_COMMON_ODDS = 0.54
+    SHOP_COMMON_ODDS_SCARCITY = 0.585
+    SHOP_UNCOMMON_ODDS = 0.37
+    SHOP_RARE_ODDS = 0.09
+    SHOP_RARE_ODDS_SCARCITY = 0.045
+
+    UNIFORM_COMMON_ODDS = 0.33
+    UNIFORM_UNCOMMON_ODDS = 0.33
+    UNIFORM_RARE_ODDS = 0.33
+
+    RARITY_GROWTH = 0.01
+    RARITY_GROWTH_SCARCITY = 0.005
+
     def __init__(self, ascension_level: int = 0) -> None:
         self.ascension_level = ascension_level
-        self.current_value: float = -0.05
-        a7 = ascension_level >= 7
+        self.current_value: float = self.BASE_RARITY_OFFSET
+        scarcity = ascension_level >= self.SCARCITY_ASCENSION_LEVEL
 
         # Base odds tables
         self.regular_odds = {
-            "common": 0.615 if a7 else 0.60,
-            "uncommon": 0.37,
-            "rare": 0.0149 if a7 else 0.03,
+            "common": self.REGULAR_COMMON_ODDS_SCARCITY if scarcity else self.REGULAR_COMMON_ODDS,
+            "uncommon": self.REGULAR_UNCOMMON_ODDS,
+            "rare": self.REGULAR_RARE_ODDS_SCARCITY if scarcity else self.REGULAR_RARE_ODDS,
         }
         self.elite_odds = {
-            "common": 0.549 if a7 else 0.50,
-            "uncommon": 0.40,
-            "rare": 0.05 if a7 else 0.10,
+            "common": self.ELITE_COMMON_ODDS_SCARCITY if scarcity else self.ELITE_COMMON_ODDS,
+            "uncommon": self.ELITE_UNCOMMON_ODDS,
+            "rare": self.ELITE_RARE_ODDS_SCARCITY if scarcity else self.ELITE_RARE_ODDS,
         }
         self.boss_odds = {
-            "common": 0.00,
-            "uncommon": 0.00,
-            "rare": 1.00,
+            "common": self.BOSS_COMMON_ODDS,
+            "uncommon": self.BOSS_UNCOMMON_ODDS,
+            "rare": self.BOSS_RARE_ODDS,
         }
         self.shop_odds = {
-            "common": 0.585 if a7 else 0.54,
-            "uncommon": 0.37,
-            "rare": 0.045 if a7 else 0.09,
+            "common": self.SHOP_COMMON_ODDS_SCARCITY if scarcity else self.SHOP_COMMON_ODDS,
+            "uncommon": self.SHOP_UNCOMMON_ODDS,
+            "rare": self.SHOP_RARE_ODDS_SCARCITY if scarcity else self.SHOP_RARE_ODDS,
+        }
+        self.uniform_odds = {
+            "common": self.UNIFORM_COMMON_ODDS,
+            "uncommon": self.UNIFORM_UNCOMMON_ODDS,
+            "rare": self.UNIFORM_RARE_ODDS,
         }
 
-        self.rarity_growth = 0.005 if a7 else 0.01
+        self.rarity_growth = self.RARITY_GROWTH_SCARCITY if scarcity else self.RARITY_GROWTH
 
     def _get_odds(self, context: str) -> dict[str, float]:
         if context == "boss":
@@ -157,6 +195,8 @@ class CardRarityOdds:
             return self.elite_odds
         if context == "shop":
             return self.shop_odds
+        if context == "uniform":
+            return self.uniform_odds
         return self.regular_odds
 
     def roll(self, rng: Rng, context: str = "regular") -> CardRarity:
@@ -177,16 +217,13 @@ class CardRarityOdds:
 
         if roll_val < rare_threshold:
             result = CardRarity.RARE
-            if context != "shop":
-                self.current_value = -0.05  # reset on rare hit
+            self.current_value = self.BASE_RARITY_OFFSET
         elif roll_val < odds["uncommon"] + rare_threshold:
             result = CardRarity.UNCOMMON
-            if context != "shop":
-                self.current_value = min(self.current_value + self.rarity_growth, 0.4)
+            self.current_value = min(self.current_value + self.rarity_growth, self.MAX_RARITY_OFFSET)
         else:
             result = CardRarity.COMMON
-            if context != "shop":
-                self.current_value = min(self.current_value + self.rarity_growth, 0.4)
+            self.current_value = min(self.current_value + self.rarity_growth, self.MAX_RARITY_OFFSET)
 
         return result
 
