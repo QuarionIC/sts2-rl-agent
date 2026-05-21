@@ -367,7 +367,6 @@ class CharacterCardsModifier(ModifierModel):
             *eligible_character_cards(
                 self.character_id,
                 card_type=options.card_type,
-                rarity=options.card_pool_rarity_filter,
                 generation_context=options.generation_context,
                 is_multiplayer=len(run_state.players) > 1,
             ),

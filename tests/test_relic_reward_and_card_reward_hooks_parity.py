@@ -396,17 +396,18 @@ def test_scroll_boxes_dingy_rug_freezes_pool_before_prismatic_gem():
     )
 
 
-def test_scroll_boxes_character_cards_modifier_preserves_rarity_filter():
+def test_character_cards_modifier_appends_full_extra_pool_after_rarity_filter():
     run_state = RunState(seed=213, character_id="Ironclad")
     run_state.modifiers = [CharacterCardsModifier("Silent")]
 
     common_ids = run_state.player._card_bundle_candidate_ids(CardRarity.COMMON)
     uncommon_ids = run_state.player._card_bundle_candidate_ids(CardRarity.UNCOMMON)
+    silent_pool = set(get_character("Silent").card_pool)
 
-    assert any(card_id in set(get_character("Silent").card_pool) for card_id in common_ids)
-    assert all(create_card(card_id).rarity is CardRarity.COMMON for card_id in common_ids)
-    assert any(card_id in set(get_character("Silent").card_pool) for card_id in uncommon_ids)
-    assert all(create_card(card_id).rarity is CardRarity.UNCOMMON for card_id in uncommon_ids)
+    assert any(card_id in silent_pool for card_id in common_ids)
+    assert any(create_card(card_id).rarity is not CardRarity.COMMON for card_id in common_ids if card_id in silent_pool)
+    assert any(card_id in silent_pool for card_id in uncommon_ids)
+    assert any(create_card(card_id).rarity is not CardRarity.UNCOMMON for card_id in uncommon_ids if card_id in silent_pool)
 
 
 def test_scroll_boxes_card_bundle_pick_adds_entire_selected_bundle():

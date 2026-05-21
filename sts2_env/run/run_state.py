@@ -1218,7 +1218,6 @@ class PlayerState:
                 self.run_state,
                 options,
                 default_character_id=self.character_id,
-                rarity=rarity,
                 generation_context=None,
             )
         )
