@@ -1595,22 +1595,6 @@ class RunState:
             MapPointType.ANCIENT: RoomType.EVENT,
         }
         if point_type == MapPointType.UNKNOWN:
-            room_types = {RoomType.EVENT, RoomType.MONSTER, RoomType.ELITE, RoomType.TREASURE, RoomType.SHOP}
-            for player in self.players:
-                for card in player.deck:
-                    room_types = card.modify_unknown_map_point_room_types(self, room_types)
-            for player in self.players:
-                for relic in player.get_relic_objects():
-                    room_types = relic.modify_unknown_map_point_room_types(player, room_types)
-            if room_types == {RoomType.EVENT}:
-                return RoomType.EVENT
-            blacklist.update(
-                room_type
-                for room_type in (RoomType.MONSTER, RoomType.ELITE, RoomType.TREASURE, RoomType.SHOP)
-                if room_type not in room_types
-            )
-            if RoomType.EVENT not in room_types:
-                blacklist.add(RoomType.EVENT)
             return self.unknown_odds.roll(self.rng.unknown_map_point, self, blacklist=blacklist)
         return mapping.get(point_type, RoomType.MONSTER)
 

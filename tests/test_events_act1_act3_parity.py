@@ -41,7 +41,7 @@ from sts2_env.run.rewards import CardRewardGenerationOptions
 from sts2_env.run.rooms import RoomVisitContext, create_room
 from sts2_env.run.events import pick_event
 from sts2_env.run.run_manager import RunManager
-from sts2_env.run.run_state import PlayerState, RunState
+from sts2_env.run.run_state import PlayerState, RunState, UNLOCK_STATE_NUMBER_OF_RUNS_KEY
 from sts2_env.run.shop import _create_character_shop_card
 
 
@@ -408,6 +408,7 @@ def test_deadly_events_modifier_updates_unknown_odds_and_removes_juzu():
     run_state.modifiers = [DeadlyEventsModifier()]
 
     run_state.initialize_run()
+    run_state.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 1
 
     assert "JUZU_BRACELET" not in run_state.player.relic_grab_bag
     assert run_state.unknown_odds._base[RoomType.ELITE] == 0.1
@@ -529,6 +530,7 @@ def test_lantern_key_forces_act3_unknown_rooms_into_war_historian_repy():
     mgr = RunManager(seed=809, character_id="Ironclad")
     mgr.run_state.initialize_run()
     mgr.run_state.current_act_index = 2
+    mgr.run_state.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 1
     mgr.run_state.player.deck.append(create_card(CardId.LANTERN_KEY))
 
     assert mgr.run_state.resolve_room_type(MapPointType.UNKNOWN) is RoomType.EVENT

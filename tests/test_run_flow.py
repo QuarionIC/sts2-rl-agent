@@ -356,10 +356,23 @@ class TestRoomTypeResolution:
     def test_unknown_resolves_to_valid_type(self):
         rs = RunState(seed=42)
         rs.initialize_run()
+        rs.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 1
         result = rs.resolve_room_type(MapPointType.UNKNOWN)
         valid = {RoomType.MONSTER, RoomType.ELITE, RoomType.SHOP,
                  RoomType.TREASURE, RoomType.EVENT}
         assert result in valid
+
+    def test_first_run_unknown_rooms_follow_tutorial_sequence(self):
+        rs = RunState(seed=42)
+        rs.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 0
+
+        assert rs.resolve_room_type(MapPointType.UNKNOWN) == RoomType.EVENT
+
+        rs.append_to_map_point_history(MapPointType.UNKNOWN, RoomType.EVENT)
+        assert rs.resolve_room_type(MapPointType.UNKNOWN) == RoomType.EVENT
+
+        rs.append_to_map_point_history(MapPointType.UNKNOWN, RoomType.EVENT)
+        assert rs.resolve_room_type(MapPointType.UNKNOWN) == RoomType.MONSTER
 
     def test_ancient_resolves_to_event(self):
         rs = RunState(seed=42)
@@ -384,6 +397,7 @@ class TestRoomTypeResolution:
     def test_unknown_room_blacklists_shop_after_shop(self):
         rs = RunState(seed=42)
         rs.initialize_run()
+        rs.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 1
         rs.append_to_map_point_history(MapPointType.SHOP, RoomType.SHOP)
         rs.unknown_odds._current[RoomType.SHOP] = 1.0
 
@@ -394,6 +408,7 @@ class TestRoomTypeResolution:
     def test_unknown_room_blacklists_shop_when_all_next_nodes_are_shops(self):
         rs = RunState(seed=43)
         rs.initialize_run()
+        rs.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 1
         next_points = [
             MapPoint(MapCoord(0, 2), MapPointType.SHOP),
             MapPoint(MapCoord(1, 2), MapPointType.SHOP),
@@ -661,6 +676,7 @@ class TestUnknownMapPointOdds:
         odds = UnknownMapPointOdds()
         rs = RunState(42)
         rs.initialize_run()
+        rs.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 1
         rng = Rng(42)
 
         initial_monster = odds._current[RoomType.MONSTER]
@@ -670,6 +686,19 @@ class TestUnknownMapPointOdds:
             assert odds._current[RoomType.MONSTER] == pytest.approx(initial_monster)
         else:
             assert odds._current[RoomType.MONSTER] > initial_monster
+
+    def test_blacklisted_room_type_does_not_increase_odds(self):
+        odds = UnknownMapPointOdds()
+        rs = RunState(42)
+        rs.initialize_run()
+        rs.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 1
+        rng = Rng(42)
+
+        initial_shop = odds._current[RoomType.SHOP]
+
+        odds.roll(rng, rs, blacklist={RoomType.SHOP})
+
+        assert odds._current[RoomType.SHOP] == pytest.approx(initial_shop)
 
 
 class TestPotionRewardOdds:

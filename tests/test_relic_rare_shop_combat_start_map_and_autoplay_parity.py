@@ -14,7 +14,7 @@ from sts2_env.core.rng import Rng, deterministic_hash_code
 from sts2_env.monsters.act1_weak import create_shrinker_beetle, create_twig_slime_s
 from sts2_env.potions.base import create_potion
 from sts2_env.run.run_manager import RunManager
-from sts2_env.run.run_state import PlayerState, RunState
+from sts2_env.run.run_state import PlayerState, RunState, UNLOCK_STATE_NUMBER_OF_RUNS_KEY
 
 
 def _with_owner(cards: list, owner):
@@ -247,6 +247,7 @@ def test_touch_of_orobas_upgrades_existing_starter_relic():
 def test_golden_compass_regenerates_current_act_as_golden_path():
     run_state = RunState(seed=1126, character_id="Ironclad")
     run_state.initialize_run()
+    run_state.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 1
 
     assert run_state.player.obtain_relic("GoldenCompass")
 

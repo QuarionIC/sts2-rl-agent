@@ -7,7 +7,7 @@ from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import MapPointType, PowerId, RoomType
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
-from sts2_env.run.run_state import RunState
+from sts2_env.run.run_state import RunState, UNLOCK_STATE_NUMBER_OF_RUNS_KEY
 
 
 def _make_silent_combat(
@@ -33,6 +33,7 @@ class TestRelicStarterCommonUnknownRoomPoisonParity:
     def test_juzu_bracelet_removes_monsters_from_unknown_room_rolls(self):
         """Matches JuzuBracelet.cs: unknown rooms can no longer resolve to Monster."""
         baseline = RunState(seed=1701, character_id="Ironclad")
+        baseline.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 1
         baseline.unknown_odds._current = {
             RoomType.MONSTER: 1.0,
             RoomType.ELITE: -1.0,
@@ -42,6 +43,7 @@ class TestRelicStarterCommonUnknownRoomPoisonParity:
         assert baseline.resolve_room_type(MapPointType.UNKNOWN) == RoomType.MONSTER
 
         run_state = RunState(seed=1702, character_id="Ironclad")
+        run_state.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 1
         assert run_state.player.obtain_relic("JUZU_BRACELET")
         run_state.unknown_odds._current = {
             RoomType.MONSTER: 1.0,
