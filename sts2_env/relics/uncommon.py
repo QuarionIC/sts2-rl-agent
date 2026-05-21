@@ -252,9 +252,10 @@ class HornCleat(RelicInstance):
     rarity = RelicRarity.UNCOMMON
     pool = RelicPool.SHARED
     BLOCK = 14
+    TRIGGER_ROUND = 2
 
     def after_block_cleared(self, owner: Creature, creature: Creature, combat: CombatState) -> None:
-        if creature is owner and combat.round_number == 2:
+        if creature is owner and combat.round_number == self.TRIGGER_ROUND:
             _gain_unpowered_block(owner, self.BLOCK, combat)
 
 
@@ -751,9 +752,10 @@ class SparklingRouge(RelicInstance):
     pool = RelicPool.SHARED
     STRENGTH = 1
     DEXTERITY = 1
+    TRIGGER_ROUND = 3
 
     def after_block_cleared(self, owner: Creature, creature: Creature, combat: CombatState) -> None:
-        if creature is owner and combat.round_number == 3:
+        if creature is owner and combat.round_number == self.TRIGGER_ROUND:
             owner.apply_power(PowerId.STRENGTH, self.STRENGTH)
             owner.apply_power(PowerId.DEXTERITY, self.DEXTERITY)
 

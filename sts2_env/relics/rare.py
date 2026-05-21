@@ -158,9 +158,10 @@ class CaptainsWheel(RelicInstance):
     rarity = RelicRarity.RARE
     pool = RelicPool.SHARED
     BLOCK = 18
+    TRIGGER_ROUND = 3
 
     def after_block_cleared(self, owner: Creature, creature: Creature, combat: CombatState) -> None:
-        if creature is owner and combat.round_number == 3:
+        if creature is owner and combat.round_number == self.TRIGGER_ROUND:
             _gain_unpowered_block(owner, self.BLOCK, combat)
 
 
@@ -171,9 +172,10 @@ class Chandelier(RelicInstance):
     rarity = RelicRarity.RARE
     pool = RelicPool.SHARED
     ENERGY = 3
+    TRIGGER_ROUND = 3
 
     def after_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
-        if side == CombatSide.PLAYER and combat.round_number == 3:
+        if side == CombatSide.PLAYER and combat.round_number == self.TRIGGER_ROUND:
             combat.gain_energy(owner, self.ENERGY)
 
 
