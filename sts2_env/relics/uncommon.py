@@ -577,6 +577,7 @@ class PenNib(RelicInstance):
     rarity = RelicRarity.UNCOMMON
     pool = RelicPool.SHARED
     THRESHOLD = 10
+    DAMAGE_MULTIPLIER = 2.0
 
     def __init__(self, relic_id: RelicId):
         super().__init__(relic_id)
@@ -603,7 +604,7 @@ class PenNib(RelicInstance):
             and (dealer is owner or owner_osty)
             and props.is_powered_attack()
         ):
-            return 2.0
+            return self.DAMAGE_MULTIPLIER
         return 1.0
 
     def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:

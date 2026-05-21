@@ -2631,6 +2631,8 @@ class PaelsLegion(RelicInstance):
     relic_id = RelicId.PAELS_LEGION
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
+    BLOCK_MULTIPLIER = 2.0
+    COOLDOWN_TURNS = 2
 
     def __init__(self, relic_id: RelicId):
         super().__init__(relic_id)
@@ -2662,7 +2664,7 @@ class PaelsLegion(RelicInstance):
             and card_source is not None
             and props.is_card_or_monster_move()
         ):
-            return 2.0
+            return self.BLOCK_MULTIPLIER
         return 1.0
 
     def after_modifying_block_amount(
@@ -2681,7 +2683,7 @@ class PaelsLegion(RelicInstance):
     def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
         if card is self._affected_card:
             self._affected_card = None
-            self._cooldown = 2
+            self._cooldown = self.COOLDOWN_TURNS
 
     def after_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side == owner.side and self._cooldown > 0:
