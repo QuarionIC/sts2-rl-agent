@@ -1468,6 +1468,7 @@ class PunchOff(EventModel):
                         AddCardsReward(run_state.player.player_id, [make_injury()]),
                         RelicReward(run_state.player.player_id),
                     ],
+                    preserve_order=True,
                 )
             run_state.player.add_card_instance_to_deck(make_injury())
             return EventResult(

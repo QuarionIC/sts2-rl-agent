@@ -1024,8 +1024,4 @@ def test_event_fixed_card_and_remove_plus_card_paths_use_reward_chain():
     result = mgr._do_event_choice({"option_id": "nab"})
     assert result["phase"] == RunManager.PHASE_CARD_REWARD
     assert isinstance(mgr._current_reward, RelicReward)
-    assert any(
-        isinstance(reward, AddCardsReward)
-        and [card.card_id.name for card in reward.cards] == ["INJURY"]
-        for reward in mgr._pending_rewards
-    )
+    assert any(card.card_id.name == "INJURY" for card in mgr.run_state.player.deck)
