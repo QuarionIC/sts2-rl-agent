@@ -39,9 +39,9 @@ EncounterSetup = Callable[..., None]
 
 def setup_corpse_slugs_weak(combat: CombatState, rng: Rng) -> None:
     starter_idx = rng.next_int(0, 2)
-    c1, a1 = create_corpse_slug(rng, starter_idx=starter_idx)
+    c1, a1 = create_corpse_slug(rng, starter_idx=starter_idx, ascension_level=combat.ascension_level)
     combat.add_enemy(c1, a1)
-    c2, a2 = create_corpse_slug(rng, starter_idx=(starter_idx + 1) % 3)
+    c2, a2 = create_corpse_slug(rng, starter_idx=(starter_idx + 1) % 3, ascension_level=combat.ascension_level)
     combat.add_enemy(c2, a2)
 
 
@@ -56,9 +56,9 @@ def setup_sludge_spinner_weak(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_toadpoles_weak(combat: CombatState, rng: Rng) -> None:
-    c1, a1 = create_toadpole(rng, slot="first")
+    c1, a1 = create_toadpole(rng, slot="first", ascension_level=combat.ascension_level)
     combat.add_enemy(c1, a1)
-    c2, a2 = create_toadpole(rng, slot="second")
+    c2, a2 = create_toadpole(rng, slot="second", ascension_level=combat.ascension_level)
     combat.add_enemy(c2, a2)
 
 
@@ -75,7 +75,11 @@ WEAK_ENCOUNTERS: list[EncounterSetup] = [
 def setup_corpse_slugs_normal(combat: CombatState, rng: Rng) -> None:
     starter_idx = rng.next_int(0, 2)
     for offset in range(3):
-        creature, ai = create_corpse_slug(rng, starter_idx=(starter_idx + offset) % 3)
+        creature, ai = create_corpse_slug(
+            rng,
+            starter_idx=(starter_idx + offset) % 3,
+            ascension_level=combat.ascension_level,
+        )
         combat.add_enemy(creature, ai)
 
 
@@ -123,7 +127,7 @@ def setup_sewer_clam_normal(combat: CombatState, rng: Rng) -> None:
 def setup_toadpoles_normal(combat: CombatState, rng: Rng) -> None:
     cultist, cultist_ai = create_calcified_cultist(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(cultist, cultist_ai)
-    creature, ai = create_toadpole(rng, slot="back")
+    creature, ai = create_toadpole(rng, slot="back", ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 

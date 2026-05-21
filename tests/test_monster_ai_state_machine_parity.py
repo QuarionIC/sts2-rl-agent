@@ -96,6 +96,10 @@ from sts2_env.monsters.act1_weak import create_twig_slime_s
 from sts2_env.monsters.act1_weak import create_twig_slime_m
 from sts2_env.monsters.act4 import (
     CALCIFIED_CULTIST_MONSTER_ID,
+    CORPSE_SLUG_GLOMP_MOVE,
+    CORPSE_SLUG_GOOP_MOVE,
+    CORPSE_SLUG_MONSTER_ID,
+    CORPSE_SLUG_WHIP_SLAP_MOVE,
     CULTIST_DARK_STRIKE_MOVE,
     CULTIST_INCANTATION_MOVE,
     DAMP_CULTIST_MONSTER_ID,
@@ -157,6 +161,10 @@ from sts2_env.monsters.act4 import (
     TERROR_EEL_STUN_MOVE,
     TERROR_EEL_TERROR_MOVE,
     TERROR_EEL_THRASH_MOVE,
+    TOADPOLE_MONSTER_ID,
+    TOADPOLE_SPIKE_SPIT_MOVE,
+    TOADPOLE_SPIKEN_MOVE,
+    TOADPOLE_WHIRL_MOVE,
     TWO_TAILED_RAT_CALL_FOR_BACKUP_MOVE,
     TWO_TAILED_RAT_DISEASE_BITE_MOVE,
     TWO_TAILED_RAT_MONSTER_ID,
@@ -715,6 +723,17 @@ TEST_SUBJECT_BURNING_GROWL_BURNS_A9 = 5
 TEST_SUBJECT_BURNING_GROWL_STRENGTH_A9 = 3
 TEST_SUBJECT_PAINFUL_STABS = 1
 TEST_SUBJECT_NEMESIS = 1
+CORPSE_SLUG_A8_HP_RANGE = (27, 29)
+CORPSE_SLUG_WHIP_SLAP_DAMAGE = 3
+CORPSE_SLUG_WHIP_SLAP_HITS = 2
+CORPSE_SLUG_GLOMP_DAMAGE_A9 = 9
+CORPSE_SLUG_GOOP_FRAIL = 2
+CORPSE_SLUG_RAVENOUS_A9 = 5
+TOADPOLE_A8_HP_RANGE = (22, 26)
+TOADPOLE_SPIKE_SPIT_DAMAGE_A9 = 4
+TOADPOLE_SPIKE_SPIT_HITS = 3
+TOADPOLE_WHIRL_DAMAGE_A9 = 8
+TOADPOLE_SPIKEN_THORNS = 2
 SEAPUNK_A8_HP_RANGE = (47, 49)
 SEAPUNK_SEA_KICK_DAMAGE_A9 = 12
 SEAPUNK_SPINNING_KICK_DAMAGE = 2
@@ -5743,6 +5762,46 @@ class TestFixedRotation:
     def test_act4_weak_seapunk_and_sludge_spinner_ascension_scaling_matches_csharp(self):
         rng_seed = 1311
 
+        slug_combat = _make_combat(rng_seed)
+        slug_combat.ascension_level = 9
+        slug, slug_ai = create_corpse_slug(Rng(rng_seed), starter_idx=1, ascension_level=9)
+        slug_combat.add_enemy(slug, slug_ai)
+
+        assert CORPSE_SLUG_A8_HP_RANGE[0] <= slug.max_hp <= CORPSE_SLUG_A8_HP_RANGE[1]
+        assert slug.get_power_amount(PowerId.RAVENOUS) == CORPSE_SLUG_RAVENOUS_A9
+        assert slug_ai.current_move.state_id == CORPSE_SLUG_GLOMP_MOVE
+        whip_slap = slug_ai.states[CORPSE_SLUG_WHIP_SLAP_MOVE]
+        assert whip_slap.intents[0].damage == CORPSE_SLUG_WHIP_SLAP_DAMAGE
+        assert whip_slap.intents[0].hits == CORPSE_SLUG_WHIP_SLAP_HITS
+        glomp = slug_ai.states[CORPSE_SLUG_GLOMP_MOVE]
+        assert glomp.intents[0].damage == CORPSE_SLUG_GLOMP_DAMAGE_A9
+        player_hp_before_glomp = slug_combat.player.current_hp
+        glomp.perform(slug_combat)
+        assert slug_combat.player.current_hp == player_hp_before_glomp - CORPSE_SLUG_GLOMP_DAMAGE_A9
+        slug_ai.states[CORPSE_SLUG_GOOP_MOVE].perform(slug_combat)
+        assert slug_combat.player.get_power_amount(PowerId.FRAIL) == CORPSE_SLUG_GOOP_FRAIL
+
+        toad_combat = _make_combat(rng_seed)
+        toad_combat.ascension_level = 9
+        toad, toad_ai = create_toadpole(Rng(rng_seed), slot="front", ascension_level=9)
+        toad_combat.add_enemy(toad, toad_ai)
+
+        assert TOADPOLE_A8_HP_RANGE[0] <= toad.max_hp <= TOADPOLE_A8_HP_RANGE[1]
+        assert toad_ai.current_move.state_id == TOADPOLE_SPIKEN_MOVE
+        spike_spit = toad_ai.states[TOADPOLE_SPIKE_SPIT_MOVE]
+        assert spike_spit.intents[0].damage == TOADPOLE_SPIKE_SPIT_DAMAGE_A9
+        assert spike_spit.intents[0].hits == TOADPOLE_SPIKE_SPIT_HITS
+        whirl = toad_ai.states[TOADPOLE_WHIRL_MOVE]
+        assert whirl.intents[0].damage == TOADPOLE_WHIRL_DAMAGE_A9
+        toad_ai.states[TOADPOLE_SPIKEN_MOVE].perform(toad_combat)
+        assert toad.get_power_amount(PowerId.THORNS) == TOADPOLE_SPIKEN_THORNS
+        player_hp_before_spike_spit = toad_combat.player.current_hp
+        spike_spit.perform(toad_combat)
+        assert toad.get_power_amount(PowerId.THORNS) == 0
+        assert toad_combat.player.current_hp == (
+            player_hp_before_spike_spit - TOADPOLE_SPIKE_SPIT_DAMAGE_A9 * TOADPOLE_SPIKE_SPIT_HITS
+        )
+
         seapunk_combat = _make_combat(rng_seed)
         seapunk_combat.ascension_level = 9
         seapunk, seapunk_ai = create_seapunk(Rng(rng_seed), ascension_level=9)
@@ -5819,6 +5878,40 @@ class TestFixedRotation:
         encounter_sludge_ai = encounter_sludge_combat.enemy_ais[encounter_sludge.combat_id]
         assert encounter_sludge.max_hp >= SLUDGE_SPINNER_A8_HP_RANGE[0]
         assert encounter_sludge_ai.states[SLUDGE_SPINNER_RAGE_MOVE].intents[0].damage == SLUDGE_SPINNER_RAGE_DAMAGE_A9
+
+        encounter_slugs_combat = _make_combat(rng_seed)
+        encounter_slugs_combat.ascension_level = 9
+        setup_corpse_slugs_weak(encounter_slugs_combat, Rng(rng_seed))
+        assert [enemy.monster_id for enemy in encounter_slugs_combat.enemies] == [
+            CORPSE_SLUG_MONSTER_ID,
+            CORPSE_SLUG_MONSTER_ID,
+        ]
+        assert all(
+            CORPSE_SLUG_A8_HP_RANGE[0] <= enemy.max_hp <= CORPSE_SLUG_A8_HP_RANGE[1]
+            for enemy in encounter_slugs_combat.enemies
+        )
+        assert all(
+            encounter_slugs_combat.enemy_ais[enemy.combat_id].states[CORPSE_SLUG_GLOMP_MOVE].intents[0].damage
+            == CORPSE_SLUG_GLOMP_DAMAGE_A9
+            for enemy in encounter_slugs_combat.enemies
+        )
+
+        encounter_toads_combat = _make_combat(rng_seed)
+        encounter_toads_combat.ascension_level = 9
+        setup_toadpoles_weak(encounter_toads_combat, Rng(rng_seed))
+        assert [enemy.monster_id for enemy in encounter_toads_combat.enemies] == [
+            TOADPOLE_MONSTER_ID,
+            TOADPOLE_MONSTER_ID,
+        ]
+        assert all(
+            TOADPOLE_A8_HP_RANGE[0] <= enemy.max_hp <= TOADPOLE_A8_HP_RANGE[1]
+            for enemy in encounter_toads_combat.enemies
+        )
+        assert all(
+            encounter_toads_combat.enemy_ais[enemy.combat_id].states[TOADPOLE_SPIKE_SPIT_MOVE].intents[0].damage
+            == TOADPOLE_SPIKE_SPIT_DAMAGE_A9
+            for enemy in encounter_toads_combat.enemies
+        )
 
     def test_act4_normal_cultist_fossil_and_gremlin_ascension_scaling_matches_csharp(self):
         rng_seed = 1317

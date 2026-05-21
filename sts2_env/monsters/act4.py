@@ -68,37 +68,103 @@ def _gain_block(creature: Creature, amount: int, combat: CombatState) -> None:
 
 # ---- CorpseSlug (HP 25-27 / 27-29 asc) ----
 
-def create_corpse_slug(rng: Rng, starter_idx: int = 0) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(25, 27)
-    creature = Creature(max_hp=hp, monster_id="CORPSE_SLUG")
-    whip_slap_dmg = 3
-    glomp_dmg = 8
-    goop_frail = 2
+CORPSE_SLUG_MONSTER_ID = "CORPSE_SLUG"
+CORPSE_SLUG_BASE_MIN_HP = 25
+CORPSE_SLUG_BASE_MAX_HP = 27
+CORPSE_SLUG_TOUGH_MIN_HP = 27
+CORPSE_SLUG_TOUGH_MAX_HP = 29
+CORPSE_SLUG_WHIP_SLAP_DAMAGE = 3
+CORPSE_SLUG_WHIP_SLAP_REPEAT = 2
+CORPSE_SLUG_BASE_GLOMP_DAMAGE = 8
+CORPSE_SLUG_DEADLY_GLOMP_DAMAGE = 9
+CORPSE_SLUG_GOOP_FRAIL = 2
+CORPSE_SLUG_BASE_RAVENOUS_STRENGTH = 4
+CORPSE_SLUG_DEADLY_RAVENOUS_STRENGTH = 5
+CORPSE_SLUG_MOVE_COUNT = 3
+CORPSE_SLUG_WHIP_SLAP_MOVE = "WHIP_SLAP_MOVE"
+CORPSE_SLUG_GLOMP_MOVE = "GLOMP_MOVE"
+CORPSE_SLUG_GOOP_MOVE = "GOOP_MOVE"
+
+
+def create_corpse_slug(
+    rng: Rng,
+    starter_idx: int = 0,
+    ascension_level: int = 0,
+) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        CORPSE_SLUG_TOUGH_MIN_HP,
+        CORPSE_SLUG_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        CORPSE_SLUG_TOUGH_MAX_HP,
+        CORPSE_SLUG_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=CORPSE_SLUG_MONSTER_ID)
 
     def whip_slap(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, whip_slap_dmg, hits=2)
+        _deal_damage_to_player(
+            combat,
+            creature,
+            CORPSE_SLUG_WHIP_SLAP_DAMAGE,
+            hits=CORPSE_SLUG_WHIP_SLAP_REPEAT,
+        )
 
     def glomp(combat: CombatState) -> None:
+        glomp_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CORPSE_SLUG_DEADLY_GLOMP_DAMAGE,
+            CORPSE_SLUG_BASE_GLOMP_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, glomp_dmg)
 
     def goop(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.FRAIL, goop_frail, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, CORPSE_SLUG_GOOP_FRAIL, applier=creature)
+
+    glomp_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        CORPSE_SLUG_DEADLY_GLOMP_DAMAGE,
+        CORPSE_SLUG_BASE_GLOMP_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "WHIP_SLAP_MOVE": MoveState(
-            "WHIP_SLAP_MOVE",
+        CORPSE_SLUG_WHIP_SLAP_MOVE: MoveState(
+            CORPSE_SLUG_WHIP_SLAP_MOVE,
             whip_slap,
-            [multi_attack_intent(whip_slap_dmg, 2)],
-            follow_up_id="GLOMP_MOVE",
+            [multi_attack_intent(CORPSE_SLUG_WHIP_SLAP_DAMAGE, CORPSE_SLUG_WHIP_SLAP_REPEAT)],
+            follow_up_id=CORPSE_SLUG_GLOMP_MOVE,
         ),
-        "GLOMP_MOVE": MoveState("GLOMP_MOVE", glomp, [attack_intent(glomp_dmg)], follow_up_id="GOOP_MOVE"),
-        "GOOP_MOVE": MoveState("GOOP_MOVE", goop, [debuff_intent()], follow_up_id="WHIP_SLAP_MOVE"),
+        CORPSE_SLUG_GLOMP_MOVE: MoveState(
+            CORPSE_SLUG_GLOMP_MOVE,
+            glomp,
+            [attack_intent(glomp_intent_damage)],
+            follow_up_id=CORPSE_SLUG_GOOP_MOVE,
+        ),
+        CORPSE_SLUG_GOOP_MOVE: MoveState(
+            CORPSE_SLUG_GOOP_MOVE,
+            goop,
+            [debuff_intent()],
+            follow_up_id=CORPSE_SLUG_WHIP_SLAP_MOVE,
+        ),
     }
 
-    starter_map = {0: "WHIP_SLAP_MOVE", 1: "GLOMP_MOVE", 2: "GOOP_MOVE"}
-    initial = starter_map.get(starter_idx, "WHIP_SLAP_MOVE")
+    starter_remainder = starter_idx - int(starter_idx / CORPSE_SLUG_MOVE_COUNT) * CORPSE_SLUG_MOVE_COUNT
+    starter_map = {0: CORPSE_SLUG_WHIP_SLAP_MOVE, 1: CORPSE_SLUG_GLOMP_MOVE}
+    initial = starter_map.get(starter_remainder, CORPSE_SLUG_GOOP_MOVE)
 
-    creature.apply_power(PowerId.RAVENOUS, 4)
+    ravenous_strength = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        CORPSE_SLUG_DEADLY_RAVENOUS_STRENGTH,
+        CORPSE_SLUG_BASE_RAVENOUS_STRENGTH,
+    )
+    creature.apply_power(PowerId.RAVENOUS, ravenous_strength)
     return creature, MonsterAI(states, initial, rng)
 
 
@@ -322,42 +388,107 @@ def create_sludge_spinner(rng: Rng, ascension_level: int = 0) -> tuple[Creature,
 
 # ---- Toadpole (HP 21-25 / 22-26 asc) ----
 
-def create_toadpole(rng: Rng, slot: str = "first") -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(21, 25)
-    creature = Creature(max_hp=hp, monster_id="TOADPOLE")
-    spike_spit_dmg = 3
-    whirl_dmg = 7
-    spiken_amount = 2
+TOADPOLE_MONSTER_ID = "TOADPOLE"
+TOADPOLE_BASE_MIN_HP = 21
+TOADPOLE_BASE_MAX_HP = 25
+TOADPOLE_TOUGH_MIN_HP = 22
+TOADPOLE_TOUGH_MAX_HP = 26
+TOADPOLE_BASE_SPIKE_SPIT_DAMAGE = 3
+TOADPOLE_DEADLY_SPIKE_SPIT_DAMAGE = 4
+TOADPOLE_SPIKE_SPIT_REPEAT = 3
+TOADPOLE_BASE_WHIRL_DAMAGE = 7
+TOADPOLE_DEADLY_WHIRL_DAMAGE = 8
+TOADPOLE_SPIKEN_THORNS = 2
+TOADPOLE_INIT_MOVE = "INIT_MOVE"
+TOADPOLE_SPIKE_SPIT_MOVE = "SPIKE_SPIT_MOVE"
+TOADPOLE_WHIRL_MOVE = "WHIRL_MOVE"
+TOADPOLE_SPIKEN_MOVE = "SPIKEN_MOVE"
+
+
+def create_toadpole(
+    rng: Rng,
+    slot: str = "first",
+    ascension_level: int = 0,
+) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TOADPOLE_TOUGH_MIN_HP,
+        TOADPOLE_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TOADPOLE_TOUGH_MAX_HP,
+        TOADPOLE_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=TOADPOLE_MONSTER_ID)
 
     def spike_spit(combat: CombatState) -> None:
         if creature.has_power(PowerId.THORNS):
-            creature.apply_power(PowerId.THORNS, -spiken_amount, applier=creature)
-        _deal_damage_to_player(combat, creature, spike_spit_dmg, hits=3)
+            creature.apply_power(PowerId.THORNS, -TOADPOLE_SPIKEN_THORNS, applier=creature)
+        spike_spit_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TOADPOLE_DEADLY_SPIKE_SPIT_DAMAGE,
+            TOADPOLE_BASE_SPIKE_SPIT_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, spike_spit_dmg, hits=TOADPOLE_SPIKE_SPIT_REPEAT)
 
     def whirl(combat: CombatState) -> None:
+        whirl_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TOADPOLE_DEADLY_WHIRL_DAMAGE,
+            TOADPOLE_BASE_WHIRL_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, whirl_dmg)
 
     def spiken(combat: CombatState) -> None:
-        creature.apply_power(PowerId.THORNS, spiken_amount, applier=creature)
+        creature.apply_power(PowerId.THORNS, TOADPOLE_SPIKEN_THORNS, applier=creature)
+
+    spike_spit_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TOADPOLE_DEADLY_SPIKE_SPIT_DAMAGE,
+        TOADPOLE_BASE_SPIKE_SPIT_DAMAGE,
+    )
+    whirl_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TOADPOLE_DEADLY_WHIRL_DAMAGE,
+        TOADPOLE_BASE_WHIRL_DAMAGE,
+    )
 
     is_front = slot in {"first", "front"}
-    init = ConditionalBranchState("INIT_MOVE")
-    init.add_branch(lambda: not is_front, "WHIRL_MOVE")
-    init.add_branch(lambda: True, "SPIKEN_MOVE")
+    init = ConditionalBranchState(TOADPOLE_INIT_MOVE)
+    init.add_branch(lambda: not is_front, TOADPOLE_WHIRL_MOVE)
+    init.add_branch(lambda: True, TOADPOLE_SPIKEN_MOVE)
 
     states: dict[str, MonsterState] = {
-        "INIT_MOVE": init,
-        "SPIKE_SPIT_MOVE": MoveState(
-            "SPIKE_SPIT_MOVE",
+        TOADPOLE_INIT_MOVE: init,
+        TOADPOLE_SPIKE_SPIT_MOVE: MoveState(
+            TOADPOLE_SPIKE_SPIT_MOVE,
             spike_spit,
-            [multi_attack_intent(spike_spit_dmg, 3)],
-            follow_up_id="WHIRL_MOVE",
+            [multi_attack_intent(spike_spit_intent_damage, TOADPOLE_SPIKE_SPIT_REPEAT)],
+            follow_up_id=TOADPOLE_WHIRL_MOVE,
         ),
-        "WHIRL_MOVE": MoveState("WHIRL_MOVE", whirl, [attack_intent(whirl_dmg)], follow_up_id="SPIKEN_MOVE"),
-        "SPIKEN_MOVE": MoveState("SPIKEN_MOVE", spiken, [buff_intent()], follow_up_id="SPIKE_SPIT_MOVE"),
+        TOADPOLE_WHIRL_MOVE: MoveState(
+            TOADPOLE_WHIRL_MOVE,
+            whirl,
+            [attack_intent(whirl_intent_damage)],
+            follow_up_id=TOADPOLE_SPIKEN_MOVE,
+        ),
+        TOADPOLE_SPIKEN_MOVE: MoveState(
+            TOADPOLE_SPIKEN_MOVE,
+            spiken,
+            [buff_intent()],
+            follow_up_id=TOADPOLE_SPIKE_SPIT_MOVE,
+        ),
     }
 
-    return creature, MonsterAI(states, "INIT_MOVE", rng)
+    return creature, MonsterAI(states, TOADPOLE_INIT_MOVE, rng)
 
 
 # ========================================================================
