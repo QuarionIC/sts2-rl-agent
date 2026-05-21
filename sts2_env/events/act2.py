@@ -920,7 +920,7 @@ class RelicTrader(EventModel):
         )
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
-        owned = self._tradable_relics(run_state.player)
+        owned = sorted(self._tradable_relics(run_state.player))
         self.get_rng(run_state).shuffle(owned)
         self._owned_relic_choices = owned[:3]
         self._new_relic_choices = []

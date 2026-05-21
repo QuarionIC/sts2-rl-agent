@@ -122,12 +122,25 @@ def test_relic_trader_uses_reference_tradable_relic_rules():
     options = event.generate_initial_options(run_state)
 
     assert len(options) == 3
-    assert event._owned_relic_choices == ["ANCHOR", "VAJRA", "BONE_FLUTE"]  # noqa: SLF001
+    assert event._owned_relic_choices == ["ANCHOR", "BONE_FLUTE", "JUZU_BRACELET"]  # noqa: SLF001
     assert "PEAR" not in event._owned_relic_choices  # noqa: SLF001
     assert "BYRDPIP" not in event._owned_relic_choices  # noqa: SLF001
     assert "SEA_GLASS" not in event._owned_relic_choices  # noqa: SLF001
     assert "LEES_WAFFLE" not in event._owned_relic_choices  # noqa: SLF001
     assert "LIZARD_TAIL" not in event._owned_relic_choices  # noqa: SLF001
+
+
+def test_relic_trader_sorts_tradable_relics_before_shuffling_like_stable_shuffle():
+    run_state = _make_run_state(914)
+    run_state.current_act_index = 1
+    for relic_id in ("VAJRA", "LANTERN", "ANCHOR", "JUZU_BRACELET", "BONE_FLUTE"):
+        run_state.player.obtain_relic(relic_id)
+    event = RelicTrader()
+    event.rng = _NoopShuffleRng()
+
+    event.generate_initial_options(run_state)
+
+    assert event._owned_relic_choices == ["ANCHOR", "BONE_FLUTE", "JUZU_BRACELET"]  # noqa: SLF001
 
 
 def test_slippery_bridge_hold_on_escalates_damage_and_overcome_removes_card():
