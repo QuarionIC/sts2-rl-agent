@@ -2362,6 +2362,24 @@ class TestFixedRotation:
         combat.kill_creature(creature)
         assert combat.player.get_power_amount(PowerId.STRENGTH) == 0
 
+    def test_possess_strength_restores_to_dead_player_when_owner_dies(self):
+        seed = 29
+        stolen_strength = 2
+        dead_hp = 0
+        combat = _make_combat(seed)
+        creature, ai = create_the_lost(Rng(seed))
+        combat.add_enemy(creature, ai)
+
+        ai.current_move.perform(combat)
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == -stolen_strength
+        assert creature.get_power_amount(PowerId.STRENGTH) == stolen_strength
+
+        combat.player.current_hp = dead_hp
+        assert combat.player.is_dead
+        combat.kill_creature(creature)
+
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == 0
+
     def test_the_forgotten_steals_dexterity_and_restores_it_on_death(self):
         combat = _make_combat(30)
         creature, ai = create_the_forgotten(Rng(30))
@@ -2384,6 +2402,24 @@ class TestFixedRotation:
         assert combat.player.current_hp == 65
 
         combat.kill_creature(creature)
+        assert combat.player.get_power_amount(PowerId.DEXTERITY) == 0
+
+    def test_possess_speed_restores_to_dead_player_when_owner_dies(self):
+        seed = 30
+        stolen_dexterity = 2
+        dead_hp = 0
+        combat = _make_combat(seed)
+        creature, ai = create_the_forgotten(Rng(seed))
+        combat.add_enemy(creature, ai)
+
+        ai.current_move.perform(combat)
+        assert combat.player.get_power_amount(PowerId.DEXTERITY) == -stolen_dexterity
+        assert creature.get_power_amount(PowerId.DEXTERITY) == stolen_dexterity
+
+        combat.player.current_hp = dead_hp
+        assert combat.player.is_dead
+        combat.kill_creature(creature)
+
         assert combat.player.get_power_amount(PowerId.DEXTERITY) == 0
 
     def test_scroll_of_biting_supports_original_starter_moves_and_cycle(self):

@@ -1664,8 +1664,7 @@ class PossessSpeedPower(PowerInstance):
         if was_removal_prevented or creature is not owner:
             return
         for victim, stolen in self._stolen_dexterity.items():
-            if victim.is_alive:
-                victim.apply_power(PowerId.DEXTERITY, stolen)
+            victim.apply_power(PowerId.DEXTERITY, stolen)
         self._stolen_dexterity.clear()
 
 
@@ -1720,8 +1719,7 @@ class PossessStrengthPower(PowerInstance):
         if was_removal_prevented or creature is not owner:
             return
         for victim, stolen in self._stolen_strength.items():
-            if victim.is_alive:
-                victim.apply_power(PowerId.STRENGTH, stolen)
+            victim.apply_power(PowerId.STRENGTH, stolen)
         self._stolen_strength.clear()
 
 
