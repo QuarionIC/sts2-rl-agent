@@ -203,12 +203,12 @@ ELITE_ENCOUNTERS: list[EncounterSetup] = [
 # ---- Boss Encounters ----
 
 def setup_the_insatiable_boss(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_the_insatiable(rng)
+    creature, ai = create_the_insatiable(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
 def setup_knowledge_demon_boss(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_knowledge_demon(rng)
+    creature, ai = create_knowledge_demon(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 

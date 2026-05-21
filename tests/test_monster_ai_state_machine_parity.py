@@ -19,8 +19,10 @@ from sts2_env.encounters.act2 import (
     setup_decimillipede_elite,
     setup_entomancer_elite,
     setup_infested_prisms_elite,
+    setup_knowledge_demon_boss,
     setup_kaiser_crab_boss,
     setup_mytes_normal,
+    setup_the_insatiable_boss,
     setup_tunneler_normal,
 )
 from sts2_env.encounters.act3 import (
@@ -121,9 +123,16 @@ from sts2_env.monsters.act2 import (
     INFESTED_PRISM_PULSATE_MOVE,
     INFESTED_PRISM_RADIATE_MOVE,
     INFESTED_PRISM_WHIRLWIND_MOVE,
+    KNOWLEDGE_DEMON_CURSE_OF_KNOWLEDGE_MOVE,
+    KNOWLEDGE_DEMON_KNOWLEDGE_OVERWHELMING_MOVE,
+    KNOWLEDGE_DEMON_PONDER_MOVE,
+    KNOWLEDGE_DEMON_SLAP_MOVE,
     OVICOPTER_EGGS_TO_LAY,
     OVICOPTER_LAY_EGGS_MOVE,
     OVICOPTER_MONSTER_ID,
+    THE_INSATIABLE_LUNGING_BITE_MOVE,
+    THE_INSATIABLE_SALIVATE_MOVE,
+    THE_INSATIABLE_THRASH_MOVE_1,
     TOUGH_EGG_HATCH_MOVE,
     TOUGH_EGG_MONSTER_ID,
     TOUGH_EGG_NIBBLE_MOVE,
@@ -378,6 +387,19 @@ INFESTED_PRISM_WHIRLWIND_HITS = 3
 INFESTED_PRISM_PULSATE_BLOCK_A8 = 22
 INFESTED_PRISM_PULSATE_STRENGTH_A9 = 5
 INFESTED_PRISM_VITAL_SPARK = 1
+THE_INSATIABLE_BASE_HP = 321
+THE_INSATIABLE_A8_HP = 341
+THE_INSATIABLE_THRASH_DAMAGE_A9 = 9
+THE_INSATIABLE_THRASH_HITS = 2
+THE_INSATIABLE_BITE_DAMAGE_A9 = 31
+THE_INSATIABLE_SALIVATE_STRENGTH_A9 = 3
+KNOWLEDGE_DEMON_BASE_HP = 379
+KNOWLEDGE_DEMON_A8_HP = 399
+KNOWLEDGE_DEMON_SLAP_DAMAGE_A9 = 18
+KNOWLEDGE_DEMON_OVERWHELMING_DAMAGE_A9 = 9
+KNOWLEDGE_DEMON_OVERWHELMING_HITS = 3
+KNOWLEDGE_DEMON_PONDER_DAMAGE_A9 = 13
+KNOWLEDGE_DEMON_PONDER_STRENGTH_A9 = 3
 TOUGH_EGG_MULTIPLAYER_INITIAL_HP = 16
 TOUGH_EGG_MULTIPLAYER_HATCHLING_HP = 20
 TOUGH_EGG_BASE_INITIAL_HP_RANGE = (14, 18)
@@ -3214,16 +3236,20 @@ class TestFixedRotation:
 
     def test_act2_bosses_use_original_move_ids(self):
         knowledge, knowledge_ai = create_knowledge_demon(Rng(42))
-        assert knowledge.max_hp == 379
-        assert knowledge_ai.current_move.state_id == "CURSE_OF_KNOWLEDGE_MOVE"
-        assert {"SLAP_MOVE", "KNOWLEDGE_OVERWHELMING_MOVE", "PONDER_MOVE"}.issubset(knowledge_ai.states)
+        assert knowledge.max_hp == KNOWLEDGE_DEMON_BASE_HP
+        assert knowledge_ai.current_move.state_id == KNOWLEDGE_DEMON_CURSE_OF_KNOWLEDGE_MOVE
+        assert {
+            KNOWLEDGE_DEMON_SLAP_MOVE,
+            KNOWLEDGE_DEMON_KNOWLEDGE_OVERWHELMING_MOVE,
+            KNOWLEDGE_DEMON_PONDER_MOVE,
+        }.issubset(knowledge_ai.states)
 
         lethal_knowledge, lethal_knowledge_ai = create_knowledge_demon(Rng(142))
         lethal_knowledge.current_hp = 100
         lethal_combat = _make_combat(142)
         lethal_combat.add_enemy(lethal_knowledge, lethal_knowledge_ai)
         lethal_combat.player.current_hp = 11
-        lethal_knowledge_ai.states["PONDER_MOVE"].perform(lethal_combat)
+        lethal_knowledge_ai.states[KNOWLEDGE_DEMON_PONDER_MOVE].perform(lethal_combat)
         assert lethal_combat.is_over
         assert lethal_combat.player_won is False
         assert lethal_knowledge.current_hp == 100
@@ -3234,9 +3260,12 @@ class TestFixedRotation:
         multiplayer_combat = _make_combat(143)
         _add_test_ally(multiplayer_combat, hp=80)
         multiplayer_combat.add_enemy(multiplayer_knowledge, multiplayer_knowledge_ai)
-        multiplayer_knowledge_ai.states["PONDER_MOVE"].perform(multiplayer_combat)
+        multiplayer_knowledge_ai.states[KNOWLEDGE_DEMON_PONDER_MOVE].perform(multiplayer_combat)
 
-        assert multiplayer_knowledge.current_hp == _expected_starting_act_multiplayer_enemy_hp(multiplayer_combat, 379)
+        assert multiplayer_knowledge.current_hp == _expected_starting_act_multiplayer_enemy_hp(
+            multiplayer_combat,
+            KNOWLEDGE_DEMON_BASE_HP,
+        )
         assert multiplayer_knowledge.get_power_amount(PowerId.STRENGTH) == 2
 
         crusher, crusher_ai = create_crusher(Rng(43))
@@ -3273,6 +3302,83 @@ class TestFixedRotation:
         setup_kaiser_crab_boss(crab_combat, Rng(45))
         assert [enemy.monster_id for enemy in crab_combat.enemies] == ["CRUSHER", "ROCKET"]
         assert crab_combat.player.get_power_amount(PowerId.SURROUNDED) == 1
+
+    def test_act2_boss_ascension_scaling_matches_csharp(self):
+        rng_seed = 1288
+
+        insatiable_combat = _make_combat(rng_seed)
+        insatiable_combat.ascension_level = 9
+        insatiable, insatiable_ai = create_the_insatiable(Rng(rng_seed), ascension_level=9)
+        insatiable_combat.add_enemy(insatiable, insatiable_ai)
+        assert insatiable.max_hp == THE_INSATIABLE_A8_HP
+
+        thrash = insatiable_ai.states[THE_INSATIABLE_THRASH_MOVE_1]
+        assert thrash.intents[0].damage == THE_INSATIABLE_THRASH_DAMAGE_A9
+        assert thrash.intents[0].hits == THE_INSATIABLE_THRASH_HITS
+        player_hp_before_thrash = insatiable_combat.player.current_hp
+        thrash.perform(insatiable_combat)
+        assert insatiable_combat.player.current_hp == (
+            player_hp_before_thrash - THE_INSATIABLE_THRASH_DAMAGE_A9 * THE_INSATIABLE_THRASH_HITS
+        )
+
+        bite = insatiable_ai.states[THE_INSATIABLE_LUNGING_BITE_MOVE]
+        assert bite.intents[0].damage == THE_INSATIABLE_BITE_DAMAGE_A9
+        player_hp_before_bite = insatiable_combat.player.current_hp
+        bite.perform(insatiable_combat)
+        assert insatiable_combat.player.current_hp == player_hp_before_bite - THE_INSATIABLE_BITE_DAMAGE_A9
+
+        insatiable_ai.states[THE_INSATIABLE_SALIVATE_MOVE].perform(insatiable_combat)
+        assert insatiable.get_power_amount(PowerId.STRENGTH) == THE_INSATIABLE_SALIVATE_STRENGTH_A9
+
+        insatiable_encounter_combat = _make_combat(rng_seed)
+        insatiable_encounter_combat.ascension_level = 9
+        setup_the_insatiable_boss(insatiable_encounter_combat, Rng(rng_seed))
+        encounter_insatiable = insatiable_encounter_combat.enemies[0]
+        encounter_insatiable_ai = insatiable_encounter_combat.enemy_ais[encounter_insatiable.combat_id]
+        assert encounter_insatiable.max_hp == THE_INSATIABLE_A8_HP
+        assert (
+            encounter_insatiable_ai.states[THE_INSATIABLE_LUNGING_BITE_MOVE].intents[0].damage
+            == THE_INSATIABLE_BITE_DAMAGE_A9
+        )
+
+        knowledge_combat = _make_combat(rng_seed)
+        knowledge_combat.ascension_level = 9
+        knowledge, knowledge_ai = create_knowledge_demon(Rng(rng_seed), ascension_level=9)
+        knowledge_combat.add_enemy(knowledge, knowledge_ai)
+        assert knowledge.max_hp == KNOWLEDGE_DEMON_A8_HP
+
+        slap = knowledge_ai.states[KNOWLEDGE_DEMON_SLAP_MOVE]
+        assert slap.intents[0].damage == KNOWLEDGE_DEMON_SLAP_DAMAGE_A9
+        player_hp_before_slap = knowledge_combat.player.current_hp
+        slap.perform(knowledge_combat)
+        assert knowledge_combat.player.current_hp == player_hp_before_slap - KNOWLEDGE_DEMON_SLAP_DAMAGE_A9
+
+        overwhelming = knowledge_ai.states[KNOWLEDGE_DEMON_KNOWLEDGE_OVERWHELMING_MOVE]
+        assert overwhelming.intents[0].damage == KNOWLEDGE_DEMON_OVERWHELMING_DAMAGE_A9
+        assert overwhelming.intents[0].hits == KNOWLEDGE_DEMON_OVERWHELMING_HITS
+        player_hp_before_overwhelming = knowledge_combat.player.current_hp
+        overwhelming.perform(knowledge_combat)
+        assert knowledge_combat.player.current_hp == (
+            player_hp_before_overwhelming
+            - KNOWLEDGE_DEMON_OVERWHELMING_DAMAGE_A9 * KNOWLEDGE_DEMON_OVERWHELMING_HITS
+        )
+
+        ponder = knowledge_ai.states[KNOWLEDGE_DEMON_PONDER_MOVE]
+        assert ponder.intents[0].damage == KNOWLEDGE_DEMON_PONDER_DAMAGE_A9
+        player_hp_before_ponder = knowledge_combat.player.current_hp
+        ponder.perform(knowledge_combat)
+        assert knowledge_combat.player.current_hp == player_hp_before_ponder - KNOWLEDGE_DEMON_PONDER_DAMAGE_A9
+        assert knowledge.get_power_amount(PowerId.STRENGTH) == KNOWLEDGE_DEMON_PONDER_STRENGTH_A9
+
+        knowledge_encounter_combat = _make_combat(rng_seed)
+        knowledge_encounter_combat.ascension_level = 9
+        setup_knowledge_demon_boss(knowledge_encounter_combat, Rng(rng_seed))
+        encounter_knowledge = knowledge_encounter_combat.enemies[0]
+        encounter_knowledge_ai = knowledge_encounter_combat.enemy_ais[encounter_knowledge.combat_id]
+        assert encounter_knowledge.max_hp == KNOWLEDGE_DEMON_A8_HP
+        assert encounter_knowledge_ai.states[KNOWLEDGE_DEMON_SLAP_MOVE].intents[0].damage == (
+            KNOWLEDGE_DEMON_SLAP_DAMAGE_A9
+        )
 
     def test_tunneler_normal_uses_one_workbug_then_one_tunneler(self):
         combat = _make_combat(31)

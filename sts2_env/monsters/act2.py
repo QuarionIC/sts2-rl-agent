@@ -2226,103 +2226,189 @@ def create_infested_prism(rng: Rng, ascension_level: int = 0) -> tuple[Creature,
 # BOSS ENCOUNTERS
 # ========================================================================
 
-# ---- TheInsatiable (HP 242 / 256 asc) ----
+# ---- TheInsatiable (HP 321 / 341 asc) ----
 
-def create_the_insatiable(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 321
-    creature = Creature(max_hp=hp, monster_id="THE_INSATIABLE")
-    thrash_dmg = 8
-    bite_dmg = 28
-    salivate_str = 2
+THE_INSATIABLE_MONSTER_ID = "THE_INSATIABLE"
+THE_INSATIABLE_BASE_HP = 321
+THE_INSATIABLE_TOUGH_HP = 341
+THE_INSATIABLE_BASE_THRASH_DAMAGE = 8
+THE_INSATIABLE_DEADLY_THRASH_DAMAGE = 9
+THE_INSATIABLE_THRASH_REPEAT = 2
+THE_INSATIABLE_BASE_BITE_DAMAGE = 28
+THE_INSATIABLE_DEADLY_BITE_DAMAGE = 31
+THE_INSATIABLE_BASE_SALIVATE_STRENGTH = 2
+THE_INSATIABLE_DEADLY_SALIVATE_STRENGTH = 3
+THE_INSATIABLE_SANDPIT_AMOUNT = 4
+THE_INSATIABLE_LIQUIFY_DRAW_COUNT = 3
+THE_INSATIABLE_LIQUIFY_DISCARD_COUNT = 3
+THE_INSATIABLE_FRANTIC_ESCAPE_STATUS = "FRANTIC_ESCAPE"
+THE_INSATIABLE_LIQUIFY_GROUND_MOVE = "LIQUIFY_GROUND_MOVE"
+THE_INSATIABLE_THRASH_MOVE_1 = "THRASH_MOVE_1"
+THE_INSATIABLE_THRASH_MOVE_2 = "THRASH_MOVE_2"
+THE_INSATIABLE_LUNGING_BITE_MOVE = "LUNGING_BITE_MOVE"
+THE_INSATIABLE_SALIVATE_MOVE = "SALIVATE_MOVE"
+
+
+def create_the_insatiable(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        THE_INSATIABLE_TOUGH_HP,
+        THE_INSATIABLE_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=THE_INSATIABLE_MONSTER_ID)
 
     def liquify_ground(combat: CombatState) -> None:
         for target in living_player_targets(combat):
-            sandpit = SandpitPower(4)
+            sandpit = SandpitPower(THE_INSATIABLE_SANDPIT_AMOUNT)
             sandpit.set_target(target)
             existing = creature.powers.get(PowerId.SANDPIT)
             if isinstance(existing, SandpitPower):
-                existing.add_instance(4, target)
+                existing.add_instance(THE_INSATIABLE_SANDPIT_AMOUNT, target)
             else:
                 creature.powers[PowerId.SANDPIT] = sandpit
-            combat.add_status_cards_to_draw(target, "FRANTIC_ESCAPE", 3, random_position=True)
-            combat.add_status_cards_to_discard(target, "FRANTIC_ESCAPE", 3)
+            combat.add_status_cards_to_draw(
+                target,
+                THE_INSATIABLE_FRANTIC_ESCAPE_STATUS,
+                THE_INSATIABLE_LIQUIFY_DRAW_COUNT,
+                random_position=True,
+            )
+            combat.add_status_cards_to_discard(
+                target,
+                THE_INSATIABLE_FRANTIC_ESCAPE_STATUS,
+                THE_INSATIABLE_LIQUIFY_DISCARD_COUNT,
+            )
 
     def thrash(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, thrash_dmg, hits=2)
+        thrash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            THE_INSATIABLE_DEADLY_THRASH_DAMAGE,
+            THE_INSATIABLE_BASE_THRASH_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, thrash_dmg, hits=THE_INSATIABLE_THRASH_REPEAT)
 
     def lunging_bite(combat: CombatState) -> None:
+        bite_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            THE_INSATIABLE_DEADLY_BITE_DAMAGE,
+            THE_INSATIABLE_BASE_BITE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, bite_dmg)
 
     def salivate(combat: CombatState) -> None:
+        salivate_str = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            THE_INSATIABLE_DEADLY_SALIVATE_STRENGTH,
+            THE_INSATIABLE_BASE_SALIVATE_STRENGTH,
+        )
         creature.apply_power(PowerId.STRENGTH, salivate_str, applier=creature)
 
+    thrash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        THE_INSATIABLE_DEADLY_THRASH_DAMAGE,
+        THE_INSATIABLE_BASE_THRASH_DAMAGE,
+    )
+    bite_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        THE_INSATIABLE_DEADLY_BITE_DAMAGE,
+        THE_INSATIABLE_BASE_BITE_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "LIQUIFY_GROUND_MOVE": MoveState(
-            "LIQUIFY_GROUND_MOVE",
+        THE_INSATIABLE_LIQUIFY_GROUND_MOVE: MoveState(
+            THE_INSATIABLE_LIQUIFY_GROUND_MOVE,
             liquify_ground,
             [buff_intent(), status_intent()],
-            follow_up_id="THRASH_MOVE_1",
+            follow_up_id=THE_INSATIABLE_THRASH_MOVE_1,
         ),
-        "THRASH_MOVE_1": MoveState(
-            "THRASH_MOVE_1",
+        THE_INSATIABLE_THRASH_MOVE_1: MoveState(
+            THE_INSATIABLE_THRASH_MOVE_1,
             thrash,
-            [multi_attack_intent(thrash_dmg, 2)],
-            follow_up_id="LUNGING_BITE_MOVE",
+            [multi_attack_intent(thrash_intent_damage, THE_INSATIABLE_THRASH_REPEAT)],
+            follow_up_id=THE_INSATIABLE_LUNGING_BITE_MOVE,
         ),
-        "LUNGING_BITE_MOVE": MoveState(
-            "LUNGING_BITE_MOVE",
+        THE_INSATIABLE_LUNGING_BITE_MOVE: MoveState(
+            THE_INSATIABLE_LUNGING_BITE_MOVE,
             lunging_bite,
-            [attack_intent(bite_dmg)],
-            follow_up_id="SALIVATE_MOVE",
+            [attack_intent(bite_intent_damage)],
+            follow_up_id=THE_INSATIABLE_SALIVATE_MOVE,
         ),
-        "SALIVATE_MOVE": MoveState(
-            "SALIVATE_MOVE",
+        THE_INSATIABLE_SALIVATE_MOVE: MoveState(
+            THE_INSATIABLE_SALIVATE_MOVE,
             salivate,
             [buff_intent()],
-            follow_up_id="THRASH_MOVE_2",
+            follow_up_id=THE_INSATIABLE_THRASH_MOVE_2,
         ),
-        "THRASH_MOVE_2": MoveState(
-            "THRASH_MOVE_2",
+        THE_INSATIABLE_THRASH_MOVE_2: MoveState(
+            THE_INSATIABLE_THRASH_MOVE_2,
             thrash,
-            [multi_attack_intent(thrash_dmg, 2)],
-            follow_up_id="THRASH_MOVE_1",
+            [multi_attack_intent(thrash_intent_damage, THE_INSATIABLE_THRASH_REPEAT)],
+            follow_up_id=THE_INSATIABLE_THRASH_MOVE_1,
         ),
     }
-    return creature, MonsterAI(states, "LIQUIFY_GROUND_MOVE")
+    return creature, MonsterAI(states, THE_INSATIABLE_LIQUIFY_GROUND_MOVE)
 
 
 # ---- KnowledgeDemon (HP 379 / 399 asc) ----
 # C# cycle: CURSE_OF_KNOWLEDGE -> SLAP(17) -> KNOWLEDGE_OVERWHELMING(8x3) -> PONDER(11+heal30+str2) -> conditional
 
-def create_knowledge_demon(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 379
-    creature = Creature(max_hp=hp, monster_id="KNOWLEDGE_DEMON")
-    slap_dmg = 17
-    overwhelming_dmg = 8
-    overwhelming_hits = 3
-    ponder_dmg = 11
-    ponder_heal = 30
-    ponder_str = 2
+KNOWLEDGE_DEMON_MONSTER_ID = "KNOWLEDGE_DEMON"
+KNOWLEDGE_DEMON_BASE_HP = 379
+KNOWLEDGE_DEMON_TOUGH_HP = 399
+KNOWLEDGE_DEMON_BASE_SLAP_DAMAGE = 17
+KNOWLEDGE_DEMON_DEADLY_SLAP_DAMAGE = 18
+KNOWLEDGE_DEMON_BASE_OVERWHELMING_DAMAGE = 8
+KNOWLEDGE_DEMON_DEADLY_OVERWHELMING_DAMAGE = 9
+KNOWLEDGE_DEMON_OVERWHELMING_REPEAT = 3
+KNOWLEDGE_DEMON_BASE_PONDER_DAMAGE = 11
+KNOWLEDGE_DEMON_DEADLY_PONDER_DAMAGE = 13
+KNOWLEDGE_DEMON_PONDER_HEAL = 30
+KNOWLEDGE_DEMON_BASE_PONDER_STRENGTH = 2
+KNOWLEDGE_DEMON_DEADLY_PONDER_STRENGTH = 3
+KNOWLEDGE_DEMON_CURSE_COUNTER_KEY = "curse_counter"
+KNOWLEDGE_DEMON_INITIAL_CURSE_COUNTER = 0
+KNOWLEDGE_DEMON_DISINTEGRATION_DAMAGE_VALUES = (6, 7, 8)
+KNOWLEDGE_DEMON_CURSE_CHOICE_PROMPT = "Curse of Knowledge"
+KNOWLEDGE_DEMON_CHOICE_SOURCE_PILE = "knowledge_demon"
+KNOWLEDGE_DEMON_CURSE_OF_KNOWLEDGE_MOVE = "CURSE_OF_KNOWLEDGE_MOVE"
+KNOWLEDGE_DEMON_SLAP_MOVE = "SLAP_MOVE"
+KNOWLEDGE_DEMON_KNOWLEDGE_OVERWHELMING_MOVE = "KNOWLEDGE_OVERWHELMING_MOVE"
+KNOWLEDGE_DEMON_PONDER_MOVE = "PONDER_MOVE"
+KNOWLEDGE_DEMON_CURSE_OF_KNOWLEDGE_BRANCH = "CurseOfKnowledgeBranch"
 
-    _state = {"curse_counter": 0}
+
+def create_knowledge_demon(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        KNOWLEDGE_DEMON_TOUGH_HP,
+        KNOWLEDGE_DEMON_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=KNOWLEDGE_DEMON_MONSTER_ID)
+
+    _state = {KNOWLEDGE_DEMON_CURSE_COUNTER_KEY: KNOWLEDGE_DEMON_INITIAL_CURSE_COUNTER}
     curse_sets = (
         (make_disintegration, make_mind_rot),
         (make_disintegration, make_sloth_status),
         (make_disintegration, make_waste_away),
     )
-    disintegration_damage_values = (6, 7, 8)
 
     def request_knowledge_choice(combat: CombatState, targets: list[Creature], index: int) -> None:
         if index >= len(targets):
-            _state["curse_counter"] += 1
+            _state[KNOWLEDGE_DEMON_CURSE_COUNTER_KEY] += 1
             return
         target = targets[index]
-        counter = _state["curse_counter"]
+        counter = _state[KNOWLEDGE_DEMON_CURSE_COUNTER_KEY]
         cards = [factory() for factory in curse_sets[counter]]
         for card in cards:
             card.owner = target
             if card.card_id == CardId.DISINTEGRATION:
-                card.effect_vars["disintegration_power"] = disintegration_damage_values[counter]
+                card.effect_vars["disintegration_power"] = KNOWLEDGE_DEMON_DISINTEGRATION_DAMAGE_VALUES[counter]
 
         def resolver(selected) -> None:
             if selected is not None:
@@ -2330,66 +2416,112 @@ def create_knowledge_demon(rng: Rng) -> tuple[Creature, MonsterAI]:
             request_knowledge_choice(combat, targets, index + 1)
 
         combat.request_card_choice(
-            prompt="Curse of Knowledge",
+            prompt=KNOWLEDGE_DEMON_CURSE_CHOICE_PROMPT,
             cards=cards,
-            source_pile="knowledge_demon",
+            source_pile=KNOWLEDGE_DEMON_CHOICE_SOURCE_PILE,
             resolver=resolver,
             owner=target,
         )
 
     def curse_of_knowledge(combat: CombatState) -> None:
-        counter = _state["curse_counter"]
+        counter = _state[KNOWLEDGE_DEMON_CURSE_COUNTER_KEY]
         if counter >= len(curse_sets):
             raise RuntimeError(f"No Curse of Knowledge set at index {counter}")
         targets = [state.creature for state in combat.combat_player_states if state.creature.is_alive]
         request_knowledge_choice(combat, targets, 0)
 
     def slap(combat: CombatState) -> None:
+        slap_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            KNOWLEDGE_DEMON_DEADLY_SLAP_DAMAGE,
+            KNOWLEDGE_DEMON_BASE_SLAP_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, slap_dmg)
 
     def knowledge_overwhelming(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, overwhelming_dmg, hits=overwhelming_hits)
+        overwhelming_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            KNOWLEDGE_DEMON_DEADLY_OVERWHELMING_DAMAGE,
+            KNOWLEDGE_DEMON_BASE_OVERWHELMING_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, overwhelming_dmg, hits=KNOWLEDGE_DEMON_OVERWHELMING_REPEAT)
 
     def ponder(combat: CombatState) -> None:
+        ponder_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            KNOWLEDGE_DEMON_DEADLY_PONDER_DAMAGE,
+            KNOWLEDGE_DEMON_BASE_PONDER_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, ponder_dmg)
         if combat.is_over:
             return
-        creature.heal(ponder_heal * len(combat.combat_player_states))
+        creature.heal(KNOWLEDGE_DEMON_PONDER_HEAL * len(combat.combat_player_states))
+        ponder_str = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            KNOWLEDGE_DEMON_DEADLY_PONDER_STRENGTH,
+            KNOWLEDGE_DEMON_BASE_PONDER_STRENGTH,
+        )
         combat.apply_power_to(creature, PowerId.STRENGTH, ponder_str, applier=creature)
 
     # After Ponder: if curse_counter < 3, go back to CURSE_OF_KNOWLEDGE; else SLAP
-    curse_check = ConditionalBranchState("CurseOfKnowledgeBranch")
-    curse_check.add_branch(lambda: _state["curse_counter"] < 3, "CURSE_OF_KNOWLEDGE_MOVE")
-    curse_check.add_branch(lambda: True, "SLAP_MOVE")
+    curse_check = ConditionalBranchState(KNOWLEDGE_DEMON_CURSE_OF_KNOWLEDGE_BRANCH)
+    curse_check.add_branch(
+        lambda: _state[KNOWLEDGE_DEMON_CURSE_COUNTER_KEY] < len(curse_sets),
+        KNOWLEDGE_DEMON_CURSE_OF_KNOWLEDGE_MOVE,
+    )
+    curse_check.add_branch(lambda: True, KNOWLEDGE_DEMON_SLAP_MOVE)
+
+    slap_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        KNOWLEDGE_DEMON_DEADLY_SLAP_DAMAGE,
+        KNOWLEDGE_DEMON_BASE_SLAP_DAMAGE,
+    )
+    overwhelming_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        KNOWLEDGE_DEMON_DEADLY_OVERWHELMING_DAMAGE,
+        KNOWLEDGE_DEMON_BASE_OVERWHELMING_DAMAGE,
+    )
+    ponder_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        KNOWLEDGE_DEMON_DEADLY_PONDER_DAMAGE,
+        KNOWLEDGE_DEMON_BASE_PONDER_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "CURSE_OF_KNOWLEDGE_MOVE": MoveState(
-            "CURSE_OF_KNOWLEDGE_MOVE",
+        KNOWLEDGE_DEMON_CURSE_OF_KNOWLEDGE_MOVE: MoveState(
+            KNOWLEDGE_DEMON_CURSE_OF_KNOWLEDGE_MOVE,
             curse_of_knowledge,
             [debuff_intent()],
-            follow_up_id="SLAP_MOVE",
+            follow_up_id=KNOWLEDGE_DEMON_SLAP_MOVE,
         ),
-        "SLAP_MOVE": MoveState(
-            "SLAP_MOVE",
+        KNOWLEDGE_DEMON_SLAP_MOVE: MoveState(
+            KNOWLEDGE_DEMON_SLAP_MOVE,
             slap,
-            [attack_intent(slap_dmg)],
-            follow_up_id="KNOWLEDGE_OVERWHELMING_MOVE",
+            [attack_intent(slap_intent_damage)],
+            follow_up_id=KNOWLEDGE_DEMON_KNOWLEDGE_OVERWHELMING_MOVE,
         ),
-        "KNOWLEDGE_OVERWHELMING_MOVE": MoveState(
-            "KNOWLEDGE_OVERWHELMING_MOVE",
+        KNOWLEDGE_DEMON_KNOWLEDGE_OVERWHELMING_MOVE: MoveState(
+            KNOWLEDGE_DEMON_KNOWLEDGE_OVERWHELMING_MOVE,
             knowledge_overwhelming,
-            [multi_attack_intent(overwhelming_dmg, overwhelming_hits)],
-            follow_up_id="PONDER_MOVE",
+            [multi_attack_intent(overwhelming_intent_damage, KNOWLEDGE_DEMON_OVERWHELMING_REPEAT)],
+            follow_up_id=KNOWLEDGE_DEMON_PONDER_MOVE,
         ),
-        "PONDER_MOVE": MoveState(
-            "PONDER_MOVE",
+        KNOWLEDGE_DEMON_PONDER_MOVE: MoveState(
+            KNOWLEDGE_DEMON_PONDER_MOVE,
             ponder,
-            [attack_intent(ponder_dmg), buff_intent()],
-            follow_up_id="CurseOfKnowledgeBranch",
+            [attack_intent(ponder_intent_damage), buff_intent()],
+            follow_up_id=KNOWLEDGE_DEMON_CURSE_OF_KNOWLEDGE_BRANCH,
         ),
-        "CurseOfKnowledgeBranch": curse_check,
+        KNOWLEDGE_DEMON_CURSE_OF_KNOWLEDGE_BRANCH: curse_check,
     }
-    return creature, MonsterAI(states, "CURSE_OF_KNOWLEDGE_MOVE")
+    return creature, MonsterAI(states, KNOWLEDGE_DEMON_CURSE_OF_KNOWLEDGE_MOVE)
 
 
 # ---- KaiserCrab (Crusher + Rocket) ----
