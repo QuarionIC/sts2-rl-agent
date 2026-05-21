@@ -168,6 +168,17 @@ LOUSE_PROGENITOR_TOUGH_MAX_HP = 141
 MYTE_MONSTER_ID = "MYTE"
 MYTE_TOUGH_MIN_HP = 64
 MYTE_TOUGH_MAX_HP = 69
+OVICOPTER_MONSTER_ID = "OVICOPTER"
+OVICOPTER_TOUGH_MIN_HP = 126
+OVICOPTER_TOUGH_MAX_HP = 132
+SLUMBERING_BEETLE_MONSTER_ID = "SLUMBERING_BEETLE"
+SLUMBERING_BEETLE_TOUGH_HP = 89
+SLUMBERING_BEETLE_TOUGH_PLATING = 18
+SPINY_TOAD_MONSTER_ID = "SPINY_TOAD"
+SPINY_TOAD_TOUGH_MIN_HP = 121
+SPINY_TOAD_TOUGH_MAX_HP = 124
+THE_OBSCURA_MONSTER_ID = "THE_OBSCURA"
+THE_OBSCURA_TOUGH_HP = 129
 
 
 class _ExclusiveHighRng:
@@ -848,6 +859,43 @@ class TestAct2Pools:
 
             assert [enemy.monster_id for enemy in combat.enemies] == [MYTE_MONSTER_ID, MYTE_MONSTER_ID]
             assert all(MYTE_TOUGH_MIN_HP <= enemy.max_hp <= MYTE_TOUGH_MAX_HP for enemy in combat.enemies)
+
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_ovicopter_normal(combat, Rng(seed))
+
+            assert len(combat.enemies) == 1
+            assert combat.enemies[0].monster_id == OVICOPTER_MONSTER_ID
+            assert OVICOPTER_TOUGH_MIN_HP <= combat.enemies[0].max_hp <= OVICOPTER_TOUGH_MAX_HP
+
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_slumbering_beetle_normal(combat, Rng(seed))
+
+            assert len(combat.enemies) == 1
+            assert combat.enemies[0].monster_id == SLUMBERING_BEETLE_MONSTER_ID
+            assert combat.enemies[0].max_hp == SLUMBERING_BEETLE_TOUGH_HP
+            assert combat.enemies[0].get_power_amount(PowerId.PLATING) == SLUMBERING_BEETLE_TOUGH_PLATING
+
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_spiny_toad_normal(combat, Rng(seed))
+
+            assert len(combat.enemies) == 1
+            assert combat.enemies[0].monster_id == SPINY_TOAD_MONSTER_ID
+            assert SPINY_TOAD_TOUGH_MIN_HP <= combat.enemies[0].max_hp <= SPINY_TOAD_TOUGH_MAX_HP
+
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_the_obscura_normal(combat, Rng(seed))
+
+            assert len(combat.enemies) == 1
+            assert combat.enemies[0].monster_id == THE_OBSCURA_MONSTER_ID
+            assert combat.enemies[0].max_hp == THE_OBSCURA_TOUGH_HP
 
     def test_weak_encounter_count(self):
         assert len(ACT2_WEAK) == 4

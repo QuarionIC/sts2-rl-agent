@@ -122,22 +122,22 @@ def setup_mytes_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_ovicopter_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_ovicopter(rng)
+    creature, ai = create_ovicopter(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
 def setup_slumbering_beetle_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_slumbering_beetle(rng)
+    creature, ai = create_slumbering_beetle(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
 def setup_spiny_toad_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_spiny_toad(rng)
+    creature, ai = create_spiny_toad(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
 def setup_the_obscura_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_the_obscura(rng)
+    creature, ai = create_the_obscura(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 

@@ -1226,146 +1226,329 @@ def create_tough_egg(rng: Rng, combat: CombatState | None = None) -> tuple[Creat
     return creature, MonsterAI(states, "HATCH_MOVE")
 
 
-def create_ovicopter(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(124, 130)
-    creature = Creature(max_hp=hp, monster_id="OVICOPTER")
-    smash_dmg = 16
-    tenderizer_dmg = 7
-    tenderizer_vulnerable = 2
-    paste_str = 3
+OVICOPTER_MONSTER_ID = "OVICOPTER"
+OVICOPTER_BASE_MIN_HP = 124
+OVICOPTER_BASE_MAX_HP = 130
+OVICOPTER_TOUGH_MIN_HP = 126
+OVICOPTER_TOUGH_MAX_HP = 132
+OVICOPTER_BASE_SMASH_DAMAGE = 16
+OVICOPTER_DEADLY_SMASH_DAMAGE = 17
+OVICOPTER_BASE_TENDERIZER_DAMAGE = 7
+OVICOPTER_DEADLY_TENDERIZER_DAMAGE = 8
+OVICOPTER_TENDERIZER_VULNERABLE = 2
+OVICOPTER_BASE_NUTRITIONAL_PASTE_STRENGTH = 3
+OVICOPTER_DEADLY_NUTRITIONAL_PASTE_STRENGTH = 4
+OVICOPTER_EGGS_TO_LAY = 3
+OVICOPTER_MAX_LIVING_TEAMMATES_FOR_LAY = 3
+OVICOPTER_LAY_EGGS_MOVE = "LAY_EGGS_MOVE"
+OVICOPTER_SMASH_MOVE = "SMASH_MOVE"
+OVICOPTER_TENDERIZER_MOVE = "TENDERIZER_MOVE"
+OVICOPTER_NUTRITIONAL_PASTE_MOVE = "NUTRITIONAL_PASTE_MOVE"
+OVICOPTER_SUMMON_BRANCH_STATE = "SUMMON_BRANCH_STATE"
+
+
+def create_ovicopter(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        OVICOPTER_TOUGH_MIN_HP,
+        OVICOPTER_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        OVICOPTER_TOUGH_MAX_HP,
+        OVICOPTER_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=OVICOPTER_MONSTER_ID)
 
     def can_lay(combat: CombatState | None) -> bool:
         if combat is None:
             return True
-        return sum(1 for teammate in combat.get_teammates_of(creature) if teammate.is_alive) <= 3
+        return (
+            sum(1 for teammate in combat.get_teammates_of(creature) if teammate.is_alive)
+            <= OVICOPTER_MAX_LIVING_TEAMMATES_FOR_LAY
+        )
 
     def lay_eggs(combat: CombatState) -> None:
-        for _ in range(3):
+        for _ in range(OVICOPTER_EGGS_TO_LAY):
             egg, egg_ai = create_tough_egg(rng, combat)
             combat.add_enemy(egg, egg_ai)
 
     def smash(combat: CombatState) -> None:
+        smash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            OVICOPTER_DEADLY_SMASH_DAMAGE,
+            OVICOPTER_BASE_SMASH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, smash_dmg)
 
     def tenderizer(combat: CombatState) -> None:
+        tenderizer_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            OVICOPTER_DEADLY_TENDERIZER_DAMAGE,
+            OVICOPTER_BASE_TENDERIZER_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, tenderizer_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.VULNERABLE, tenderizer_vulnerable, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.VULNERABLE,
+            OVICOPTER_TENDERIZER_VULNERABLE,
+            applier=creature,
+        )
 
     def nutritional_paste(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, paste_str)
+        paste_strength = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            OVICOPTER_DEADLY_NUTRITIONAL_PASTE_STRENGTH,
+            OVICOPTER_BASE_NUTRITIONAL_PASTE_STRENGTH,
+        )
+        creature.apply_power(PowerId.STRENGTH, paste_strength)
 
-    summon_branch = ConditionalBranchState("SUMMON_BRANCH_STATE")
-    summon_branch.add_branch(lambda: can_lay(creature.combat_state), "LAY_EGGS_MOVE")
-    summon_branch.add_branch(lambda: True, "NUTRITIONAL_PASTE_MOVE")
+    smash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        OVICOPTER_DEADLY_SMASH_DAMAGE,
+        OVICOPTER_BASE_SMASH_DAMAGE,
+    )
+    tenderizer_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        OVICOPTER_DEADLY_TENDERIZER_DAMAGE,
+        OVICOPTER_BASE_TENDERIZER_DAMAGE,
+    )
+
+    summon_branch = ConditionalBranchState(OVICOPTER_SUMMON_BRANCH_STATE)
+    summon_branch.add_branch(lambda: can_lay(creature.combat_state), OVICOPTER_LAY_EGGS_MOVE)
+    summon_branch.add_branch(lambda: True, OVICOPTER_NUTRITIONAL_PASTE_MOVE)
 
     states: dict[str, MonsterState] = {
-        "LAY_EGGS_MOVE": MoveState(
-            "LAY_EGGS_MOVE",
+        OVICOPTER_LAY_EGGS_MOVE: MoveState(
+            OVICOPTER_LAY_EGGS_MOVE,
             lay_eggs,
             [Intent(IntentType.SUMMON)],
-            follow_up_id="SMASH_MOVE",
+            follow_up_id=OVICOPTER_SMASH_MOVE,
         ),
-        "SMASH_MOVE": MoveState("SMASH_MOVE", smash, [attack_intent(smash_dmg)], follow_up_id="TENDERIZER_MOVE"),
-        "TENDERIZER_MOVE": MoveState(
-            "TENDERIZER_MOVE",
+        OVICOPTER_SMASH_MOVE: MoveState(
+            OVICOPTER_SMASH_MOVE,
+            smash,
+            [attack_intent(smash_intent_damage)],
+            follow_up_id=OVICOPTER_TENDERIZER_MOVE,
+        ),
+        OVICOPTER_TENDERIZER_MOVE: MoveState(
+            OVICOPTER_TENDERIZER_MOVE,
             tenderizer,
-            [attack_intent(tenderizer_dmg), debuff_intent()],
-            follow_up_id="SUMMON_BRANCH_STATE",
+            [attack_intent(tenderizer_intent_damage), debuff_intent()],
+            follow_up_id=OVICOPTER_SUMMON_BRANCH_STATE,
         ),
-        "NUTRITIONAL_PASTE_MOVE": MoveState(
-            "NUTRITIONAL_PASTE_MOVE",
+        OVICOPTER_NUTRITIONAL_PASTE_MOVE: MoveState(
+            OVICOPTER_NUTRITIONAL_PASTE_MOVE,
             nutritional_paste,
             [buff_intent()],
-            follow_up_id="SMASH_MOVE",
+            follow_up_id=OVICOPTER_SMASH_MOVE,
         ),
-        "SUMMON_BRANCH_STATE": summon_branch,
+        OVICOPTER_SUMMON_BRANCH_STATE: summon_branch,
     }
-    return creature, MonsterAI(states, "LAY_EGGS_MOVE")
+    return creature, MonsterAI(states, OVICOPTER_LAY_EGGS_MOVE)
 
 
-# ---- SlumberingBeetle (HP 66-70 / 69-73 asc) ----
+# ---- SlumberingBeetle (HP 86 / 89 asc) ----
 
-def create_slumbering_beetle(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 86
-    creature = Creature(max_hp=hp, monster_id="SLUMBERING_BEETLE")
-    rollout_dmg = 16
+SLUMBERING_BEETLE_MONSTER_ID = "SLUMBERING_BEETLE"
+SLUMBERING_BEETLE_BASE_HP = 86
+SLUMBERING_BEETLE_TOUGH_HP = 89
+SLUMBERING_BEETLE_BASE_ROLLOUT_DAMAGE = 16
+SLUMBERING_BEETLE_DEADLY_ROLLOUT_DAMAGE = 18
+SLUMBERING_BEETLE_BASE_PLATING = 15
+SLUMBERING_BEETLE_TOUGH_PLATING = 18
+SLUMBERING_BEETLE_ROLLOUT_STRENGTH = 2
+SLUMBERING_BEETLE_SLUMBER = 3
+SLUMBERING_BEETLE_SNORE_MOVE = "SNORE_MOVE"
+SLUMBERING_BEETLE_SNORE_NEXT = "SNORE_NEXT"
+SLUMBERING_BEETLE_ROLL_OUT_MOVE = "ROLL_OUT_MOVE"
+
+
+def create_slumbering_beetle(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SLUMBERING_BEETLE_TOUGH_HP,
+        SLUMBERING_BEETLE_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=SLUMBERING_BEETLE_MONSTER_ID)
 
     def snore(combat: CombatState) -> None:
         pass
 
     def rollout(combat: CombatState) -> None:
+        rollout_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SLUMBERING_BEETLE_DEADLY_ROLLOUT_DAMAGE,
+            SLUMBERING_BEETLE_BASE_ROLLOUT_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, rollout_dmg)
-        combat.apply_power_to(creature, PowerId.STRENGTH, 2, applier=creature)
+        combat.apply_power_to(creature, PowerId.STRENGTH, SLUMBERING_BEETLE_ROLLOUT_STRENGTH, applier=creature)
 
-    cond = ConditionalBranchState("SNORE_NEXT")
-    cond.add_branch(lambda: creature.has_power(PowerId.SLUMBER), "SNORE_MOVE")
-    cond.add_branch(lambda: True, "ROLL_OUT_MOVE")
+    rollout_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SLUMBERING_BEETLE_DEADLY_ROLLOUT_DAMAGE,
+        SLUMBERING_BEETLE_BASE_ROLLOUT_DAMAGE,
+    )
+    plating_amount = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SLUMBERING_BEETLE_TOUGH_PLATING,
+        SLUMBERING_BEETLE_BASE_PLATING,
+    )
+
+    cond = ConditionalBranchState(SLUMBERING_BEETLE_SNORE_NEXT)
+    cond.add_branch(lambda: creature.has_power(PowerId.SLUMBER), SLUMBERING_BEETLE_SNORE_MOVE)
+    cond.add_branch(lambda: True, SLUMBERING_BEETLE_ROLL_OUT_MOVE)
 
     states: dict[str, MonsterState] = {
-        "SNORE_MOVE": MoveState("SNORE_MOVE", snore, [sleep_intent()], follow_up_id="SNORE_NEXT"),
-        "SNORE_NEXT": cond,
-        "ROLL_OUT_MOVE": MoveState(
-            "ROLL_OUT_MOVE",
+        SLUMBERING_BEETLE_SNORE_MOVE: MoveState(
+            SLUMBERING_BEETLE_SNORE_MOVE,
+            snore,
+            [sleep_intent()],
+            follow_up_id=SLUMBERING_BEETLE_SNORE_NEXT,
+        ),
+        SLUMBERING_BEETLE_SNORE_NEXT: cond,
+        SLUMBERING_BEETLE_ROLL_OUT_MOVE: MoveState(
+            SLUMBERING_BEETLE_ROLL_OUT_MOVE,
             rollout,
-            [attack_intent(rollout_dmg), buff_intent()],
-            follow_up_id="ROLL_OUT_MOVE",
+            [attack_intent(rollout_intent_damage), buff_intent()],
+            follow_up_id=SLUMBERING_BEETLE_ROLL_OUT_MOVE,
         ),
     }
-    creature.apply_power(PowerId.PLATING, 15)
-    creature.apply_power(PowerId.SLUMBER, 3)
-    return creature, MonsterAI(states, "SNORE_MOVE")
+    creature.apply_power(PowerId.PLATING, plating_amount)
+    creature.apply_power(PowerId.SLUMBER, SLUMBERING_BEETLE_SLUMBER)
+    return creature, MonsterAI(states, SLUMBERING_BEETLE_SNORE_MOVE)
 
 
 # ---- SpinyToad (HP 116-119 / 121-124 asc) ----
 
-def create_spiny_toad(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(116, 119)
-    creature = Creature(max_hp=hp, monster_id="SPINY_TOAD")
-    lash_dmg = 17
-    explosion_dmg = 23
-    spines_amount = 5
+SPINY_TOAD_MONSTER_ID = "SPINY_TOAD"
+SPINY_TOAD_BASE_MIN_HP = 116
+SPINY_TOAD_BASE_MAX_HP = 119
+SPINY_TOAD_TOUGH_MIN_HP = 121
+SPINY_TOAD_TOUGH_MAX_HP = 124
+SPINY_TOAD_BASE_LASH_DAMAGE = 17
+SPINY_TOAD_DEADLY_LASH_DAMAGE = 19
+SPINY_TOAD_BASE_EXPLOSION_DAMAGE = 23
+SPINY_TOAD_DEADLY_EXPLOSION_DAMAGE = 25
+SPINY_TOAD_THORNS = 5
+SPINY_TOAD_PROTRUDING_SPIKES_MOVE = "PROTRUDING_SPIKES_MOVE"
+SPINY_TOAD_SPIKE_EXPLOSION_MOVE = "SPIKE_EXPLOSION_MOVE"
+SPINY_TOAD_TONGUE_LASH_MOVE = "TONGUE_LASH_MOVE"
+
+
+def create_spiny_toad(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SPINY_TOAD_TOUGH_MIN_HP,
+        SPINY_TOAD_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SPINY_TOAD_TOUGH_MAX_HP,
+        SPINY_TOAD_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=SPINY_TOAD_MONSTER_ID)
 
     def lash(combat: CombatState) -> None:
+        lash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SPINY_TOAD_DEADLY_LASH_DAMAGE,
+            SPINY_TOAD_BASE_LASH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, lash_dmg)
 
     def spines(combat: CombatState) -> None:
-        creature.apply_power(PowerId.THORNS, spines_amount)
+        creature.apply_power(PowerId.THORNS, SPINY_TOAD_THORNS)
 
     def explosion(combat: CombatState) -> None:
+        explosion_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SPINY_TOAD_DEADLY_EXPLOSION_DAMAGE,
+            SPINY_TOAD_BASE_EXPLOSION_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, explosion_dmg)
-        combat.apply_power_to(creature, PowerId.THORNS, -spines_amount, applier=creature)
+        combat.apply_power_to(creature, PowerId.THORNS, -SPINY_TOAD_THORNS, applier=creature)
+
+    lash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SPINY_TOAD_DEADLY_LASH_DAMAGE,
+        SPINY_TOAD_BASE_LASH_DAMAGE,
+    )
+    explosion_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SPINY_TOAD_DEADLY_EXPLOSION_DAMAGE,
+        SPINY_TOAD_BASE_EXPLOSION_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "PROTRUDING_SPIKES_MOVE": MoveState(
-            "PROTRUDING_SPIKES_MOVE",
+        SPINY_TOAD_PROTRUDING_SPIKES_MOVE: MoveState(
+            SPINY_TOAD_PROTRUDING_SPIKES_MOVE,
             spines,
             [buff_intent()],
-            follow_up_id="SPIKE_EXPLOSION_MOVE",
+            follow_up_id=SPINY_TOAD_SPIKE_EXPLOSION_MOVE,
         ),
-        "SPIKE_EXPLOSION_MOVE": MoveState(
-            "SPIKE_EXPLOSION_MOVE",
+        SPINY_TOAD_SPIKE_EXPLOSION_MOVE: MoveState(
+            SPINY_TOAD_SPIKE_EXPLOSION_MOVE,
             explosion,
-            [attack_intent(explosion_dmg)],
-            follow_up_id="TONGUE_LASH_MOVE",
+            [attack_intent(explosion_intent_damage)],
+            follow_up_id=SPINY_TOAD_TONGUE_LASH_MOVE,
         ),
-        "TONGUE_LASH_MOVE": MoveState(
-            "TONGUE_LASH_MOVE",
+        SPINY_TOAD_TONGUE_LASH_MOVE: MoveState(
+            SPINY_TOAD_TONGUE_LASH_MOVE,
             lash,
-            [attack_intent(lash_dmg)],
-            follow_up_id="PROTRUDING_SPIKES_MOVE",
+            [attack_intent(lash_intent_damage)],
+            follow_up_id=SPINY_TOAD_PROTRUDING_SPIKES_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "PROTRUDING_SPIKES_MOVE")
+    return creature, MonsterAI(states, SPINY_TOAD_PROTRUDING_SPIKES_MOVE)
 
 
-# ---- TheObscura (HP 36-39 / 38-41 asc) ----
+# ---- TheObscura (HP 123 / 129 asc) ----
 
-def create_the_obscura(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 123
-    creature = Creature(max_hp=hp, monster_id="THE_OBSCURA")
-    gaze_dmg = 10
-    hardening_dmg = 6
-    hardening_block = 6
+THE_OBSCURA_MONSTER_ID = "THE_OBSCURA"
+THE_OBSCURA_BASE_HP = 123
+THE_OBSCURA_TOUGH_HP = 129
+THE_OBSCURA_BASE_PIERCING_GAZE_DAMAGE = 10
+THE_OBSCURA_DEADLY_PIERCING_GAZE_DAMAGE = 11
+THE_OBSCURA_BASE_HARDENING_STRIKE_DAMAGE = 6
+THE_OBSCURA_DEADLY_HARDENING_STRIKE_DAMAGE = 7
+THE_OBSCURA_BASE_HARDENING_STRIKE_BLOCK = 6
+THE_OBSCURA_DEADLY_HARDENING_STRIKE_BLOCK = 7
+THE_OBSCURA_SAIL_STRENGTH = 3
+THE_OBSCURA_ILLUSION_MOVE = "ILLUSION_MOVE"
+THE_OBSCURA_PIERCING_GAZE_MOVE = "PIERCING_GAZE_MOVE"
+THE_OBSCURA_SAIL_MOVE = "SAIL_MOVE"
+THE_OBSCURA_HARDENING_STRIKE_MOVE = "HARDENING_STRIKE_MOVE"
+THE_OBSCURA_RANDOM_STATE = "RAND"
+
+
+def create_the_obscura(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        THE_OBSCURA_TOUGH_HP,
+        THE_OBSCURA_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=THE_OBSCURA_MONSTER_ID)
 
     def illusion(combat: CombatState) -> None:
         from sts2_env.monsters.act1 import create_parafright
@@ -1374,40 +1557,81 @@ def create_the_obscura(rng: Rng) -> tuple[Creature, MonsterAI]:
         combat.add_enemy(parafright, parafright_ai)
 
     def piercing_gaze(combat: CombatState) -> None:
+        gaze_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            THE_OBSCURA_DEADLY_PIERCING_GAZE_DAMAGE,
+            THE_OBSCURA_BASE_PIERCING_GAZE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, gaze_dmg)
 
     def sail(combat: CombatState) -> None:
         for teammate in combat.get_teammates_of(creature):
             if teammate.is_alive:
-                teammate.apply_power(PowerId.STRENGTH, 3)
+                teammate.apply_power(PowerId.STRENGTH, THE_OBSCURA_SAIL_STRENGTH)
 
     def hardening_strike(combat: CombatState) -> None:
+        hardening_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            THE_OBSCURA_DEADLY_HARDENING_STRIKE_DAMAGE,
+            THE_OBSCURA_BASE_HARDENING_STRIKE_DAMAGE,
+        )
+        hardening_block = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            THE_OBSCURA_DEADLY_HARDENING_STRIKE_BLOCK,
+            THE_OBSCURA_BASE_HARDENING_STRIKE_BLOCK,
+        )
         _deal_damage_to_player(combat, creature, hardening_dmg)
         _gain_block(creature, hardening_block, combat)
 
-    rand = RandomBranchState("RAND")
-    rand.add_branch("PIERCING_GAZE_MOVE", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("SAIL_MOVE", MoveRepeatType.CANNOT_REPEAT)
-    rand.add_branch("HARDENING_STRIKE_MOVE", MoveRepeatType.CANNOT_REPEAT)
+    piercing_gaze_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        THE_OBSCURA_DEADLY_PIERCING_GAZE_DAMAGE,
+        THE_OBSCURA_BASE_PIERCING_GAZE_DAMAGE,
+    )
+    hardening_strike_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        THE_OBSCURA_DEADLY_HARDENING_STRIKE_DAMAGE,
+        THE_OBSCURA_BASE_HARDENING_STRIKE_DAMAGE,
+    )
+
+    rand = RandomBranchState(THE_OBSCURA_RANDOM_STATE)
+    rand.add_branch(THE_OBSCURA_PIERCING_GAZE_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(THE_OBSCURA_SAIL_MOVE, MoveRepeatType.CANNOT_REPEAT)
+    rand.add_branch(THE_OBSCURA_HARDENING_STRIKE_MOVE, MoveRepeatType.CANNOT_REPEAT)
 
     states: dict[str, MonsterState] = {
-        "ILLUSION_MOVE": MoveState("ILLUSION_MOVE", illusion, [Intent(IntentType.SUMMON)], follow_up_id="RAND"),
-        "RAND": rand,
-        "PIERCING_GAZE_MOVE": MoveState(
-            "PIERCING_GAZE_MOVE",
-            piercing_gaze,
-            [attack_intent(gaze_dmg)],
-            follow_up_id="RAND",
+        THE_OBSCURA_ILLUSION_MOVE: MoveState(
+            THE_OBSCURA_ILLUSION_MOVE,
+            illusion,
+            [Intent(IntentType.SUMMON)],
+            follow_up_id=THE_OBSCURA_RANDOM_STATE,
         ),
-        "SAIL_MOVE": MoveState("SAIL_MOVE", sail, [buff_intent()], follow_up_id="RAND"),
-        "HARDENING_STRIKE_MOVE": MoveState(
-            "HARDENING_STRIKE_MOVE",
+        THE_OBSCURA_RANDOM_STATE: rand,
+        THE_OBSCURA_PIERCING_GAZE_MOVE: MoveState(
+            THE_OBSCURA_PIERCING_GAZE_MOVE,
+            piercing_gaze,
+            [attack_intent(piercing_gaze_intent_damage)],
+            follow_up_id=THE_OBSCURA_RANDOM_STATE,
+        ),
+        THE_OBSCURA_SAIL_MOVE: MoveState(
+            THE_OBSCURA_SAIL_MOVE,
+            sail,
+            [buff_intent()],
+            follow_up_id=THE_OBSCURA_RANDOM_STATE,
+        ),
+        THE_OBSCURA_HARDENING_STRIKE_MOVE: MoveState(
+            THE_OBSCURA_HARDENING_STRIKE_MOVE,
             hardening_strike,
-            [attack_intent(hardening_dmg), defend_intent()],
-            follow_up_id="RAND",
+            [attack_intent(hardening_strike_intent_damage), defend_intent()],
+            follow_up_id=THE_OBSCURA_RANDOM_STATE,
         ),
     }
-    return creature, MonsterAI(states, "ILLUSION_MOVE")
+    return creature, MonsterAI(states, THE_OBSCURA_ILLUSION_MOVE)
 
 
 # ========================================================================

@@ -302,6 +302,31 @@ MYTE_BITE_DAMAGE_A9 = 15
 MYTE_SUCK_DAMAGE_A9 = 6
 MYTE_SUCK_STRENGTH_A9 = 3
 MYTE_TOXIC_COUNT = 2
+OVICOPTER_SMASH_MOVE = "SMASH_MOVE"
+OVICOPTER_TENDERIZER_MOVE = "TENDERIZER_MOVE"
+OVICOPTER_NUTRITIONAL_PASTE_MOVE = "NUTRITIONAL_PASTE_MOVE"
+OVICOPTER_SMASH_DAMAGE_A9 = 17
+OVICOPTER_TENDERIZER_DAMAGE_A9 = 8
+OVICOPTER_TENDERIZER_VULNERABLE = 2
+OVICOPTER_NUTRITIONAL_PASTE_STRENGTH_A9 = 4
+SLUMBERING_BEETLE_ROLL_OUT_MOVE = "ROLL_OUT_MOVE"
+SLUMBERING_BEETLE_ROLLOUT_DAMAGE_A9 = 18
+SLUMBERING_BEETLE_PLATING_A8 = 18
+SLUMBERING_BEETLE_SLUMBER = 3
+SLUMBERING_BEETLE_ROLLOUT_STRENGTH = 2
+SPINY_TOAD_PROTRUDING_SPIKES_MOVE = "PROTRUDING_SPIKES_MOVE"
+SPINY_TOAD_SPIKE_EXPLOSION_MOVE = "SPIKE_EXPLOSION_MOVE"
+SPINY_TOAD_TONGUE_LASH_MOVE = "TONGUE_LASH_MOVE"
+SPINY_TOAD_EXPLOSION_DAMAGE_A9 = 25
+SPINY_TOAD_LASH_DAMAGE_A9 = 19
+SPINY_TOAD_THORNS = 5
+THE_OBSCURA_PIERCING_GAZE_MOVE = "PIERCING_GAZE_MOVE"
+THE_OBSCURA_SAIL_MOVE = "SAIL_MOVE"
+THE_OBSCURA_HARDENING_STRIKE_MOVE = "HARDENING_STRIKE_MOVE"
+THE_OBSCURA_PIERCING_GAZE_DAMAGE_A9 = 11
+THE_OBSCURA_HARDENING_STRIKE_DAMAGE_A9 = 7
+THE_OBSCURA_HARDENING_STRIKE_BLOCK_A9 = 7
+THE_OBSCURA_SAIL_STRENGTH = 3
 TOUGH_EGG_INITIAL_HP = 16
 TOUGH_EGG_HATCHLING_HP = 20
 MULTIPLAYER_TEST_PLAYER_COUNT = 2
@@ -2521,6 +2546,81 @@ class TestFixedRotation:
         ovicopter_ai.on_move_performed()
         ovicopter_ai.roll_move(Rng(36))
         assert ovicopter_ai.current_move.state_id == "NUTRITIONAL_PASTE_MOVE"
+
+    def test_act2_normal_back_half_ascension_scaling_matches_csharp(self):
+        rng_seed = 1286
+
+        ovicopter_combat = _make_combat(rng_seed)
+        ovicopter_combat.ascension_level = 9
+        ovicopter, ovicopter_ai = create_ovicopter(Rng(rng_seed), ascension_level=9)
+        ovicopter_combat.add_enemy(ovicopter, ovicopter_ai)
+        smash = ovicopter_ai.states[OVICOPTER_SMASH_MOVE]
+        assert smash.intents[0].damage == OVICOPTER_SMASH_DAMAGE_A9
+        player_hp_before_smash = ovicopter_combat.player.current_hp
+        smash.perform(ovicopter_combat)
+        assert ovicopter_combat.player.current_hp == player_hp_before_smash - OVICOPTER_SMASH_DAMAGE_A9
+        tenderizer = ovicopter_ai.states[OVICOPTER_TENDERIZER_MOVE]
+        assert tenderizer.intents[0].damage == OVICOPTER_TENDERIZER_DAMAGE_A9
+        player_hp_before_tenderizer = ovicopter_combat.player.current_hp
+        tenderizer.perform(ovicopter_combat)
+        assert ovicopter_combat.player.current_hp == player_hp_before_tenderizer - OVICOPTER_TENDERIZER_DAMAGE_A9
+        assert ovicopter_combat.player.get_power_amount(PowerId.VULNERABLE) == OVICOPTER_TENDERIZER_VULNERABLE
+        ovicopter_ai.states[OVICOPTER_NUTRITIONAL_PASTE_MOVE].perform(ovicopter_combat)
+        assert ovicopter.get_power_amount(PowerId.STRENGTH) == OVICOPTER_NUTRITIONAL_PASTE_STRENGTH_A9
+
+        beetle_combat = _make_combat(rng_seed)
+        beetle_combat.ascension_level = 9
+        beetle, beetle_ai = create_slumbering_beetle(Rng(rng_seed), ascension_level=9)
+        beetle_combat.add_enemy(beetle, beetle_ai)
+        assert beetle.get_power_amount(PowerId.PLATING) == SLUMBERING_BEETLE_PLATING_A8
+        assert beetle.get_power_amount(PowerId.SLUMBER) == SLUMBERING_BEETLE_SLUMBER
+        rollout = beetle_ai.states[SLUMBERING_BEETLE_ROLL_OUT_MOVE]
+        assert rollout.intents[0].damage == SLUMBERING_BEETLE_ROLLOUT_DAMAGE_A9
+        player_hp_before_rollout = beetle_combat.player.current_hp
+        rollout.perform(beetle_combat)
+        assert beetle_combat.player.current_hp == player_hp_before_rollout - SLUMBERING_BEETLE_ROLLOUT_DAMAGE_A9
+        assert beetle.get_power_amount(PowerId.STRENGTH) == SLUMBERING_BEETLE_ROLLOUT_STRENGTH
+
+        toad_combat = _make_combat(rng_seed)
+        toad_combat.ascension_level = 9
+        toad, toad_ai = create_spiny_toad(Rng(rng_seed), ascension_level=9)
+        toad_combat.add_enemy(toad, toad_ai)
+        toad_ai.states[SPINY_TOAD_PROTRUDING_SPIKES_MOVE].perform(toad_combat)
+        assert toad.get_power_amount(PowerId.THORNS) == SPINY_TOAD_THORNS
+        explosion = toad_ai.states[SPINY_TOAD_SPIKE_EXPLOSION_MOVE]
+        assert explosion.intents[0].damage == SPINY_TOAD_EXPLOSION_DAMAGE_A9
+        player_hp_before_explosion = toad_combat.player.current_hp
+        explosion.perform(toad_combat)
+        assert toad_combat.player.current_hp == player_hp_before_explosion - SPINY_TOAD_EXPLOSION_DAMAGE_A9
+        assert toad.get_power_amount(PowerId.THORNS) == 0
+        lash = toad_ai.states[SPINY_TOAD_TONGUE_LASH_MOVE]
+        assert lash.intents[0].damage == SPINY_TOAD_LASH_DAMAGE_A9
+        player_hp_before_lash = toad_combat.player.current_hp
+        lash.perform(toad_combat)
+        assert toad_combat.player.current_hp == player_hp_before_lash - SPINY_TOAD_LASH_DAMAGE_A9
+
+        obscura_combat = _make_combat(rng_seed)
+        obscura_combat.ascension_level = 9
+        obscura_teammate, obscura_teammate_ai = create_bowlbug_egg(Rng(rng_seed), ascension_level=9)
+        obscura_combat.add_enemy(obscura_teammate, obscura_teammate_ai)
+        obscura, obscura_ai = create_the_obscura(Rng(rng_seed), ascension_level=9)
+        obscura_combat.add_enemy(obscura, obscura_ai)
+        gaze = obscura_ai.states[THE_OBSCURA_PIERCING_GAZE_MOVE]
+        assert gaze.intents[0].damage == THE_OBSCURA_PIERCING_GAZE_DAMAGE_A9
+        player_hp_before_gaze = obscura_combat.player.current_hp
+        gaze.perform(obscura_combat)
+        assert obscura_combat.player.current_hp == player_hp_before_gaze - THE_OBSCURA_PIERCING_GAZE_DAMAGE_A9
+        obscura_ai.states[THE_OBSCURA_SAIL_MOVE].perform(obscura_combat)
+        assert obscura_teammate.get_power_amount(PowerId.STRENGTH) == THE_OBSCURA_SAIL_STRENGTH
+        assert obscura.get_power_amount(PowerId.STRENGTH) == 0
+        hardening = obscura_ai.states[THE_OBSCURA_HARDENING_STRIKE_MOVE]
+        assert hardening.intents[0].damage == THE_OBSCURA_HARDENING_STRIKE_DAMAGE_A9
+        player_hp_before_hardening = obscura_combat.player.current_hp
+        hardening.perform(obscura_combat)
+        assert obscura_combat.player.current_hp == (
+            player_hp_before_hardening - THE_OBSCURA_HARDENING_STRIKE_DAMAGE_A9
+        )
+        assert obscura.block == THE_OBSCURA_HARDENING_STRIKE_BLOCK_A9
 
     def test_act2_debuff_moves_use_original_player_targets_not_pets(self):
         rng_seed = 1247
