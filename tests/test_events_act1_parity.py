@@ -3,12 +3,15 @@
 import sts2_env.events.act1  # noqa: F401
 
 from sts2_env.cards.factory import create_card
+from sts2_env.cards.factory import eligible_registered_cards
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import CardId, CardRarity
 from sts2_env.events.act1 import BrainLeech, RoomFullOfCheese, TeaMaster, TheLegendsWereTrue
+from sts2_env.relics.base import RelicId
 from sts2_env.run.modifiers import ModifierModel
 from sts2_env.run.reward_objects import CardReward, PotionReward
-from sts2_env.run.rewards import CardRewardGenerationOptions
+from sts2_env.run.rewards import CARD_CREATION_SOURCE_OTHER, CardRewardGenerationOptions
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.run_state import PlayerState, RunState
 
@@ -158,12 +161,34 @@ def test_room_full_of_cheese_gorge_uses_original_common_two_of_eight_choice():
     assert reward.option_count == ROOM_FULL_OF_CHEESE_GORGE_FROM_CARD_CHOICE_COUNT
     assert reward.cards_to_pick == ROOM_FULL_OF_CHEESE_GORGE_CARD_CHOICE_COUNT
     assert reward.skippable is False
-    assert reward.forced_rarities == (
-        CardRarity.COMMON,
-    ) * ROOM_FULL_OF_CHEESE_GORGE_FROM_CARD_CHOICE_COUNT
+    assert reward.forced_rarities == ()
     assert reward.generation_context is None
     assert reward.roll_upgrade is False
+    assert reward.card_creation_source == CARD_CREATION_SOURCE_OTHER
+    assert reward.allow_rarity_modifications is False
+    assert reward.card_pool_rarity_filter is CardRarity.COMMON
+    assert reward.use_uniform_noncombat_odds is True
     assert reward.cards == []
+
+
+def test_room_full_of_cheese_no_rarity_modification_limits_dingy_rug_pool():
+    run_state = _make_act1_run_state(8051)
+    assert run_state.player.obtain_relic(RelicId.DINGY_RUG.name)
+    event = RoomFullOfCheese()
+
+    result = event.choose(run_state, "gorge")
+    reward = result.rewards["reward_objects"][0]
+    reward.populate(run_state, None)
+
+    colorless_uncommon_pool = set(
+        eligible_registered_cards(
+            card_pool=CardPoolId.COLORLESS,
+            rarity=CardRarity.UNCOMMON,
+            generation_context=None,
+        )
+    )
+    assert not any(card.card_id in colorless_uncommon_pool for card in reward.cards)
+    assert not any(card_id in colorless_uncommon_pool for card_id in reward.custom_card_ids)
 
 
 def test_room_full_of_cheese_gorge_stays_on_same_reward_until_two_picks():

@@ -12,6 +12,7 @@ from sts2_env.core.enums import CardId, CardRarity
 from sts2_env.run.events import EventModel, EventOption, EventResult, register_event
 from sts2_env.events.shared import _event_result_with_rewards, _roll_event_potion_id, _should_defer_event_rewards
 from sts2_env.run.reward_objects import AddCardsReward, CardReward, PotionReward, RelicReward
+from sts2_env.run.rewards import CARD_CREATION_SOURCE_OTHER
 
 if TYPE_CHECKING:
     from sts2_env.run.run_state import RunState
@@ -124,11 +125,12 @@ class RoomFullOfCheese(EventModel):
                             option_count=_ROOM_FULL_OF_CHEESE_GORGE_FROM_CARD_CHOICE_COUNT,
                             cards_to_pick=_ROOM_FULL_OF_CHEESE_GORGE_CARD_CHOICE_COUNT,
                             skippable=False,
-                            forced_rarities=(
-                                CardRarity.COMMON,
-                            ) * _ROOM_FULL_OF_CHEESE_GORGE_FROM_CARD_CHOICE_COUNT,
                             generation_context=None,
                             roll_upgrade=False,
+                            card_creation_source=CARD_CREATION_SOURCE_OTHER,
+                            allow_rarity_modifications=False,
+                            card_pool_rarity_filter=CardRarity.COMMON,
+                            use_uniform_noncombat_odds=True,
                         )
                     ]
                 },

@@ -4,8 +4,10 @@ import sts2_env.events.act1  # noqa: F401
 import sts2_env.events.act2  # noqa: F401
 
 from sts2_env.cards.factory import create_card
+from sts2_env.cards.factory import eligible_registered_cards
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.status import make_spore_mind
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import CardId, CardRarity, CardType, MapPointType
 from sts2_env.events.act2 import (
     SpiralingWhirlpool,
@@ -14,7 +16,9 @@ from sts2_env.events.act2 import (
     WaterloggedScriptorium,
 )
 from sts2_env.potions.base import create_potion
+from sts2_env.relics.base import RelicId
 from sts2_env.run.reward_objects import CardReward, RelicReward
+from sts2_env.run.rewards import CARD_CREATION_SOURCE_OTHER
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.run_state import PlayerState, RunState
 from sts2_env.map.generator import generate_act_map
@@ -302,11 +306,15 @@ def test_future_of_potions_trade_discards_potion_and_builds_upgraded_rewards():
     reward = reward_objects[0]
     assert reward.cards == []
     assert reward.option_count == 3
-    assert reward.forced_rarities == (CardRarity.COMMON, CardRarity.COMMON, CardRarity.COMMON)
+    assert reward.forced_rarities == ()
     assert reward.generation_context is None
     assert reward.roll_upgrade is False
+    assert reward.card_creation_source == CARD_CREATION_SOURCE_OTHER
     assert reward.use_default_character_pool is False
     assert reward.card_type in {CardType.ATTACK, CardType.SKILL}
+    assert reward.allow_rarity_modifications is False
+    assert reward.card_pool_rarity_filter is CardRarity.COMMON
+    assert reward.use_uniform_noncombat_odds is True
     assert reward.upgrade_after_generation is True
 
     reward.populate(run_state, None)
@@ -315,6 +323,41 @@ def test_future_of_potions_trade_discards_potion_and_builds_upgraded_rewards():
     assert all(card.rarity == CardRarity.COMMON for card in reward.cards)
     assert len({card.card_type for card in reward.cards}) == 1
     assert reward.cards[0].card_type in {CardType.ATTACK, CardType.SKILL}
+
+
+def test_future_of_potions_no_rarity_modification_limits_dingy_rug_pool():
+    run_state = _make_run_state(40501)
+    assert run_state.player.obtain_relic(RelicId.DINGY_RUG.name)
+    run_state.player.add_potion(create_potion("Clarity"))
+    run_state.player.add_potion(create_potion("FairyInABottle"))
+    event = TheFutureOfPotions()
+    event.rng = _LastChoiceCountingRng()
+    event.generate_initial_options(run_state)
+
+    result = event.choose(run_state, "trade_0")
+    reward = result.rewards["reward_objects"][0]
+    reward.populate(run_state, None)
+
+    colorless_uncommon_pool = set(
+        eligible_registered_cards(
+            card_pool=CardPoolId.COLORLESS,
+            rarity=CardRarity.UNCOMMON,
+            card_type=reward.card_type,
+            generation_context=None,
+        )
+    )
+    colorless_rare_pool = set(
+        eligible_registered_cards(
+            card_pool=CardPoolId.COLORLESS,
+            rarity=CardRarity.RARE,
+            card_type=reward.card_type,
+            generation_context=None,
+        )
+    )
+    assert any(card_id in reward.custom_card_ids for card_id in colorless_uncommon_pool)
+    assert not any(card_id in reward.custom_card_ids for card_id in colorless_rare_pool)
+    assert all(card.rarity is CardRarity.UNCOMMON for card in reward.cards)
+    assert all(card.upgraded for card in reward.cards)
 
 
 def test_future_of_potions_requires_all_players_to_have_two_potions():

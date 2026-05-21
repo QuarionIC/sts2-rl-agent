@@ -35,6 +35,7 @@ from sts2_env.run.reward_objects import (
     RemoveCardReward,
     TransformCardsReward,
 )
+from sts2_env.run.rewards import CARD_CREATION_SOURCE_OTHER
 from sts2_env.run.events import EventModel, EventOption, EventResult, register_event
 
 if TYPE_CHECKING:
@@ -1308,11 +1309,14 @@ class TheFutureOfPotions(EventModel):
             run_state.player.player_id,
             option_count=3,
             character_ids=(run_state.player.character_id,),
-            forced_rarities=(target_rarity, target_rarity, target_rarity),
             generation_context=None,
             roll_upgrade=False,
+            card_creation_source=CARD_CREATION_SOURCE_OTHER,
             use_default_character_pool=False,
             card_type=target_type,
+            allow_rarity_modifications=False,
+            card_pool_rarity_filter=target_rarity,
+            use_uniform_noncombat_odds=True,
             upgrade_after_generation=True,
         )
         return EventResult(finished=True,
