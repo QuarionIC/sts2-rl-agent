@@ -62,6 +62,7 @@ from sts2_env.core.enums import (
     PileType,
     PotionTargetType,
     PowerId,
+    PowerType,
     TargetType,
     ValueProp,
 )
@@ -2038,7 +2039,7 @@ class CombatState:
 
         if target.side == CombatSide.PLAYER:
             power = target.powers.get(power_id)
-            if power is not None and power.power_type.name == "DEBUFF":
+            if power is not None and power.power_type == PowerType.DEBUFF:
                 power.skip_next_tick = True
 
     def after_power_amount_changed(
