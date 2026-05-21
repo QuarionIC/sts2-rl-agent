@@ -1262,6 +1262,7 @@ class Symbiote(EventModel):
                         run_state.player.player_id,
                         count=min(1, len(candidates)),
                         cards=candidates,
+                        rng_override=self.get_rng(run_state),
                     )
                 ],
             )

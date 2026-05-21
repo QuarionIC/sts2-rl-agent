@@ -276,6 +276,33 @@ def test_symbiote_kill_fire_transforms_selected_card_via_pending_choice():
     assert target_card.card_id != original_id
 
 
+def test_symbiote_deferred_kill_fire_uses_event_rng_for_transform_result():
+    mgr = RunManager(seed=932, character_id="Ironclad")
+    first = create_card(CardId.STRIKE_IRONCLAD)
+    second = create_card(CardId.DEFEND_IRONCLAD)
+    mgr.run_state.player.deck = [first, second]
+    mgr._phase = RunManager.PHASE_EVENT
+    event = Symbiote()
+    event.rng = _LastChoiceRng()
+    mgr._event_model = event
+    mgr._event_options = event.generate_initial_options(mgr.run_state)
+    niche_counter = mgr.run_state.rng.niche.counter
+
+    result = mgr._do_event_choice({"option_id": "kill_fire"})
+
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert event.rng.choice_calls == 0
+    assert mgr.run_state.pending_choice is not None
+
+    final = mgr.take_action({"action": "choose", "index": 0})
+
+    assert final["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert event.rng.choice_calls == 1
+    assert mgr.run_state.rng.niche.counter == niche_counter
+    assert first.card_id != CardId.STRIKE_IRONCLAD
+    assert second.card_id == CardId.DEFEND_IRONCLAD
+
+
 def test_lost_wisp_search_grants_the_rolled_gold_amount():
     run_state = _make_run_state(94)
     event = LostWisp()
