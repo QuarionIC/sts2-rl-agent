@@ -467,7 +467,7 @@ class PlayerState:
         enchanted = 0
         for card in self.deck:
             if (
-                card.rarity.name == "BASIC"
+                card.rarity == CardRarity.BASIC
                 and CardTag.STRIKE in card.tags
                 and can_enchant_card(card, enchantment)
             ):
