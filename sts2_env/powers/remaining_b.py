@@ -26,6 +26,7 @@ from sts2_env.core.enums import (
     CardKeyword,
     CardType,
     CombatSide,
+    OrbType,
     PileType,
     PowerId,
     PowerType,
@@ -185,7 +186,6 @@ class HailstormPower(PowerInstance):
     def before_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side != owner.side:
             return
-        # Count Frost orbs via the combat/orb system
         frost_count = 0
         orb_queue = getattr(owner, "orb_queue", None) or getattr(
             getattr(owner, "player_combat_state", None), "orb_queue", None
@@ -194,13 +194,12 @@ class HailstormPower(PowerInstance):
             orbs = getattr(orb_queue, "orbs", orb_queue)
             if hasattr(orbs, "__iter__"):
                 frost_count = sum(
-                    1 for o in orbs if getattr(o, "orb_type", None) == "FROST"
+                    1 for o in orbs if getattr(o, "orb_type", None) == OrbType.FROST
                 )
-        # Simplified: if no orb system, check combat helper
         if frost_count == 0:
             count_fn = getattr(combat, "count_orbs", None)
             if count_fn is not None:
-                frost_count = count_fn(owner, "FROST")
+                frost_count = count_fn(owner, OrbType.FROST)
         if frost_count >= self.FROST_ORB_THRESHOLD:
             for enemy in combat.hittable_enemies:
                 combat.deal_damage(
@@ -841,7 +840,7 @@ class LightningRodPower(PowerInstance):
     def after_energy_reset(self, owner: Creature, combat: CombatState) -> None:
         if owner.is_player:
             if hasattr(combat, "channel_orb"):
-                combat.channel_orb(owner, "LIGHTNING")
+                combat.channel_orb(owner, OrbType.LIGHTNING)
             self.amount -= 1
 
     def after_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:

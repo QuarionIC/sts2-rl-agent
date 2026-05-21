@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from sts2_env.core.enums import (
     CardType,
     CombatSide,
+    OrbType,
     PowerId,
     PowerType,
     PowerStackType,
@@ -184,7 +185,7 @@ class StormPower(PowerInstance):
     def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
         amount = self._amounts_for_played_cards.pop(id(card), 0)
         for _ in range(max(0, amount)):
-            combat.channel_orb(owner, "LIGHTNING")
+            combat.channel_orb(owner, OrbType.LIGHTNING)
 
 
 class DrawCardsNextTurnPower(PowerInstance):

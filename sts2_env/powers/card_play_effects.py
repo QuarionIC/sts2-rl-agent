@@ -17,6 +17,7 @@ from sts2_env.core.enums import (
     CardTag,
     CardType,
     CombatSide,
+    OrbType,
     PileType,
     PowerId,
     PowerType,
@@ -381,12 +382,12 @@ class ThunderPower(PowerInstance):
     def on_orb_evoked(
         self,
         owner: Creature,
-        orb_type: str,
+        orb_type: OrbType,
         targets: list[Creature],
         combat: CombatState,
     ) -> None:
         """Called by the orb system when a Lightning orb is evoked."""
-        if orb_type == "LIGHTNING":
+        if orb_type == OrbType.LIGHTNING:
             living = [t for t in targets if t.is_alive]
             for t in living:
                 combat.deal_damage(

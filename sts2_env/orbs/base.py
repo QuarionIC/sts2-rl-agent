@@ -121,7 +121,7 @@ class OrbQueue:
             for power in list(owner.powers.values()):
                 on_orb_evoked = getattr(power, "on_orb_evoked", None)
                 if callable(on_orb_evoked):
-                    on_orb_evoked(owner, orb.orb_type.name, targets, combat)
+                    on_orb_evoked(owner, orb.orb_type, targets, combat)
         return targets
 
     def evoke_all(self, combat: CombatState | None = None) -> None:
