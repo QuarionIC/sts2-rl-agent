@@ -1576,8 +1576,9 @@ class RunState:
             return [point.coord for point in self.map.get_row(last_coord.row + 1)]
         return [c.coord for c in last_point.children]
 
-    def resolve_room_type(self, point_type: MapPointType) -> RoomType:
+    def resolve_room_type(self, point_type: MapPointType, blacklist: set[RoomType] | None = None) -> RoomType:
         """Convert a MapPointType to a RoomType, rolling for Unknown rooms."""
+        blacklist = set(blacklist or ())
         tutorial_room_type = self._tutorial_room_type_for(point_type)
         if tutorial_room_type is not None:
             return tutorial_room_type
@@ -1600,7 +1601,6 @@ class RunState:
                     room_types = relic.modify_unknown_map_point_room_types(player, room_types)
             if room_types == {RoomType.EVENT}:
                 return RoomType.EVENT
-            blacklist: set[RoomType] = set()
             blacklist.update(
                 room_type
                 for room_type in (RoomType.MONSTER, RoomType.ELITE, RoomType.TREASURE, RoomType.SHOP)
@@ -1610,6 +1610,14 @@ class RunState:
                 blacklist.add(RoomType.EVENT)
             return self.unknown_odds.roll(self.rng.unknown_map_point, self, blacklist=blacklist)
         return mapping.get(point_type, RoomType.MONSTER)
+
+    def build_room_type_blacklist(self, next_map_points: list[MapPoint] | None = None) -> set[RoomType]:
+        blacklist: set[RoomType] = set()
+        if self.map_point_history and self.map_point_history[-1].room_type == RoomType.SHOP:
+            blacklist.add(RoomType.SHOP)
+        if next_map_points and all(point.point_type == MapPointType.SHOP for point in next_map_points):
+            blacklist.add(RoomType.SHOP)
+        return blacklist
 
     def _tutorial_room_type_for(self, point_type: MapPointType) -> RoomType | None:
         if len(self.players) > 1:

@@ -14,7 +14,7 @@ from sts2_env.core.enums import (
 )
 from sts2_env.core.rng import Rng
 from sts2_env.cards.base import CardInstance
-from sts2_env.map.map_point import MapCoord
+from sts2_env.map.map_point import MapCoord, MapPoint
 from sts2_env.run.run_state import RunState, PlayerState, UNLOCK_STATE_NUMBER_OF_RUNS_KEY
 from sts2_env.run.rooms import create_room, CombatRoom, ShopRoom, RestSiteRoom, EventRoom, TreasureRoom
 from sts2_env.run.rest_site import generate_rest_site_options, HealOption, SmithOption
@@ -353,6 +353,30 @@ class TestRoomTypeResolution:
         rs.player.unlock_state[UNLOCK_STATE_NUMBER_OF_RUNS_KEY] = 1
 
         assert rs.resolve_room_type(MapPointType.UNASSIGNED) == RoomType.MONSTER
+
+    def test_unknown_room_blacklists_shop_after_shop(self):
+        rs = RunState(seed=42)
+        rs.initialize_run()
+        rs.append_to_map_point_history(MapPointType.SHOP, RoomType.SHOP)
+        rs.unknown_odds._current[RoomType.SHOP] = 1.0
+
+        blacklist = rs.build_room_type_blacklist()
+        assert RoomType.SHOP in blacklist
+        assert rs.resolve_room_type(MapPointType.UNKNOWN, blacklist=blacklist) is not RoomType.SHOP
+
+    def test_unknown_room_blacklists_shop_when_all_next_nodes_are_shops(self):
+        rs = RunState(seed=43)
+        rs.initialize_run()
+        next_points = [
+            MapPoint(MapCoord(0, 2), MapPointType.SHOP),
+            MapPoint(MapCoord(1, 2), MapPointType.SHOP),
+        ]
+        rs.unknown_odds._current[RoomType.SHOP] = 1.0
+
+        blacklist = rs.build_room_type_blacklist(next_points)
+
+        assert blacklist == {RoomType.SHOP}
+        assert rs.resolve_room_type(MapPointType.UNKNOWN, blacklist=blacklist) is not RoomType.SHOP
 
 
 class TestRoomCreation:

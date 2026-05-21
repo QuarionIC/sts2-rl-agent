@@ -1123,7 +1123,10 @@ class RunManager:
         if point is None:
             room_type = RoomType.MONSTER
         else:
-            room_type = self._run_state.resolve_room_type(point.point_type)
+            room_type = self._run_state.resolve_room_type(
+                point.point_type,
+                blacklist=self._run_state.build_room_type_blacklist(point.children),
+            )
         self._run_state.add_visited_coord(coord, room_type=room_type)
 
         self._enter_room(room_type)
