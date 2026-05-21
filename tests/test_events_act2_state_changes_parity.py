@@ -253,7 +253,7 @@ def test_whispering_hollow_options_and_effects_match_reference_vars():
     transform_reward = hug_result.rewards["reward_objects"][0]
 
     assert hug_result.finished
-    assert deferred_state.player.current_hp == hp_before - WhisperingHollow.HUG_DAMAGE
+    assert deferred_state.player.current_hp == hp_before
     assert isinstance(transform_reward, TransformCardsReward)
     assert transform_reward.count == 1
 
@@ -508,6 +508,32 @@ def test_whispering_hollow_hug_uses_run_level_transform_reward_in_run_manager():
 
     final = mgr.take_action({"action": "choose", "index": 0})
     assert final["phase"] == RunManager.PHASE_MAP_CHOICE
+
+
+def test_whispering_hollow_hug_transforms_before_damage_can_end_run():
+    mgr = RunManager(seed=4302, character_id="Ironclad")
+    target = create_card(CardId.STRIKE_IRONCLAD)
+    other = create_card(CardId.DEFEND_IRONCLAD)
+    mgr.run_state.player.deck = [target, other]
+    mgr.run_state.player.current_hp = WhisperingHollow.HUG_DAMAGE
+    mgr.run_state.player.gold = WhisperingHollow.GOLD_COST
+    mgr._phase = RunManager.PHASE_EVENT
+    event = WhisperingHollow()
+    mgr._event_model = event
+    mgr._event_options = event.generate_initial_options(mgr.run_state)
+    before_card_id = target.card_id
+
+    result = mgr._do_event_choice({"option_id": WhisperingHollow.OPTION_HUG})
+
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert isinstance(mgr._current_reward, TransformCardsReward)
+    assert mgr.run_state.player.current_hp == WhisperingHollow.HUG_DAMAGE
+
+    final = mgr.take_action({"action": "choose", "index": 0})
+
+    assert final["phase"] == RunManager.PHASE_RUN_OVER
+    assert mgr.run_state.player.current_hp == 0
+    assert target.card_id is not before_card_id
 
 
 def test_transform_events_only_offer_transformable_cards():

@@ -715,6 +715,8 @@ class TransformCardsReward(Reward):
     cards: list[CardInstance] | None = None
     mapping: dict[CardId, CardId] | None = None
     rng_stream: str = "niche"
+    rng_override: object | None = None
+    after_selected: Callable[[], None] | None = None
 
     def __init__(
         self,
@@ -725,6 +727,8 @@ class TransformCardsReward(Reward):
         cards: list[CardInstance] | None = None,
         mapping: dict[CardId, CardId] | None = None,
         rng_stream: str = "niche",
+        rng_override: object | None = None,
+        after_selected: Callable[[], None] | None = None,
     ):
         super().__init__(
             player_id=player_id,
@@ -737,24 +741,37 @@ class TransformCardsReward(Reward):
         self.cards = cards
         self.mapping = mapping
         self.rng_stream = rng_stream
+        self.rng_override = rng_override
+        self.after_selected = after_selected
 
     def select(self, run_manager: RunManager, **_: object) -> dict:
         player = run_manager.run_state.get_player(self.player_id)
-        transform_rng = getattr(run_manager.run_state.rng, self.rng_stream, run_manager.run_state.rng.niche)
+        transform_rng = self.rng_override or getattr(
+            run_manager.run_state.rng,
+            self.rng_stream,
+            run_manager.run_state.rng.niche,
+        )
         if self.mapping is not None:
             candidates = list(self.cards or [])
             required = min(self.count, len(candidates))
+
+            def transform_with_mapping(selected: list[CardInstance]) -> int:
+                transformed = player.transform_specific_cards_with_mapping(selected, self.mapping or {})
+                if self.after_selected is not None:
+                    self.after_selected()
+                return transformed
+
             if required > 0 and player._can_auto_resolve_deck_choice(
                 candidates,
                 allow_skip=False,
                 min_count=required,
                 max_count=required,
             ):
-                transformed = player.transform_specific_cards_with_mapping(candidates[:required], self.mapping or {})
+                transformed = transform_with_mapping(candidates[:required])
             elif required > 0 and player.request_deck_choice(
                 prompt=f"Choose {required} card(s) to transform",
                 cards=candidates,
-                resolver=lambda selected: player.transform_specific_cards_with_mapping(selected, self.mapping or {}),
+                resolver=transform_with_mapping,
                 allow_skip=False,
                 min_count=required,
                 max_count=required,
@@ -764,12 +781,22 @@ class TransformCardsReward(Reward):
                     "pending_choice": True,
                 }
             else:
-                transformed = player.transform_specific_cards_with_mapping(candidates[:required], self.mapping)
+                transformed = transform_with_mapping(candidates[:required])
         else:
             transformed = (
-                player.transform_and_upgrade_cards(self.count, cards=self.cards, rng=transform_rng)
+                player.transform_and_upgrade_cards(
+                    self.count,
+                    cards=self.cards,
+                    rng=transform_rng,
+                    after_selected=self.after_selected,
+                )
                 if self.upgrade
-                else player.transform_cards(self.count, cards=self.cards, rng=transform_rng)
+                else player.transform_cards(
+                    self.count,
+                    cards=self.cards,
+                    rng=transform_rng,
+                    after_selected=self.after_selected,
+                )
             )
         if run_manager.run_state.pending_choice is not None:
             verb = "transform and upgrade" if self.upgrade else "transform"

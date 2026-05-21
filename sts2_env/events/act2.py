@@ -1699,7 +1699,6 @@ class WhisperingHollow(EventModel):
             )
         candidates = run_state.player.transformable_deck_cards()
         if _should_defer_event_rewards(run_state):
-            run_state.player.lose_hp(self.HUG_DAMAGE)
             return _event_result_with_rewards(
                 f"Took {self.HUG_DAMAGE} damage, transformed 1 card.",
                 [
@@ -1707,6 +1706,8 @@ class WhisperingHollow(EventModel):
                         run_state.player.player_id,
                         count=min(1, len(candidates)),
                         cards=candidates,
+                        rng_override=self.get_rng(run_state),
+                        after_selected=lambda: run_state.player.lose_hp(self.HUG_DAMAGE),
                     )
                 ],
             )

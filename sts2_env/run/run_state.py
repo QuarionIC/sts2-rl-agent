@@ -682,38 +682,34 @@ class PlayerState:
         *,
         cards: list[CardInstance] | None = None,
         rng: Rng | None = None,
+        after_selected: Callable[[], None] | None = None,
     ) -> int:
         candidates = list(cards) if cards is not None else self.transformable_deck_cards()
         required = min(count, len(candidates))
+
+        def apply_transform(selected: list[CardInstance]) -> int:
+            transformed = self._transform_selected_cards(selected, rng=rng)
+            if after_selected is not None:
+                after_selected()
+            return transformed
+
         if required > 0 and self._can_auto_resolve_deck_choice(
             candidates,
             allow_skip=False,
             min_count=required,
             max_count=required,
         ):
-            return self._transform_selected_cards(candidates[:required], rng=rng)
+            return apply_transform(candidates[:required])
         if required > 0 and self.request_deck_choice(
             prompt=f"Choose {min(count, len(candidates))} cards to transform",
             cards=candidates,
-            resolver=lambda selected: self._transform_selected_cards(selected, rng=rng),
+            resolver=apply_transform,
             allow_skip=False,
             min_count=required,
             max_count=required,
         ):
             return 0
-        candidates = candidates[:count]
-        transformed = 0
-        for card in candidates[:count]:
-            replacement = create_transform_card(
-                card,
-                character_id=self.character_id,
-                rng=rng or self.run_state.rng.niche,
-                generation_context=None,
-                is_multiplayer=len(self.run_state.players) > 1,
-            )
-            self._apply_card_replacement(card, replacement)
-            transformed += 1
-        return transformed
+        return apply_transform(candidates[:count])
 
     def transform_basic_cards(self, count: int, upgrade: int = 0) -> int:
         basics = self.basic_strike_defend_cards()[:count]
@@ -814,26 +810,34 @@ class PlayerState:
         *,
         cards: list[CardInstance] | None = None,
         rng: Rng | None = None,
+        after_selected: Callable[[], None] | None = None,
     ) -> int:
         candidates = list(cards) if cards is not None else self.transformable_deck_cards()
         required = min(count, len(candidates))
+
+        def apply_transform(selected: list[CardInstance]) -> int:
+            transformed = self._transform_and_upgrade_selected(selected, rng=rng)
+            if after_selected is not None:
+                after_selected()
+            return transformed
+
         if required > 0 and self._can_auto_resolve_deck_choice(
             candidates,
             allow_skip=False,
             min_count=required,
             max_count=required,
         ):
-            return self._transform_and_upgrade_selected(candidates[:required], rng=rng)
+            return apply_transform(candidates[:required])
         if required > 0 and self.request_deck_choice(
             prompt=f"Choose {min(count, len(candidates))} cards to transform and upgrade",
             cards=candidates,
-            resolver=lambda selected: self._transform_and_upgrade_selected(selected, rng=rng),
+            resolver=apply_transform,
             allow_skip=False,
             min_count=required,
             max_count=required,
         ):
             return 0
-        return self._transform_and_upgrade_selected(candidates[:count], rng=rng)
+        return apply_transform(candidates[:count])
 
     def _apply_card_replacement(self, card: CardInstance, replacement: CardInstance) -> None:
         original_enchantments = dict(card.enchantments)
