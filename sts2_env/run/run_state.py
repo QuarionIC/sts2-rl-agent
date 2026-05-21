@@ -1517,7 +1517,9 @@ class RunState:
         self.enter_act(self.current_act_index + 1)
         return True
 
-    def add_visited_coord(self, coord: MapCoord, room_type: RoomType | None = None) -> None:
+    def add_visited_coord(self, coord: MapCoord, room_type: RoomType | None = None) -> bool:
+        if coord in self.visited_map_coords:
+            return False
         self.visited_map_coords.append(coord)
         self.act_floor = coord.row + 1
         self.total_floor += 1
@@ -1528,6 +1530,7 @@ class RunState:
                 if point is not None:
                     map_point_type = point.point_type
             self.append_to_map_point_history(map_point_type, room_type)
+        return True
 
     def append_to_map_point_history(self, map_point_type: MapPointType, room_type: RoomType) -> None:
         self.map_point_history.append(MapPointHistoryEntry(map_point_type=map_point_type, room_type=room_type))

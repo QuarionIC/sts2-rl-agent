@@ -1127,7 +1127,11 @@ class RunManager:
                 point.point_type,
                 blacklist=self._run_state.build_room_type_blacklist(point.children),
             )
-        self._run_state.add_visited_coord(coord, room_type=room_type)
+        if not self._run_state.add_visited_coord(coord, room_type=room_type):
+            return {
+                "phase": self.phase,
+                "description": f"Coordinate ({col},{row}) was already visited.",
+            }
 
         self._enter_room(room_type)
 

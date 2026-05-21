@@ -239,10 +239,22 @@ class TestMapNavigation:
         rs = RunState(seed=42)
         rs.initialize_run()
         coords = rs.get_available_next_coords()
-        rs.add_visited_coord(coords[0])
+        assert rs.add_visited_coord(coords[0]) is True
         assert len(rs.visited_map_coords) == 1
         assert rs.act_floor == coords[0].row + 1
         assert rs.total_floor == 1
+
+    def test_visit_coord_ignores_duplicate_coords(self):
+        rs = RunState(seed=42)
+        rs.initialize_run()
+        coord = rs.get_available_next_coords()[0]
+
+        assert rs.add_visited_coord(coord, room_type=RoomType.MONSTER) is True
+        assert rs.add_visited_coord(coord, room_type=RoomType.MONSTER) is False
+
+        assert rs.visited_map_coords == [coord]
+        assert rs.total_floor == 1
+        assert len(rs.map_point_history) == 1
 
     def test_visit_coord_records_map_point_history(self):
         rs = RunState(seed=42)
@@ -293,6 +305,21 @@ class TestMapNavigation:
 
         assert steps > 0
         assert rs.total_floor == steps
+
+    def test_run_manager_ignores_duplicate_map_move(self):
+        mgr = RunManager(seed=42)
+        coord = mgr.get_available_actions()[0]["coord"]
+
+        first = mgr.take_action({"action": "move", "coord": coord})
+        mgr._phase = RunManager.PHASE_MAP_CHOICE
+        mgr._available_coords = [MapCoord(*coord)]
+        second = mgr.take_action({"action": "move", "coord": coord})
+
+        assert first["phase"] != RunManager.PHASE_MAP_CHOICE
+        assert second["phase"] == RunManager.PHASE_MAP_CHOICE
+        assert "already visited" in second["description"]
+        assert len(mgr.run_state.visited_map_coords) == 1
+        assert mgr.run_state.total_floor == 1
 
 
 class TestRoomTypeResolution:
