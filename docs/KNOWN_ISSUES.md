@@ -144,15 +144,15 @@ _UNTARGETED_TYPES = {TargetTypeName.SELF, TargetTypeName.NONE, TargetTypeName.AL
 
 ### 12. `inspect.signature` on hot path
 
+**Status:** Fixed
+
 **Severity:** Low (performance)
 
-**Problem:** In `hooks.py` `fire_after_card_drawn`, `inspect.signature(method).parameters` is called for every card draw to determine the parameter count of each power's `on_card_drawn` method. This is slow.
+**Problem:** `fire_after_card_drawn` used to call `inspect.signature(method).parameters` for every card draw to determine the parameter count of each power's `on_card_drawn` method. This was slow.
 
-**Impact:** Adds unnecessary overhead to every card draw. With many powers active, this can be measurable.
+**Fix:** All power `on_card_drawn` implementations now use `(owner, card, from_hand_draw, combat)`, and the dispatcher calls that signature directly.
 
-**Fix needed:** Standardize all `on_card_drawn` implementations to accept 4 parameters `(owner, card, from_hand_draw, combat)` and remove the signature inspection.
-
-**Location:** `sts2_env/core/hooks.py` lines 295-305
+**Location:** `sts2_env/core/hooks.py`
 
 ### 13. `run_env` exception handling used to hide simulation bugs
 

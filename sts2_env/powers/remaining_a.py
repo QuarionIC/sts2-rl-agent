@@ -231,7 +231,13 @@ class AutomationPower(PowerInstance):
         if owner is target and power_id == self.power_id and amount > 0 and self.amount != amount:
             self._add_instance(amount)
 
-    def on_card_drawn(self, owner: Creature, card: object, combat: CombatState) -> None:
+    def on_card_drawn(
+        self,
+        owner: Creature,
+        card: object,
+        from_hand_draw: bool,
+        combat: CombatState,
+    ) -> None:
         """Called by the draw pipeline when a card is drawn."""
         card_owner = getattr(card, "owner", None)
         if card_owner is not owner:
@@ -473,7 +479,13 @@ class ChainsOfBindingPower(PowerInstance):
         self._bound_cards_this_turn: int = 0
         self._bound_card_played: bool = False
 
-    def on_card_drawn(self, owner: Creature, card: object, combat: CombatState) -> None:
+    def on_card_drawn(
+        self,
+        owner: Creature,
+        card: object,
+        from_hand_draw: bool,
+        combat: CombatState,
+    ) -> None:
         """Called by draw pipeline. Afflicts the card if limit not reached."""
         if getattr(card, "owner", None) is not owner:
             return
@@ -595,7 +607,13 @@ class ConfusedPower(PowerInstance):
     def __init__(self, amount: int = 1):
         super().__init__(PowerId.CONFUSED, amount)
 
-    def on_card_drawn(self, owner: Creature, card: object, combat: CombatState) -> None:
+    def on_card_drawn(
+        self,
+        owner: Creature,
+        card: object,
+        from_hand_draw: bool,
+        combat: CombatState,
+    ) -> None:
         """Called by draw pipeline. Randomizes card cost."""
         card_owner = getattr(card, "owner", None)
         if card_owner is not owner:
@@ -726,7 +744,13 @@ class CorrosiveWavePower(PowerInstance):
     def __init__(self, amount: int):
         super().__init__(PowerId.CORROSIVE_WAVE, amount)
 
-    def on_card_drawn(self, owner: Creature, card: object, combat: CombatState) -> None:
+    def on_card_drawn(
+        self,
+        owner: Creature,
+        card: object,
+        from_hand_draw: bool,
+        combat: CombatState,
+    ) -> None:
         """Called by draw pipeline. Applies Poison to all enemies."""
         card_owner = getattr(card, "owner", None)
         if card_owner is not None and card_owner is not owner:

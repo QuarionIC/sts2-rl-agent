@@ -817,18 +817,10 @@ def fire_after_potion_used(
 
 
 def fire_after_card_drawn(card: object, from_hand_draw: bool, combat: CombatState) -> None:
-    import inspect
     from sts2_env.cards.registry import fire_card_after_card_drawn
 
     for owner, power in _iter_power_listeners(combat):
-        method = getattr(power, "on_card_drawn", None)
-        if method is None:
-            continue
-        param_count = len(inspect.signature(method).parameters)
-        if param_count >= 4:
-            method(owner, card, from_hand_draw, combat)
-        else:
-            method(owner, card, combat)
+        power.on_card_drawn(owner, card, from_hand_draw, combat)
     for state in getattr(combat, "combat_player_states", ()):
         for listener_card in combat.unique_cards_in_piles(state.all_piles):
             fire_card_after_card_drawn(listener_card, card, from_hand_draw, combat)

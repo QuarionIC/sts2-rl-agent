@@ -653,7 +653,13 @@ class IterationPower(PowerInstance):
     def __init__(self, amount: int):
         super().__init__(PowerId.ITERATION, amount)
 
-    def on_card_drawn(self, owner: Creature, card: object, combat: CombatState) -> None:
+    def on_card_drawn(
+        self,
+        owner: Creature,
+        card: object,
+        from_hand_draw: bool,
+        combat: CombatState,
+    ) -> None:
         if getattr(card, "owner", None) is not owner:
             return
         if getattr(card, "card_type", None) == CardType.STATUS:
@@ -1434,7 +1440,13 @@ class PagestormPower(PowerInstance):
     def __init__(self, amount: int):
         super().__init__(PowerId.PAGESTORM, amount)
 
-    def on_card_drawn(self, owner: Creature, card: object, combat: CombatState) -> None:
+    def on_card_drawn(
+        self,
+        owner: Creature,
+        card: object,
+        from_hand_draw: bool,
+        combat: CombatState,
+    ) -> None:
         """Called by the draw system when a card is drawn."""
         if getattr(card, "owner", None) is not owner:
             return

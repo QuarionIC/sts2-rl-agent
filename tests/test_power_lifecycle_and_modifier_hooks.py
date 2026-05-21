@@ -49,6 +49,7 @@ MULTIPLAYER_ALLY_CHARACTER_ID = "Ironclad"
 MULTIPLAYER_TEST_ENEMY_HP = 20
 MULTIPLAYER_ALLY_HP = 70
 ACT_THREE_INDEX = 2
+CARD_DRAW_HOOK_PROBE_DRAW_COUNT = 1
 
 
 def _noop_move(combat: CombatState) -> None:
@@ -100,6 +101,21 @@ class _BlockHookCounterPower(PowerInstance):
     def after_block_gained(self, owner, creature, amount, combat):
         if creature is (self.observed or owner):
             self.calls.append(amount)
+
+
+class _CardDrawHookProbePower(PowerInstance):
+    def __init__(self):
+        super().__init__(PowerId.SPEEDSTER, 1)
+        self.events: list[tuple[Creature, object, bool, CombatState]] = []
+
+    def on_card_drawn(
+        self,
+        owner: Creature,
+        card: object,
+        from_hand_draw: bool,
+        combat: CombatState,
+    ) -> None:
+        self.events.append((owner, card, from_hand_draw, combat))
 
 
 class _TurnEndHpProbePower(PowerInstance):
@@ -482,6 +498,22 @@ class TestPowerApplication:
         simple_combat._start_player_turn()  # noqa: SLF001
 
         assert simple_combat.hand == [first_status, second_status, next_turn_status, first_bonus, second_bonus, next_card]
+
+    def test_card_draw_power_hook_receives_from_hand_draw(self, simple_combat):
+        probe = _CardDrawHookProbePower()
+        first_card = make_strike_ironclad()
+        second_card = make_defend_ironclad()
+        simple_combat.player.powers[probe.power_id] = probe
+        simple_combat.hand.clear()
+        simple_combat.draw_pile = [first_card, second_card]
+
+        simple_combat.draw_cards(simple_combat.player, CARD_DRAW_HOOK_PROBE_DRAW_COUNT)
+        simple_combat._draw_cards(CARD_DRAW_HOOK_PROBE_DRAW_COUNT, from_hand_draw=True)  # noqa: SLF001
+
+        assert probe.events == [
+            (simple_combat.player, first_card, False, simple_combat),
+            (simple_combat.player, second_card, True, simple_combat),
+        ]
 
 
 class TestDebuffTicking:

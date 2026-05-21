@@ -407,10 +407,9 @@ Steps/sec:      28101
 ```
 
 **Bottlenecks:**
-1. `inspect.signature()` in `fire_after_card_drawn` -- called on every card draw to determine parameter count of power `on_card_drawn` methods. This is on the hot path and uses reflection. Could be replaced with a pre-computed dispatch table.
-2. Power iteration in hook dispatch -- iterates all creatures' powers for every hook call. With many powers active, this is O(creatures * powers * hooks_per_step).
-3. Python interpreter overhead -- pure Python is inherently slower than C/C++. A Cython port of the core loop could yield 5-10x improvement.
-4. List operations in card piles -- `draw_pile.pop(0)` is O(n). Using `collections.deque` would make it O(1).
+1. Power iteration in hook dispatch -- iterates all creatures' powers for every hook call. With many powers active, this is O(creatures * powers * hooks_per_step).
+2. Python interpreter overhead -- pure Python is inherently slower than C/C++. A Cython port of the core loop could yield 5-10x improvement.
+3. List operations in card piles -- `draw_pile.pop(0)` is O(n). Using `collections.deque` would make it O(1).
 
 ---
 
@@ -424,9 +423,9 @@ Steps/sec:      28101
 
 3. **Energy always 3 in bridge.** The C# bridge mod was using `CardCmd.AutoPlay()` which does not spend energy. Fixed by switching to `PlayCardAction` which properly deducts energy cost.
 
-### Remaining
+4. **`inspect.signature` on card draw hot path.** `fire_after_card_drawn` used to inspect each power's `on_card_drawn` signature on every draw. Fixed by standardizing power `on_card_drawn` methods to `(owner, card, from_hand_draw, combat)` and dispatching directly.
 
-4. **`inspect.signature` on hot path.** In `fire_after_card_drawn` (hooks.py line 296-305), `inspect.signature(method).parameters` is called every time a card is drawn to determine whether a power's `on_card_drawn` method accepts 3 or 4 parameters. This is a backward-compatibility shim and should be replaced with a uniform 4-parameter signature for all power implementations.
+### Remaining
 
 5. **run_env swallows exceptions.** In `STS2RunEnv.step()` (run_env.py line 238), a bare `except Exception` catches all simulation errors and force-ends the run as a loss. While this prevents training crashes, it silently hides bugs. Simulation errors should be logged before being swallowed.
 
