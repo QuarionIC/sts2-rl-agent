@@ -47,7 +47,7 @@ EncounterSetup = Callable[..., None]
 # ---- Weak Encounters ----
 
 def setup_shrinker_beetle_weak(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_shrinker_beetle(rng)
+    creature, ai = create_shrinker_beetle(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
@@ -124,7 +124,7 @@ def setup_nibbits_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_overgrowth_crawlers(combat: CombatState, rng: Rng) -> None:
-    shrinker, shrinker_ai = create_shrinker_beetle(rng)
+    shrinker, shrinker_ai = create_shrinker_beetle(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(shrinker, shrinker_ai)
     crawler, crawler_ai = create_fuzzy_wurm_crawler(rng)
     combat.add_enemy(crawler, crawler_ai)

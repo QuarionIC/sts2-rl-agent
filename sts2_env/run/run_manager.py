@@ -512,6 +512,7 @@ class RunManager:
             max_potion_slots=player.max_potion_slots,
             player_state=player,
             room=self._current_room,
+            ascension_level=self._run_state.ascension_level,
         )
         self._selected_combat_player_id = player.player_id
 
@@ -568,6 +569,7 @@ class RunManager:
             max_potion_slots=player.max_potion_slots,
             player_state=player,
             room=self._current_room,
+            ascension_level=self._run_state.ascension_level,
         )
         self._selected_combat_player_id = player.player_id
         setup_fn = get_event_encounter_setup(encounter_id)

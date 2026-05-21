@@ -393,6 +393,28 @@ class TestFixedRotation:
         moves = _run_ai(ai, rng, 5)
         assert moves == ["SHRINKER_MOVE", "CHOMP_MOVE", "STOMP_MOVE", "CHOMP_MOVE", "STOMP_MOVE"]
 
+    def test_shrinker_beetle_deadly_ascension_damage_matches_csharp(self):
+        from sts2_env.monsters.act1_weak import create_shrinker_beetle
+
+        rng_seed = 1242
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=70)
+        shrinker, shrinker_ai = create_shrinker_beetle(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(shrinker, shrinker_ai)
+
+        chomp = shrinker_ai.states["CHOMP_MOVE"]
+        assert chomp.intents[0].damage == 8
+        ally_hp_before_chomp = ally.current_hp
+        chomp.perform(combat)
+        assert ally.current_hp == ally_hp_before_chomp - 8
+
+        stomp = shrinker_ai.states["STOMP_MOVE"]
+        assert stomp.intents[0].damage == 14
+        ally_hp_before_stomp = ally.current_hp
+        stomp.perform(combat)
+        assert ally.current_hp == ally_hp_before_stomp - 14
+
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle
 

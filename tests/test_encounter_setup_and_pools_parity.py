@@ -203,6 +203,16 @@ class TestAct1WeakEncounters:
             assert 38 <= e.max_hp <= 40
             assert e.monster_id == "SHRINKER_BEETLE"
 
+    def test_shrinker_beetle_tough_ascension_hp_matches_csharp(self):
+        for seed in range(5):
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+            rng = Rng(seed)
+            setup_shrinker_beetle_weak(combat, rng)
+            e = combat.enemies[0]
+            assert 40 <= e.max_hp <= 42
+            assert e.monster_id == "SHRINKER_BEETLE"
+
     def test_fuzzy_wurm_crawler_count_and_hp(self):
         for seed in range(5):
             combat = _make_combat(seed)

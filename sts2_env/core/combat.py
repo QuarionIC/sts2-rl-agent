@@ -122,9 +122,11 @@ class CombatState:
         player_state: PlayerState | None = None,
         ally_players: Sequence[PlayerState | Creature] | None = None,
         room: object | None = None,
+        ascension_level: int = 0,
     ):
         self.rng = Rng(rng_seed)
         self.room = room
+        self.ascension_level = ascension_level
 
         resolved_character_id = character_id or self._infer_character_id(
             deck,

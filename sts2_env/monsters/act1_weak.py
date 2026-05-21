@@ -29,8 +29,19 @@ from sts2_env.cards.status import make_slimed
 if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
 
+TOUGH_ENEMIES_ASCENSION_LEVEL = 8
+DEADLY_ENEMIES_ASCENSION_LEVEL = 9
+
 
 # ---- Helpers ----
+
+def _ascension_value(ascension_level: int, threshold: int, ascension_value: int, base_value: int) -> int:
+    return ascension_value if ascension_level >= threshold else base_value
+
+
+def _combat_ascension_level(combat: CombatState) -> int:
+    return getattr(combat, "ascension_level", 0)
+
 
 def _deal_damage_to_player(combat: CombatState, creature: Creature, base_dmg: int, hits: int = 1) -> None:
     for _ in range(hits):
@@ -49,24 +60,74 @@ def _gain_block(creature: Creature, amount: int, combat: CombatState) -> None:
     gain_move_block(creature, amount, combat)
 
 
+SHRINKER_BEETLE_BASE_MIN_HP = 38
+SHRINKER_BEETLE_BASE_MAX_HP = 40
+SHRINKER_BEETLE_TOUGH_MIN_HP = 40
+SHRINKER_BEETLE_TOUGH_MAX_HP = 42
+SHRINKER_BEETLE_BASE_CHOMP_DAMAGE = 7
+SHRINKER_BEETLE_DEADLY_CHOMP_DAMAGE = 8
+SHRINKER_BEETLE_BASE_STOMP_DAMAGE = 13
+SHRINKER_BEETLE_DEADLY_STOMP_DAMAGE = 14
+SHRINKER_BEETLE_SHRINK_AMOUNT = -1
+
+
 # ---- ShrinkerBeetle (HP 38-40) ----
 # Cycle: SHRINKER_MOVE → CHOMP_MOVE → STOMP_MOVE → CHOMP_MOVE → STOMP_MOVE...
 
-def create_shrinker_beetle(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(38, 40)
+def create_shrinker_beetle(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SHRINKER_BEETLE_TOUGH_MIN_HP,
+        SHRINKER_BEETLE_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        SHRINKER_BEETLE_TOUGH_MAX_HP,
+        SHRINKER_BEETLE_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
     creature = Creature(max_hp=hp, monster_id="SHRINKER_BEETLE")
-    shrink_amount = -1
-    chomp_dmg = 7
-    stomp_dmg = 13
 
     def shrink(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.SHRINK, shrink_amount, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.SHRINK,
+            SHRINKER_BEETLE_SHRINK_AMOUNT,
+            applier=creature,
+        )
 
     def chomp(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, chomp_dmg)
+        chomp_damage = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SHRINKER_BEETLE_DEADLY_CHOMP_DAMAGE,
+            SHRINKER_BEETLE_BASE_CHOMP_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, chomp_damage)
 
     def stomp(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, stomp_dmg)
+        stomp_damage = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SHRINKER_BEETLE_DEADLY_STOMP_DAMAGE,
+            SHRINKER_BEETLE_BASE_STOMP_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, stomp_damage)
+
+    chomp_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SHRINKER_BEETLE_DEADLY_CHOMP_DAMAGE,
+        SHRINKER_BEETLE_BASE_CHOMP_DAMAGE,
+    )
+    stomp_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        SHRINKER_BEETLE_DEADLY_STOMP_DAMAGE,
+        SHRINKER_BEETLE_BASE_STOMP_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
         "SHRINKER_MOVE": MoveState(
@@ -75,8 +136,18 @@ def create_shrinker_beetle(rng: Rng) -> tuple[Creature, MonsterAI]:
             [strong_debuff_intent()],
             follow_up_id="CHOMP_MOVE",
         ),
-        "CHOMP_MOVE": MoveState("CHOMP_MOVE", chomp, [attack_intent(chomp_dmg)], follow_up_id="STOMP_MOVE"),
-        "STOMP_MOVE": MoveState("STOMP_MOVE", stomp, [attack_intent(stomp_dmg)], follow_up_id="CHOMP_MOVE"),
+        "CHOMP_MOVE": MoveState(
+            "CHOMP_MOVE",
+            chomp,
+            [attack_intent(chomp_intent_damage)],
+            follow_up_id="STOMP_MOVE",
+        ),
+        "STOMP_MOVE": MoveState(
+            "STOMP_MOVE",
+            stomp,
+            [attack_intent(stomp_intent_damage)],
+            follow_up_id="CHOMP_MOVE",
+        ),
     }
     return creature, MonsterAI(states, "SHRINKER_MOVE")
 
