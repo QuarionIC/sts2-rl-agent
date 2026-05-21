@@ -17,7 +17,6 @@ from sts2_env.events.shared import (
     _event_potion_options,
     _obtain_random_relics,
     _roll_event_potion_id,
-    _remove_n_cards,
     _remove_selected_cards,
     _should_defer_event_rewards,
     _transform_n_cards,

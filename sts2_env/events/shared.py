@@ -322,18 +322,6 @@ def _transform_n_cards(run_state: RunState, count: int, rng=None) -> int:
     return transformed
 
 
-def _remove_n_cards(run_state: RunState, count: int) -> int:
-    removed = 0
-    remaining = []
-    for card in run_state.player.deck:
-        if removed < count and card.rarity.name != "QUEST" and card.is_removable:
-            removed += 1
-            continue
-        remaining.append(card)
-    run_state.player.deck = remaining
-    return removed
-
-
 def _upgrade_selected_cards(cards: list, run_state: RunState) -> int:
     upgraded = 0
     for card in cards:
