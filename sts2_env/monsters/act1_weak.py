@@ -155,22 +155,74 @@ def create_shrinker_beetle(rng: Rng, ascension_level: int = 0) -> tuple[Creature
 # ---- FuzzyWurmCrawler (HP 55-57) ----
 # Cycle: ACID_GOOP → INHALE → ACID_GOOP → ACID_GOOP → INHALE...
 
-def create_fuzzy_wurm_crawler(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(55, 57)
+FUZZY_WURM_CRAWLER_BASE_MIN_HP = 55
+FUZZY_WURM_CRAWLER_BASE_MAX_HP = 57
+FUZZY_WURM_CRAWLER_TOUGH_MIN_HP = 58
+FUZZY_WURM_CRAWLER_TOUGH_MAX_HP = 59
+FUZZY_WURM_CRAWLER_BASE_ACID_GOOP_DAMAGE = 4
+FUZZY_WURM_CRAWLER_DEADLY_ACID_GOOP_DAMAGE = 6
+FUZZY_WURM_CRAWLER_INHALE_STRENGTH = 7
+FUZZY_WURM_CRAWLER_FIRST_ACID_GOOP_MOVE = "FIRST_ACID_GOOP"
+FUZZY_WURM_CRAWLER_ACID_GOOP_MOVE = "ACID_GOOP"
+FUZZY_WURM_CRAWLER_INHALE_MOVE = "INHALE"
+
+
+def create_fuzzy_wurm_crawler(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        FUZZY_WURM_CRAWLER_TOUGH_MIN_HP,
+        FUZZY_WURM_CRAWLER_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        FUZZY_WURM_CRAWLER_TOUGH_MAX_HP,
+        FUZZY_WURM_CRAWLER_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
     creature = Creature(max_hp=hp, monster_id="FUZZY_WURM_CRAWLER")
 
     def acid_goop(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, 4)
+        acid_goop_damage = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FUZZY_WURM_CRAWLER_DEADLY_ACID_GOOP_DAMAGE,
+            FUZZY_WURM_CRAWLER_BASE_ACID_GOOP_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, acid_goop_damage)
 
     def inhale(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, 7)
+        creature.apply_power(PowerId.STRENGTH, FUZZY_WURM_CRAWLER_INHALE_STRENGTH)
+
+    acid_goop_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FUZZY_WURM_CRAWLER_DEADLY_ACID_GOOP_DAMAGE,
+        FUZZY_WURM_CRAWLER_BASE_ACID_GOOP_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "FIRST_ACID_GOOP": MoveState("FIRST_ACID_GOOP", acid_goop, [attack_intent(4)], follow_up_id="INHALE"),
-        "INHALE": MoveState("INHALE", inhale, [buff_intent()], follow_up_id="ACID_GOOP"),
-        "ACID_GOOP": MoveState("ACID_GOOP", acid_goop, [attack_intent(4)], follow_up_id="FIRST_ACID_GOOP"),
+        FUZZY_WURM_CRAWLER_FIRST_ACID_GOOP_MOVE: MoveState(
+            FUZZY_WURM_CRAWLER_FIRST_ACID_GOOP_MOVE,
+            acid_goop,
+            [attack_intent(acid_goop_intent_damage)],
+            follow_up_id=FUZZY_WURM_CRAWLER_INHALE_MOVE,
+        ),
+        FUZZY_WURM_CRAWLER_INHALE_MOVE: MoveState(
+            FUZZY_WURM_CRAWLER_INHALE_MOVE,
+            inhale,
+            [buff_intent()],
+            follow_up_id=FUZZY_WURM_CRAWLER_ACID_GOOP_MOVE,
+        ),
+        FUZZY_WURM_CRAWLER_ACID_GOOP_MOVE: MoveState(
+            FUZZY_WURM_CRAWLER_ACID_GOOP_MOVE,
+            acid_goop,
+            [attack_intent(acid_goop_intent_damage)],
+            follow_up_id=FUZZY_WURM_CRAWLER_FIRST_ACID_GOOP_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "FIRST_ACID_GOOP")
+    return creature, MonsterAI(states, FUZZY_WURM_CRAWLER_FIRST_ACID_GOOP_MOVE)
 
 
 # ---- Nibbit (HP 42-46) ----

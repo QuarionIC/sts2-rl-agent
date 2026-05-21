@@ -223,6 +223,16 @@ class TestAct1WeakEncounters:
             assert 55 <= e.max_hp <= 57
             assert e.monster_id == "FUZZY_WURM_CRAWLER"
 
+    def test_fuzzy_wurm_crawler_tough_ascension_hp_matches_csharp(self):
+        for seed in range(5):
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+            rng = Rng(seed)
+            setup_fuzzy_wurm_crawler_weak(combat, rng)
+            e = combat.enemies[0]
+            assert 58 <= e.max_hp <= 59
+            assert e.monster_id == "FUZZY_WURM_CRAWLER"
+
     def test_nibbits_weak_count_and_hp(self):
         for seed in range(5):
             combat = _make_combat(seed)

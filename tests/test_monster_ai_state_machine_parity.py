@@ -415,6 +415,22 @@ class TestFixedRotation:
         stomp.perform(combat)
         assert ally.current_hp == ally_hp_before_stomp - 14
 
+    def test_fuzzy_wurm_crawler_deadly_ascension_damage_matches_csharp(self):
+        from sts2_env.monsters.act1_weak import create_fuzzy_wurm_crawler
+
+        rng_seed = 1243
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=70)
+        crawler, crawler_ai = create_fuzzy_wurm_crawler(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(crawler, crawler_ai)
+
+        first_acid_goop = crawler_ai.states["FIRST_ACID_GOOP"]
+        assert first_acid_goop.intents[0].damage == 6
+        ally_hp_before = ally.current_hp
+        first_acid_goop.perform(combat)
+        assert ally.current_hp == ally_hp_before - 6
+
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle
 
