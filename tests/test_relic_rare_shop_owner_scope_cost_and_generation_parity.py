@@ -14,7 +14,7 @@ from sts2_env.cards.ironclad import create_ironclad_starter_deck, make_barricade
 from sts2_env.cards.ironclad_basic import make_defend_ironclad, make_strike_ironclad
 from sts2_env.cards.status import make_shiv
 from sts2_env.core.combat import CombatState
-from sts2_env.core.enums import CardId, CombatSide, PowerId
+from sts2_env.core.enums import CardId, CardRarity, CardTag, CombatSide, PowerId
 from sts2_env.core.hooks import (
     fire_after_card_exhausted,
     fire_after_card_discarded,
@@ -670,7 +670,7 @@ class TestRelicRareShopOwnerScopeCostAndGenerationParity:
         all_cards = combat.hand + combat.draw_pile + combat.discard_pile + combat.exhaust_pile
         basics = [
             card for card in all_cards
-            if card.rarity.name == "BASIC" and ("STRIKE" in card.card_id.name or "DEFEND" in card.card_id.name)
+            if card.rarity == CardRarity.BASIC and (CardTag.STRIKE in card.tags or CardTag.DEFEND in card.tags)
         ]
         bashes = [card for card in all_cards if card.card_id == CardId.BASH]
 

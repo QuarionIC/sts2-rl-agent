@@ -370,8 +370,8 @@ class GhostSeed(RelicInstance):
         return (
             hasattr(card, "rarity")
             and getattr(card, "rarity", None) == CardRarity.BASIC
-            and hasattr(card, "card_id")
-            and ("STRIKE" in card.card_id.name or "DEFEND" in card.card_id.name)
+            and hasattr(card, "tags")
+            and (CardTag.STRIKE in card.tags or CardTag.DEFEND in card.tags)
             and not getattr(card, "is_ethereal", False)
         )
 
@@ -2307,8 +2307,9 @@ class LeafyPoultice(RelicInstance):
 
     def after_obtained(self, owner: Creature) -> None:
         owner.lose_max_hp(self.MAX_HP_LOSS)
-        strike = next((card for card in owner.basic_strike_defend_cards() if "STRIKE" in card.card_id.name), None)
-        defend = next((card for card in owner.basic_strike_defend_cards() if "DEFEND" in card.card_id.name), None)
+        basic_cards = owner.basic_strike_defend_cards()
+        strike = next((card for card in basic_cards if CardTag.STRIKE in card.tags), None)
+        defend = next((card for card in basic_cards if CardTag.DEFEND in card.tags), None)
         cards = [card for card in (strike, defend) if card is not None]
         if getattr(owner.run_state, "defer_followup_rewards", False):
             owner.offer_transform_cards_reward(len(cards), cards=cards, rng_stream="transformations")

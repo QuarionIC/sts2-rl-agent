@@ -3,7 +3,7 @@
 from sts2_env.cards.factory import create_card
 from sts2_env.cards.silent import make_backstab
 from sts2_env.cards.status import make_debt
-from sts2_env.core.enums import CardId, CardType, RoomType
+from sts2_env.core.enums import CardId, CardRarity, CardTag, CardType, RoomType
 from sts2_env.events.act2 import CrystalSphere, FakeMerchant, FieldOfManSizedHoles, LuminousChoir
 from sts2_env.events.shared import Bugslayer, DrowningBeacon, GraveOfTheForgotten, Orobas, PunchOff, Reflections, ThisOrThat, Trial
 from sts2_env.run.events import EventModel, EventOption, EventResult
@@ -23,6 +23,18 @@ from sts2_env.run.reward_objects import (
 from sts2_env.run.modifiers import ModifierModel
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.shop import ShopInventory, ShopRelicEntry
+
+
+def _basic_card_tag_count(cards, tag: CardTag) -> int:
+    return sum(
+        1
+        for card in cards
+        if card.rarity == CardRarity.BASIC and tag in card.tags
+    )
+
+
+def _basic_strike_defend_count(cards) -> int:
+    return _basic_card_tag_count(cards, CardTag.STRIKE) + _basic_card_tag_count(cards, CardTag.DEFEND)
 
 
 class _FailingChoiceRng:
@@ -406,8 +418,8 @@ def test_treasure_cursed_pearl_auto_applies_curse_and_gold_then_returns_to_map()
 def test_treasure_large_capsule_auto_applies_random_relics_and_added_cards():
     mgr = RunManager(seed=832, character_id="Ironclad")
     starting_relics = len(mgr.run_state.player.relics)
-    starting_strikes = sum(1 for card in mgr.run_state.player.deck if "STRIKE" in card.card_id.name)
-    starting_defends = sum(1 for card in mgr.run_state.player.deck if "DEFEND" in card.card_id.name)
+    starting_strikes = _basic_card_tag_count(mgr.run_state.player.deck, CardTag.STRIKE)
+    starting_defends = _basic_card_tag_count(mgr.run_state.player.deck, CardTag.DEFEND)
     rolled = iter(("ANCHOR", "LANTERN"))
     mgr.run_state.player.roll_relic_reward_id = lambda **_: next(rolled, None)
     mgr._phase = RunManager.PHASE_TREASURE
@@ -421,8 +433,8 @@ def test_treasure_large_capsule_auto_applies_random_relics_and_added_cards():
 
     assert result["phase"] == RunManager.PHASE_MAP_CHOICE
     assert len(mgr.run_state.player.relics) == starting_relics + 3
-    assert sum(1 for card in mgr.run_state.player.deck if "STRIKE" in card.card_id.name) == starting_strikes + 1
-    assert sum(1 for card in mgr.run_state.player.deck if "DEFEND" in card.card_id.name) == starting_defends + 1
+    assert _basic_card_tag_count(mgr.run_state.player.deck, CardTag.STRIKE) == starting_strikes + 1
+    assert _basic_card_tag_count(mgr.run_state.player.deck, CardTag.DEFEND) == starting_defends + 1
 
 
 def test_treasure_relic_with_random_upgrade_effect_returns_to_map_without_choice():
@@ -489,10 +501,7 @@ def test_treasure_leafy_poultice_transforms_one_strike_and_one_defend_without_ch
 
     assert result["phase"] == RunManager.PHASE_MAP_CHOICE
     assert mgr.run_state.pending_choice is None
-    assert sum(
-        1 for card in mgr.run_state.player.deck
-        if card.rarity.name == "BASIC" and ("STRIKE" in card.card_id.name or "DEFEND" in card.card_id.name)
-    ) == 7
+    assert _basic_strike_defend_count(mgr.run_state.player.deck) == 7
 
 
 def test_leafy_poultice_immediate_transform_uses_transformations_rng():
@@ -502,10 +511,7 @@ def test_leafy_poultice_immediate_transform_uses_transformations_rng():
 
     assert mgr.run_state.player.obtain_relic("LEAFY_POULTICE")
 
-    assert sum(
-        1 for card in mgr.run_state.player.deck
-        if card.rarity.name == "BASIC" and ("STRIKE" in card.card_id.name or "DEFEND" in card.card_id.name)
-    ) == 7
+    assert _basic_strike_defend_count(mgr.run_state.player.deck) == 7
 
 
 def test_treasure_sand_castle_applies_random_upgrades_without_choice():
@@ -655,10 +661,7 @@ def test_treasure_pandoras_box_transforms_all_basic_strike_defends_without_choic
 
     assert result["phase"] == RunManager.PHASE_MAP_CHOICE
     assert mgr.run_state.pending_choice is None
-    assert sum(
-        1 for card in mgr.run_state.player.deck
-        if card.rarity.name == "BASIC" and ("STRIKE" in card.card_id.name or "DEFEND" in card.card_id.name)
-    ) == 0
+    assert _basic_strike_defend_count(mgr.run_state.player.deck) == 0
 
 
 def test_dollys_mirror_pending_choice_excludes_quest_cards():

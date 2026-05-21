@@ -6,7 +6,7 @@ from sts2_env.cards.factory import create_card
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.cards.status import make_curse_of_the_bell
 from sts2_env.characters.all import IRONCLAD
-from sts2_env.core.enums import CardId, CardRarity, CardType, MapPointType, RoomType
+from sts2_env.core.enums import CardId, CardRarity, CardTag, CardType, MapPointType, RoomType
 from sts2_env.relics.base import RelicId
 from sts2_env.run.reward_objects import (
     AddCardsReward,
@@ -473,7 +473,7 @@ def test_pandoras_box_only_transforms_basic_strike_defend_cards():
     assert sum(
         1
         for card in run_state.player.deck
-        if card.rarity.name == "BASIC" and ("STRIKE" in card.card_id.name or "DEFEND" in card.card_id.name)
+        if card.rarity == CardRarity.BASIC and (CardTag.STRIKE in card.tags or CardTag.DEFEND in card.tags)
     ) == 0
 
 

@@ -18,7 +18,7 @@ from sts2_env.cards.factory import (
 )
 from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.selection import CardChoiceOption, PendingCardChoice
-from sts2_env.core.enums import CardId, CardRarity, CardType
+from sts2_env.core.enums import CardId, CardRarity, CardTag, CardType
 from sts2_env.core.rng import Rng, deterministic_hash_code
 from sts2_env.core.enums import MapPointType, RoomType
 from sts2_env.characters.all import get_character
@@ -468,7 +468,7 @@ class PlayerState:
         for card in self.deck:
             if (
                 card.rarity.name == "BASIC"
-                and "STRIKE" in card.card_id.name
+                and CardTag.STRIKE in card.tags
                 and can_enchant_card(card, enchantment)
             ):
                 card.add_enchantment(enchantment, amount)
@@ -477,9 +477,9 @@ class PlayerState:
 
     def _coerce_card_id(self, name: str) -> CardId | None:
         if name == "Strike":
-            return next((card_id for card_id in get_character(self.character_id).card_pool if "STRIKE" in card_id.name), None)
+            return self._basic_card_id_with_tag(CardTag.STRIKE)
         if name == "Defend":
-            return next((card_id for card_id in get_character(self.character_id).card_pool if "DEFEND" in card_id.name), None)
+            return self._basic_card_id_with_tag(CardTag.DEFEND)
         candidates = {
             name,
             name.upper(),
@@ -489,6 +489,23 @@ class PlayerState:
             if candidate in CardId.__members__:
                 return CardId[candidate]
         return None
+
+    def _basic_card_id_with_tag(self, tag: CardTag) -> CardId | None:
+        from sts2_env.cards.reference_static_metadata import reference_metadata_by_card_id
+
+        metadata_by_card_id = reference_metadata_by_card_id()
+        return next(
+            (
+                card_id
+                for card_id in get_character(self.character_id).card_pool
+                if (
+                    (metadata := metadata_by_card_id.get(card_id)) is not None
+                    and metadata.rarity == CardRarity.BASIC
+                    and tag in metadata.tags
+                )
+            ),
+            None,
+        )
 
     def add_card_to_deck(self, name: str, upgraded: bool = False) -> bool:
         card_id = self._coerce_card_id(name)
@@ -545,7 +562,7 @@ class PlayerState:
     def basic_strike_defend_cards(self) -> list[CardInstance]:
         return [
             card for card in self.removable_deck_cards()
-            if card.rarity == CardRarity.BASIC and ("STRIKE" in card.card_id.name or "DEFEND" in card.card_id.name)
+            if card.rarity == CardRarity.BASIC and (CardTag.STRIKE in card.tags or CardTag.DEFEND in card.tags)
         ]
 
     def upgradable_deck_cards(self, card_type: CardType | None = None) -> list[CardInstance]:
