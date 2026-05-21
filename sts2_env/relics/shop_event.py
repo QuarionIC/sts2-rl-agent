@@ -265,17 +265,38 @@ class DingyRug(RelicInstance):
         room: Room | None,
         run_state: RunState,
     ) -> CardRewardGenerationOptions:
-        from sts2_env.run.rewards import CardRewardGenerationOptions
+        from sts2_env.cards.factory import card_metadata, eligible_registered_cards
+        from sts2_env.run.rewards import CardRewardGenerationOptions, card_reward_candidate_ids
 
         if not options.allow_card_pool_modifications:
             return options
+        custom_card_ids = card_reward_candidate_ids(
+            run_state,
+            options,
+            default_character_id=owner.character_id,
+            card_type=options.card_type,
+            generation_context=options.generation_context,
+        )
+        allowed_rarities = None
+        if not options.allow_rarity_modifications:
+            allowed_rarities = {card_metadata(card_id).rarity for card_id in custom_card_ids}
+        colorless_ids = tuple(
+            card_id
+            for card_id in eligible_registered_cards(
+                card_pool=CardPoolId.COLORLESS,
+                card_type=options.card_type,
+                generation_context=options.generation_context,
+                is_multiplayer=len(run_state.players) > 1,
+            )
+            if allowed_rarities is None or card_metadata(card_id).rarity in allowed_rarities
+        )
         return CardRewardGenerationOptions(
             context=options.context,
             num_cards=options.num_cards,
-            character_ids=options.character_ids,
+            character_ids=(),
             forced_rarities=options.forced_rarities,
-            include_colorless=True,
-            use_default_character_pool=options.use_default_character_pool,
+            include_colorless=False,
+            use_default_character_pool=False,
             generation_context=options.generation_context,
             roll_upgrade=options.roll_upgrade,
             card_type=options.card_type,
@@ -283,8 +304,8 @@ class DingyRug(RelicInstance):
             allow_card_pool_modifications=options.allow_card_pool_modifications,
             allow_rarity_modifications=options.allow_rarity_modifications,
             allow_hook_upgrades=options.allow_hook_upgrades,
-            has_custom_card_pool=options.has_custom_card_pool,
-            custom_card_ids=options.custom_card_ids,
+            has_custom_card_pool=True,
+            custom_card_ids=tuple(dict.fromkeys((*custom_card_ids, *colorless_ids))),
         )
 
 

@@ -34,11 +34,20 @@ from sts2_env.cards.base import (
     restore_self_mutating_card_progress,
 )
 from sts2_env.run.odds import UnknownMapPointOdds, CardRarityOdds, PotionRewardOdds
+from sts2_env.run.rewards import (
+    CARD_CREATION_SOURCE_OTHER,
+    CardRewardGenerationOptions,
+)
 
 
 UNLOCK_STATE_NUMBER_OF_RUNS_KEY = "number_of_runs"
 UNLOCK_STATE_EPOCH_UNLOCK_COUNT_KEY = "epoch_unlock_count"
 FIRST_RUN_COUNT = 0
+SCROLL_BOXES_BUNDLE_COUNT = 2
+SCROLL_BOXES_COMMON_CARDS_PER_BUNDLE = 2
+SCROLL_BOXES_CLAW_CARDS_PER_BUNDLE = 3
+SCROLL_BOXES_CLAW_BUNDLE_CHANCE_PERCENT = 1
+SCROLL_BOXES_CLAW_BUNDLE_ROLL_BOUND = 100
 
 
 @dataclass(frozen=True)
@@ -1120,28 +1129,21 @@ class PlayerState:
     def offer_card_bundles(self) -> None:
         from sts2_env.run.reward_objects import CardBundlesReward
 
-        is_multiplayer = len(self.run_state.players) > 1
-        common_ids = eligible_character_cards(
-            self.character_id,
-            rarity=CardRarity.COMMON,
-            generation_context=None,
-            is_multiplayer=is_multiplayer,
-        )
-        uncommon_ids = eligible_character_cards(
-            self.character_id,
-            rarity=CardRarity.UNCOMMON,
-            generation_context=None,
-            is_multiplayer=is_multiplayer,
-        )
+        common_ids = self._card_bundle_candidate_ids(CardRarity.COMMON)
+        uncommon_ids = self._card_bundle_candidate_ids(CardRarity.UNCOMMON)
         used_ids: set[CardId] = set()
         bundles: list[list[CardInstance]] = []
-        for _ in range(2):
-            if self.character_id == "Defect" and self.run_state.rng.rewards.next_int_exclusive(0, 100) < 1:
-                bundles.append([create_card(CardId.CLAW), create_card(CardId.CLAW), create_card(CardId.CLAW)])
+        for _ in range(SCROLL_BOXES_BUNDLE_COUNT):
+            if (
+                self.character_id == CardPoolId.DEFECT.value
+                and self.run_state.rng.rewards.next_int_exclusive(0, SCROLL_BOXES_CLAW_BUNDLE_ROLL_BOUND)
+                < SCROLL_BOXES_CLAW_BUNDLE_CHANCE_PERCENT
+            ):
+                bundles.append([create_card(CardId.CLAW) for _ in range(SCROLL_BOXES_CLAW_CARDS_PER_BUNDLE)])
                 continue
             bundle: list[CardInstance] = []
             available_common = [card_id for card_id in common_ids if card_id not in used_ids]
-            for _ in range(2):
+            for _ in range(SCROLL_BOXES_COMMON_CARDS_PER_BUNDLE):
                 card_id = self.run_state.rng.rewards.choice(available_common)
                 bundle.append(create_card(card_id))
                 used_ids.add(card_id)
@@ -1152,6 +1154,42 @@ class PlayerState:
             used_ids.add(card_id)
             bundles.append(bundle)
         self.run_state.pending_rewards.append(CardBundlesReward(self.player_id, bundles))
+
+    def _card_bundle_candidate_ids(self, rarity: CardRarity) -> list[CardId]:
+        options = CardRewardGenerationOptions(
+            forced_rarities=(rarity,),
+            card_creation_source=CARD_CREATION_SOURCE_OTHER,
+            generation_context=None,
+            roll_upgrade=False,
+            allow_rarity_modifications=False,
+        )
+        for relic in self.get_relic_objects():
+            options = relic.modify_card_reward_creation_options(
+                self,
+                options,
+                None,
+                None,
+                self.run_state,
+            )
+        for modifier in self.run_state.modifiers:
+            options = modifier.modify_card_reward_creation_options(
+                self,
+                options,
+                None,
+                None,
+                self.run_state,
+            )
+        from sts2_env.run.rewards import card_reward_candidate_ids
+
+        return list(
+            card_reward_candidate_ids(
+                self.run_state,
+                options,
+                default_character_id=self.character_id,
+                rarity=rarity,
+                generation_context=None,
+            )
+        )
 
     def roll_relic_reward_id(
         self,

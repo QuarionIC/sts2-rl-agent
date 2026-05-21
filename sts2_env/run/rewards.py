@@ -83,6 +83,71 @@ def _is_multiplayer_run(run_state: RunState) -> bool:
     return len(run_state.players) > 1
 
 
+def card_reward_candidate_ids(
+    run_state: RunState,
+    options: CardRewardGenerationOptions,
+    *,
+    default_character_id: str,
+    rarity: CardRarity | None = None,
+    card_type: CardType | None = None,
+    generation_context: str | None = None,
+    cost: int | None = None,
+    costs_x: bool | None = None,
+) -> tuple[CardId, ...]:
+    seen_ids: set[CardId] = set()
+    candidate_ids: list[CardId] = []
+    if options.custom_card_ids:
+        for card_id in options.custom_card_ids:
+            if card_id in seen_ids:
+                continue
+            try:
+                metadata = card_metadata(card_id)
+            except KeyError:
+                continue
+            if rarity is not None and metadata.rarity is not rarity:
+                continue
+            if card_type is not None and metadata.card_type is not card_type:
+                continue
+            if not _matches_card_instance_filters(card_id, cost=cost, costs_x=costs_x):
+                continue
+            seen_ids.add(card_id)
+            candidate_ids.append(card_id)
+        return tuple(candidate_ids)
+
+    character_ids = options.character_ids
+    if options.use_default_character_pool and not character_ids:
+        character_ids = (default_character_id,)
+    for character_id in character_ids:
+        for card_id in eligible_character_cards(
+            character_id,
+            card_type=card_type,
+            rarity=rarity,
+            generation_context=generation_context,
+            is_multiplayer=_is_multiplayer_run(run_state),
+        ):
+            if card_id in seen_ids:
+                continue
+            if not _matches_card_instance_filters(card_id, cost=cost, costs_x=costs_x):
+                continue
+            seen_ids.add(card_id)
+            candidate_ids.append(card_id)
+    if options.include_colorless:
+        for card_id in eligible_registered_cards(
+            card_pool=CardPoolId.COLORLESS,
+            card_type=card_type,
+            rarity=rarity,
+            generation_context=generation_context,
+            is_multiplayer=_is_multiplayer_run(run_state),
+        ):
+            if card_id in seen_ids:
+                continue
+            if not _matches_card_instance_filters(card_id, cost=cost, costs_x=costs_x):
+                continue
+            seen_ids.add(card_id)
+            candidate_ids.append(card_id)
+    return tuple(candidate_ids)
+
+
 def generate_card_reward(
     run_state: RunState,
     context: str = "regular",

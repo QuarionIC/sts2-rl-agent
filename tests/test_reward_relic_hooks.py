@@ -2,8 +2,9 @@
 
 from sts2_env.core.combat import CombatState
 from sts2_env.cards.factory import create_card
-from sts2_env.cards.factory import eligible_character_cards
+from sts2_env.cards.factory import eligible_character_cards, eligible_registered_cards
 from sts2_env.characters.all import get_character
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import CardId, CardRarity, CardType, RelicRarity, RoomType, ValueProp
 from sts2_env.run.reward_objects import (
     AddCardsReward,
@@ -335,6 +336,58 @@ def test_scroll_boxes_enqueues_choose_one_card_bundle_reward():
         for bundle in bundles[0].bundles
     )
     assert len({card.card_id for bundle in bundles[0].bundles for card in bundle}) == 6
+
+
+def test_scroll_boxes_applies_dingy_rug_card_pool_hook_to_bundle_candidates():
+    run_state = RunState(seed=2, character_id="Ironclad")
+    assert run_state.player.obtain_relic("DINGY_RUG")
+    assert run_state.player.obtain_relic("SCROLL_BOXES")
+
+    bundle_reward = next(reward for reward in run_state.pending_rewards if isinstance(reward, CardBundlesReward))
+    ironclad_pool = set(get_character("Ironclad").card_pool)
+    uncommon_cards = [
+        card
+        for bundle in bundle_reward.bundles
+        for card in bundle
+        if card.rarity == CardRarity.UNCOMMON
+    ]
+    assert any(card.card_id not in ironclad_pool for card in uncommon_cards)
+
+
+def test_scroll_boxes_applies_prismatic_gem_card_pool_hook_to_bundle_candidates():
+    run_state = RunState(seed=213, character_id="Ironclad")
+    assert run_state.player.obtain_relic("PRISMATIC_GEM")
+    assert run_state.player.obtain_relic("SCROLL_BOXES")
+
+    bundle_reward = next(reward for reward in run_state.pending_rewards if isinstance(reward, CardBundlesReward))
+    ironclad_pool = set(get_character("Ironclad").card_pool)
+    assert any(
+        card.card_id not in ironclad_pool
+        for bundle in bundle_reward.bundles
+        for card in bundle
+    )
+
+
+def test_scroll_boxes_dingy_rug_freezes_pool_before_prismatic_gem():
+    run_state = RunState(seed=213, character_id="Ironclad")
+    assert run_state.player.obtain_relic("DINGY_RUG")
+    assert run_state.player.obtain_relic("PRISMATIC_GEM")
+    assert run_state.player.obtain_relic("SCROLL_BOXES")
+
+    bundle_reward = next(reward for reward in run_state.pending_rewards if isinstance(reward, CardBundlesReward))
+    ironclad_pool = set(get_character("Ironclad").card_pool)
+    colorless_uncommon_pool = set(
+        eligible_registered_cards(
+            card_pool=CardPoolId.COLORLESS,
+            rarity=CardRarity.UNCOMMON,
+            generation_context=None,
+        )
+    )
+    assert all(
+        card.card_id in ironclad_pool or card.card_id in colorless_uncommon_pool
+        for bundle in bundle_reward.bundles
+        for card in bundle
+    )
 
 
 def test_scroll_boxes_card_bundle_pick_adds_entire_selected_bundle():
@@ -804,6 +857,31 @@ def test_dingy_rug_adds_colorless_cards_to_reward_pool():
 
     ironclad_pool = set(get_character("Ironclad").card_pool)
     assert any(card.card_id not in ironclad_pool for card in reward.cards)
+
+
+def test_dingy_rug_freezes_card_reward_pool_before_prismatic_gem():
+    run_state = RunState(seed=209, character_id="Ironclad")
+    assert run_state.player.obtain_relic("DINGY_RUG")
+    assert run_state.player.obtain_relic("PRISMATIC_GEM")
+
+    reward = CardReward(
+        run_state.player.player_id,
+        forced_rarities=(CardRarity.UNCOMMON,) * 20,
+    )
+    reward.populate(run_state, create_room(RoomType.MONSTER))
+
+    ironclad_pool = set(get_character("Ironclad").card_pool)
+    colorless_uncommon_pool = set(
+        eligible_registered_cards(
+            card_pool=CardPoolId.COLORLESS,
+            rarity=CardRarity.UNCOMMON,
+            generation_context="combat",
+        )
+    )
+    assert all(
+        card.card_id in ironclad_pool or card.card_id in colorless_uncommon_pool
+        for card in reward.cards
+    )
 
 
 def test_lava_lamp_upgrades_only_no_damage_combat_rewards():

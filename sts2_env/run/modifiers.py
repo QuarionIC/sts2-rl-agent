@@ -353,16 +353,30 @@ class CharacterCardsModifier(ModifierModel):
     def modify_card_reward_creation_options(self, player, options, reward, room, run_state):
         if not options.allow_card_pool_modifications:
             return options
-        character_ids = options.character_ids
-        if options.use_default_character_pool and not character_ids:
-            character_ids = (player.character_id,)
+        from sts2_env.run.rewards import card_reward_candidate_ids
+
+        custom_card_ids = (
+            *card_reward_candidate_ids(
+                run_state,
+                options,
+                default_character_id=player.character_id,
+                card_type=options.card_type,
+                generation_context=options.generation_context,
+            ),
+            *eligible_character_cards(
+                self.character_id,
+                card_type=options.card_type,
+                generation_context=options.generation_context,
+                is_multiplayer=len(run_state.players) > 1,
+            ),
+        )
         return CardRewardGenerationOptions(
             context=options.context,
             num_cards=options.num_cards,
-            character_ids=self._with_character(character_ids),
+            character_ids=(),
             forced_rarities=options.forced_rarities,
             include_colorless=options.include_colorless,
-            use_default_character_pool=False,
+            use_default_character_pool=options.use_default_character_pool,
             generation_context=options.generation_context,
             roll_upgrade=options.roll_upgrade,
             card_type=options.card_type,
@@ -370,8 +384,8 @@ class CharacterCardsModifier(ModifierModel):
             allow_card_pool_modifications=options.allow_card_pool_modifications,
             allow_rarity_modifications=options.allow_rarity_modifications,
             allow_hook_upgrades=options.allow_hook_upgrades,
-            has_custom_card_pool=options.has_custom_card_pool,
-            custom_card_ids=options.custom_card_ids,
+            has_custom_card_pool=True,
+            custom_card_ids=tuple(dict.fromkeys(custom_card_ids)),
         )
 
     def modify_merchant_card_character_ids(self, player, character_ids, run_state):

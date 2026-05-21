@@ -383,8 +383,14 @@ def test_character_cards_modifier_expands_card_reward_pool():
 
     modified = modifier.modify_card_reward_creation_options(run_state.player, options, None, None, run_state)
 
-    assert modified.character_ids == ("Ironclad", "Silent")
-    assert modified.use_default_character_pool is False
+    assert modified.character_ids == ()
+    assert modified.has_custom_card_pool is True
+    assert modified.use_default_character_pool is True
+    assert modified.custom_card_ids
+    ironclad_pool = set(get_character("Ironclad").card_pool)
+    silent_pool = set(get_character("Silent").card_pool)
+    assert any(card_id in ironclad_pool for card_id in modified.custom_card_ids)
+    assert any(card_id in silent_pool for card_id in modified.custom_card_ids)
 
     locked = CardRewardGenerationOptions(allow_card_pool_modifications=False)
     assert modifier.modify_card_reward_creation_options(run_state.player, locked, None, None, run_state) is locked
