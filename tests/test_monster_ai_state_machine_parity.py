@@ -187,6 +187,17 @@ from sts2_env.run.run_state import PlayerState
 STARTING_ACT_INDEX = 0
 NIBBIT_SLICE_MOVE_ID = "SLICE_MOVE"
 NIBBIT_SLICE_MOVE_BLOCK = 5
+RUBY_RAIDER_KILLSHOT_DAMAGE_A9 = 12
+RUBY_RAIDER_SWING_DAMAGE_A9 = 6
+RUBY_RAIDER_SWING_BLOCK_A9 = 6
+RUBY_RAIDER_BIG_SWING_DAMAGE_A9 = 13
+RUBY_RAIDER_BEAT_DAMAGE_A9 = 8
+RUBY_RAIDER_ROAR_STRENGTH = 3
+RUBY_RAIDER_FIRE_DAMAGE_A9 = 16
+RUBY_RAIDER_RELOAD_BLOCK = 3
+RUBY_RAIDER_HOUNDS_DAMAGE = 1
+RUBY_RAIDER_HOUNDS_HITS_A9 = 9
+RUBY_RAIDER_TRACK_FRAIL = 2
 TOUGH_EGG_INITIAL_HP = 16
 TOUGH_EGG_HATCHLING_HP = 20
 MULTIPLAYER_TEST_PLAYER_COUNT = 2
@@ -685,6 +696,70 @@ class TestFixedRotation:
         energy_orb.perform(combat)
         assert ally.current_hp == ally_hp_before - 4
         assert jaxfruit.get_power_amount(PowerId.STRENGTH) == 2
+
+    def test_ruby_raider_ascension_scaling_matches_csharp(self):
+        rng_seed = 1278
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=100)
+        assassin, assassin_ai = create_assassin_ruby_raider(Rng(rng_seed), ascension_level=9)
+        axe, axe_ai = create_axe_ruby_raider(Rng(rng_seed), ascension_level=9)
+        brute, brute_ai = create_brute_ruby_raider(Rng(rng_seed), ascension_level=9)
+        crossbow, crossbow_ai = create_crossbow_ruby_raider(Rng(rng_seed), ascension_level=9)
+        tracker, tracker_ai = create_tracker_ruby_raider(Rng(rng_seed), ascension_level=9)
+        for creature, ai in (
+            (assassin, assassin_ai),
+            (axe, axe_ai),
+            (brute, brute_ai),
+            (crossbow, crossbow_ai),
+            (tracker, tracker_ai),
+        ):
+            combat.add_enemy(creature, ai)
+
+        killshot = assassin_ai.states["KILLSHOT_MOVE"]
+        assert killshot.intents[0].damage == RUBY_RAIDER_KILLSHOT_DAMAGE_A9
+        ally_hp_before_killshot = ally.current_hp
+        killshot.perform(combat)
+        assert ally.current_hp == ally_hp_before_killshot - RUBY_RAIDER_KILLSHOT_DAMAGE_A9
+
+        swing = axe_ai.states["SWING_1"]
+        assert swing.intents[0].damage == RUBY_RAIDER_SWING_DAMAGE_A9
+        axe.block = 0
+        ally_hp_before_swing = ally.current_hp
+        swing.perform(combat)
+        assert ally.current_hp == ally_hp_before_swing - RUBY_RAIDER_SWING_DAMAGE_A9
+        assert axe.block == _expected_starting_act_multiplayer_enemy_hp(combat, RUBY_RAIDER_SWING_BLOCK_A9)
+
+        big_swing = axe_ai.states["BIG_SWING"]
+        assert big_swing.intents[0].damage == RUBY_RAIDER_BIG_SWING_DAMAGE_A9
+        ally_hp_before_big_swing = ally.current_hp
+        big_swing.perform(combat)
+        assert ally.current_hp == ally_hp_before_big_swing - RUBY_RAIDER_BIG_SWING_DAMAGE_A9
+
+        beat = brute_ai.states["BEAT_MOVE"]
+        assert beat.intents[0].damage == RUBY_RAIDER_BEAT_DAMAGE_A9
+        ally_hp_before_beat = ally.current_hp
+        beat.perform(combat)
+        assert ally.current_hp == ally_hp_before_beat - RUBY_RAIDER_BEAT_DAMAGE_A9
+        brute_ai.states["ROAR_MOVE"].perform(combat)
+        assert brute.get_power_amount(PowerId.STRENGTH) == RUBY_RAIDER_ROAR_STRENGTH
+
+        fire = crossbow_ai.states["FIRE_MOVE"]
+        assert fire.intents[0].damage == RUBY_RAIDER_FIRE_DAMAGE_A9
+        ally_hp_before_fire = ally.current_hp
+        fire.perform(combat)
+        assert ally.current_hp == ally_hp_before_fire - RUBY_RAIDER_FIRE_DAMAGE_A9
+        crossbow_ai.states["RELOAD_MOVE"].perform(combat)
+        assert crossbow.block == _expected_starting_act_multiplayer_enemy_hp(combat, RUBY_RAIDER_RELOAD_BLOCK)
+
+        hounds = tracker_ai.states["HOUNDS_MOVE"]
+        assert hounds.intents[0].damage == RUBY_RAIDER_HOUNDS_DAMAGE
+        assert hounds.intents[0].hits == RUBY_RAIDER_HOUNDS_HITS_A9
+        ally_hp_before_hounds = ally.current_hp
+        hounds.perform(combat)
+        assert ally.current_hp == ally_hp_before_hounds - RUBY_RAIDER_HOUNDS_DAMAGE * RUBY_RAIDER_HOUNDS_HITS_A9
+        tracker_ai.states["TRACK_MOVE"].perform(combat)
+        assert ally.get_power_amount(PowerId.FRAIL) == RUBY_RAIDER_TRACK_FRAIL
 
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle

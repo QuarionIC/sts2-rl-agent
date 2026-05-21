@@ -140,7 +140,7 @@ def setup_ruby_raiders_normal(combat: CombatState, rng: Rng) -> None:
     ]
     chosen = rng.sample(raider_creators, 3)
     for creator in chosen:
-        creature, ai = creator(rng)
+        creature, ai = creator(rng, ascension_level=combat.ascension_level)
         combat.add_enemy(creature, ai)
 
 

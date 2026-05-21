@@ -120,6 +120,15 @@ def _make_combat(rng_seed: int = 42) -> CombatState:
     return CombatState(player_hp=80, player_max_hp=80, deck=deck, rng_seed=rng_seed)
 
 
+RUBY_RAIDER_TOUGH_HP_RANGES = {
+    "ASSASSIN_RUBY_RAIDER": (19, 24),
+    "AXE_RUBY_RAIDER": (21, 23),
+    "BRUTE_RUBY_RAIDER": (31, 34),
+    "CROSSBOW_RUBY_RAIDER": (19, 22),
+    "TRACKER_RUBY_RAIDER": (22, 26),
+}
+
+
 class _ExclusiveHighRng:
     def next_int_exclusive(self, low: int, high: int) -> int:
         return high - 1
@@ -394,6 +403,22 @@ class TestAct1NormalEncounters:
 
         assert [enemy.monster_id for enemy in combat.enemies] == expected_raiders_for_seed
         assert len(set(enemy.monster_id for enemy in combat.enemies)) == len(expected_raiders_for_seed)
+
+    def test_ruby_raiders_tough_ascension_hp_matches_csharp(self):
+        seen_raiders = set()
+        for seed in range(30):
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+
+            setup_ruby_raiders_normal(combat, Rng(seed))
+
+            assert len(combat.enemies) == 3
+            for enemy in combat.enemies:
+                min_hp, max_hp = RUBY_RAIDER_TOUGH_HP_RANGES[enemy.monster_id]
+                assert min_hp <= enemy.max_hp <= max_hp
+                seen_raiders.add(enemy.monster_id)
+
+        assert seen_raiders == set(RUBY_RAIDER_TOUGH_HP_RANGES)
 
     def test_slimes_normal_count(self):
         seen_small_orders = set()

@@ -884,107 +884,340 @@ def create_snapping_jaxfruit(rng: Rng, ascension_level: int = 0) -> tuple[Creatu
 
 # ---- RubyRaiders ----
 
-def create_assassin_ruby_raider(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(18, 23)
-    creature = Creature(max_hp=hp, monster_id="ASSASSIN_RUBY_RAIDER")
-    killshot_dmg = 11
+ASSASSIN_RUBY_RAIDER_ID = "ASSASSIN_RUBY_RAIDER"
+ASSASSIN_RUBY_RAIDER_BASE_MIN_HP = 18
+ASSASSIN_RUBY_RAIDER_BASE_MAX_HP = 23
+ASSASSIN_RUBY_RAIDER_TOUGH_MIN_HP = 19
+ASSASSIN_RUBY_RAIDER_TOUGH_MAX_HP = 24
+ASSASSIN_RUBY_RAIDER_BASE_KILLSHOT_DAMAGE = 11
+ASSASSIN_RUBY_RAIDER_DEADLY_KILLSHOT_DAMAGE = 12
+ASSASSIN_RUBY_RAIDER_KILLSHOT_MOVE = "KILLSHOT_MOVE"
+
+AXE_RUBY_RAIDER_ID = "AXE_RUBY_RAIDER"
+AXE_RUBY_RAIDER_BASE_MIN_HP = 20
+AXE_RUBY_RAIDER_BASE_MAX_HP = 22
+AXE_RUBY_RAIDER_TOUGH_MIN_HP = 21
+AXE_RUBY_RAIDER_TOUGH_MAX_HP = 23
+AXE_RUBY_RAIDER_BASE_SWING_DAMAGE = 5
+AXE_RUBY_RAIDER_DEADLY_SWING_DAMAGE = 6
+AXE_RUBY_RAIDER_BASE_SWING_BLOCK = 5
+AXE_RUBY_RAIDER_DEADLY_SWING_BLOCK = 6
+AXE_RUBY_RAIDER_BASE_BIG_SWING_DAMAGE = 12
+AXE_RUBY_RAIDER_DEADLY_BIG_SWING_DAMAGE = 13
+AXE_RUBY_RAIDER_SWING_1_MOVE = "SWING_1"
+AXE_RUBY_RAIDER_SWING_2_MOVE = "SWING_2"
+AXE_RUBY_RAIDER_BIG_SWING_MOVE = "BIG_SWING"
+
+BRUTE_RUBY_RAIDER_ID = "BRUTE_RUBY_RAIDER"
+BRUTE_RUBY_RAIDER_BASE_MIN_HP = 30
+BRUTE_RUBY_RAIDER_BASE_MAX_HP = 33
+BRUTE_RUBY_RAIDER_TOUGH_MIN_HP = 31
+BRUTE_RUBY_RAIDER_TOUGH_MAX_HP = 34
+BRUTE_RUBY_RAIDER_BASE_BEAT_DAMAGE = 7
+BRUTE_RUBY_RAIDER_DEADLY_BEAT_DAMAGE = 8
+BRUTE_RUBY_RAIDER_ROAR_STRENGTH = 3
+BRUTE_RUBY_RAIDER_BEAT_MOVE = "BEAT_MOVE"
+BRUTE_RUBY_RAIDER_ROAR_MOVE = "ROAR_MOVE"
+
+CROSSBOW_RUBY_RAIDER_ID = "CROSSBOW_RUBY_RAIDER"
+CROSSBOW_RUBY_RAIDER_BASE_MIN_HP = 18
+CROSSBOW_RUBY_RAIDER_BASE_MAX_HP = 21
+CROSSBOW_RUBY_RAIDER_TOUGH_MIN_HP = 19
+CROSSBOW_RUBY_RAIDER_TOUGH_MAX_HP = 22
+CROSSBOW_RUBY_RAIDER_BASE_FIRE_DAMAGE = 14
+CROSSBOW_RUBY_RAIDER_DEADLY_FIRE_DAMAGE = 16
+CROSSBOW_RUBY_RAIDER_RELOAD_BLOCK = 3
+CROSSBOW_RUBY_RAIDER_RELOAD_MOVE = "RELOAD_MOVE"
+CROSSBOW_RUBY_RAIDER_FIRE_MOVE = "FIRE_MOVE"
+
+TRACKER_RUBY_RAIDER_ID = "TRACKER_RUBY_RAIDER"
+TRACKER_RUBY_RAIDER_BASE_MIN_HP = 21
+TRACKER_RUBY_RAIDER_BASE_MAX_HP = 25
+TRACKER_RUBY_RAIDER_TOUGH_MIN_HP = 22
+TRACKER_RUBY_RAIDER_TOUGH_MAX_HP = 26
+TRACKER_RUBY_RAIDER_HOUNDS_DAMAGE = 1
+TRACKER_RUBY_RAIDER_BASE_HOUNDS_HITS = 8
+TRACKER_RUBY_RAIDER_DEADLY_HOUNDS_HITS = 9
+TRACKER_RUBY_RAIDER_TRACK_FRAIL = 2
+TRACKER_RUBY_RAIDER_TRACK_MOVE = "TRACK_MOVE"
+TRACKER_RUBY_RAIDER_HOUNDS_MOVE = "HOUNDS_MOVE"
+
+
+def create_assassin_ruby_raider(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        ASSASSIN_RUBY_RAIDER_TOUGH_MIN_HP,
+        ASSASSIN_RUBY_RAIDER_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        ASSASSIN_RUBY_RAIDER_TOUGH_MAX_HP,
+        ASSASSIN_RUBY_RAIDER_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=ASSASSIN_RUBY_RAIDER_ID)
 
     def killshot(combat: CombatState) -> None:
+        killshot_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            ASSASSIN_RUBY_RAIDER_DEADLY_KILLSHOT_DAMAGE,
+            ASSASSIN_RUBY_RAIDER_BASE_KILLSHOT_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, killshot_dmg)
 
+    killshot_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        ASSASSIN_RUBY_RAIDER_DEADLY_KILLSHOT_DAMAGE,
+        ASSASSIN_RUBY_RAIDER_BASE_KILLSHOT_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "KILLSHOT_MOVE": MoveState(
-            "KILLSHOT_MOVE",
+        ASSASSIN_RUBY_RAIDER_KILLSHOT_MOVE: MoveState(
+            ASSASSIN_RUBY_RAIDER_KILLSHOT_MOVE,
             killshot,
-            [attack_intent(killshot_dmg)],
-            follow_up_id="KILLSHOT_MOVE",
+            [attack_intent(killshot_intent_damage)],
+            follow_up_id=ASSASSIN_RUBY_RAIDER_KILLSHOT_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "KILLSHOT_MOVE")
+    return creature, MonsterAI(states, ASSASSIN_RUBY_RAIDER_KILLSHOT_MOVE)
 
 
-def create_axe_ruby_raider(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(20, 22)
-    creature = Creature(max_hp=hp, monster_id="AXE_RUBY_RAIDER")
-    swing_dmg = 5
-    swing_block = 5
-    big_swing_dmg = 12
+def create_axe_ruby_raider(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        AXE_RUBY_RAIDER_TOUGH_MIN_HP,
+        AXE_RUBY_RAIDER_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        AXE_RUBY_RAIDER_TOUGH_MAX_HP,
+        AXE_RUBY_RAIDER_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=AXE_RUBY_RAIDER_ID)
 
     def swing(combat: CombatState) -> None:
+        swing_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            AXE_RUBY_RAIDER_DEADLY_SWING_DAMAGE,
+            AXE_RUBY_RAIDER_BASE_SWING_DAMAGE,
+        )
+        swing_block = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            AXE_RUBY_RAIDER_DEADLY_SWING_BLOCK,
+            AXE_RUBY_RAIDER_BASE_SWING_BLOCK,
+        )
         _deal_damage_to_player(combat, creature, swing_dmg)
         _gain_block(creature, swing_block, combat)
 
     def big_swing(combat: CombatState) -> None:
+        big_swing_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            AXE_RUBY_RAIDER_DEADLY_BIG_SWING_DAMAGE,
+            AXE_RUBY_RAIDER_BASE_BIG_SWING_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, big_swing_dmg)
 
+    swing_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        AXE_RUBY_RAIDER_DEADLY_SWING_DAMAGE,
+        AXE_RUBY_RAIDER_BASE_SWING_DAMAGE,
+    )
+    big_swing_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        AXE_RUBY_RAIDER_DEADLY_BIG_SWING_DAMAGE,
+        AXE_RUBY_RAIDER_BASE_BIG_SWING_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "SWING_1": MoveState("SWING_1", swing, [attack_intent(swing_dmg), defend_intent()], follow_up_id="SWING_2"),
-        "SWING_2": MoveState("SWING_2", swing, [attack_intent(swing_dmg), defend_intent()], follow_up_id="BIG_SWING"),
-        "BIG_SWING": MoveState("BIG_SWING", big_swing, [attack_intent(big_swing_dmg)], follow_up_id="SWING_1"),
+        AXE_RUBY_RAIDER_SWING_1_MOVE: MoveState(
+            AXE_RUBY_RAIDER_SWING_1_MOVE,
+            swing,
+            [attack_intent(swing_intent_damage), defend_intent()],
+            follow_up_id=AXE_RUBY_RAIDER_SWING_2_MOVE,
+        ),
+        AXE_RUBY_RAIDER_SWING_2_MOVE: MoveState(
+            AXE_RUBY_RAIDER_SWING_2_MOVE,
+            swing,
+            [attack_intent(swing_intent_damage), defend_intent()],
+            follow_up_id=AXE_RUBY_RAIDER_BIG_SWING_MOVE,
+        ),
+        AXE_RUBY_RAIDER_BIG_SWING_MOVE: MoveState(
+            AXE_RUBY_RAIDER_BIG_SWING_MOVE,
+            big_swing,
+            [attack_intent(big_swing_intent_damage)],
+            follow_up_id=AXE_RUBY_RAIDER_SWING_1_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "SWING_1")
+    return creature, MonsterAI(states, AXE_RUBY_RAIDER_SWING_1_MOVE)
 
 
-def create_brute_ruby_raider(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(30, 33)
-    creature = Creature(max_hp=hp, monster_id="BRUTE_RUBY_RAIDER")
-    beat_dmg = 7
+def create_brute_ruby_raider(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        BRUTE_RUBY_RAIDER_TOUGH_MIN_HP,
+        BRUTE_RUBY_RAIDER_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        BRUTE_RUBY_RAIDER_TOUGH_MAX_HP,
+        BRUTE_RUBY_RAIDER_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=BRUTE_RUBY_RAIDER_ID)
 
     def beat(combat: CombatState) -> None:
+        beat_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            BRUTE_RUBY_RAIDER_DEADLY_BEAT_DAMAGE,
+            BRUTE_RUBY_RAIDER_BASE_BEAT_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, beat_dmg)
 
     def roar(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, 3)
+        creature.apply_power(PowerId.STRENGTH, BRUTE_RUBY_RAIDER_ROAR_STRENGTH)
+
+    beat_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        BRUTE_RUBY_RAIDER_DEADLY_BEAT_DAMAGE,
+        BRUTE_RUBY_RAIDER_BASE_BEAT_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "BEAT_MOVE": MoveState("BEAT_MOVE", beat, [attack_intent(beat_dmg)], follow_up_id="ROAR_MOVE"),
-        "ROAR_MOVE": MoveState("ROAR_MOVE", roar, [buff_intent()], follow_up_id="BEAT_MOVE"),
+        BRUTE_RUBY_RAIDER_BEAT_MOVE: MoveState(
+            BRUTE_RUBY_RAIDER_BEAT_MOVE,
+            beat,
+            [attack_intent(beat_intent_damage)],
+            follow_up_id=BRUTE_RUBY_RAIDER_ROAR_MOVE,
+        ),
+        BRUTE_RUBY_RAIDER_ROAR_MOVE: MoveState(
+            BRUTE_RUBY_RAIDER_ROAR_MOVE,
+            roar,
+            [buff_intent()],
+            follow_up_id=BRUTE_RUBY_RAIDER_BEAT_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "BEAT_MOVE")
+    return creature, MonsterAI(states, BRUTE_RUBY_RAIDER_BEAT_MOVE)
 
 
-def create_crossbow_ruby_raider(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(18, 21)
-    creature = Creature(max_hp=hp, monster_id="CROSSBOW_RUBY_RAIDER")
-    fire_dmg = 14
-    reload_block = 3
+def create_crossbow_ruby_raider(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        CROSSBOW_RUBY_RAIDER_TOUGH_MIN_HP,
+        CROSSBOW_RUBY_RAIDER_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        CROSSBOW_RUBY_RAIDER_TOUGH_MAX_HP,
+        CROSSBOW_RUBY_RAIDER_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=CROSSBOW_RUBY_RAIDER_ID)
 
     def fire(combat: CombatState) -> None:
+        fire_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CROSSBOW_RUBY_RAIDER_DEADLY_FIRE_DAMAGE,
+            CROSSBOW_RUBY_RAIDER_BASE_FIRE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, fire_dmg)
 
     def reload(combat: CombatState) -> None:
-        _gain_block(creature, reload_block, combat)
+        _gain_block(creature, CROSSBOW_RUBY_RAIDER_RELOAD_BLOCK, combat)
+
+    fire_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        CROSSBOW_RUBY_RAIDER_DEADLY_FIRE_DAMAGE,
+        CROSSBOW_RUBY_RAIDER_BASE_FIRE_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "RELOAD_MOVE": MoveState("RELOAD_MOVE", reload, [defend_intent()], follow_up_id="FIRE_MOVE"),
-        "FIRE_MOVE": MoveState("FIRE_MOVE", fire, [attack_intent(fire_dmg)], follow_up_id="RELOAD_MOVE"),
-    }
-    return creature, MonsterAI(states, "RELOAD_MOVE")
-
-
-def create_tracker_ruby_raider(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(21, 25)
-    creature = Creature(max_hp=hp, monster_id="TRACKER_RUBY_RAIDER")
-    hounds_dmg = 1
-    hounds_hits = 8
-    track_frail = 2
-
-    def track(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.FRAIL, track_frail, applier=creature)
-
-    def hounds(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, hounds_dmg, hits=hounds_hits)
-
-    states: dict[str, MonsterState] = {
-        "TRACK_MOVE": MoveState("TRACK_MOVE", track, [debuff_intent()], follow_up_id="HOUNDS_MOVE"),
-        "HOUNDS_MOVE": MoveState(
-            "HOUNDS_MOVE",
-            hounds,
-            [multi_attack_intent(hounds_dmg, hounds_hits)],
-            follow_up_id="HOUNDS_MOVE",
+        CROSSBOW_RUBY_RAIDER_RELOAD_MOVE: MoveState(
+            CROSSBOW_RUBY_RAIDER_RELOAD_MOVE,
+            reload,
+            [defend_intent()],
+            follow_up_id=CROSSBOW_RUBY_RAIDER_FIRE_MOVE,
+        ),
+        CROSSBOW_RUBY_RAIDER_FIRE_MOVE: MoveState(
+            CROSSBOW_RUBY_RAIDER_FIRE_MOVE,
+            fire,
+            [attack_intent(fire_intent_damage)],
+            follow_up_id=CROSSBOW_RUBY_RAIDER_RELOAD_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "TRACK_MOVE")
+    return creature, MonsterAI(states, CROSSBOW_RUBY_RAIDER_RELOAD_MOVE)
+
+
+def create_tracker_ruby_raider(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TRACKER_RUBY_RAIDER_TOUGH_MIN_HP,
+        TRACKER_RUBY_RAIDER_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TRACKER_RUBY_RAIDER_TOUGH_MAX_HP,
+        TRACKER_RUBY_RAIDER_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=TRACKER_RUBY_RAIDER_ID)
+
+    def track(combat: CombatState) -> None:
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, TRACKER_RUBY_RAIDER_TRACK_FRAIL, applier=creature)
+
+    def hounds(combat: CombatState) -> None:
+        hounds_hits = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TRACKER_RUBY_RAIDER_DEADLY_HOUNDS_HITS,
+            TRACKER_RUBY_RAIDER_BASE_HOUNDS_HITS,
+        )
+        _deal_damage_to_player(combat, creature, hounds_dmg, hits=hounds_hits)
+
+    hounds_dmg = TRACKER_RUBY_RAIDER_HOUNDS_DAMAGE
+    hounds_intent_hits = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TRACKER_RUBY_RAIDER_DEADLY_HOUNDS_HITS,
+        TRACKER_RUBY_RAIDER_BASE_HOUNDS_HITS,
+    )
+
+    states: dict[str, MonsterState] = {
+        TRACKER_RUBY_RAIDER_TRACK_MOVE: MoveState(
+            TRACKER_RUBY_RAIDER_TRACK_MOVE,
+            track,
+            [debuff_intent()],
+            follow_up_id=TRACKER_RUBY_RAIDER_HOUNDS_MOVE,
+        ),
+        TRACKER_RUBY_RAIDER_HOUNDS_MOVE: MoveState(
+            TRACKER_RUBY_RAIDER_HOUNDS_MOVE,
+            hounds,
+            [multi_attack_intent(hounds_dmg, hounds_intent_hits)],
+            follow_up_id=TRACKER_RUBY_RAIDER_HOUNDS_MOVE,
+        ),
+    }
+    return creature, MonsterAI(states, TRACKER_RUBY_RAIDER_TRACK_MOVE)
 
 
 # ========================================================================
