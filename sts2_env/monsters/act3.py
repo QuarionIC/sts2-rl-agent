@@ -1064,50 +1064,134 @@ def create_slimed_berserker(rng: Rng, ascension_level: int = 0) -> tuple[Creatur
 
 # ---- TheLost + TheForgotten ----
 
-def create_the_lost(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 93
-    creature = Creature(max_hp=hp, monster_id="THE_LOST")
-    debilitating_smog_strength = -2
-    debilitating_smog_self_strength = 2
-    eye_lasers_dmg = 4
+THE_LOST_MONSTER_ID = "THE_LOST"
+THE_LOST_BASE_HP = 93
+THE_LOST_TOUGH_HP = 99
+THE_LOST_DEBILITATING_SMOG_STRENGTH = -2
+THE_LOST_DEBILITATING_SMOG_SELF_STRENGTH = 2
+THE_LOST_BASE_EYE_LASERS_DAMAGE = 4
+THE_LOST_DEADLY_EYE_LASERS_DAMAGE = 5
+THE_LOST_EYE_LASERS_REPEAT = 2
+THE_LOST_POSSESS_STRENGTH = 1
+THE_LOST_DEBILITATING_SMOG_MOVE = "DEBILITATING_SMOG"
+THE_LOST_EYE_LASERS_MOVE = "EYE_LASERS"
+
+THE_FORGOTTEN_MONSTER_ID = "THE_FORGOTTEN"
+THE_FORGOTTEN_BASE_HP = 106
+THE_FORGOTTEN_TOUGH_HP = 111
+THE_FORGOTTEN_MIASMA_DEXTERITY = -2
+THE_FORGOTTEN_MIASMA_BLOCK = 8
+THE_FORGOTTEN_MIASMA_SELF_DEXTERITY = 2
+THE_FORGOTTEN_BASE_DREAD_DAMAGE = 15
+THE_FORGOTTEN_DEADLY_DREAD_DAMAGE = 17
+THE_FORGOTTEN_POSSESS_SPEED = 1
+THE_FORGOTTEN_MIASMA_MOVE = "MIASMA"
+THE_FORGOTTEN_DREAD_MOVE = "DREAD"
+
+
+def create_the_lost(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        THE_LOST_TOUGH_HP,
+        THE_LOST_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=THE_LOST_MONSTER_ID)
 
     def debilitating_smog(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.STRENGTH, debilitating_smog_strength, applier=creature)
-        creature.apply_power(PowerId.STRENGTH, debilitating_smog_self_strength, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.STRENGTH,
+            THE_LOST_DEBILITATING_SMOG_STRENGTH,
+            applier=creature,
+        )
+        creature.apply_power(PowerId.STRENGTH, THE_LOST_DEBILITATING_SMOG_SELF_STRENGTH, applier=creature)
 
     def eye_lasers(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, eye_lasers_dmg, hits=2)
+        eye_lasers_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            THE_LOST_DEADLY_EYE_LASERS_DAMAGE,
+            THE_LOST_BASE_EYE_LASERS_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, eye_lasers_dmg, hits=THE_LOST_EYE_LASERS_REPEAT)
+
+    eye_lasers_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        THE_LOST_DEADLY_EYE_LASERS_DAMAGE,
+        THE_LOST_BASE_EYE_LASERS_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "DEBILITATING_SMOG": MoveState("DEBILITATING_SMOG", debilitating_smog, [debuff_intent(), buff_intent()], follow_up_id="EYE_LASERS"),
-        "EYE_LASERS": MoveState("EYE_LASERS", eye_lasers, [multi_attack_intent(eye_lasers_dmg, 2)], follow_up_id="DEBILITATING_SMOG"),
+        THE_LOST_DEBILITATING_SMOG_MOVE: MoveState(
+            THE_LOST_DEBILITATING_SMOG_MOVE,
+            debilitating_smog,
+            [debuff_intent(), buff_intent()],
+            follow_up_id=THE_LOST_EYE_LASERS_MOVE,
+        ),
+        THE_LOST_EYE_LASERS_MOVE: MoveState(
+            THE_LOST_EYE_LASERS_MOVE,
+            eye_lasers,
+            [multi_attack_intent(eye_lasers_intent_damage, THE_LOST_EYE_LASERS_REPEAT)],
+            follow_up_id=THE_LOST_DEBILITATING_SMOG_MOVE,
+        ),
     }
-    creature.apply_power(PowerId.POSSESS_STRENGTH, 1)
-    return creature, MonsterAI(states, "DEBILITATING_SMOG")
+    creature.apply_power(PowerId.POSSESS_STRENGTH, THE_LOST_POSSESS_STRENGTH)
+    return creature, MonsterAI(states, THE_LOST_DEBILITATING_SMOG_MOVE)
 
 
-def create_the_forgotten(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 106
-    creature = Creature(max_hp=hp, monster_id="THE_FORGOTTEN")
-    miasma_dexterity = -2
-    miasma_block = 8
-    miasma_self_dexterity = 2
-    dread_dmg = 15
+def create_the_forgotten(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        THE_FORGOTTEN_TOUGH_HP,
+        THE_FORGOTTEN_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=THE_FORGOTTEN_MONSTER_ID)
 
     def miasma(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.DEXTERITY, miasma_dexterity, applier=creature)
-        _gain_block(creature, miasma_block, combat)
-        creature.apply_power(PowerId.DEXTERITY, miasma_self_dexterity, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.DEXTERITY,
+            THE_FORGOTTEN_MIASMA_DEXTERITY,
+            applier=creature,
+        )
+        _gain_block(creature, THE_FORGOTTEN_MIASMA_BLOCK, combat)
+        creature.apply_power(PowerId.DEXTERITY, THE_FORGOTTEN_MIASMA_SELF_DEXTERITY, applier=creature)
 
     def dread(combat: CombatState) -> None:
+        dread_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            THE_FORGOTTEN_DEADLY_DREAD_DAMAGE,
+            THE_FORGOTTEN_BASE_DREAD_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, dread_dmg)
 
+    dread_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        THE_FORGOTTEN_DEADLY_DREAD_DAMAGE,
+        THE_FORGOTTEN_BASE_DREAD_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "MIASMA": MoveState("MIASMA", miasma, [debuff_intent(), defend_intent(), buff_intent()], follow_up_id="DREAD"),
-        "DREAD": MoveState("DREAD", dread, [attack_intent(dread_dmg)], follow_up_id="MIASMA"),
+        THE_FORGOTTEN_MIASMA_MOVE: MoveState(
+            THE_FORGOTTEN_MIASMA_MOVE,
+            miasma,
+            [debuff_intent(), defend_intent(), buff_intent()],
+            follow_up_id=THE_FORGOTTEN_DREAD_MOVE,
+        ),
+        THE_FORGOTTEN_DREAD_MOVE: MoveState(
+            THE_FORGOTTEN_DREAD_MOVE,
+            dread,
+            [attack_intent(dread_intent_damage)],
+            follow_up_id=THE_FORGOTTEN_MIASMA_MOVE,
+        ),
     }
-    creature.apply_power(PowerId.POSSESS_SPEED, 1)
-    return creature, MonsterAI(states, "MIASMA")
+    creature.apply_power(PowerId.POSSESS_SPEED, THE_FORGOTTEN_POSSESS_SPEED)
+    return creature, MonsterAI(states, THE_FORGOTTEN_MIASMA_MOVE)
 
 
 # ---- ConstructMenagerie ----

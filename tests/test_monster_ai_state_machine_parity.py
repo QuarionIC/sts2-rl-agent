@@ -36,6 +36,7 @@ from sts2_env.encounters.act3 import (
     setup_owl_magistrate_normal,
     setup_queen_boss,
     setup_slimed_berserker_normal,
+    setup_the_lost_and_forgotten_normal,
     setup_turret_operator_weak,
 )
 from sts2_env.encounters.act4 import (
@@ -245,6 +246,12 @@ from sts2_env.monsters.act3 import (
     SLIMED_BERSERKER_VOMIT_ICHOR_MOVE,
     STABBOT_MONSTER_ID,
     STABBOT_STAB_MOVE,
+    THE_FORGOTTEN_DREAD_MOVE,
+    THE_FORGOTTEN_MIASMA_MOVE,
+    THE_FORGOTTEN_MONSTER_ID,
+    THE_LOST_DEBILITATING_SMOG_MOVE,
+    THE_LOST_EYE_LASERS_MOVE,
+    THE_LOST_MONSTER_ID,
     TURRET_OPERATOR_MONSTER_ID,
     TURRET_OPERATOR_RELOAD_MOVE,
     TURRET_OPERATOR_UNLOAD_MOVE_1,
@@ -530,6 +537,18 @@ SLIMED_BERSERKER_SLIMED = 10
 SLIMED_BERSERKER_LEECHING_HUG_WEAK = 3
 SLIMED_BERSERKER_LEECHING_HUG_STRENGTH = 3
 SLIMED_BERSERKER_SMOTHER_DAMAGE_A9 = 33
+THE_LOST_BASE_HP = 93
+THE_LOST_A8_HP = 99
+THE_LOST_STOLEN_STRENGTH = 2
+THE_LOST_POSSESS_STRENGTH = 1
+THE_LOST_EYE_LASERS_DAMAGE_A9 = 5
+THE_LOST_EYE_LASERS_HITS = 2
+THE_FORGOTTEN_BASE_HP = 106
+THE_FORGOTTEN_A8_HP = 111
+THE_FORGOTTEN_STOLEN_DEXTERITY = 2
+THE_FORGOTTEN_MIASMA_BLOCK = 8
+THE_FORGOTTEN_POSSESS_SPEED = 1
+THE_FORGOTTEN_DREAD_DAMAGE_A9 = 17
 TOUGH_EGG_MULTIPLAYER_INITIAL_HP = 16
 TOUGH_EGG_MULTIPLAYER_HATCHLING_HP = 20
 TOUGH_EGG_BASE_INITIAL_HP_RANGE = (14, 18)
@@ -4281,17 +4300,17 @@ class TestFixedRotation:
         creature, ai = create_the_lost(Rng(29))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 93
-        assert creature.get_power_amount(PowerId.POSSESS_STRENGTH) == 1
-        assert ai.current_move.state_id == "DEBILITATING_SMOG"
+        assert creature.max_hp == THE_LOST_BASE_HP
+        assert creature.get_power_amount(PowerId.POSSESS_STRENGTH) == THE_LOST_POSSESS_STRENGTH
+        assert ai.current_move.state_id == THE_LOST_DEBILITATING_SMOG_MOVE
 
         ai.current_move.perform(combat)
-        assert combat.player.get_power_amount(PowerId.STRENGTH) == -2
-        assert creature.get_power_amount(PowerId.STRENGTH) == 2
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == -THE_LOST_STOLEN_STRENGTH
+        assert creature.get_power_amount(PowerId.STRENGTH) == THE_LOST_STOLEN_STRENGTH
 
         ai.on_move_performed()
         ai.roll_move(Rng(29))
-        assert ai.current_move.state_id == "EYE_LASERS"
+        assert ai.current_move.state_id == THE_LOST_EYE_LASERS_MOVE
 
         ai.current_move.perform(combat)
         assert combat.player.current_hp == 68
@@ -4301,15 +4320,14 @@ class TestFixedRotation:
 
     def test_possess_strength_restores_to_dead_player_when_owner_dies(self):
         seed = 29
-        stolen_strength = 2
         dead_hp = 0
         combat = _make_combat(seed)
         creature, ai = create_the_lost(Rng(seed))
         combat.add_enemy(creature, ai)
 
         ai.current_move.perform(combat)
-        assert combat.player.get_power_amount(PowerId.STRENGTH) == -stolen_strength
-        assert creature.get_power_amount(PowerId.STRENGTH) == stolen_strength
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == -THE_LOST_STOLEN_STRENGTH
+        assert creature.get_power_amount(PowerId.STRENGTH) == THE_LOST_STOLEN_STRENGTH
 
         combat.player.current_hp = dead_hp
         assert combat.player.is_dead
@@ -4322,18 +4340,18 @@ class TestFixedRotation:
         creature, ai = create_the_forgotten(Rng(30))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 106
-        assert creature.get_power_amount(PowerId.POSSESS_SPEED) == 1
-        assert ai.current_move.state_id == "MIASMA"
+        assert creature.max_hp == THE_FORGOTTEN_BASE_HP
+        assert creature.get_power_amount(PowerId.POSSESS_SPEED) == THE_FORGOTTEN_POSSESS_SPEED
+        assert ai.current_move.state_id == THE_FORGOTTEN_MIASMA_MOVE
 
         ai.current_move.perform(combat)
-        assert combat.player.get_power_amount(PowerId.DEXTERITY) == -2
-        assert creature.block == 8
-        assert creature.get_power_amount(PowerId.DEXTERITY) == 2
+        assert combat.player.get_power_amount(PowerId.DEXTERITY) == -THE_FORGOTTEN_STOLEN_DEXTERITY
+        assert creature.block == THE_FORGOTTEN_MIASMA_BLOCK
+        assert creature.get_power_amount(PowerId.DEXTERITY) == THE_FORGOTTEN_STOLEN_DEXTERITY
 
         ai.on_move_performed()
         ai.roll_move(Rng(30))
-        assert ai.current_move.state_id == "DREAD"
+        assert ai.current_move.state_id == THE_FORGOTTEN_DREAD_MOVE
 
         ai.current_move.perform(combat)
         assert combat.player.current_hp == 65
@@ -4343,21 +4361,72 @@ class TestFixedRotation:
 
     def test_possess_speed_restores_to_dead_player_when_owner_dies(self):
         seed = 30
-        stolen_dexterity = 2
         dead_hp = 0
         combat = _make_combat(seed)
         creature, ai = create_the_forgotten(Rng(seed))
         combat.add_enemy(creature, ai)
 
         ai.current_move.perform(combat)
-        assert combat.player.get_power_amount(PowerId.DEXTERITY) == -stolen_dexterity
-        assert creature.get_power_amount(PowerId.DEXTERITY) == stolen_dexterity
+        assert combat.player.get_power_amount(PowerId.DEXTERITY) == -THE_FORGOTTEN_STOLEN_DEXTERITY
+        assert creature.get_power_amount(PowerId.DEXTERITY) == THE_FORGOTTEN_STOLEN_DEXTERITY
 
         combat.player.current_hp = dead_hp
         assert combat.player.is_dead
         combat.kill_creature(creature)
 
         assert combat.player.get_power_amount(PowerId.DEXTERITY) == 0
+
+    def test_act3_lost_and_forgotten_ascension_scaling_matches_csharp(self):
+        rng_seed = 1292
+        player_hp = 250
+
+        lost_combat = _make_combat(rng_seed)
+        lost_combat.player.max_hp = player_hp
+        lost_combat.player.current_hp = player_hp
+        lost_combat.ascension_level = 9
+        lost, lost_ai = create_the_lost(Rng(rng_seed), ascension_level=9)
+        lost_combat.add_enemy(lost, lost_ai)
+        assert lost.max_hp == THE_LOST_A8_HP
+
+        eye_lasers = lost_ai.states[THE_LOST_EYE_LASERS_MOVE]
+        assert eye_lasers.intents[0].damage == THE_LOST_EYE_LASERS_DAMAGE_A9
+        assert eye_lasers.intents[0].hits == THE_LOST_EYE_LASERS_HITS
+        player_hp_before_eye_lasers = lost_combat.player.current_hp
+        eye_lasers.perform(lost_combat)
+        assert lost_combat.player.current_hp == (
+            player_hp_before_eye_lasers - THE_LOST_EYE_LASERS_DAMAGE_A9 * THE_LOST_EYE_LASERS_HITS
+        )
+
+        forgotten_combat = _make_combat(rng_seed)
+        forgotten_combat.player.max_hp = player_hp
+        forgotten_combat.player.current_hp = player_hp
+        forgotten_combat.ascension_level = 9
+        forgotten, forgotten_ai = create_the_forgotten(Rng(rng_seed), ascension_level=9)
+        forgotten_combat.add_enemy(forgotten, forgotten_ai)
+        assert forgotten.max_hp == THE_FORGOTTEN_A8_HP
+
+        dread = forgotten_ai.states[THE_FORGOTTEN_DREAD_MOVE]
+        assert dread.intents[0].damage == THE_FORGOTTEN_DREAD_DAMAGE_A9
+        player_hp_before_dread = forgotten_combat.player.current_hp
+        dread.perform(forgotten_combat)
+        assert forgotten_combat.player.current_hp == player_hp_before_dread - THE_FORGOTTEN_DREAD_DAMAGE_A9
+
+        encounter_combat = _make_combat(rng_seed)
+        encounter_combat.ascension_level = 9
+        setup_the_lost_and_forgotten_normal(encounter_combat, Rng(rng_seed))
+        encounter_lost, encounter_forgotten = encounter_combat.enemies
+        encounter_lost_ai = encounter_combat.enemy_ais[encounter_lost.combat_id]
+        encounter_forgotten_ai = encounter_combat.enemy_ais[encounter_forgotten.combat_id]
+        assert encounter_lost.monster_id == THE_LOST_MONSTER_ID
+        assert encounter_lost.max_hp == THE_LOST_A8_HP
+        assert encounter_lost_ai.states[THE_LOST_EYE_LASERS_MOVE].intents[0].damage == (
+            THE_LOST_EYE_LASERS_DAMAGE_A9
+        )
+        assert encounter_forgotten.monster_id == THE_FORGOTTEN_MONSTER_ID
+        assert encounter_forgotten.max_hp == THE_FORGOTTEN_A8_HP
+        assert encounter_forgotten_ai.states[THE_FORGOTTEN_DREAD_MOVE].intents[0].damage == (
+            THE_FORGOTTEN_DREAD_DAMAGE_A9
+        )
 
     def test_scroll_of_biting_supports_original_starter_moves_and_cycle(self):
         combat = _make_combat(31)

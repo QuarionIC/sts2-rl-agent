@@ -119,9 +119,10 @@ def setup_slimed_berserker_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_the_lost_and_forgotten_normal(combat: CombatState, rng: Rng) -> None:
-    c1, a1 = create_the_lost(rng)
+    ascension_level = getattr(combat, "ascension_level", 0)
+    c1, a1 = create_the_lost(rng, ascension_level=ascension_level)
     combat.add_enemy(c1, a1)
-    c2, a2 = create_the_forgotten(rng)
+    c2, a2 = create_the_forgotten(rng, ascension_level=ascension_level)
     combat.add_enemy(c2, a2)
 
 
