@@ -1880,83 +1880,241 @@ def create_decimillipede_segment_back(rng: Rng, starter_idx: int = 0) -> tuple[C
 
 # ---- Entomancer (HP 145 / 155 asc) ----
 
-def create_entomancer(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 145
-    creature = Creature(max_hp=hp, monster_id="ENTOMANCER")
-    spear_dmg = 18
-    bees_dmg = 3
-    bees_hits = 7
+ENTOMANCER_MONSTER_ID = "ENTOMANCER"
+ENTOMANCER_BASE_HP = 145
+ENTOMANCER_TOUGH_HP = 155
+ENTOMANCER_BASE_SPEAR_DAMAGE = 18
+ENTOMANCER_DEADLY_SPEAR_DAMAGE = 20
+ENTOMANCER_BASE_BEES_DAMAGE = 3
+ENTOMANCER_DEADLY_BEES_DAMAGE = 3
+ENTOMANCER_BASE_BEES_REPEAT = 7
+ENTOMANCER_DEADLY_BEES_REPEAT = 8
+ENTOMANCER_INITIAL_PERSONAL_HIVE = 1
+ENTOMANCER_PERSONAL_HIVE_THRESHOLD = 3
+ENTOMANCER_PHEROMONE_HIVE_GAIN = 1
+ENTOMANCER_PHEROMONE_STRENGTH_GAIN = 1
+ENTOMANCER_MAX_HIVE_STRENGTH_GAIN = 2
+ENTOMANCER_BEES_MOVE = "BEES_MOVE"
+ENTOMANCER_SPEAR_MOVE = "SPEAR_MOVE"
+ENTOMANCER_PHEROMONE_SPIT_MOVE = "PHEROMONE_SPIT_MOVE"
 
-    _state = {"personal_hive": 1}
+
+def create_entomancer(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        ENTOMANCER_TOUGH_HP,
+        ENTOMANCER_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=ENTOMANCER_MONSTER_ID)
 
     def bees(combat: CombatState) -> None:
+        bees_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            ENTOMANCER_DEADLY_BEES_DAMAGE,
+            ENTOMANCER_BASE_BEES_DAMAGE,
+        )
+        bees_hits = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            ENTOMANCER_DEADLY_BEES_REPEAT,
+            ENTOMANCER_BASE_BEES_REPEAT,
+        )
         _deal_damage_to_player(combat, creature, bees_dmg, hits=bees_hits)
 
     def spear(combat: CombatState) -> None:
+        spear_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            ENTOMANCER_DEADLY_SPEAR_DAMAGE,
+            ENTOMANCER_BASE_SPEAR_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, spear_dmg)
 
     def pheromone_spit(combat: CombatState) -> None:
-        if _state["personal_hive"] < 3:
-            _state["personal_hive"] += 1
-            creature.apply_power(PowerId.PERSONAL_HIVE, 1)
-            creature.apply_power(PowerId.STRENGTH, 1)
+        if creature.get_power_amount(PowerId.PERSONAL_HIVE) < ENTOMANCER_PERSONAL_HIVE_THRESHOLD:
+            creature.apply_power(PowerId.PERSONAL_HIVE, ENTOMANCER_PHEROMONE_HIVE_GAIN)
+            creature.apply_power(PowerId.STRENGTH, ENTOMANCER_PHEROMONE_STRENGTH_GAIN)
         else:
-            creature.apply_power(PowerId.STRENGTH, 2)
+            creature.apply_power(PowerId.STRENGTH, ENTOMANCER_MAX_HIVE_STRENGTH_GAIN)
+
+    spear_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        ENTOMANCER_DEADLY_SPEAR_DAMAGE,
+        ENTOMANCER_BASE_SPEAR_DAMAGE,
+    )
+    bees_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        ENTOMANCER_DEADLY_BEES_DAMAGE,
+        ENTOMANCER_BASE_BEES_DAMAGE,
+    )
+    bees_intent_hits = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        ENTOMANCER_DEADLY_BEES_REPEAT,
+        ENTOMANCER_BASE_BEES_REPEAT,
+    )
 
     states: dict[str, MonsterState] = {
-        "BEES_MOVE": MoveState(
-            "BEES_MOVE",
+        ENTOMANCER_BEES_MOVE: MoveState(
+            ENTOMANCER_BEES_MOVE,
             bees,
-            [multi_attack_intent(bees_dmg, bees_hits)],
-            follow_up_id="SPEAR_MOVE",
+            [multi_attack_intent(bees_intent_damage, bees_intent_hits)],
+            follow_up_id=ENTOMANCER_SPEAR_MOVE,
         ),
-        "SPEAR_MOVE": MoveState("SPEAR_MOVE", spear, [attack_intent(spear_dmg)], follow_up_id="PHEROMONE_SPIT_MOVE"),
-        "PHEROMONE_SPIT_MOVE": MoveState(
-            "PHEROMONE_SPIT_MOVE",
+        ENTOMANCER_SPEAR_MOVE: MoveState(
+            ENTOMANCER_SPEAR_MOVE,
+            spear,
+            [attack_intent(spear_intent_damage)],
+            follow_up_id=ENTOMANCER_PHEROMONE_SPIT_MOVE,
+        ),
+        ENTOMANCER_PHEROMONE_SPIT_MOVE: MoveState(
+            ENTOMANCER_PHEROMONE_SPIT_MOVE,
             pheromone_spit,
             [buff_intent()],
-            follow_up_id="BEES_MOVE",
+            follow_up_id=ENTOMANCER_BEES_MOVE,
         ),
     }
 
-    creature.apply_power(PowerId.PERSONAL_HIVE, 1)
-    return creature, MonsterAI(states, "BEES_MOVE")
+    creature.apply_power(PowerId.PERSONAL_HIVE, ENTOMANCER_INITIAL_PERSONAL_HIVE)
+    return creature, MonsterAI(states, ENTOMANCER_BEES_MOVE)
 
 
 # ---- InfestedPrism (HP 200 / 215 asc) ----
 
-def create_infested_prism(rng: Rng) -> tuple[Creature, MonsterAI]:
-    creature = Creature(max_hp=200, monster_id="INFESTED_PRISM")
-    jab_dmg = 22
-    radiate_dmg = 16
-    radiate_block = 16
-    whirlwind_dmg = 9
-    pulsate_block = 20
-    pulsate_str = 4
+INFESTED_PRISM_MONSTER_ID = "INFESTED_PRISM"
+INFESTED_PRISM_BASE_HP = 200
+INFESTED_PRISM_TOUGH_HP = 215
+INFESTED_PRISM_BASE_JAB_DAMAGE = 22
+INFESTED_PRISM_DEADLY_JAB_DAMAGE = 24
+INFESTED_PRISM_BASE_RADIATE_DAMAGE = 16
+INFESTED_PRISM_DEADLY_RADIATE_DAMAGE = 18
+INFESTED_PRISM_BASE_RADIATE_BLOCK = 16
+INFESTED_PRISM_DEADLY_RADIATE_BLOCK = 18
+INFESTED_PRISM_BASE_WHIRLWIND_DAMAGE = 9
+INFESTED_PRISM_DEADLY_WHIRLWIND_DAMAGE = 10
+INFESTED_PRISM_WHIRLWIND_REPEAT = 3
+INFESTED_PRISM_BASE_PULSATE_BLOCK = 20
+INFESTED_PRISM_TOUGH_PULSATE_BLOCK = 22
+INFESTED_PRISM_BASE_PULSATE_STRENGTH = 4
+INFESTED_PRISM_DEADLY_PULSATE_STRENGTH = 5
+INFESTED_PRISM_VITAL_SPARK = 1
+INFESTED_PRISM_JAB_MOVE = "JAB_MOVE"
+INFESTED_PRISM_RADIATE_MOVE = "RADIATE_MOVE"
+INFESTED_PRISM_WHIRLWIND_MOVE = "WHIRLWIND_MOVE"
+INFESTED_PRISM_PULSATE_MOVE = "PULSATE_MOVE"
+
+
+def create_infested_prism(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        INFESTED_PRISM_TOUGH_HP,
+        INFESTED_PRISM_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=INFESTED_PRISM_MONSTER_ID)
 
     def jab(combat: CombatState) -> None:
+        jab_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            INFESTED_PRISM_DEADLY_JAB_DAMAGE,
+            INFESTED_PRISM_BASE_JAB_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, jab_dmg)
 
     def radiate(combat: CombatState) -> None:
+        radiate_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            INFESTED_PRISM_DEADLY_RADIATE_DAMAGE,
+            INFESTED_PRISM_BASE_RADIATE_DAMAGE,
+        )
+        radiate_block = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            INFESTED_PRISM_DEADLY_RADIATE_BLOCK,
+            INFESTED_PRISM_BASE_RADIATE_BLOCK,
+        )
         _deal_damage_to_player(combat, creature, radiate_dmg)
         _gain_block(creature, radiate_block, combat)
 
     def whirlwind(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, whirlwind_dmg, hits=3)
+        whirlwind_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            INFESTED_PRISM_DEADLY_WHIRLWIND_DAMAGE,
+            INFESTED_PRISM_BASE_WHIRLWIND_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, whirlwind_dmg, hits=INFESTED_PRISM_WHIRLWIND_REPEAT)
 
     def pulsate(combat: CombatState) -> None:
+        pulsate_block = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            INFESTED_PRISM_TOUGH_PULSATE_BLOCK,
+            INFESTED_PRISM_BASE_PULSATE_BLOCK,
+        )
+        pulsate_str = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            INFESTED_PRISM_DEADLY_PULSATE_STRENGTH,
+            INFESTED_PRISM_BASE_PULSATE_STRENGTH,
+        )
         _gain_block(creature, pulsate_block, combat)
         creature.apply_power(PowerId.STRENGTH, pulsate_str)
 
+    jab_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        INFESTED_PRISM_DEADLY_JAB_DAMAGE,
+        INFESTED_PRISM_BASE_JAB_DAMAGE,
+    )
+    radiate_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        INFESTED_PRISM_DEADLY_RADIATE_DAMAGE,
+        INFESTED_PRISM_BASE_RADIATE_DAMAGE,
+    )
+    whirlwind_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        INFESTED_PRISM_DEADLY_WHIRLWIND_DAMAGE,
+        INFESTED_PRISM_BASE_WHIRLWIND_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "JAB_MOVE": MoveState("JAB_MOVE", jab, [attack_intent(jab_dmg)], follow_up_id="RADIATE_MOVE"),
-        "RADIATE_MOVE": MoveState("RADIATE_MOVE", radiate, [attack_intent(radiate_dmg), defend_intent()], follow_up_id="WHIRLWIND_MOVE"),
-        "WHIRLWIND_MOVE": MoveState("WHIRLWIND_MOVE", whirlwind, [multi_attack_intent(whirlwind_dmg, 3)], follow_up_id="PULSATE_MOVE"),
-        "PULSATE_MOVE": MoveState("PULSATE_MOVE", pulsate, [defend_intent(), buff_intent()], follow_up_id="JAB_MOVE"),
+        INFESTED_PRISM_JAB_MOVE: MoveState(
+            INFESTED_PRISM_JAB_MOVE,
+            jab,
+            [attack_intent(jab_intent_damage)],
+            follow_up_id=INFESTED_PRISM_RADIATE_MOVE,
+        ),
+        INFESTED_PRISM_RADIATE_MOVE: MoveState(
+            INFESTED_PRISM_RADIATE_MOVE,
+            radiate,
+            [attack_intent(radiate_intent_damage), defend_intent()],
+            follow_up_id=INFESTED_PRISM_WHIRLWIND_MOVE,
+        ),
+        INFESTED_PRISM_WHIRLWIND_MOVE: MoveState(
+            INFESTED_PRISM_WHIRLWIND_MOVE,
+            whirlwind,
+            [multi_attack_intent(whirlwind_intent_damage, INFESTED_PRISM_WHIRLWIND_REPEAT)],
+            follow_up_id=INFESTED_PRISM_PULSATE_MOVE,
+        ),
+        INFESTED_PRISM_PULSATE_MOVE: MoveState(
+            INFESTED_PRISM_PULSATE_MOVE,
+            pulsate,
+            [buff_intent(), defend_intent()],
+            follow_up_id=INFESTED_PRISM_JAB_MOVE,
+        ),
     }
 
-    creature.apply_power(PowerId.VITAL_SPARK, 1)
-    return creature, MonsterAI(states, "JAB_MOVE")
+    creature.apply_power(PowerId.VITAL_SPARK, INFESTED_PRISM_VITAL_SPARK)
+    return creature, MonsterAI(states, INFESTED_PRISM_JAB_MOVE)
 
 
 # ========================================================================

@@ -17,6 +17,7 @@ from sts2_env.core.hooks import fire_after_turn_end
 from sts2_env.core.rng import Rng
 from sts2_env.encounters.act2 import (
     setup_decimillipede_elite,
+    setup_entomancer_elite,
     setup_infested_prisms_elite,
     setup_kaiser_crab_boss,
     setup_mytes_normal,
@@ -101,6 +102,15 @@ from sts2_env.monsters.act2 import (
     DECIMILLIPEDE_REATTACH_HP,
     DECIMILLIPEDE_SEGMENT_MAX_HP,
     DECIMILLIPEDE_SEGMENT_MIN_HP,
+    ENTOMANCER_BEES_MOVE,
+    ENTOMANCER_MONSTER_ID,
+    ENTOMANCER_PHEROMONE_SPIT_MOVE,
+    ENTOMANCER_SPEAR_MOVE,
+    INFESTED_PRISM_JAB_MOVE,
+    INFESTED_PRISM_MONSTER_ID,
+    INFESTED_PRISM_PULSATE_MOVE,
+    INFESTED_PRISM_RADIATE_MOVE,
+    INFESTED_PRISM_WHIRLWIND_MOVE,
     OVICOPTER_EGGS_TO_LAY,
     OVICOPTER_LAY_EGGS_MOVE,
     OVICOPTER_MONSTER_ID,
@@ -339,6 +349,25 @@ THE_OBSCURA_PIERCING_GAZE_DAMAGE_A9 = 11
 THE_OBSCURA_HARDENING_STRIKE_DAMAGE_A9 = 7
 THE_OBSCURA_HARDENING_STRIKE_BLOCK_A9 = 7
 THE_OBSCURA_SAIL_STRENGTH = 3
+ENTOMANCER_BASE_HP = 145
+ENTOMANCER_A8_HP = 155
+ENTOMANCER_BEES_DAMAGE = 3
+ENTOMANCER_BEES_HITS_A9 = 8
+ENTOMANCER_SPEAR_DAMAGE_A9 = 20
+ENTOMANCER_INITIAL_PERSONAL_HIVE = 1
+ENTOMANCER_PHEROMONE_HIVE_GAIN = 1
+ENTOMANCER_PHEROMONE_STRENGTH_GAIN = 1
+ENTOMANCER_MAX_HIVE_STRENGTH_GAIN = 2
+INFESTED_PRISM_BASE_HP = 200
+INFESTED_PRISM_A8_HP = 215
+INFESTED_PRISM_JAB_DAMAGE_A9 = 24
+INFESTED_PRISM_RADIATE_DAMAGE_A9 = 18
+INFESTED_PRISM_RADIATE_BLOCK_A9 = 18
+INFESTED_PRISM_WHIRLWIND_DAMAGE_A9 = 10
+INFESTED_PRISM_WHIRLWIND_HITS = 3
+INFESTED_PRISM_PULSATE_BLOCK_A8 = 22
+INFESTED_PRISM_PULSATE_STRENGTH_A9 = 5
+INFESTED_PRISM_VITAL_SPARK = 1
 TOUGH_EGG_MULTIPLAYER_INITIAL_HP = 16
 TOUGH_EGG_MULTIPLAYER_HATCHLING_HP = 20
 TOUGH_EGG_BASE_INITIAL_HP_RANGE = (14, 18)
@@ -2214,8 +2243,8 @@ class TestFixedRotation:
             (create_bowlbug_egg(Rng(2)), "BITE_MOVE", 7),
             (create_louse_progenitor(Rng(3)), "CURL_AND_GROW_MOVE", 14),
             (create_the_obscura(Rng(4)), "HARDENING_STRIKE_MOVE", 6),
-            (create_infested_prism(Rng(5)), "RADIATE_MOVE", 16),
-            (create_infested_prism(Rng(6)), "PULSATE_MOVE", 20),
+            (create_infested_prism(Rng(5)), INFESTED_PRISM_RADIATE_MOVE, 16),
+            (create_infested_prism(Rng(6)), INFESTED_PRISM_PULSATE_MOVE, 20),
             (create_crusher(Rng(7)), "GUARDED_STRIKE_MOVE", 18),
         ]
 
@@ -2983,23 +3012,103 @@ class TestFixedRotation:
         entomancer, entomancer_ai = create_entomancer(Rng(41))
         combat.add_enemy(entomancer, entomancer_ai)
 
-        assert entomancer.max_hp == 145
-        assert entomancer.get_power_amount(PowerId.PERSONAL_HIVE) == 1
+        assert entomancer.max_hp == ENTOMANCER_BASE_HP
+        assert entomancer.get_power_amount(PowerId.PERSONAL_HIVE) == ENTOMANCER_INITIAL_PERSONAL_HIVE
         assert _run_ai(entomancer_ai, Rng(41), 4) == [
-            "BEES_MOVE",
-            "SPEAR_MOVE",
-            "PHEROMONE_SPIT_MOVE",
-            "BEES_MOVE",
+            ENTOMANCER_BEES_MOVE,
+            ENTOMANCER_SPEAR_MOVE,
+            ENTOMANCER_PHEROMONE_SPIT_MOVE,
+            ENTOMANCER_BEES_MOVE,
         ]
 
-        entomancer_ai.states["PHEROMONE_SPIT_MOVE"].perform(combat)
-        assert entomancer.get_power_amount(PowerId.PERSONAL_HIVE) == 2
-        assert entomancer.get_power_amount(PowerId.STRENGTH) == 1
+        entomancer_ai.states[ENTOMANCER_PHEROMONE_SPIT_MOVE].perform(combat)
+        assert entomancer.get_power_amount(PowerId.PERSONAL_HIVE) == (
+            ENTOMANCER_INITIAL_PERSONAL_HIVE + ENTOMANCER_PHEROMONE_HIVE_GAIN
+        )
+        assert entomancer.get_power_amount(PowerId.STRENGTH) == ENTOMANCER_PHEROMONE_STRENGTH_GAIN
 
-        entomancer_ai.states["PHEROMONE_SPIT_MOVE"].perform(combat)
-        entomancer_ai.states["PHEROMONE_SPIT_MOVE"].perform(combat)
-        assert entomancer.get_power_amount(PowerId.PERSONAL_HIVE) == 3
-        assert entomancer.get_power_amount(PowerId.STRENGTH) == 4
+        entomancer_ai.states[ENTOMANCER_PHEROMONE_SPIT_MOVE].perform(combat)
+        entomancer_ai.states[ENTOMANCER_PHEROMONE_SPIT_MOVE].perform(combat)
+        assert entomancer.get_power_amount(PowerId.PERSONAL_HIVE) == (
+            ENTOMANCER_INITIAL_PERSONAL_HIVE + ENTOMANCER_PHEROMONE_HIVE_GAIN * 2
+        )
+        assert entomancer.get_power_amount(PowerId.STRENGTH) == (
+            ENTOMANCER_PHEROMONE_STRENGTH_GAIN * 2 + ENTOMANCER_MAX_HIVE_STRENGTH_GAIN
+        )
+
+    def test_act2_elite_ascension_scaling_matches_csharp(self):
+        rng_seed = 1287
+
+        entomancer_combat = _make_combat(rng_seed)
+        entomancer_combat.ascension_level = 9
+        entomancer, entomancer_ai = create_entomancer(Rng(rng_seed), ascension_level=9)
+        entomancer_combat.add_enemy(entomancer, entomancer_ai)
+        assert entomancer.max_hp == ENTOMANCER_A8_HP
+        bees = entomancer_ai.states[ENTOMANCER_BEES_MOVE]
+        assert bees.intents[0].damage == ENTOMANCER_BEES_DAMAGE
+        assert bees.intents[0].hits == ENTOMANCER_BEES_HITS_A9
+        player_hp_before_bees = entomancer_combat.player.current_hp
+        bees.perform(entomancer_combat)
+        assert entomancer_combat.player.current_hp == (
+            player_hp_before_bees - ENTOMANCER_BEES_DAMAGE * ENTOMANCER_BEES_HITS_A9
+        )
+        spear = entomancer_ai.states[ENTOMANCER_SPEAR_MOVE]
+        assert spear.intents[0].damage == ENTOMANCER_SPEAR_DAMAGE_A9
+        player_hp_before_spear = entomancer_combat.player.current_hp
+        spear.perform(entomancer_combat)
+        assert entomancer_combat.player.current_hp == player_hp_before_spear - ENTOMANCER_SPEAR_DAMAGE_A9
+
+        entomancer_encounter_combat = _make_combat(rng_seed)
+        entomancer_encounter_combat.ascension_level = 9
+        setup_entomancer_elite(entomancer_encounter_combat, Rng(rng_seed))
+        encounter_entomancer = entomancer_encounter_combat.enemies[0]
+        encounter_entomancer_ai = entomancer_encounter_combat.enemy_ais[encounter_entomancer.combat_id]
+        assert encounter_entomancer.monster_id == ENTOMANCER_MONSTER_ID
+        assert encounter_entomancer.max_hp == ENTOMANCER_A8_HP
+        assert encounter_entomancer_ai.states[ENTOMANCER_SPEAR_MOVE].intents[0].damage == (
+            ENTOMANCER_SPEAR_DAMAGE_A9
+        )
+
+        prism_combat = _make_combat(rng_seed)
+        prism_combat.ascension_level = 9
+        prism, prism_ai = create_infested_prism(Rng(rng_seed), ascension_level=9)
+        prism_combat.add_enemy(prism, prism_ai)
+        assert prism.max_hp == INFESTED_PRISM_A8_HP
+        jab = prism_ai.states[INFESTED_PRISM_JAB_MOVE]
+        assert jab.intents[0].damage == INFESTED_PRISM_JAB_DAMAGE_A9
+        player_hp_before_jab = prism_combat.player.current_hp
+        jab.perform(prism_combat)
+        assert prism_combat.player.current_hp == player_hp_before_jab - INFESTED_PRISM_JAB_DAMAGE_A9
+
+        radiate = prism_ai.states[INFESTED_PRISM_RADIATE_MOVE]
+        assert radiate.intents[0].damage == INFESTED_PRISM_RADIATE_DAMAGE_A9
+        player_hp_before_radiate = prism_combat.player.current_hp
+        radiate.perform(prism_combat)
+        assert prism_combat.player.current_hp == player_hp_before_radiate - INFESTED_PRISM_RADIATE_DAMAGE_A9
+        assert prism.block == INFESTED_PRISM_RADIATE_BLOCK_A9
+
+        whirlwind = prism_ai.states[INFESTED_PRISM_WHIRLWIND_MOVE]
+        assert whirlwind.intents[0].damage == INFESTED_PRISM_WHIRLWIND_DAMAGE_A9
+        assert whirlwind.intents[0].hits == INFESTED_PRISM_WHIRLWIND_HITS
+        player_hp_before_whirlwind = prism_combat.player.current_hp
+        whirlwind.perform(prism_combat)
+        assert prism_combat.player.current_hp == (
+            player_hp_before_whirlwind - INFESTED_PRISM_WHIRLWIND_DAMAGE_A9 * INFESTED_PRISM_WHIRLWIND_HITS
+        )
+
+        prism.block = 0
+        prism_ai.states[INFESTED_PRISM_PULSATE_MOVE].perform(prism_combat)
+        assert prism.block == INFESTED_PRISM_PULSATE_BLOCK_A8
+        assert prism.get_power_amount(PowerId.STRENGTH) == INFESTED_PRISM_PULSATE_STRENGTH_A9
+
+        prism_encounter_combat = _make_combat(rng_seed)
+        prism_encounter_combat.ascension_level = 9
+        setup_infested_prisms_elite(prism_encounter_combat, Rng(rng_seed))
+        encounter_prism = prism_encounter_combat.enemies[0]
+        encounter_prism_ai = prism_encounter_combat.enemy_ais[encounter_prism.combat_id]
+        assert encounter_prism.monster_id == INFESTED_PRISM_MONSTER_ID
+        assert encounter_prism.max_hp == INFESTED_PRISM_A8_HP
+        assert encounter_prism_ai.states[INFESTED_PRISM_JAB_MOVE].intents[0].damage == INFESTED_PRISM_JAB_DAMAGE_A9
 
     def test_act2_bosses_use_original_move_ids(self):
         knowledge, knowledge_ai = create_knowledge_demon(Rng(42))
@@ -3148,9 +3257,9 @@ class TestFixedRotation:
         creature, ai = create_infested_prism(Rng(17))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 200
-        assert creature.get_power_amount(PowerId.VITAL_SPARK) == 1
-        assert ai.current_move.state_id == "JAB_MOVE"
+        assert creature.max_hp == INFESTED_PRISM_BASE_HP
+        assert creature.get_power_amount(PowerId.VITAL_SPARK) == INFESTED_PRISM_VITAL_SPARK
+        assert ai.current_move.state_id == INFESTED_PRISM_JAB_MOVE
 
         moves = []
         for _ in range(4):
@@ -3159,14 +3268,19 @@ class TestFixedRotation:
             ai.on_move_performed()
             ai.roll_move(Rng(17))
 
-        assert moves == ["JAB_MOVE", "RADIATE_MOVE", "WHIRLWIND_MOVE", "PULSATE_MOVE"]
+        assert moves == [
+            INFESTED_PRISM_JAB_MOVE,
+            INFESTED_PRISM_RADIATE_MOVE,
+            INFESTED_PRISM_WHIRLWIND_MOVE,
+            INFESTED_PRISM_PULSATE_MOVE,
+        ]
         assert creature.block == 36
         assert creature.get_power_amount(PowerId.STRENGTH) == 4
         assert all(card.card_id not in (CardId.INFECTION, CardId.PARASITE) for card in combat.discard_pile)
 
         encounter_combat = _make_combat(18)
         setup_infested_prisms_elite(encounter_combat, Rng(18))
-        assert [enemy.monster_id for enemy in encounter_combat.enemies] == ["INFESTED_PRISM"]
+        assert [enemy.monster_id for enemy in encounter_combat.enemies] == [INFESTED_PRISM_MONSTER_ID]
 
     def test_wriggler_slots_and_spawned_stun_match_original(self):
         combat = _make_combat(19)

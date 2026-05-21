@@ -179,12 +179,12 @@ def setup_decimillipede_elite(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_entomancer_elite(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_entomancer(rng)
+    creature, ai = create_entomancer(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
 def setup_infested_prisms_elite(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_infested_prism(rng)
+    creature, ai = create_infested_prism(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(creature, ai)
 
 
