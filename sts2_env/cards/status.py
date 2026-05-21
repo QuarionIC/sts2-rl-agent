@@ -558,7 +558,8 @@ def neows_fury_effect(card: CardInstance, combat: CombatState, target: Creature 
     candidates = list(combat.discard_pile)
     if not candidates:
         return
-    for selected in combat.combat_card_selection_rng.sample(candidates, min(count, len(candidates))):
+    combat.combat_card_selection_rng.shuffle(candidates)
+    for selected in candidates[:count]:
         combat.move_card_to_hand(selected)
 
 

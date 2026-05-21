@@ -24,6 +24,7 @@ from sts2_env.cards.status import (
     make_infection,
     make_mad_science,
     make_maul,
+    make_neows_fury,
     make_normality,
     make_outmaneuver,
     make_peck,
@@ -82,6 +83,15 @@ class _FirstRng:
 
     def choice(self, lst):
         return list(lst)[0]
+
+
+class _ReverseShuffleRng:
+    def __init__(self) -> None:
+        self.shuffle_lengths: list[int] = []
+
+    def shuffle(self, seq) -> None:
+        self.shuffle_lengths.append(len(seq))
+        seq.reverse()
 
 
 class TestStatusCurseCardEffectsParity:
@@ -155,6 +165,26 @@ class TestStatusCurseCardEffectsParity:
         assert in_draw.upgraded is True
         assert in_draw.base_damage == 7
         assert in_draw.effect_vars["increase"] == 2
+
+    def test_neows_fury_shuffles_full_discard_pile_before_returning_cards(self):
+        combat = _make_combat()
+        first = make_strike_ironclad()
+        second = make_strike_ironclad()
+        third = make_strike_ironclad()
+        fourth = make_strike_ironclad()
+        fury = make_neows_fury()
+        combat.hand = [fury]
+        combat.discard_pile = [first, second, third, fourth]
+        combat.energy = 1
+        combat.rng = _ReverseShuffleRng()
+
+        assert combat.play_card(0, 0)
+
+        assert combat.rng.shuffle_lengths == [4]
+        assert fourth in combat.hand
+        assert third in combat.hand
+        assert first in combat.discard_pile
+        assert second in combat.discard_pile
 
     def test_feeding_frenzy_applies_temporary_strength_then_restores(self):
         combat = _make_combat()
