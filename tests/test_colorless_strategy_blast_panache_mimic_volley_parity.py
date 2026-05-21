@@ -3,6 +3,7 @@
 import sts2_env.powers  # noqa: F401
 
 from sts2_env.cards.colorless import (
+    PANACHE_DAMAGE_KEY,
     make_master_of_strategy,
     make_mimic,
     make_mind_blast,
@@ -62,7 +63,7 @@ class TestColorlessStrategyBlastPanacheMimicVolleyParity:
         combat.hand = [card]
 
         assert combat.play_card(0)
-        assert combat.player.get_power_amount(PowerId.PANACHE) == card.effect_vars["panache_damage"]
+        assert combat.player.get_power_amount(PowerId.PANACHE) == card.effect_vars[PANACHE_DAMAGE_KEY]
 
     def test_mimic_gains_block_from_target_ally_block(self):
         """Matches Mimic.cs: gain block based on selected ally's current block."""

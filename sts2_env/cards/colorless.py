@@ -61,6 +61,17 @@ JACK_OF_ALL_TRADES_CARDS = 1
 JACK_OF_ALL_TRADES_UPGRADED_CARDS = 2
 LIFT_BLOCK = 11
 LIFT_UPGRADED_BLOCK = 16
+MASTER_OF_STRATEGY_CARDS_KEY = "cards"
+MASTER_OF_STRATEGY_CARDS = 3
+MASTER_OF_STRATEGY_UPGRADED_CARDS = 4
+MIMIC_CALC_BASE_KEY = "calc_base"
+MIMIC_CALC_BASE = 0
+MIMIC_CALC_EXTRA_KEY = "calc_extra"
+MIMIC_CALC_EXTRA = 1
+MIND_BLAST_CALC_BASE_KEY = "calc_base"
+MIND_BLAST_CALC_BASE = 0
+MIND_BLAST_EXTRA_DAMAGE_KEY = "extra_damage"
+MIND_BLAST_EXTRA_DAMAGE = 1
 OMNISLICE_DAMAGE_KEY = "damage"
 OMNISLICE_DAMAGE = 8
 OMNISLICE_UPGRADED_DAMAGE = 11
@@ -68,6 +79,9 @@ PANIC_BUTTON_BLOCK = 30
 PANIC_BUTTON_UPGRADED_BLOCK = 40
 PANIC_BUTTON_TURNS_KEY = "turns"
 PANIC_BUTTON_TURNS = 2
+PANACHE_DAMAGE_KEY = "panache_damage"
+PANACHE_DAMAGE = 10
+PANACHE_UPGRADED_DAMAGE = 14
 PRODUCTION_ENERGY_KEY = "energy"
 PRODUCTION_ENERGY = 2
 PROWESS_STRENGTH_KEY = "strength"
@@ -107,6 +121,8 @@ ULTIMATE_DEFEND_BLOCK = 11
 ULTIMATE_DEFEND_UPGRADED_BLOCK = 15
 ULTIMATE_STRIKE_DAMAGE = 14
 ULTIMATE_STRIKE_UPGRADED_DAMAGE = 20
+VOLLEY_DAMAGE = 10
+VOLLEY_UPGRADED_DAMAGE = 14
 BOLAS_DAMAGE = 3
 BOLAS_UPGRADED_DAMAGE = 4
 CALAMITY_COST = 3
@@ -381,7 +397,11 @@ def mind_blast(card: CardInstance, combat: CombatState, target: Creature | None)
     """Damage scales with draw pile size."""
     assert target is not None
     owner = _owner(card, combat)
-    total_damage = card.effect_vars.get("calc_base", 0) + card.effect_vars.get("extra_damage", 1) * len(combat.draw_pile)
+    total_damage = (
+        card.effect_vars.get(MIND_BLAST_CALC_BASE_KEY, MIND_BLAST_CALC_BASE)
+        + card.effect_vars.get(MIND_BLAST_EXTRA_DAMAGE_KEY, MIND_BLAST_EXTRA_DAMAGE)
+        * len(combat.draw_pile)
+    )
     damage = calculate_damage(total_damage, owner, target, ValueProp.MOVE, combat)
     apply_damage(target, damage, ValueProp.MOVE, combat, owner)
 
@@ -425,7 +445,7 @@ def is_omnislice(card: object) -> bool:
 
 @register_effect(CardId.PANACHE_CARD)
 def panache_card(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    damage = card.effect_vars.get("panache_damage", 10)
+    damage = card.effect_vars.get(PANACHE_DAMAGE_KEY, PANACHE_DAMAGE)
     combat.apply_power_to(_owner(card, combat), PowerId.PANACHE, damage)
 
 
@@ -775,7 +795,7 @@ def knockdown(card: CardInstance, combat: CombatState, target: Creature | None) 
 
 @register_effect(CardId.MASTER_OF_STRATEGY)
 def master_of_strategy(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    cards = card.effect_vars.get("cards", 3)
+    cards = card.effect_vars.get(MASTER_OF_STRATEGY_CARDS_KEY, MASTER_OF_STRATEGY_CARDS)
     combat._draw_cards(cards)
 
 
@@ -790,7 +810,10 @@ def mimic(card: CardInstance, combat: CombatState, target: Creature | None) -> N
     if target is None:
         return
     owner = _owner(card, combat)
-    total_block = card.effect_vars.get("calc_base", 0) + card.effect_vars.get("calc_extra", 1) * target.block
+    total_block = (
+        card.effect_vars.get(MIMIC_CALC_BASE_KEY, MIMIC_CALC_BASE)
+        + card.effect_vars.get(MIMIC_CALC_EXTRA_KEY, MIMIC_CALC_EXTRA) * target.block
+    )
     block = calculate_block(total_block, owner, ValueProp.MOVE, combat, card_source=card)
     _gain_resolved_block(owner, block, combat)
 
@@ -946,7 +969,13 @@ def make_master_of_strategy(upgraded: bool = False) -> CardInstance:
         card_id=CardId.MASTER_OF_STRATEGY, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
         upgraded=upgraded, keywords=frozenset({"exhaust"}),
-        effect_vars={"cards": 4 if upgraded else 3},
+        effect_vars={
+            MASTER_OF_STRATEGY_CARDS_KEY: (
+                MASTER_OF_STRATEGY_UPGRADED_CARDS
+                if upgraded
+                else MASTER_OF_STRATEGY_CARDS
+            )
+        },
         instance_id=_get_next_id(),
     )
 
@@ -1441,9 +1470,9 @@ def make_mind_blast(upgraded: bool = False) -> CardInstance:
     card = _make_reference_factory_card(CardId.MIND_BLAST, upgraded=upgraded)
     card.cost = 0 if upgraded else 1
     card.original_cost = card.cost
-    card.base_damage = 0
-    card.effect_vars["calc_base"] = 0
-    card.effect_vars["extra_damage"] = 1
+    card.base_damage = MIND_BLAST_CALC_BASE
+    card.effect_vars[MIND_BLAST_CALC_BASE_KEY] = MIND_BLAST_CALC_BASE
+    card.effect_vars[MIND_BLAST_EXTRA_DAMAGE_KEY] = MIND_BLAST_EXTRA_DAMAGE
     return card
 
 
@@ -1461,9 +1490,9 @@ def make_mimic(upgraded: bool = False) -> CardInstance:
     card = _make_reference_factory_card(CardId.MIMIC, upgraded=upgraded)
     if upgraded:
         card.keywords = frozenset(keyword for keyword in card.keywords if keyword != "exhaust")
-    card.base_block = 0
-    card.effect_vars["calc_base"] = 0
-    card.effect_vars["calc_extra"] = 1
+    card.base_block = MIMIC_CALC_BASE
+    card.effect_vars[MIMIC_CALC_BASE_KEY] = MIMIC_CALC_BASE
+    card.effect_vars[MIMIC_CALC_EXTRA_KEY] = MIMIC_CALC_EXTRA
     return card
 
 
@@ -1497,5 +1526,5 @@ def make_the_gambit(upgraded: bool = False) -> CardInstance:
 
 def make_volley(upgraded: bool = False) -> CardInstance:
     card = _make_reference_factory_card(CardId.VOLLEY, upgraded=upgraded)
-    card.base_damage = 14 if upgraded else 10
+    card.base_damage = VOLLEY_UPGRADED_DAMAGE if upgraded else VOLLEY_DAMAGE
     return card
