@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 DEFAULT_CARD_REWARD_OPTION_COUNT = 3
 COMBAT_CARD_UPGRADE_BASE_CHANCE = 0.0
 MERCHANT_CARD_UPGRADE_SUPPRESSION_BASE_CHANCE = -999999999
+UNIFORM_REWARD_EXCLUDED_RARITIES = frozenset({CardRarity.BASIC, CardRarity.ANCIENT})
 SCARCITY_ASCENSION_LEVEL = 7
 CARD_UPGRADE_ODD_SCALING = 0.25
 SCARCITY_CARD_UPGRADE_ODD_SCALING = 0.125
@@ -411,6 +412,8 @@ def generate_uniform_noncombat_cards(
     filtered_ids = []
     for card_id in candidate_ids:
         card = create_card(card_id, upgraded=False)
+        if card.rarity in UNIFORM_REWARD_EXCLUDED_RARITIES:
+            continue
         if cost is not None and card.cost != cost:
             continue
         if costs_x is not None and card.has_energy_cost_x != costs_x:

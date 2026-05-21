@@ -6,7 +6,7 @@ scaling, and blacklist handling.
 
 import pytest
 
-from sts2_env.cards.factory import eligible_character_cards, eligible_registered_cards
+from sts2_env.cards.factory import create_card, eligible_character_cards, eligible_registered_cards
 from sts2_env.core.enums import CardId, CardRarity, CardType
 from sts2_env.core.rng import Rng
 from sts2_env.run.odds import CardRarityOdds
@@ -17,6 +17,7 @@ from sts2_env.run.rewards import (
     generate_combat_card_rewards,
     generate_combat_reward_cards,
     generate_noncombat_reward_cards,
+    generate_uniform_noncombat_cards,
     roll_for_upgrade,
 )
 from sts2_env.run.run_state import RunState
@@ -324,6 +325,38 @@ class TestConcreteNoncombatRewardCards:
         assert len(rewards) == 3
         assert all(card.rarity == CardRarity.UNCOMMON for card in rewards)
         assert all(card.card_type == CardType.POWER for card in rewards)
+
+
+class _RecordingChoiceRng:
+    def __init__(self) -> None:
+        self.seen_choices: list[list[CardId]] = []
+
+    def choice(self, values):
+        choices = list(values)
+        self.seen_choices.append(choices)
+        return choices[0]
+
+
+class TestUniformNoncombatCards:
+    def test_excludes_basic_and_ancient_cards_like_original_uniform_rewards(self):
+        rs = RunState(42, character_id="Ironclad")
+        rng = _RecordingChoiceRng()
+        rs.rng.rewards = rng
+
+        cards = generate_uniform_noncombat_cards(rs, num_cards=1)
+
+        assert len(cards) == 1
+        assert rng.seen_choices
+        offered_rarities = {
+            card_id: create_card(card_id).rarity
+            for card_id in rng.seen_choices[0]
+        }
+        assert CardId.STRIKE_IRONCLAD not in offered_rarities
+        assert CardId.DEFEND_IRONCLAD not in offered_rarities
+        assert CardId.BASH not in offered_rarities
+        assert CardId.BREAK not in offered_rarities
+        assert CardId.CORRUPTION_CARD not in offered_rarities
+        assert all(rarity not in {CardRarity.BASIC, CardRarity.ANCIENT} for rarity in offered_rarities.values())
 
 
 class TestCombatGenerationEligibility:
