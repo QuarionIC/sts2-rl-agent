@@ -131,6 +131,7 @@ BYGONE_EFFIGY_TOUGH_HP = 132
 BYRDONIS_TOUGH_HP = 99
 PHROG_PARASITE_TOUGH_MIN_HP = 66
 PHROG_PARASITE_TOUGH_MAX_HP = 68
+VANTOM_TOUGH_HP = 183
 
 
 class _ExclusiveHighRng:
@@ -582,6 +583,15 @@ class TestAct1BossEncounters:
         combat = _make_combat()
         setup_vantom_boss(combat, Rng(42))
         assert len(combat.enemies) == 1
+
+    def test_vantom_tough_ascension_hp_matches_csharp(self):
+        combat = _make_combat()
+        combat.ascension_level = 8
+
+        setup_vantom_boss(combat, Rng(42))
+
+        assert len(combat.enemies) == 1
+        assert combat.enemies[0].max_hp == VANTOM_TOUGH_HP
 
     def test_ceremonial_beast_count(self):
         combat = _make_combat()

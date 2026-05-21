@@ -243,7 +243,7 @@ ELITE_ENCOUNTERS: list[EncounterSetup] = [
 # ---- Boss Encounters ----
 
 def setup_vantom_boss(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_vantom(rng)
+    creature, ai = create_vantom(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 

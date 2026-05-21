@@ -209,6 +209,14 @@ PHROG_PARASITE_LASH_DAMAGE_A9 = 5
 PHROG_PARASITE_LASH_HITS = 4
 PHROG_PARASITE_INFECTIONS = 3
 PHROG_PARASITE_INFESTED = 4
+VANTOM_INK_BLOT_DAMAGE_A9 = 8
+VANTOM_INKY_LANCE_DAMAGE_A9 = 7
+VANTOM_INKY_LANCE_HITS = 2
+VANTOM_DISMEMBER_DAMAGE_A9 = 30
+VANTOM_DISMEMBER_WOUNDS = 3
+VANTOM_PREPARE_STRENGTH = 2
+VANTOM_SLIPPERY = 9
+VANTOM_MULTIPLAYER_SLIPPERY = 27
 TOUGH_EGG_INITIAL_HP = 16
 TOUGH_EGG_HATCHLING_HP = 20
 MULTIPLAYER_TEST_PLAYER_COUNT = 2
@@ -823,6 +831,41 @@ class TestFixedRotation:
         ally_state.discard.clear()
         phrog_ai.states["INFECT_MOVE"].perform(combat)
         assert [card.card_id for card in ally_state.discard] == [CardId.INFECTION] * PHROG_PARASITE_INFECTIONS
+
+    def test_vantom_ascension_scaling_matches_csharp(self):
+        rng_seed = 1280
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=100)
+        ally_state = combat.combat_player_state_for(ally)
+        assert ally_state is not None
+        ally_state.discard.clear()
+        vantom, vantom_ai = create_vantom(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(vantom, vantom_ai)
+
+        ink_blot = vantom_ai.states["INK_BLOT_MOVE"]
+        assert vantom.get_power_amount(PowerId.SLIPPERY) == VANTOM_MULTIPLAYER_SLIPPERY
+        assert ink_blot.intents[0].damage == VANTOM_INK_BLOT_DAMAGE_A9
+        ally_hp_before_ink_blot = ally.current_hp
+        ink_blot.perform(combat)
+        assert ally.current_hp == ally_hp_before_ink_blot - VANTOM_INK_BLOT_DAMAGE_A9
+
+        inky_lance = vantom_ai.states["INKY_LANCE_MOVE"]
+        assert inky_lance.intents[0].damage == VANTOM_INKY_LANCE_DAMAGE_A9
+        assert inky_lance.intents[0].hits == VANTOM_INKY_LANCE_HITS
+        ally_hp_before_lance = ally.current_hp
+        inky_lance.perform(combat)
+        assert ally.current_hp == ally_hp_before_lance - VANTOM_INKY_LANCE_DAMAGE_A9 * VANTOM_INKY_LANCE_HITS
+
+        dismember = vantom_ai.states["DISMEMBER_MOVE"]
+        assert dismember.intents[0].damage == VANTOM_DISMEMBER_DAMAGE_A9
+        ally_hp_before_dismember = ally.current_hp
+        dismember.perform(combat)
+        assert ally.current_hp == ally_hp_before_dismember - VANTOM_DISMEMBER_DAMAGE_A9
+        assert [card.card_id for card in ally_state.discard] == [CardId.WOUND] * VANTOM_DISMEMBER_WOUNDS
+
+        vantom_ai.states["PREPARE_MOVE"].perform(combat)
+        assert vantom.get_power_amount(PowerId.STRENGTH) == VANTOM_PREPARE_STRENGTH
 
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle

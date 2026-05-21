@@ -1472,75 +1472,139 @@ def create_phrog_parasite(rng: Rng, ascension_level: int = 0) -> tuple[Creature,
 
 # ---- Vantom (HP 173 / 183 asc) ----
 
+PARAFRIGHT_HP = 21
+PARAFRIGHT_SLAM_DAMAGE = 16
+PARAFRIGHT_ILLUSION = 1
+PARAFRIGHT_MINION = 1
+PARAFRIGHT_ID = "PARAFRIGHT"
+PARAFRIGHT_SLAM_MOVE = "SLAM_MOVE"
+
+VANTOM_ID = "VANTOM"
+VANTOM_BASE_HP = 173
+VANTOM_TOUGH_HP = 183
+VANTOM_BASE_INK_BLOT_DAMAGE = 7
+VANTOM_DEADLY_INK_BLOT_DAMAGE = 8
+VANTOM_BASE_INKY_LANCE_DAMAGE = 6
+VANTOM_DEADLY_INKY_LANCE_DAMAGE = 7
+VANTOM_INKY_LANCE_HITS = 2
+VANTOM_BASE_DISMEMBER_DAMAGE = 27
+VANTOM_DEADLY_DISMEMBER_DAMAGE = 30
+VANTOM_DISMEMBER_WOUNDS = 3
+VANTOM_PREPARE_STRENGTH = 2
+VANTOM_SLIPPERY = 9
+VANTOM_INK_BLOT_MOVE = "INK_BLOT_MOVE"
+VANTOM_INKY_LANCE_MOVE = "INKY_LANCE_MOVE"
+VANTOM_DISMEMBER_MOVE = "DISMEMBER_MOVE"
+VANTOM_PREPARE_MOVE = "PREPARE_MOVE"
+
 def create_parafright(rng: Rng) -> tuple[Creature, MonsterAI]:
-    creature = Creature(max_hp=21, monster_id="PARAFRIGHT")
-    slam_dmg = 16
+    creature = Creature(max_hp=PARAFRIGHT_HP, monster_id=PARAFRIGHT_ID)
 
     def slam(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, slam_dmg)
+        _deal_damage_to_player(combat, creature, PARAFRIGHT_SLAM_DAMAGE)
 
     states: dict[str, MonsterState] = {
-        "SLAM_MOVE": MoveState("SLAM_MOVE", slam, [attack_intent(slam_dmg)], follow_up_id="SLAM_MOVE"),
+        PARAFRIGHT_SLAM_MOVE: MoveState(
+            PARAFRIGHT_SLAM_MOVE,
+            slam,
+            [attack_intent(PARAFRIGHT_SLAM_DAMAGE)],
+            follow_up_id=PARAFRIGHT_SLAM_MOVE,
+        ),
     }
-    creature.apply_power(PowerId.ILLUSION, 1)
-    creature.apply_power(PowerId.MINION, 1)
-    return creature, MonsterAI(states, "SLAM_MOVE")
+    creature.apply_power(PowerId.ILLUSION, PARAFRIGHT_ILLUSION)
+    creature.apply_power(PowerId.MINION, PARAFRIGHT_MINION)
+    return creature, MonsterAI(states, PARAFRIGHT_SLAM_MOVE)
 
 
-def create_vantom(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 173
-    creature = Creature(max_hp=hp, monster_id="VANTOM")
-    ink_blot_dmg = 7
-    inky_lance_dmg = 6
-    inky_lance_hits = 2
-    dismember_dmg = 27
-    dismember_wounds = 3
-    prepare_strength = 2
-    slippery_amount = 9
+def create_vantom(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        VANTOM_TOUGH_HP,
+        VANTOM_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=VANTOM_ID)
 
     def ink_blot(combat: CombatState) -> None:
+        ink_blot_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            VANTOM_DEADLY_INK_BLOT_DAMAGE,
+            VANTOM_BASE_INK_BLOT_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, ink_blot_dmg)
 
     def inky_lance(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, inky_lance_dmg, hits=inky_lance_hits)
+        inky_lance_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            VANTOM_DEADLY_INKY_LANCE_DAMAGE,
+            VANTOM_BASE_INKY_LANCE_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, inky_lance_dmg, hits=VANTOM_INKY_LANCE_HITS)
 
     def dismember(combat: CombatState) -> None:
+        dismember_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            VANTOM_DEADLY_DISMEMBER_DAMAGE,
+            VANTOM_BASE_DISMEMBER_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, dismember_dmg)
         if combat.is_over:
             return
-        add_generated_cards_to_living_player_discards(combat, make_wound, dismember_wounds)
+        add_generated_cards_to_living_player_discards(combat, make_wound, VANTOM_DISMEMBER_WOUNDS)
 
     def prepare(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, prepare_strength, applier=creature)
+        creature.apply_power(PowerId.STRENGTH, VANTOM_PREPARE_STRENGTH, applier=creature)
+
+    ink_blot_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        VANTOM_DEADLY_INK_BLOT_DAMAGE,
+        VANTOM_BASE_INK_BLOT_DAMAGE,
+    )
+    inky_lance_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        VANTOM_DEADLY_INKY_LANCE_DAMAGE,
+        VANTOM_BASE_INKY_LANCE_DAMAGE,
+    )
+    dismember_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        VANTOM_DEADLY_DISMEMBER_DAMAGE,
+        VANTOM_BASE_DISMEMBER_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "INK_BLOT_MOVE": MoveState(
-            "INK_BLOT_MOVE",
+        VANTOM_INK_BLOT_MOVE: MoveState(
+            VANTOM_INK_BLOT_MOVE,
             ink_blot,
-            [attack_intent(ink_blot_dmg)],
-            follow_up_id="INKY_LANCE_MOVE",
+            [attack_intent(ink_blot_intent_damage)],
+            follow_up_id=VANTOM_INKY_LANCE_MOVE,
         ),
-        "INKY_LANCE_MOVE": MoveState(
-            "INKY_LANCE_MOVE",
+        VANTOM_INKY_LANCE_MOVE: MoveState(
+            VANTOM_INKY_LANCE_MOVE,
             inky_lance,
-            [multi_attack_intent(inky_lance_dmg, inky_lance_hits)],
-            follow_up_id="DISMEMBER_MOVE",
+            [multi_attack_intent(inky_lance_intent_damage, VANTOM_INKY_LANCE_HITS)],
+            follow_up_id=VANTOM_DISMEMBER_MOVE,
         ),
-        "DISMEMBER_MOVE": MoveState(
-            "DISMEMBER_MOVE",
+        VANTOM_DISMEMBER_MOVE: MoveState(
+            VANTOM_DISMEMBER_MOVE,
             dismember,
-            [attack_intent(dismember_dmg), status_intent()],
-            follow_up_id="PREPARE_MOVE",
+            [attack_intent(dismember_intent_damage), status_intent()],
+            follow_up_id=VANTOM_PREPARE_MOVE,
         ),
-        "PREPARE_MOVE": MoveState(
-            "PREPARE_MOVE",
+        VANTOM_PREPARE_MOVE: MoveState(
+            VANTOM_PREPARE_MOVE,
             prepare,
             [buff_intent()],
-            follow_up_id="INK_BLOT_MOVE",
+            follow_up_id=VANTOM_INK_BLOT_MOVE,
         ),
     }
-    creature.apply_power(PowerId.SLIPPERY, slippery_amount)
-    return creature, MonsterAI(states, "INK_BLOT_MOVE")
+    creature.apply_power(PowerId.SLIPPERY, VANTOM_SLIPPERY)
+    return creature, MonsterAI(states, VANTOM_INK_BLOT_MOVE)
 
 
 # ---- CeremonialBeast (HP 252 / 262 asc) ----
