@@ -436,6 +436,33 @@ def test_fake_merchant_throw_foul_only_rewards_current_stock():
     assert len(rewards) == 6
 
 
+def test_fake_merchant_failed_fake_relic_purchase_keeps_foul_potion_fight_available():
+    run_state = _make_run_state(9191)
+    run_state.current_act_index = 1
+    run_state.player.gold = FakeMerchant.FAKE_RELIC_COST - 1
+    run_state.player.add_potion(create_potion(FakeMerchant.FOUL_POTION_ID))
+    event = FakeMerchant()
+    event.generate_initial_options(run_state)
+    inventory_before = list(event._inventories[id(run_state)])  # noqa: SLF001
+
+    buy = event.choose(run_state, FakeMerchant.OPTION_BUY)
+    assert buy.finished is False
+
+    failed = event.choose(run_state, buy.next_options[0].option_id)
+
+    assert failed.finished is False
+    assert run_state.player.gold == FakeMerchant.FAKE_RELIC_COST - 1
+    assert event._inventories[id(run_state)] == inventory_before  # noqa: SLF001
+    assert any(option.option_id == FakeMerchant.OPTION_THROW_FOUL for option in failed.next_options)
+
+    throw_foul = event.choose(run_state, FakeMerchant.OPTION_THROW_FOUL)
+
+    assert throw_foul.finished
+    assert throw_foul.event_combat_setup == "fake_merchant"
+    assert len(throw_foul.rewards["reward_objects"]) == FakeMerchant.INVENTORY_SIZE + 1
+    assert all(potion.potion_id != FakeMerchant.FOUL_POTION_ID for potion in run_state.player.held_potions())
+
+
 def test_run_manager_enters_combat_for_fake_merchant_throw_foul():
     mgr = RunManager(seed=909, character_id="Ironclad")
     mgr.run_state.current_act_index = 1

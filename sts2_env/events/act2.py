@@ -361,6 +361,15 @@ class FakeMerchant(EventModel):
 
     event_id = "FakeMerchant"
     is_shared = True
+    FAKE_RELIC_COST = 50
+    MIN_ENTRY_GOLD = 100
+    INVENTORY_SIZE = 6
+    FOUL_POTION_ID = "FoulPotion"
+    FIGHT_REWARD_RUG_ID = RelicId.FAKE_MERCHANTS_RUG.name
+    OPTION_BUY = "buy"
+    OPTION_THROW_FOUL = "throw_foul"
+    OPTION_LEAVE = "leave"
+    BUY_OPTION_PREFIX = "buy_"
 
     _INVENTORY_RELICS = (
         RelicId.FAKE_ANCHOR.name,
@@ -383,20 +392,42 @@ class FakeMerchant(EventModel):
         if inventory is None:
             pool = list(self._INVENTORY_RELICS)
             self.get_rng(run_state).shuffle(pool)
-            inventory = pool[:6]
+            inventory = pool[: self.INVENTORY_SIZE]
             self._inventories[key] = inventory
         return inventory
+
+    def _has_foul_potion(self, run_state: RunState) -> bool:
+        return any(
+            potion.potion_id == self.FOUL_POTION_ID
+            for potion in run_state.player.held_potions()
+        )
+
+    def _fake_relic_option(self, index: int, relic_id: str) -> EventOption:
+        return EventOption(
+            f"{self.BUY_OPTION_PREFIX}{index}",
+            relic_id.replace("_", " ").title(),
+            "Buy this fake relic",
+            enabled=True,
+        )
+
+    def _post_buy_options(self, run_state: RunState, inventory: list[str]) -> list[EventOption]:
+        options: list[EventOption] = []
+        if inventory:
+            options.extend(
+                self._fake_relic_option(index, relic_id)
+                for index, relic_id in enumerate(inventory)
+            )
+        if self._has_foul_potion(run_state):
+            options.append(EventOption(self.OPTION_THROW_FOUL, "Throw Foul Potion", "Fight for real rewards"))
+        options.append(EventOption(self.OPTION_LEAVE, "Leave", "Leave the merchant"))
+        return options
 
     def is_allowed(self, run_state: RunState) -> bool:
         if run_state.current_act_index < 1:
             return False
         if len(run_state.players) > 1:
             return False
-        has_foul_potion = any(
-            p.potion_id == "FoulPotion"
-            for p in run_state.player.held_potions()
-        )
-        return run_state.player.gold >= 100 or has_foul_potion
+        return run_state.player.gold >= self.MIN_ENTRY_GOLD or self._has_foul_potion(run_state)
 
     def before_event_started(self, run_state: RunState) -> None:
         run_state.player.can_remove_potions = False
@@ -407,79 +438,60 @@ class FakeMerchant(EventModel):
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         self._inventories[id(run_state)] = self._inventory_for(run_state)
         options = [
-            EventOption("buy", "Buy a Relic (50g)", "Purchase a fake relic"),
+            EventOption(
+                self.OPTION_BUY,
+                f"Buy a Relic ({self.FAKE_RELIC_COST}g)",
+                "Purchase a fake relic",
+            ),
         ]
-        has_foul = any(
-            p.potion_id == "FoulPotion"
-            for p in run_state.player.held_potions()
-        )
-        if has_foul:
-            options.append(EventOption("throw_foul", "Throw Foul Potion",
-                                        "Fight for real rewards"))
-        options.append(EventOption("leave", "Leave", "Leave the merchant"))
+        if self._has_foul_potion(run_state):
+            options.append(EventOption(self.OPTION_THROW_FOUL, "Throw Foul Potion",
+                                       "Fight for real rewards"))
+        options.append(EventOption(self.OPTION_LEAVE, "Leave", "Leave the merchant"))
         return options
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
         inventory = self._inventory_for(run_state)
-        if option_id == "buy":
+        if option_id == self.OPTION_BUY:
             if not inventory:
                 return EventResult(finished=True, description="Nothing happened.")
             return EventResult(
                 finished=False,
                 description="Choose a fake relic to buy.",
-                next_options=[
-                    EventOption(f"buy_{idx}", relic_id.replace("_", " ").title(), "Buy this fake relic")
-                    for idx, relic_id in enumerate(inventory)
-                ] + [EventOption("leave", "Leave", "Leave the merchant")],
+                next_options=self._post_buy_options(run_state, inventory),
             )
-        if option_id.startswith("buy_"):
+        if option_id.startswith(self.BUY_OPTION_PREFIX):
             try:
-                idx = int(option_id.split("_", 1)[1])
+                idx = int(option_id.removeprefix(self.BUY_OPTION_PREFIX))
             except ValueError:
                 return EventResult(finished=True, description="Nothing happened.")
-            if 0 <= idx < len(inventory) and run_state.player.gold >= 50:
-                run_state.player.lose_gold(50)
+            if 0 <= idx < len(inventory) and run_state.player.gold >= self.FAKE_RELIC_COST:
+                run_state.player.lose_gold(self.FAKE_RELIC_COST)
                 purchased = inventory.pop(idx)
                 if _should_defer_event_rewards(run_state):
-                    next_options = []
-                    if inventory and run_state.player.gold >= 50:
-                        next_options.extend(
-                            EventOption(f"buy_{i}", relic_id.replace("_", " ").title(), "Buy this fake relic")
-                            for i, relic_id in enumerate(inventory)
-                        )
-                    has_foul = any(p.potion_id == "FoulPotion" for p in run_state.player.held_potions())
-                    if has_foul:
-                        next_options.append(EventOption("throw_foul", "Throw Foul Potion", "Fight for real rewards"))
-                    next_options.append(EventOption("leave", "Leave", "Leave the merchant"))
                     return EventResult(
                         finished=False,
-                        description="Bought a fake relic for 50g.",
-                        next_options=next_options,
+                        description=f"Bought a fake relic for {self.FAKE_RELIC_COST}g.",
+                        next_options=self._post_buy_options(run_state, inventory),
                         rewards={"reward_objects": [RelicReward(run_state.player.player_id, relic_id=purchased)]},
                     )
                 run_state.player.obtain_relic(purchased)
-                next_options = []
-                if inventory and run_state.player.gold >= 50:
-                    next_options.extend(
-                        EventOption(f"buy_{i}", relic_id.replace("_", " ").title(), "Buy this fake relic")
-                        for i, relic_id in enumerate(inventory)
-                    )
-                has_foul = any(p.potion_id == "FoulPotion" for p in run_state.player.held_potions())
-                if has_foul:
-                    next_options.append(EventOption("throw_foul", "Throw Foul Potion", "Fight for real rewards"))
-                next_options.append(EventOption("leave", "Leave", "Leave the merchant"))
                 return EventResult(
                     finished=False,
-                    description="Bought a fake relic for 50g.",
-                    next_options=next_options,
+                    description=f"Bought a fake relic for {self.FAKE_RELIC_COST}g.",
+                    next_options=self._post_buy_options(run_state, inventory),
                 )
-            return EventResult(finished=True, description="Could not buy that relic.")
-        if option_id == "throw_foul":
+            return EventResult(
+                finished=False,
+                description="Could not buy that relic.",
+                next_options=self._post_buy_options(run_state, inventory),
+            )
+        if option_id == self.OPTION_THROW_FOUL:
             for idx, potion in enumerate(list(run_state.player.held_potions())):
-                if potion.potion_id == "FoulPotion":
+                if potion.potion_id == self.FOUL_POTION_ID:
                     run_state.player.remove_potion(potion.slot_index)
                     break
-            stocked_fake_relics = [RelicId.FAKE_MERCHANTS_RUG.name, *inventory]
+            stocked_fake_relics = [self.FIGHT_REWARD_RUG_ID, *inventory]
             rewards = [RelicReward(run_state.player.player_id, relic_id=relic_id) for relic_id in stocked_fake_relics]
             return EventResult(
                 finished=True,
