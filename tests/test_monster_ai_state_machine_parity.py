@@ -619,6 +619,34 @@ class TestFixedRotation:
         mawler_ai.states["ROAR_MOVE"].perform(combat)
         assert ally.get_power_amount(PowerId.VULNERABLE) == 3
 
+    def test_vine_shambler_ascension_scaling_matches_csharp(self):
+        rng_seed = 1275
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=80)
+        shambler, shambler_ai = create_vine_shambler(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(shambler, shambler_ai)
+
+        swipe = shambler_ai.states["SWIPE_MOVE"]
+        assert swipe.intents[0].damage == 7
+        ally_hp_before_swipe = ally.current_hp
+        swipe.perform(combat)
+        assert ally.current_hp == ally_hp_before_swipe - 14
+
+        grasping_vines = shambler_ai.states["GRASPING_VINES_MOVE"]
+        assert grasping_vines.intents[0].damage == 9
+        assert grasping_vines.intents[1].intent_type.name == "CARD_DEBUFF"
+        ally_hp_before_vines = ally.current_hp
+        grasping_vines.perform(combat)
+        assert ally.current_hp == ally_hp_before_vines - 9
+        assert ally.get_power_amount(PowerId.TANGLED) == 1
+
+        chomp = shambler_ai.states["CHOMP_MOVE"]
+        assert chomp.intents[0].damage == 18
+        ally_hp_before_chomp = ally.current_hp
+        chomp.perform(combat)
+        assert ally.current_hp == ally_hp_before_chomp - 18
+
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle
 

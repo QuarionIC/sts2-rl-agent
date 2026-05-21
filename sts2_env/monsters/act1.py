@@ -627,46 +627,99 @@ def create_mawler(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Monster
 
 # ---- VineShambler (HP 61 / 64 asc) ----
 
-def create_vine_shambler(rng: Rng) -> tuple[Creature, MonsterAI]:
-    initial_hp = 61
-    hp = initial_hp
+VINE_SHAMBLER_BASE_HP = 61
+VINE_SHAMBLER_TOUGH_HP = 64
+VINE_SHAMBLER_BASE_GRASPING_VINES_DAMAGE = 8
+VINE_SHAMBLER_DEADLY_GRASPING_VINES_DAMAGE = 9
+VINE_SHAMBLER_BASE_SWIPE_DAMAGE = 6
+VINE_SHAMBLER_DEADLY_SWIPE_DAMAGE = 7
+VINE_SHAMBLER_SWIPE_HITS = 2
+VINE_SHAMBLER_BASE_CHOMP_DAMAGE = 16
+VINE_SHAMBLER_DEADLY_CHOMP_DAMAGE = 18
+VINE_SHAMBLER_TANGLED_AMOUNT = 1
+VINE_SHAMBLER_GRASPING_VINES_MOVE = "GRASPING_VINES_MOVE"
+VINE_SHAMBLER_SWIPE_MOVE = "SWIPE_MOVE"
+VINE_SHAMBLER_CHOMP_MOVE = "CHOMP_MOVE"
+
+
+def create_vine_shambler(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        VINE_SHAMBLER_TOUGH_HP,
+        VINE_SHAMBLER_BASE_HP,
+    )
     creature = Creature(max_hp=hp, monster_id="VINE_SHAMBLER")
-    grasping_vines_move = "GRASPING_VINES_MOVE"
-    swipe_move = "SWIPE_MOVE"
-    chomp_move = "CHOMP_MOVE"
-    grasping_vines_dmg = 8
-    tangled_amount = 1
-    swipe_dmg = 6
-    swipe_hits = 2
-    chomp_dmg = 16
 
     def grasping_vines(combat: CombatState) -> None:
+        grasping_vines_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            VINE_SHAMBLER_DEADLY_GRASPING_VINES_DAMAGE,
+            VINE_SHAMBLER_BASE_GRASPING_VINES_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, grasping_vines_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.TANGLED, tangled_amount, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.TANGLED, VINE_SHAMBLER_TANGLED_AMOUNT, applier=creature)
 
     def swipe(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, swipe_dmg, hits=swipe_hits)
+        swipe_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            VINE_SHAMBLER_DEADLY_SWIPE_DAMAGE,
+            VINE_SHAMBLER_BASE_SWIPE_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, swipe_dmg, hits=VINE_SHAMBLER_SWIPE_HITS)
 
     def chomp(combat: CombatState) -> None:
+        chomp_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            VINE_SHAMBLER_DEADLY_CHOMP_DAMAGE,
+            VINE_SHAMBLER_BASE_CHOMP_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, chomp_dmg)
 
+    grasping_vines_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        VINE_SHAMBLER_DEADLY_GRASPING_VINES_DAMAGE,
+        VINE_SHAMBLER_BASE_GRASPING_VINES_DAMAGE,
+    )
+    swipe_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        VINE_SHAMBLER_DEADLY_SWIPE_DAMAGE,
+        VINE_SHAMBLER_BASE_SWIPE_DAMAGE,
+    )
+    chomp_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        VINE_SHAMBLER_DEADLY_CHOMP_DAMAGE,
+        VINE_SHAMBLER_BASE_CHOMP_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        swipe_move: MoveState(
-            swipe_move,
+        VINE_SHAMBLER_SWIPE_MOVE: MoveState(
+            VINE_SHAMBLER_SWIPE_MOVE,
             swipe,
-            [multi_attack_intent(swipe_dmg, swipe_hits)],
-            follow_up_id=grasping_vines_move,
+            [multi_attack_intent(swipe_intent_damage, VINE_SHAMBLER_SWIPE_HITS)],
+            follow_up_id=VINE_SHAMBLER_GRASPING_VINES_MOVE,
         ),
-        grasping_vines_move: MoveState(
-            grasping_vines_move,
+        VINE_SHAMBLER_GRASPING_VINES_MOVE: MoveState(
+            VINE_SHAMBLER_GRASPING_VINES_MOVE,
             grasping_vines,
-            [attack_intent(grasping_vines_dmg), Intent(IntentType.CARD_DEBUFF)],
-            follow_up_id=chomp_move,
+            [attack_intent(grasping_vines_intent_damage), Intent(IntentType.CARD_DEBUFF)],
+            follow_up_id=VINE_SHAMBLER_CHOMP_MOVE,
         ),
-        chomp_move: MoveState(chomp_move, chomp, [attack_intent(chomp_dmg)], follow_up_id=swipe_move),
+        VINE_SHAMBLER_CHOMP_MOVE: MoveState(
+            VINE_SHAMBLER_CHOMP_MOVE,
+            chomp,
+            [attack_intent(chomp_intent_damage)],
+            follow_up_id=VINE_SHAMBLER_SWIPE_MOVE,
+        ),
     }
 
-    return creature, MonsterAI(states, swipe_move)
+    return creature, MonsterAI(states, VINE_SHAMBLER_SWIPE_MOVE)
 
 
 # ---- SlitheringStrangler (HP 53-55 / 54-56 asc) ----

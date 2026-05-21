@@ -196,7 +196,7 @@ def setup_snapping_jaxfruit_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_vine_shambler_normal(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_vine_shambler(rng)
+    creature, ai = create_vine_shambler(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
