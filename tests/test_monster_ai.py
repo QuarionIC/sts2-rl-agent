@@ -181,6 +181,10 @@ NIBBIT_SLICE_MOVE_ID = "SLICE_MOVE"
 NIBBIT_SLICE_MOVE_BLOCK = 5
 
 
+def _expected_starting_act_multiplayer_enemy_hp(combat: CombatState, base_hp: int) -> int:
+    return int(base_hp * len(combat.combat_player_states) * MULTIPLAYER_ACT_SCALING[STARTING_ACT_INDEX])
+
+
 class _BlockHookCounterPower(PowerInstance):
     def __init__(self):
         super().__init__(PowerId.JUGGERNAUT, 0)
@@ -1080,7 +1084,7 @@ class TestFixedRotation:
         creature, ai = create_vantom(Rng(rng_seed))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 173
+        assert creature.max_hp == _expected_starting_act_multiplayer_enemy_hp(combat, 173)
         assert creature.get_power_amount(PowerId.SLIPPERY) == 27
         assert _run_ai(ai, Rng(rng_seed), 5) == [
             "INK_BLOT_MOVE",
@@ -1170,7 +1174,7 @@ class TestFixedRotation:
         creature, ai = create_kin_priest(Rng(rng_seed))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 190
+        assert creature.max_hp == _expected_starting_act_multiplayer_enemy_hp(combat, 190)
         assert _run_ai(ai, Rng(rng_seed), 5) == [
             "ORB_OF_FRAILTY_MOVE",
             "ORB_OF_WEAKNESS_MOVE",
@@ -1218,7 +1222,7 @@ class TestFixedRotation:
         creature, ai = create_vine_shambler(Rng(rng_seed))
         combat.add_enemy(creature, ai)
 
-        assert creature.max_hp == 61
+        assert creature.max_hp == _expected_starting_act_multiplayer_enemy_hp(combat, 61)
         assert creature.get_power_amount(PowerId.THORNS) == 0
         assert _run_ai(ai, Rng(rng_seed), 4) == [
             "SWIPE_MOVE",
@@ -1836,7 +1840,7 @@ class TestFixedRotation:
         multiplayer_combat.add_enemy(multiplayer_knowledge, multiplayer_knowledge_ai)
         multiplayer_knowledge_ai.states["PONDER_MOVE"].perform(multiplayer_combat)
 
-        assert multiplayer_knowledge.current_hp == 360
+        assert multiplayer_knowledge.current_hp == _expected_starting_act_multiplayer_enemy_hp(multiplayer_combat, 379)
         assert multiplayer_knowledge.get_power_amount(PowerId.STRENGTH) == 2
 
         crusher, crusher_ai = create_crusher(Rng(43))

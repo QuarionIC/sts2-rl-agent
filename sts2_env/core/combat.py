@@ -687,11 +687,16 @@ class CombatState:
     def add_enemy(self, creature: Creature, ai: MonsterAI) -> None:
         """Add an enemy to this combat."""
         from sts2_env.core.hooks import fire_after_creature_added_to_combat
+        from sts2_env.core.hooks import scaled_multiplayer_enemy_max_hp
         from sts2_env.core.hooks import scaled_multiplayer_power_amount
 
         creature.combat_id = len(self.enemies)
         creature.side = CombatSide.ENEMY
         creature.combat_state = self
+        scaled_max_hp = scaled_multiplayer_enemy_max_hp(creature, self)
+        if scaled_max_hp != creature.max_hp:
+            creature.max_hp = scaled_max_hp
+            creature.current_hp = scaled_max_hp
         for power in creature.powers.values():
             power.amount = scaled_multiplayer_power_amount(
                 power.power_id,

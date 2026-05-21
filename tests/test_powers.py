@@ -29,6 +29,8 @@ from sts2_env.cards.silent import _make_shiv, make_afterimage, make_deflect, mak
 from sts2_env.cards.status import make_burn, make_dazed, make_rebound, make_sovereign_blade
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle, create_twig_slime_s
+from sts2_env.monsters.state_machine import MonsterAI, MoveState
+from sts2_env.monsters.intents import attack_intent
 from sts2_env.monsters.act3 import create_turret_operator
 from sts2_env.powers.base import PowerInstance
 from sts2_env.powers.monster import BurrowedPower, CrabRagePower, SkittishPower, SmoggyPower
@@ -42,6 +44,46 @@ from sts2_env.run.run_state import PlayerState, RunState
 TEMPORARY_STRENGTH_AMOUNT = 3
 TEMPORARY_DEXTERITY_AMOUNT = 4
 TEMPORARY_FOCUS_AMOUNT = 2
+STARTING_ACT_INDEX = 0
+MULTIPLAYER_ALLY_CHARACTER_ID = "Ironclad"
+MULTIPLAYER_TEST_ENEMY_HP = 20
+MULTIPLAYER_ALLY_HP = 70
+ACT_THREE_INDEX = 2
+
+
+def _noop_move(combat: CombatState) -> None:
+    pass
+
+
+def _noop_monster_ai() -> MonsterAI:
+    return MonsterAI(
+        {"NOOP": MoveState("NOOP", _noop_move, [attack_intent(1)], follow_up_id="NOOP")},
+        "NOOP",
+    )
+
+
+def _add_multiplayer_ally(combat: CombatState, player_id: int = 2) -> Creature:
+    return combat.add_ally_player(
+        PlayerState(
+            player_id=player_id,
+            character_id=MULTIPLAYER_ALLY_CHARACTER_ID,
+            max_hp=MULTIPLAYER_ALLY_HP,
+            current_hp=MULTIPLAYER_ALLY_HP,
+        )
+    )
+
+
+def _expected_multiplayer_enemy_hp(combat: CombatState, base_hp: int) -> int:
+    from sts2_env.core.constants import MULTIPLAYER_ACT_3_BOSS_SCALING, MULTIPLAYER_ACT_SCALING
+
+    run_state = getattr(combat.current_player_state.player_state, "run_state", None)
+    act_index = getattr(run_state, "current_act_index", STARTING_ACT_INDEX)
+    room_type = getattr(getattr(combat, "room", None), "room_type", None)
+    if act_index == ACT_THREE_INDEX and room_type == RoomType.BOSS:
+        scaling = MULTIPLAYER_ACT_3_BOSS_SCALING
+    else:
+        scaling = MULTIPLAYER_ACT_SCALING[act_index]
+    return int(base_hp * len(combat.combat_player_states) * scaling)
 
 
 class _FirstChoiceRng:
@@ -146,6 +188,59 @@ class TestPowerApplication:
         simple_combat.add_enemy(enemy, simple_combat.enemy_ais[simple_combat.enemies[0].combat_id])
 
         assert enemy.get_power_amount(PowerId.SKITTISH) == 13
+
+    def test_multiplayer_scaling_normalizes_enemy_hp_on_add(self, simple_combat):
+        _add_multiplayer_ally(simple_combat)
+        enemy = Creature(
+            max_hp=MULTIPLAYER_TEST_ENEMY_HP,
+            current_hp=MULTIPLAYER_TEST_ENEMY_HP,
+            side=CombatSide.ENEMY,
+            monster_id="HP_SCALED",
+        )
+
+        simple_combat.add_enemy(enemy, _noop_monster_ai())
+
+        expected_hp = _expected_multiplayer_enemy_hp(simple_combat, MULTIPLAYER_TEST_ENEMY_HP)
+        assert enemy.max_hp == expected_hp
+        assert enemy.current_hp == expected_hp
+
+    def test_multiplayer_scaling_uses_act_three_boss_hp_multiplier(self):
+        run_state = RunState(seed=304, character_id="Ironclad")
+        run_state.current_act_index = ACT_THREE_INDEX
+        combat = CombatState(
+            player_hp=80,
+            player_max_hp=80,
+            deck=create_ironclad_starter_deck(),
+            rng_seed=42,
+            player_state=run_state.player,
+            room=CombatRoom(room_type=RoomType.BOSS),
+        )
+        _add_multiplayer_ally(combat)
+        enemy = Creature(
+            max_hp=MULTIPLAYER_TEST_ENEMY_HP,
+            current_hp=MULTIPLAYER_TEST_ENEMY_HP,
+            side=CombatSide.ENEMY,
+            monster_id="BOSS_HP_SCALED",
+        )
+
+        combat.add_enemy(enemy, _noop_monster_ai())
+
+        expected_hp = _expected_multiplayer_enemy_hp(combat, MULTIPLAYER_TEST_ENEMY_HP)
+        assert enemy.max_hp == expected_hp
+        assert enemy.current_hp == expected_hp
+
+    def test_multiplayer_scaling_does_not_change_single_player_enemy_hp(self, simple_combat):
+        enemy = Creature(
+            max_hp=MULTIPLAYER_TEST_ENEMY_HP,
+            current_hp=MULTIPLAYER_TEST_ENEMY_HP,
+            side=CombatSide.ENEMY,
+            monster_id="SOLO_HP",
+        )
+
+        simple_combat.add_enemy(enemy, _noop_monster_ai())
+
+        assert enemy.max_hp == MULTIPLAYER_TEST_ENEMY_HP
+        assert enemy.current_hp == MULTIPLAYER_TEST_ENEMY_HP
 
     def test_artifact_does_not_block_positive_strength(self, player):
         player.apply_power(PowerId.ARTIFACT, 1)
