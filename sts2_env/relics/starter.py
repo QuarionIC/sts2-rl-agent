@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sts2_env.core.enums import RelicRarity, CombatSide
+from sts2_env.core.enums import RelicRarity, CombatSide, OrbType
 from sts2_env.relics.base import RelicId, RelicPool, RelicInstance
 from sts2_env.relics.registry import register_relic
 
@@ -89,8 +89,7 @@ class CrackedCore(RelicInstance):
 
     def before_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side == CombatSide.PLAYER and combat.round_number == 1:
-            # Channel 1 Lightning orb
-            combat.channel_orb(owner, "LIGHTNING")
+            combat.channel_orb(owner, OrbType.LIGHTNING)
 
 
 @register_relic
@@ -104,7 +103,7 @@ class InfusedCore(RelicInstance):
     def after_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side == CombatSide.PLAYER and combat.round_number == 1:
             for _ in range(self.LIGHTNING_COUNT):
-                combat.channel_orb(owner, "LIGHTNING")
+                combat.channel_orb(owner, OrbType.LIGHTNING)
 
 
 # ─── Necrobinder Starter ────────────────────────────────────────────────

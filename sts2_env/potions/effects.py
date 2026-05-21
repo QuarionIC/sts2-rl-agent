@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from sts2_env.cards.factory import create_cards_from_ids, create_character_cards, eligible_registered_cards
 from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import (
-    CardRarity, CardType, PowerId, ValueProp, PotionTargetType, CardId,
+    CardRarity, CardType, OrbType, PowerId, ValueProp, PotionTargetType, CardId,
 )
 from sts2_env.core.damage import calculate_damage, apply_damage
 from sts2_env.potions.base import register_potion_effect
@@ -585,7 +585,7 @@ def _essence_of_darkness(combat: CombatState, user: Creature, target: Creature |
     orb_queue = getattr(combat.combat_player_state_for(user), "orb_queue", None)
     if orb_queue is not None and hasattr(combat, "channel_orb"):
         for _ in range(orb_queue.capacity):
-            combat.channel_orb(user, "Dark")
+            combat.channel_orb(user, OrbType.DARK)
 
 
 def _fairy_in_a_bottle(combat: CombatState, user: Creature, target: Creature | None) -> None:

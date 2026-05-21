@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 from sts2_env.core.enums import (
     CardType,
     CombatSide,
+    OrbType,
     PowerId,
     PowerType,
     PowerStackType,
@@ -963,7 +964,7 @@ class SpinnerPower(PowerInstance):
     def after_energy_reset(self, owner: Creature, combat: CombatState) -> None:
         if hasattr(combat, "channel_orb"):
             for _ in range(self.amount):
-                combat.channel_orb(owner, "GLASS")
+                combat.channel_orb(owner, OrbType.GLASS)
 
     def after_side_turn_start(
         self, owner: Creature, side: CombatSide, combat: CombatState

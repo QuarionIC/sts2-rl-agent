@@ -881,7 +881,7 @@ class SymbioticVirus(RelicInstance):
     def after_side_turn_start(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
         if side == CombatSide.PLAYER and combat.round_number == 1:
             for _ in range(self.DARK_ORBS):
-                combat.channel_orb(owner, "Dark")
+                combat.channel_orb(owner, OrbType.DARK)
 
 
 @register_relic
