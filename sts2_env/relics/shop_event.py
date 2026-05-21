@@ -1510,7 +1510,14 @@ class DreamCatcher(RelicInstance):
     rarity = RelicRarity.EVENT
     pool = RelicPool.EVENT
 
-    def modify_rest_site_heal_rewards(self, owner: Creature, rewards: list[object], run_state: RunState) -> list[object]:
+    def modify_rest_site_heal_rewards(
+        self,
+        owner: Creature,
+        rewards: list[object],
+        run_state: RunState,
+        *,
+        is_mimicked: bool = False,
+    ) -> list[object]:
         from sts2_env.run.reward_objects import CardReward
 
         return [*rewards, CardReward(owner.player_id)]
@@ -3312,9 +3319,15 @@ class StoneHumidifier(RelicInstance):
     pool = RelicPool.EVENT
     MAX_HP = 5
 
-    def after_rest_site_heal(self, owner: Creature, healed: int, run_state: RunState) -> None:
-        if healed > 0:
-            owner.gain_max_hp(self.MAX_HP)
+    def after_rest_site_heal(
+        self,
+        owner: Creature,
+        healed: int,
+        run_state: RunState,
+        *,
+        is_mimicked: bool = False,
+    ) -> None:
+        owner.gain_max_hp(self.MAX_HP)
 
 
 @register_relic

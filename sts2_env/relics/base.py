@@ -976,6 +976,8 @@ class RelicInstance:
         owner: Creature,
         rewards: list[Reward],
         run_state: RunState,
+        *,
+        is_mimicked: bool = False,
     ) -> list[Reward]:
         return rewards
 
@@ -984,6 +986,8 @@ class RelicInstance:
         owner: Creature,
         healed: int,
         run_state: RunState,
+        *,
+        is_mimicked: bool = False,
     ) -> None:
         pass
 

@@ -50,6 +50,7 @@ from sts2_env.run.reward_objects import (
 )
 from sts2_env.run.rewards import generate_noncombat_reward_cards
 from sts2_env.run.events import EventModel, EventOption, EventResult, register_event
+from sts2_env.run.rest_site import execute_rest_site_heal, rest_site_heal_amount
 from sts2_env.characters.all import ALL_CHARACTERS
 
 if TYPE_CHECKING:
@@ -921,7 +922,7 @@ class DenseVegetation(EventModel):
     is_shared = True
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
-        heal_amount = int(run_state.player.max_hp * 0.3)
+        heal_amount = rest_site_heal_amount(run_state.player)
         return [
             EventOption("trudge_on", "Trudge On",
                          "Remove 1 card, take 11 damage"),
@@ -955,11 +956,10 @@ class DenseVegetation(EventModel):
                 description="Choose a card to remove.",
             )
         if option_id == "rest":
-            heal_amount = int(run_state.player.max_hp * 0.3)
-            run_state.player.heal(heal_amount)
+            healed = execute_rest_site_heal(run_state.player, is_mimicked=True)
             return EventResult(
                 finished=False,
-                description=f"Healed {heal_amount} HP and disturbed the growth.",
+                description=f"Healed {healed} HP and disturbed the growth.",
                 next_options=[EventOption("fight", "Fight", "Fight through the vegetation")],
             )
         return EventResult(

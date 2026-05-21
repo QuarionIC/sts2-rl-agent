@@ -120,7 +120,7 @@ class ModifierModel:
     def modify_rest_site_heal_amount(self, player, amount: int, run_state) -> int:
         return amount
 
-    def after_rest_site_heal(self, player, healed: int, run_state) -> None:
+    def after_rest_site_heal(self, player, healed: int, run_state, *, is_mimicked: bool = False) -> None:
         pass
 
     def modify_odds_increase_for_unrolled_room_type(self, room_type, odds_increase: float) -> float:
@@ -456,7 +456,9 @@ class NightTerrorsModifier(ModifierModel):
     def modify_rest_site_heal_amount(self, player, amount: int, run_state) -> int:
         return player.max_hp
 
-    def after_rest_site_heal(self, player, healed: int, run_state) -> None:
+    def after_rest_site_heal(self, player, healed: int, run_state, *, is_mimicked: bool = False) -> None:
+        if is_mimicked:
+            return
         player.lose_max_hp(NIGHT_TERRORS_MAX_HP_LOSS)
 
 

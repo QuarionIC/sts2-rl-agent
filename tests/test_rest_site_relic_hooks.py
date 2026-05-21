@@ -53,6 +53,20 @@ def test_stone_humidifier_grants_max_hp_after_rest_heal():
     assert run_state.player.max_hp == 85
 
 
+def test_stone_humidifier_matches_original_after_rest_hook_when_already_full_hp():
+    run_state = RunState(seed=214, character_id="Ironclad")
+    assert run_state.player.obtain_relic("STONE_HUMIDIFIER")
+    run_state.player.max_hp = 80
+    run_state.player.current_hp = 80
+
+    heal = next(option for option in generate_rest_site_options(run_state.player) if option.option_id == "HEAL")
+    result = heal.execute(run_state.player)
+
+    assert result == "Healed 0 HP"
+    assert run_state.player.max_hp == 85
+    assert run_state.player.current_hp == 85
+
+
 def test_entering_shop_triggers_meal_ticket_heal():
     mgr = RunManager(seed=205, character_id="Ironclad")
     assert mgr.run_state.player.obtain_relic("MEAL_TICKET")

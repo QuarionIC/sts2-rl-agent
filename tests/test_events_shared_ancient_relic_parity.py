@@ -22,7 +22,9 @@ from sts2_env.events.shared import (
     Vakuu,
 )
 from sts2_env.relics.base import RelicId
+from sts2_env.run.modifiers import NightTerrorsModifier
 from sts2_env.run.reward_objects import AddCardsReward
+from sts2_env.run.rest_site import rest_site_heal_amount
 from sts2_env.run.run_state import PlayerState, RunState
 
 
@@ -161,6 +163,22 @@ def test_dense_vegetation_trudge_and_rest_paths_mutate_hp_deck_and_combat_setup(
     fight = rest_event.choose(rest_state, "fight")
     assert fight.finished
     assert fight.event_combat_setup == "dense_vegetation"
+
+
+def test_dense_vegetation_rest_mimics_original_rest_site_heal_hooks():
+    run_state = _make_run_state(616)
+    start_hp = 20
+    run_state.player.current_hp = start_hp
+    run_state.player.obtain_relic(RelicId.REGAL_PILLOW.name)
+    run_state.modifiers = [NightTerrorsModifier()]
+    max_hp_before_rest = run_state.player.max_hp
+    expected_heal = rest_site_heal_amount(run_state.player)
+
+    rest = DenseVegetation().choose(run_state, "rest")
+
+    assert rest.finished is False
+    assert run_state.player.current_hp == min(start_hp + expected_heal, max_hp_before_rest)
+    assert run_state.player.max_hp == max_hp_before_rest
 
 
 def test_doors_of_light_and_dark_upgrades_two_and_removes_one_card():

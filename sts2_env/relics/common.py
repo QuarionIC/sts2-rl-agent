@@ -453,7 +453,14 @@ class TinyMailbox(RelicInstance):
     rarity = RelicRarity.COMMON
     pool = RelicPool.SHARED
 
-    def modify_rest_site_heal_rewards(self, owner: Creature, rewards: list[object], run_state: object) -> list[object]:
+    def modify_rest_site_heal_rewards(
+        self,
+        owner: Creature,
+        rewards: list[object],
+        run_state: object,
+        *,
+        is_mimicked: bool = False,
+    ) -> list[object]:
         from sts2_env.run.reward_objects import PotionReward
 
         return [*rewards, PotionReward(owner.player_id)]

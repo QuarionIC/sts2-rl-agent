@@ -30,7 +30,7 @@ class RestSiteOption:
         raise NotImplementedError
 
 
-def _rest_site_heal_amount(player: PlayerState) -> int:
+def rest_site_heal_amount(player: PlayerState) -> int:
     amount = math.floor(player.max_hp * 0.3)
     run_state = getattr(player, "run_state", None)
     if run_state is not None:
@@ -41,14 +41,27 @@ def _rest_site_heal_amount(player: PlayerState) -> int:
     return amount
 
 
-def _after_rest_site_heal(player: PlayerState, healed: int) -> None:
+def _after_rest_site_heal(player: PlayerState, healed: int, *, is_mimicked: bool = False) -> None:
     run_state = getattr(player, "run_state", None)
     if run_state is None:
         return
     for relic in player.get_relic_objects():
-        relic.after_rest_site_heal(player, healed, run_state)
+        relic.after_rest_site_heal(player, healed, run_state, is_mimicked=is_mimicked)
     for modifier in run_state.modifiers:
-        modifier.after_rest_site_heal(player, healed, run_state)
+        modifier.after_rest_site_heal(player, healed, run_state, is_mimicked=is_mimicked)
+
+
+def execute_rest_site_heal(player: PlayerState, *, is_mimicked: bool = False) -> int:
+    amount = rest_site_heal_amount(player)
+    run_state = getattr(player, "run_state", None)
+    healed = player.heal(amount)
+    if run_state is not None:
+        _after_rest_site_heal(player, healed, is_mimicked=is_mimicked)
+        rewards: list[Reward] = []
+        for relic in player.get_relic_objects():
+            rewards = list(relic.modify_rest_site_heal_rewards(player, rewards, run_state, is_mimicked=is_mimicked))
+        run_state.pending_rewards.extend(rewards)
+    return healed
 
 
 class HealOption(RestSiteOption):
@@ -58,16 +71,7 @@ class HealOption(RestSiteOption):
         super().__init__(option_id="HEAL", label="Rest", description="Heal 30% of max HP")
 
     def execute(self, player: PlayerState, **kwargs: Any) -> str:
-        amount = _rest_site_heal_amount(player)
-        run_state = getattr(player, "run_state", None)
-        rewards: list[Reward] = []
-        if run_state is not None:
-            for relic in player.get_relic_objects():
-                rewards = list(relic.modify_rest_site_heal_rewards(player, rewards, run_state))
-        healed = player.heal(amount)
-        if run_state is not None:
-            run_state.pending_rewards.extend(rewards)
-            _after_rest_site_heal(player, healed)
+        healed = execute_rest_site_heal(player)
         return f"Healed {healed} HP"
 
 
@@ -237,7 +241,7 @@ class MendOption(RestSiteOption):
         if target is None:
             return "No ally mended"
 
-        healed = target.heal(_rest_site_heal_amount(target))
+        healed = target.heal(rest_site_heal_amount(target))
         _after_rest_site_heal(target, healed)
         return f"Mended {healed} HP"
 
