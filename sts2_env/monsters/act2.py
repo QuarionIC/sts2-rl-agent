@@ -924,54 +924,100 @@ def create_hunter_killer(rng: Rng, ascension_level: int = 0) -> tuple[Creature, 
 
 # ---- Wriggler (HP 17-21 / 18-22 asc) ----
 
+WRIGGLER_MONSTER_ID = "WRIGGLER"
+WRIGGLER_BASE_MIN_HP = 17
+WRIGGLER_BASE_MAX_HP = 21
+WRIGGLER_TOUGH_MIN_HP = 18
+WRIGGLER_TOUGH_MAX_HP = 22
+WRIGGLER_BASE_BITE_DAMAGE = 6
+WRIGGLER_DEADLY_BITE_DAMAGE = 7
+WRIGGLER_INFECTION_COUNT = 1
+WRIGGLER_STRENGTH = 2
+WRIGGLER_SLOT_PREFIX = "wriggler"
+WRIGGLER_SLOT_NUMBER_BASE = 1
+WRIGGLER_SLOT_1 = "wriggler1"
+WRIGGLER_SLOT_2 = "wriggler2"
+WRIGGLER_SLOT_3 = "wriggler3"
+WRIGGLER_SLOT_4 = "wriggler4"
+WRIGGLER_BITE_SLOTS = (WRIGGLER_SLOT_1, WRIGGLER_SLOT_3)
+WRIGGLER_WRIGGLE_SLOTS = (WRIGGLER_SLOT_2, WRIGGLER_SLOT_4)
+WRIGGLER_INIT_MOVE = "INIT_MOVE"
+WRIGGLER_SPAWNED_MOVE = "SPAWNED_MOVE"
+WRIGGLER_NASTY_BITE_MOVE = "NASTY_BITE_MOVE"
+WRIGGLER_WRIGGLE_MOVE = "WRIGGLE_MOVE"
+
+
 def create_wriggler(
     rng: Rng,
-    slot: str = "wriggler1",
+    slot: str = WRIGGLER_SLOT_1,
     start_stunned: bool = False,
+    ascension_level: int = 0,
 ) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(17, 21)
-    creature = Creature(max_hp=hp, monster_id="WRIGGLER")
-    bite_dmg = 6
-    wriggle_infections = 1
-    wriggle_str = 2
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        WRIGGLER_TOUGH_MIN_HP,
+        WRIGGLER_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        WRIGGLER_TOUGH_MAX_HP,
+        WRIGGLER_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=WRIGGLER_MONSTER_ID)
 
     def bite(combat: CombatState) -> None:
+        bite_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            WRIGGLER_DEADLY_BITE_DAMAGE,
+            WRIGGLER_BASE_BITE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, bite_dmg)
 
     def wriggle(combat: CombatState) -> None:
-        add_generated_cards_to_living_player_discards(combat, make_infection, wriggle_infections)
-        creature.apply_power(PowerId.STRENGTH, wriggle_str)
+        add_generated_cards_to_living_player_discards(combat, make_infection, WRIGGLER_INFECTION_COUNT)
+        creature.apply_power(PowerId.STRENGTH, WRIGGLER_STRENGTH)
 
     def spawned(combat: CombatState) -> None:
         return
 
-    init = ConditionalBranchState("INIT_MOVE")
-    init.add_branch(lambda: slot in ("wriggler1", "wriggler3"), "NASTY_BITE_MOVE")
-    init.add_branch(lambda: slot in ("wriggler2", "wriggler4"), "WRIGGLE_MOVE")
-    init.add_branch(lambda: True, "NASTY_BITE_MOVE")
+    bite_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        WRIGGLER_DEADLY_BITE_DAMAGE,
+        WRIGGLER_BASE_BITE_DAMAGE,
+    )
+
+    init = ConditionalBranchState(WRIGGLER_INIT_MOVE)
+    init.add_branch(lambda: slot in WRIGGLER_BITE_SLOTS, WRIGGLER_NASTY_BITE_MOVE)
+    init.add_branch(lambda: slot in WRIGGLER_WRIGGLE_SLOTS, WRIGGLER_WRIGGLE_MOVE)
+    init.add_branch(lambda: True, WRIGGLER_NASTY_BITE_MOVE)
 
     states: dict[str, MonsterState] = {
-        "INIT_MOVE": init,
-        "SPAWNED_MOVE": MoveState(
-            "SPAWNED_MOVE",
+        WRIGGLER_INIT_MOVE: init,
+        WRIGGLER_SPAWNED_MOVE: MoveState(
+            WRIGGLER_SPAWNED_MOVE,
             spawned,
             [Intent(IntentType.STUN)],
-            follow_up_id="INIT_MOVE",
+            follow_up_id=WRIGGLER_INIT_MOVE,
         ),
-        "NASTY_BITE_MOVE": MoveState(
-            "NASTY_BITE_MOVE",
+        WRIGGLER_NASTY_BITE_MOVE: MoveState(
+            WRIGGLER_NASTY_BITE_MOVE,
             bite,
-            [attack_intent(bite_dmg)],
-            follow_up_id="WRIGGLE_MOVE",
+            [attack_intent(bite_intent_damage)],
+            follow_up_id=WRIGGLER_WRIGGLE_MOVE,
         ),
-        "WRIGGLE_MOVE": MoveState(
-            "WRIGGLE_MOVE",
+        WRIGGLER_WRIGGLE_MOVE: MoveState(
+            WRIGGLER_WRIGGLE_MOVE,
             wriggle,
             [buff_intent(), status_intent()],
-            follow_up_id="NASTY_BITE_MOVE",
+            follow_up_id=WRIGGLER_NASTY_BITE_MOVE,
         ),
     }
-    initial = "SPAWNED_MOVE" if start_stunned else "INIT_MOVE"
+    initial = WRIGGLER_SPAWNED_MOVE if start_stunned else WRIGGLER_INIT_MOVE
     return creature, MonsterAI(states, initial, rng)
 
 
@@ -1194,36 +1240,106 @@ def create_myte(rng: Rng, slot: str = MYTE_FIRST_SLOT, ascension_level: int = 0)
 
 # ---- Ovicopter (HP 67-72 / 70-75 asc) + ToughEgg ----
 
-def create_tough_egg(rng: Rng, combat: CombatState | None = None) -> tuple[Creature, MonsterAI]:
-    initial_min_hp = 14
-    initial_max_hp = 18
-    hatchling_min_hp = 19
-    hatchling_max_hp = 22
+TOUGH_EGG_MONSTER_ID = "TOUGH_EGG"
+TOUGH_EGG_BASE_INITIAL_MIN_HP = 14
+TOUGH_EGG_BASE_INITIAL_MAX_HP = 18
+TOUGH_EGG_TOUGH_INITIAL_MIN_HP = 15
+TOUGH_EGG_TOUGH_INITIAL_MAX_HP = 19
+TOUGH_EGG_BASE_HATCHLING_MIN_HP = 19
+TOUGH_EGG_BASE_HATCHLING_MAX_HP = 22
+TOUGH_EGG_TOUGH_HATCHLING_MIN_HP = 20
+TOUGH_EGG_TOUGH_HATCHLING_MAX_HP = 23
+TOUGH_EGG_BASE_NIBBLE_DAMAGE = 4
+TOUGH_EGG_DEADLY_NIBBLE_DAMAGE = 5
+TOUGH_EGG_MINION_AMOUNT = 1
+TOUGH_EGG_PLAYER_SIDE_HATCH_DURATION = 1
+TOUGH_EGG_ENEMY_SIDE_HATCH_DURATION = 2
+TOUGH_EGG_HATCH_MOVE = "HATCH_MOVE"
+TOUGH_EGG_NIBBLE_MOVE = "NIBBLE_MOVE"
+
+
+def create_tough_egg(
+    rng: Rng,
+    combat: CombatState | None = None,
+    ascension_level: int = 0,
+) -> tuple[Creature, MonsterAI]:
+    initial_min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TOUGH_EGG_TOUGH_INITIAL_MIN_HP,
+        TOUGH_EGG_BASE_INITIAL_MIN_HP,
+    )
+    initial_max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        TOUGH_EGG_TOUGH_INITIAL_MAX_HP,
+        TOUGH_EGG_BASE_INITIAL_MAX_HP,
+    )
     hp = rng.next_int(initial_min_hp, initial_max_hp)
-    creature = Creature(max_hp=hp, monster_id="TOUGH_EGG")
-    nibble_dmg = 4
+    creature = Creature(max_hp=hp, monster_id=TOUGH_EGG_MONSTER_ID)
 
     def hatch(combat: CombatState) -> None:
         from sts2_env.core.hooks import scaled_multiplayer_enemy_max_hp
 
+        hatchling_min_hp = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            TOUGH_EGG_TOUGH_HATCHLING_MIN_HP,
+            TOUGH_EGG_BASE_HATCHLING_MIN_HP,
+        )
+        hatchling_max_hp = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            TOUGH_EGG_TOUGH_HATCHLING_MAX_HP,
+            TOUGH_EGG_BASE_HATCHLING_MAX_HP,
+        )
         hatchling_hp = rng.next_int(hatchling_min_hp, hatchling_max_hp)
+        for power_id in list(creature.powers):
+            if power_id != PowerId.MINION:
+                creature.powers.pop(power_id, None)
         creature.max_hp = hatchling_hp
         scaled_hp = scaled_multiplayer_enemy_max_hp(creature, combat)
         creature.max_hp = scaled_hp
         creature.current_hp = scaled_hp
-        creature.powers.pop(PowerId.HATCH, None)
 
     def nibble(combat: CombatState) -> None:
+        nibble_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            TOUGH_EGG_DEADLY_NIBBLE_DAMAGE,
+            TOUGH_EGG_BASE_NIBBLE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, nibble_dmg)
 
+    nibble_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        TOUGH_EGG_DEADLY_NIBBLE_DAMAGE,
+        TOUGH_EGG_BASE_NIBBLE_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "HATCH_MOVE": MoveState("HATCH_MOVE", hatch, [Intent(IntentType.SUMMON)], follow_up_id="NIBBLE_MOVE"),
-        "NIBBLE_MOVE": MoveState("NIBBLE_MOVE", nibble, [attack_intent(nibble_dmg)], follow_up_id="NIBBLE_MOVE"),
+        TOUGH_EGG_HATCH_MOVE: MoveState(
+            TOUGH_EGG_HATCH_MOVE,
+            hatch,
+            [Intent(IntentType.SUMMON)],
+            follow_up_id=TOUGH_EGG_NIBBLE_MOVE,
+        ),
+        TOUGH_EGG_NIBBLE_MOVE: MoveState(
+            TOUGH_EGG_NIBBLE_MOVE,
+            nibble,
+            [attack_intent(nibble_intent_damage)],
+            follow_up_id=TOUGH_EGG_NIBBLE_MOVE,
+        ),
     }
-    creature.apply_power(PowerId.MINION, 1)
-    hatch_duration = 2 if combat is not None and combat.current_side == CombatSide.ENEMY else 1
+    creature.apply_power(PowerId.MINION, TOUGH_EGG_MINION_AMOUNT)
+    hatch_duration = (
+        TOUGH_EGG_ENEMY_SIDE_HATCH_DURATION
+        if combat is not None and combat.current_side == CombatSide.ENEMY
+        else TOUGH_EGG_PLAYER_SIDE_HATCH_DURATION
+    )
     creature.apply_power(PowerId.HATCH, hatch_duration)
-    return creature, MonsterAI(states, "HATCH_MOVE")
+    return creature, MonsterAI(states, TOUGH_EGG_HATCH_MOVE)
 
 
 OVICOPTER_MONSTER_ID = "OVICOPTER"
@@ -1273,7 +1389,7 @@ def create_ovicopter(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Mons
 
     def lay_eggs(combat: CombatState) -> None:
         for _ in range(OVICOPTER_EGGS_TO_LAY):
-            egg, egg_ai = create_tough_egg(rng, combat)
+            egg, egg_ai = create_tough_egg(rng, combat, ascension_level=_combat_ascension_level(combat))
             combat.add_enemy(egg, egg_ai)
 
     def smash(combat: CombatState) -> None:

@@ -148,9 +148,14 @@ from sts2_env.core.creature import Creature
 from sts2_env.core.enums import CardId, CardRarity, CardType, CombatSide, PowerId, RoomType, TargetType, ValueProp
 from sts2_env.gym_env.action_space import get_action_mask
 from sts2_env.core.rng import Rng
-from sts2_env.monsters.act2 import apply_decimillipede_segment_room_setup
-from sts2_env.monsters.act2 import create_rocket
-from sts2_env.monsters.act2 import create_decimillipede_segment
+from sts2_env.monsters.act2 import (
+    WRIGGLER_MONSTER_ID,
+    WRIGGLER_NASTY_BITE_MOVE,
+    WRIGGLER_SPAWNED_MOVE,
+    apply_decimillipede_segment_room_setup,
+    create_decimillipede_segment,
+    create_rocket,
+)
 from sts2_env.monsters.act1 import create_eye_with_teeth, create_parafright
 from sts2_env.monsters.act3 import create_door
 from sts2_env.monsters.act3 import create_doormaker, create_fabricator, create_osty, create_test_subject
@@ -163,6 +168,8 @@ from sts2_env.powers.monster import CoveredPower, SuckPower, SurprisePower, Thie
 from sts2_env.powers.remaining_a import DampenPower
 from sts2_env.run.run_state import PlayerState
 from sts2_env.run.rooms import CombatRoom
+
+WRIGGLER_BITE_DAMAGE_A9 = 7
 
 
 def _make_combat(deck, character_id: str) -> CombatState:
@@ -700,6 +707,7 @@ class TestMonsterDeathBroadcast:
 
     def test_infested_power_spawns_four_stunned_wrigglers(self):
         combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
+        combat.ascension_level = 9
         enemy = combat.enemies[0]
         from sts2_env.powers.monster import InfestedPower
 
@@ -707,12 +715,14 @@ class TestMonsterDeathBroadcast:
         combat.start_combat()
 
         assert combat.kill_creature(enemy)
-        wrigglers = [creature for creature in combat.enemies if creature.monster_id == "WRIGGLER"]
+        wrigglers = [creature for creature in combat.enemies if creature.monster_id == WRIGGLER_MONSTER_ID]
         assert len(wrigglers) == 4
         assert all(
-            combat.enemy_ais[creature.combat_id].current_move.state_id == "SPAWNED_MOVE"
+            combat.enemy_ais[creature.combat_id].current_move.state_id == WRIGGLER_SPAWNED_MOVE
             for creature in wrigglers
         )
+        spawned_ai = combat.enemy_ais[wrigglers[0].combat_id]
+        assert spawned_ai.states[WRIGGLER_NASTY_BITE_MOVE].intents[0].damage == WRIGGLER_BITE_DAMAGE_A9
 
     def test_covered_power_tracks_coverer_and_drops_when_coverer_dies(self):
         combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")

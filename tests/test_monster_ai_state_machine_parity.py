@@ -101,6 +101,18 @@ from sts2_env.monsters.act2 import (
     DECIMILLIPEDE_REATTACH_HP,
     DECIMILLIPEDE_SEGMENT_MAX_HP,
     DECIMILLIPEDE_SEGMENT_MIN_HP,
+    OVICOPTER_EGGS_TO_LAY,
+    OVICOPTER_LAY_EGGS_MOVE,
+    OVICOPTER_MONSTER_ID,
+    TOUGH_EGG_HATCH_MOVE,
+    TOUGH_EGG_MONSTER_ID,
+    TOUGH_EGG_NIBBLE_MOVE,
+    WRIGGLER_NASTY_BITE_MOVE,
+    WRIGGLER_SLOT_1,
+    WRIGGLER_SLOT_2,
+    WRIGGLER_SLOT_4,
+    WRIGGLER_SPAWNED_MOVE,
+    WRIGGLER_WRIGGLE_MOVE,
     _steal_card_with_swipe,
     apply_decimillipede_segment_room_setup,
     create_bowlbug_egg,
@@ -327,8 +339,23 @@ THE_OBSCURA_PIERCING_GAZE_DAMAGE_A9 = 11
 THE_OBSCURA_HARDENING_STRIKE_DAMAGE_A9 = 7
 THE_OBSCURA_HARDENING_STRIKE_BLOCK_A9 = 7
 THE_OBSCURA_SAIL_STRENGTH = 3
-TOUGH_EGG_INITIAL_HP = 16
-TOUGH_EGG_HATCHLING_HP = 20
+TOUGH_EGG_MULTIPLAYER_INITIAL_HP = 16
+TOUGH_EGG_MULTIPLAYER_HATCHLING_HP = 20
+TOUGH_EGG_BASE_INITIAL_HP_RANGE = (14, 18)
+TOUGH_EGG_BASE_HATCHLING_HP_RANGE = (19, 22)
+TOUGH_EGG_A8_INITIAL_HP_RANGE = (15, 19)
+TOUGH_EGG_A8_HATCHLING_HP_RANGE = (20, 23)
+TOUGH_EGG_A8_INITIAL_HP = 19
+TOUGH_EGG_A8_HATCHLING_HP = 23
+TOUGH_EGG_NIBBLE_DAMAGE_A9 = 5
+TOUGH_EGG_MINION = 1
+TOUGH_EGG_PLAYER_SIDE_HATCH = 1
+TOUGH_EGG_ENEMY_SIDE_HATCH = 2
+WRIGGLER_BASE_HP_RANGE = (17, 21)
+WRIGGLER_A8_HP_RANGE = (18, 22)
+WRIGGLER_BITE_DAMAGE_A9 = 7
+WRIGGLER_INFECTION_COUNT = 1
+WRIGGLER_STRENGTH = 2
 MULTIPLAYER_TEST_PLAYER_COUNT = 2
 DECIMILLIPEDE_STARTER_MOVE_IDX = 0
 DECIMILLIPEDE_ODD_SEGMENT_HP = DECIMILLIPEDE_SEGMENT_MIN_HP + 1
@@ -2483,26 +2510,26 @@ class TestFixedRotation:
 
     def test_act2_ovicopter_and_tough_egg_match_original_opening_cycle(self):
         egg, egg_ai = create_tough_egg(Rng(35))
-        assert 14 <= egg.max_hp <= 18
-        assert egg.get_power_amount(PowerId.MINION) == 1
-        assert egg.get_power_amount(PowerId.HATCH) == 1
-        assert egg_ai.current_move.state_id == "HATCH_MOVE"
+        assert TOUGH_EGG_BASE_INITIAL_HP_RANGE[0] <= egg.max_hp <= TOUGH_EGG_BASE_INITIAL_HP_RANGE[1]
+        assert egg.get_power_amount(PowerId.MINION) == TOUGH_EGG_MINION
+        assert egg.get_power_amount(PowerId.HATCH) == TOUGH_EGG_PLAYER_SIDE_HATCH
+        assert egg_ai.current_move.state_id == TOUGH_EGG_HATCH_MOVE
 
         egg_ai.current_move.perform(_make_combat(35))
-        assert 19 <= egg.max_hp <= 22
+        assert TOUGH_EGG_BASE_HATCHLING_HP_RANGE[0] <= egg.max_hp <= TOUGH_EGG_BASE_HATCHLING_HP_RANGE[1]
         assert egg.current_hp == egg.max_hp
         assert egg.get_power_amount(PowerId.HATCH) == 0
 
         multiplayer_combat = _make_combat(37)
         _add_test_ally(multiplayer_combat)
         multiplayer_egg, multiplayer_egg_ai = create_tough_egg(
-            _FixedIntsRng([TOUGH_EGG_INITIAL_HP, TOUGH_EGG_HATCHLING_HP])
+            _FixedIntsRng([TOUGH_EGG_MULTIPLAYER_INITIAL_HP, TOUGH_EGG_MULTIPLAYER_HATCHLING_HP])
         )
         multiplayer_combat.add_enemy(multiplayer_egg, multiplayer_egg_ai)
         multiplayer_egg_ai.current_move.perform(multiplayer_combat)
         expected_hatchling_hp = _expected_starting_act_multiplayer_enemy_hp(
             multiplayer_combat,
-            TOUGH_EGG_HATCHLING_HP,
+            TOUGH_EGG_MULTIPLAYER_HATCHLING_HP,
         )
         assert multiplayer_egg.max_hp == expected_hatchling_hp
         assert multiplayer_egg.current_hp == expected_hatchling_hp
@@ -2512,19 +2539,23 @@ class TestFixedRotation:
         combat.add_enemy(ovicopter, ovicopter_ai)
 
         assert 124 <= ovicopter.max_hp <= 130
-        assert ovicopter_ai.current_move.state_id == "LAY_EGGS_MOVE"
+        assert ovicopter_ai.current_move.state_id == OVICOPTER_LAY_EGGS_MOVE
 
         combat.current_side = CombatSide.ENEMY
         ovicopter_ai.current_move.perform(combat)
         assert [enemy.monster_id for enemy in combat.enemies] == [
-            "OVICOPTER",
-            "TOUGH_EGG",
-            "TOUGH_EGG",
-            "TOUGH_EGG",
+            OVICOPTER_MONSTER_ID,
+            TOUGH_EGG_MONSTER_ID,
+            TOUGH_EGG_MONSTER_ID,
+            TOUGH_EGG_MONSTER_ID,
         ]
-        assert [enemy.get_power_amount(PowerId.HATCH) for enemy in combat.enemies[1:]] == [2, 2, 2]
+        assert [enemy.get_power_amount(PowerId.HATCH) for enemy in combat.enemies[1:]] == [
+            TOUGH_EGG_ENEMY_SIDE_HATCH
+        ] * OVICOPTER_EGGS_TO_LAY
         fire_after_turn_end(CombatSide.ENEMY, combat)
-        assert [enemy.get_power_amount(PowerId.HATCH) for enemy in combat.enemies[1:]] == [1, 1, 1]
+        assert [enemy.get_power_amount(PowerId.HATCH) for enemy in combat.enemies[1:]] == [
+            TOUGH_EGG_PLAYER_SIDE_HATCH
+        ] * OVICOPTER_EGGS_TO_LAY
 
         expected_moves = ["SMASH_MOVE", "TENDERIZER_MOVE", "LAY_EGGS_MOVE"]
         actual_moves = []
@@ -2535,7 +2566,7 @@ class TestFixedRotation:
         assert actual_moves == expected_moves
 
         ovicopter_ai.current_move.perform(combat)
-        assert len([enemy for enemy in combat.enemies if enemy.monster_id == "TOUGH_EGG"]) == 6
+        assert len([enemy for enemy in combat.enemies if enemy.monster_id == TOUGH_EGG_MONSTER_ID]) == 6
 
         ovicopter_ai.on_move_performed()
         ovicopter_ai.roll_move(Rng(36))
@@ -2550,10 +2581,55 @@ class TestFixedRotation:
     def test_act2_normal_back_half_ascension_scaling_matches_csharp(self):
         rng_seed = 1286
 
+        tough_egg_combat = _make_combat(rng_seed)
+        tough_egg_combat.ascension_level = 9
+        tough_egg, tough_egg_ai = create_tough_egg(
+            _FixedIntsRng([TOUGH_EGG_A8_INITIAL_HP, TOUGH_EGG_A8_HATCHLING_HP]),
+            ascension_level=9,
+        )
+        tough_egg_combat.add_enemy(tough_egg, tough_egg_ai)
+        assert TOUGH_EGG_A8_INITIAL_HP_RANGE[0] <= tough_egg.max_hp <= TOUGH_EGG_A8_INITIAL_HP_RANGE[1]
+        tough_egg.apply_power(PowerId.STRENGTH, 1)
+        tough_egg_ai.states[TOUGH_EGG_HATCH_MOVE].perform(tough_egg_combat)
+        assert tough_egg.max_hp == TOUGH_EGG_A8_HATCHLING_HP
+        assert tough_egg.current_hp == TOUGH_EGG_A8_HATCHLING_HP
+        assert TOUGH_EGG_A8_HATCHLING_HP_RANGE[0] <= tough_egg.max_hp <= TOUGH_EGG_A8_HATCHLING_HP_RANGE[1]
+        assert tough_egg.get_power_amount(PowerId.MINION) == TOUGH_EGG_MINION
+        assert tough_egg.get_power_amount(PowerId.STRENGTH) == 0
+        nibble = tough_egg_ai.states[TOUGH_EGG_NIBBLE_MOVE]
+        assert nibble.intents[0].damage == TOUGH_EGG_NIBBLE_DAMAGE_A9
+        player_hp_before_nibble = tough_egg_combat.player.current_hp
+        nibble.perform(tough_egg_combat)
+        assert tough_egg_combat.player.current_hp == player_hp_before_nibble - TOUGH_EGG_NIBBLE_DAMAGE_A9
+
+        wriggler_combat = _make_combat(rng_seed)
+        wriggler_combat.ascension_level = 9
+        wriggler, wriggler_ai = create_wriggler(Rng(rng_seed), ascension_level=9)
+        wriggler_combat.add_enemy(wriggler, wriggler_ai)
+        assert WRIGGLER_A8_HP_RANGE[0] <= wriggler.max_hp <= WRIGGLER_A8_HP_RANGE[1]
+        bite = wriggler_ai.states[WRIGGLER_NASTY_BITE_MOVE]
+        assert bite.intents[0].damage == WRIGGLER_BITE_DAMAGE_A9
+        player_hp_before_bite = wriggler_combat.player.current_hp
+        bite.perform(wriggler_combat)
+        assert wriggler_combat.player.current_hp == player_hp_before_bite - WRIGGLER_BITE_DAMAGE_A9
+
         ovicopter_combat = _make_combat(rng_seed)
         ovicopter_combat.ascension_level = 9
         ovicopter, ovicopter_ai = create_ovicopter(Rng(rng_seed), ascension_level=9)
         ovicopter_combat.add_enemy(ovicopter, ovicopter_ai)
+        ovicopter_combat.current_side = CombatSide.ENEMY
+        ovicopter_ai.states[OVICOPTER_LAY_EGGS_MOVE].perform(ovicopter_combat)
+        laid_eggs = [enemy for enemy in ovicopter_combat.enemies if enemy.monster_id == TOUGH_EGG_MONSTER_ID]
+        assert len(laid_eggs) == OVICOPTER_EGGS_TO_LAY
+        assert all(
+            TOUGH_EGG_A8_INITIAL_HP_RANGE[0] <= egg.max_hp <= TOUGH_EGG_A8_INITIAL_HP_RANGE[1]
+            for egg in laid_eggs
+        )
+        assert all(
+            ovicopter_combat.enemy_ais[egg.combat_id].states[TOUGH_EGG_NIBBLE_MOVE].intents[0].damage
+            == TOUGH_EGG_NIBBLE_DAMAGE_A9
+            for egg in laid_eggs
+        )
         smash = ovicopter_ai.states[OVICOPTER_SMASH_MOVE]
         assert smash.intents[0].damage == OVICOPTER_SMASH_DAMAGE_A9
         player_hp_before_smash = ovicopter_combat.player.current_hp
@@ -3095,31 +3171,31 @@ class TestFixedRotation:
     def test_wriggler_slots_and_spawned_stun_match_original(self):
         combat = _make_combat(19)
 
-        first, first_ai = create_wriggler(Rng(19), slot="wriggler1")
+        first, first_ai = create_wriggler(Rng(19), slot=WRIGGLER_SLOT_1)
         combat.add_enemy(first, first_ai)
-        assert 17 <= first.max_hp <= 21
-        assert first_ai.current_move.state_id == "NASTY_BITE_MOVE"
+        assert WRIGGLER_BASE_HP_RANGE[0] <= first.max_hp <= WRIGGLER_BASE_HP_RANGE[1]
+        assert first_ai.current_move.state_id == WRIGGLER_NASTY_BITE_MOVE
 
-        second, second_ai = create_wriggler(Rng(20), slot="wriggler2")
+        second, second_ai = create_wriggler(Rng(20), slot=WRIGGLER_SLOT_2)
         combat.add_enemy(second, second_ai)
-        assert second_ai.current_move.state_id == "WRIGGLE_MOVE"
+        assert second_ai.current_move.state_id == WRIGGLER_WRIGGLE_MOVE
 
         second_ai.current_move.perform(combat)
         assert combat.discard_pile[-1].card_id == CardId.INFECTION
-        assert second.get_power_amount(PowerId.STRENGTH) == 2
+        assert second.get_power_amount(PowerId.STRENGTH) == WRIGGLER_STRENGTH
 
         spawned, spawned_ai = create_wriggler(
             Rng(21),
-            slot="wriggler4",
+            slot=WRIGGLER_SLOT_4,
             start_stunned=True,
         )
         combat.add_enemy(spawned, spawned_ai)
-        assert spawned_ai.current_move.state_id == "SPAWNED_MOVE"
+        assert spawned_ai.current_move.state_id == WRIGGLER_SPAWNED_MOVE
 
         spawned_ai.current_move.perform(combat)
         spawned_ai.on_move_performed()
         spawned_ai.roll_move(Rng(21))
-        assert spawned_ai.current_move.state_id == "WRIGGLE_MOVE"
+        assert spawned_ai.current_move.state_id == WRIGGLER_WRIGGLE_MOVE
 
     def test_dense_vegetation_wriggler_wriggle_adds_infection(self):
         combat = _make_combat(22)
@@ -3136,8 +3212,6 @@ class TestFixedRotation:
         rng_seed = 1249
         ally_hp = 70
         osty_hp = 10
-        wriggle_infections = 1
-        wriggle_strength = 2
         combat = _make_combat(rng_seed)
         ally = _add_test_ally(combat, hp=ally_hp)
         primary_state = combat.combat_player_state_for(combat.primary_player)
@@ -3148,15 +3222,15 @@ class TestFixedRotation:
         ally_state.discard.clear()
         osty = combat.summon_osty(combat.primary_player, osty_hp)
         assert osty is not None
-        creature, ai = create_wriggler(Rng(rng_seed), slot="wriggler2")
+        creature, ai = create_wriggler(Rng(rng_seed), slot=WRIGGLER_SLOT_2)
         combat.add_enemy(creature, ai)
 
-        ai.states["WRIGGLE_MOVE"].perform(combat)
+        ai.states[WRIGGLER_WRIGGLE_MOVE].perform(combat)
 
-        assert [card.card_id for card in primary_state.discard] == [CardId.INFECTION] * wriggle_infections
-        assert [card.card_id for card in ally_state.discard] == [CardId.INFECTION] * wriggle_infections
+        assert [card.card_id for card in primary_state.discard] == [CardId.INFECTION] * WRIGGLER_INFECTION_COUNT
+        assert [card.card_id for card in ally_state.discard] == [CardId.INFECTION] * WRIGGLER_INFECTION_COUNT
         assert combat.combat_player_state_for(osty) is None
-        assert creature.get_power_amount(PowerId.STRENGTH) == wriggle_strength
+        assert creature.get_power_amount(PowerId.STRENGTH) == WRIGGLER_STRENGTH
 
     def test_louse_progenitor_uses_web_curl_pounce_cycle(self):
         combat = _make_combat(23)

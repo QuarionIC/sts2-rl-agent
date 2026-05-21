@@ -3390,14 +3390,15 @@ class CombatState:
         return spawned
 
     def spawn_infested_wrigglers(self, count: int = 4) -> list[Creature]:
-        from sts2_env.monsters.act2 import create_wriggler
+        from sts2_env.monsters.act2 import WRIGGLER_SLOT_NUMBER_BASE, WRIGGLER_SLOT_PREFIX, create_wriggler
 
         spawned: list[Creature] = []
         for index in range(max(0, count)):
             wriggler, wriggler_ai = create_wriggler(
                 Rng(self.rng.next_int(0, INT_MAX)),
-                slot=f"wriggler{index + 1}",
+                slot=f"{WRIGGLER_SLOT_PREFIX}{index + WRIGGLER_SLOT_NUMBER_BASE}",
                 start_stunned=True,
+                ascension_level=self.ascension_level,
             )
             self.add_enemy(wriggler, wriggler_ai)
             spawned.append(wriggler)
