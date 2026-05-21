@@ -24,7 +24,7 @@ from sts2_env.core.enums import MapPointType, RoomType
 from sts2_env.characters.all import get_character
 from sts2_env.map.map_point import MapCoord, MapPoint
 from sts2_env.map.generator import ActMap, generate_act_map
-from sts2_env.map.acts import ActConfig, get_act_config, ALL_ACTS
+from sts2_env.map.acts import ActConfig, ALL_ACTS
 from sts2_env.potions.base import PotionInstance
 from sts2_env.relics.base import RelicRarity
 from sts2_env.cards.base import (
@@ -1387,7 +1387,7 @@ class RunState:
         self.players: list[PlayerState] = [self.player]
 
         # Act / map state
-        self.acts: list[ActConfig] = [get_act_config(i) for i in range(len(ALL_ACTS))]
+        self.acts: list[ActConfig] = [act.to_mutable() for act in ALL_ACTS]
         self.current_act_index: int = 0
         self.map: ActMap | None = None
         self.visited_map_coords: list[MapCoord] = []
