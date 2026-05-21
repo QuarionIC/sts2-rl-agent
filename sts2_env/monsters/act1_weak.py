@@ -229,39 +229,99 @@ def create_fuzzy_wurm_crawler(rng: Rng, ascension_level: int = 0) -> tuple[Creat
 # Conditional start based on IsAlone/IsFront, then fixed rotation:
 # BUTT_MOVE(12) → SLICE_MOVE(6+5blk) → HISS_MOVE(Str+2) → BUTT_MOVE...
 
-def create_nibbit(rng: Rng, is_alone: bool = True, is_front: bool = False) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(42, 46)
+NIBBIT_BASE_MIN_HP = 42
+NIBBIT_BASE_MAX_HP = 46
+NIBBIT_TOUGH_MIN_HP = 44
+NIBBIT_TOUGH_MAX_HP = 48
+NIBBIT_BASE_BUTT_DAMAGE = 12
+NIBBIT_DEADLY_BUTT_DAMAGE = 13
+NIBBIT_SLICE_DAMAGE = 6
+NIBBIT_SLICE_BLOCK = 5
+NIBBIT_HISS_STRENGTH = 2
+NIBBIT_BUTT_MOVE = "BUTT_MOVE"
+NIBBIT_SLICE_MOVE = "SLICE_MOVE"
+NIBBIT_HISS_MOVE = "HISS_MOVE"
+NIBBIT_INITIAL_MOVE = "INITIAL"
+
+
+def create_nibbit(
+    rng: Rng,
+    is_alone: bool = True,
+    is_front: bool = False,
+    ascension_level: int = 0,
+) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        NIBBIT_TOUGH_MIN_HP,
+        NIBBIT_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        NIBBIT_TOUGH_MAX_HP,
+        NIBBIT_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
     creature = Creature(max_hp=hp, monster_id="NIBBIT")
 
     def butt(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, 12)
+        butt_damage = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            NIBBIT_DEADLY_BUTT_DAMAGE,
+            NIBBIT_BASE_BUTT_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, butt_damage)
 
     def slice_move(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, 6)
-        _gain_block(creature, 5, combat)
+        _deal_damage_to_player(combat, creature, NIBBIT_SLICE_DAMAGE)
+        _gain_block(creature, NIBBIT_SLICE_BLOCK, combat)
 
     def hiss(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, 2)
+        creature.apply_power(PowerId.STRENGTH, NIBBIT_HISS_STRENGTH)
+
+    butt_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        NIBBIT_DEADLY_BUTT_DAMAGE,
+        NIBBIT_BASE_BUTT_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "BUTT_MOVE": MoveState("BUTT_MOVE", butt, [attack_intent(12)], follow_up_id="SLICE_MOVE"),
-        "SLICE_MOVE": MoveState("SLICE_MOVE", slice_move, [attack_intent(6)], follow_up_id="HISS_MOVE"),
-        "HISS_MOVE": MoveState("HISS_MOVE", hiss, [buff_intent()], follow_up_id="BUTT_MOVE"),
+        NIBBIT_BUTT_MOVE: MoveState(
+            NIBBIT_BUTT_MOVE,
+            butt,
+            [attack_intent(butt_intent_damage)],
+            follow_up_id=NIBBIT_SLICE_MOVE,
+        ),
+        NIBBIT_SLICE_MOVE: MoveState(
+            NIBBIT_SLICE_MOVE,
+            slice_move,
+            [attack_intent(NIBBIT_SLICE_DAMAGE)],
+            follow_up_id=NIBBIT_HISS_MOVE,
+        ),
+        NIBBIT_HISS_MOVE: MoveState(
+            NIBBIT_HISS_MOVE,
+            hiss,
+            [buff_intent()],
+            follow_up_id=NIBBIT_BUTT_MOVE,
+        ),
     }
 
     # Determine starting state
     if is_alone:
-        initial = "BUTT_MOVE"
+        initial = NIBBIT_BUTT_MOVE
     elif is_front:
-        initial = "SLICE_MOVE"
+        initial = NIBBIT_SLICE_MOVE
     else:
-        initial = "HISS_MOVE"
+        initial = NIBBIT_HISS_MOVE
 
-    cond = ConditionalBranchState("INITIAL")
-    cond.add_branch(lambda: is_alone, "BUTT_MOVE")
-    cond.add_branch(lambda: is_front, "SLICE_MOVE")
-    cond.add_branch(lambda: True, "HISS_MOVE")
-    states["INITIAL"] = cond
+    cond = ConditionalBranchState(NIBBIT_INITIAL_MOVE)
+    cond.add_branch(lambda: is_alone, NIBBIT_BUTT_MOVE)
+    cond.add_branch(lambda: is_front, NIBBIT_SLICE_MOVE)
+    cond.add_branch(lambda: True, NIBBIT_HISS_MOVE)
+    states[NIBBIT_INITIAL_MOVE] = cond
 
     return creature, MonsterAI(states, initial, rng)
 

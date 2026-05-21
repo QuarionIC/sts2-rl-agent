@@ -431,6 +431,25 @@ class TestFixedRotation:
         first_acid_goop.perform(combat)
         assert ally.current_hp == ally_hp_before - 6
 
+    def test_nibbit_deadly_ascension_butt_damage_matches_csharp(self):
+        from sts2_env.monsters.act1_weak import create_nibbit
+
+        rng_seed = 1244
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=70)
+        nibbit, nibbit_ai = create_nibbit(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(nibbit, nibbit_ai)
+
+        butt = nibbit_ai.states["BUTT_MOVE"]
+        assert butt.intents[0].damage == 13
+        ally_hp_before = ally.current_hp
+        butt.perform(combat)
+        assert ally.current_hp == ally_hp_before - 13
+
+        slice_move = nibbit_ai.states["SLICE_MOVE"]
+        assert slice_move.intents[0].damage == 6
+
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle
 

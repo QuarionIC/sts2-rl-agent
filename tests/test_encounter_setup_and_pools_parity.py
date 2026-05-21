@@ -243,6 +243,16 @@ class TestAct1WeakEncounters:
             assert 42 <= e.max_hp <= 46
             assert e.monster_id == "NIBBIT"
 
+    def test_nibbits_tough_ascension_hp_matches_csharp(self):
+        for seed in range(5):
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+            rng = Rng(seed)
+            setup_nibbits_weak(combat, rng)
+            e = combat.enemies[0]
+            assert 44 <= e.max_hp <= 48
+            assert e.monster_id == "NIBBIT"
+
     def test_slimes_weak_count(self):
         for seed in range(5):
             combat = _make_combat(seed)

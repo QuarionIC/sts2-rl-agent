@@ -57,7 +57,7 @@ def setup_fuzzy_wurm_crawler_weak(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_nibbits_weak(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_nibbit(rng, is_alone=True)
+    creature, ai = create_nibbit(rng, is_alone=True, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
@@ -117,9 +117,9 @@ def setup_mawler_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_nibbits_normal(combat: CombatState, rng: Rng) -> None:
-    c1, a1 = create_nibbit(rng, is_alone=False, is_front=True)
+    c1, a1 = create_nibbit(rng, is_alone=False, is_front=True, ascension_level=combat.ascension_level)
     combat.add_enemy(c1, a1)
-    c2, a2 = create_nibbit(rng, is_alone=False, is_front=False)
+    c2, a2 = create_nibbit(rng, is_alone=False, is_front=False, ascension_level=combat.ascension_level)
     combat.add_enemy(c2, a2)
 
 
