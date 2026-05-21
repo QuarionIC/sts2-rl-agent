@@ -3,7 +3,9 @@
 import sts2_env.events.shared  # noqa: F401
 
 from sts2_env.cards.factory import create_card
+from sts2_env.cards.factory import eligible_registered_cards
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
+from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import CardId, CardRarity
 from sts2_env.events.shared import (
     ColorfulPhilosophers,
@@ -13,7 +15,9 @@ from sts2_env.events.shared import (
     ThisOrThat,
     Wellspring,
 )
+from sts2_env.relics.base import RelicId
 from sts2_env.run.reward_objects import CardReward
+from sts2_env.run.rewards import CARD_CREATION_SOURCE_OTHER
 from sts2_env.run.run_state import RunState
 
 
@@ -54,8 +58,20 @@ class _FixedRemovalRng:
         return next(self._rolls)
 
 
+class _FirstChoiceUpgradeRng:
+    def choice(self, values):
+        return list(values)[0]
+
+    def next_float(self, upper: float = 1.0) -> float:
+        return 0.0
+
+
 def _count_card(deck, card_id: CardId) -> int:
     return sum(1 for card in deck if card.card_id == card_id)
+
+
+def _card_reward_with_rarity(rewards: list[CardReward], rarity: CardRarity) -> CardReward:
+    return next(reward for reward in rewards if reward.card_pool_rarity_filter is rarity)
 
 
 def test_colorful_philosophers_choice_surfaces_three_rarity_tiered_card_rewards():
@@ -76,13 +92,61 @@ def test_colorful_philosophers_choice_surfaces_three_rarity_tiered_card_rewards(
     assert all(isinstance(reward, CardReward) for reward in rewards)
     assert all(reward.character_ids == (chosen_pool,) for reward in rewards)
     assert all(reward.use_default_character_pool is False for reward in rewards)
-    assert all(reward.card_creation_source == "other" for reward in rewards)
+    assert all(reward.card_creation_source == CARD_CREATION_SOURCE_OTHER for reward in rewards)
     assert all(reward.roll_upgrade is True for reward in rewards)
-    assert [reward.forced_rarities for reward in rewards] == [
-        (CardRarity.COMMON, CardRarity.COMMON, CardRarity.COMMON),
-        (CardRarity.UNCOMMON, CardRarity.UNCOMMON, CardRarity.UNCOMMON),
-        (CardRarity.RARE, CardRarity.RARE, CardRarity.RARE),
+    assert all(reward.allow_rarity_modifications is False for reward in rewards)
+    assert all(reward.use_uniform_noncombat_odds is True for reward in rewards)
+    assert [reward.card_pool_rarity_filter for reward in rewards] == [
+        CardRarity.COMMON,
+        CardRarity.UNCOMMON,
+        CardRarity.RARE,
     ]
+    assert all(reward.forced_rarities == () for reward in rewards)
+
+
+def test_colorful_philosophers_no_rarity_modification_limits_dingy_rug_pool():
+    run_state = _make_run_state(413, character_id="Defect")
+    assert run_state.player.obtain_relic(RelicId.DINGY_RUG.name)
+    event = ColorfulPhilosophers()
+    event.rng = _FixedRemovalRng([1])
+    event.generate_initial_options(run_state)
+
+    result = event.choose(run_state, "pool_1")
+    reward = _card_reward_with_rarity(result.rewards["reward_objects"], CardRarity.UNCOMMON)
+    reward.populate(run_state, None)
+
+    colorless_uncommon_pool = set(
+        eligible_registered_cards(
+            card_pool=CardPoolId.COLORLESS,
+            rarity=CardRarity.UNCOMMON,
+            generation_context=None,
+        )
+    )
+    colorless_rare_pool = set(
+        eligible_registered_cards(
+            card_pool=CardPoolId.COLORLESS,
+            rarity=CardRarity.RARE,
+            generation_context=None,
+        )
+    )
+    assert any(card_id in reward.custom_card_ids for card_id in colorless_uncommon_pool)
+    assert not any(card_id in reward.custom_card_ids for card_id in colorless_rare_pool)
+
+
+def test_colorful_philosophers_uniform_rewards_still_roll_card_upgrades():
+    run_state = _make_run_state(414, character_id="Defect")
+    run_state.current_act_index = 1
+    run_state.rng.rewards = _FirstChoiceUpgradeRng()
+    event = ColorfulPhilosophers()
+    event.rng = _FixedRemovalRng([1])
+    event.generate_initial_options(run_state)
+
+    result = event.choose(run_state, "pool_1")
+    reward = _card_reward_with_rarity(result.rewards["reward_objects"], CardRarity.UNCOMMON)
+    reward.populate(run_state, None)
+
+    assert len(reward.cards) == 3
+    assert all(card.upgraded for card in reward.cards)
 
 
 def test_colorful_philosophers_uses_event_rng_without_advancing_up_front_rng():

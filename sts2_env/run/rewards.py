@@ -548,5 +548,13 @@ def generate_uniform_noncombat_reward_cards_with_options(
             break
         card_id = run_state.rng.rewards.choice(available_ids)
         chosen_ids.add(card_id)
-        cards.append(create_card(card_id, upgraded=False))
+        upgraded = False
+        if options.roll_upgrade:
+            upgraded = roll_for_upgrade(
+                run_state,
+                card_metadata(card_id).rarity,
+                run_state.rng.rewards,
+                base_chance=COMBAT_CARD_UPGRADE_BASE_CHANCE,
+            )
+        cards.append(create_card(card_id, upgraded=upgraded))
     return cards

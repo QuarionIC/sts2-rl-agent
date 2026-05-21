@@ -47,7 +47,7 @@ from sts2_env.run.reward_objects import (
     TransformCardsReward,
     UpgradeCardsReward,
 )
-from sts2_env.run.rewards import generate_noncombat_reward_cards
+from sts2_env.run.rewards import CARD_CREATION_SOURCE_OTHER, generate_noncombat_reward_cards
 from sts2_env.run.events import EventModel, EventOption, EventResult, register_event
 from sts2_env.run.rest_site import execute_rest_site_heal, rest_site_heal_amount
 from sts2_env.characters.all import ALL_CHARACTERS
@@ -745,6 +745,8 @@ class ColorfulPhilosophers(EventModel):
     event_id = "ColorfulPhilosophers"
 
     _POOL_ORDER = ("Necrobinder", "Ironclad", "Regent", "Silent", "Defect")
+    _REWARD_OPTION_COUNT = 3
+    _REWARD_RARITIES = (CardRarity.COMMON, CardRarity.UNCOMMON, CardRarity.RARE)
 
     def __init__(self) -> None:
         self._choices: dict[str, str] = {}
@@ -775,14 +777,16 @@ class ColorfulPhilosophers(EventModel):
         rewards = [
             CardReward(
                 run_state.player.player_id,
-                option_count=3,
+                option_count=self._REWARD_OPTION_COUNT,
                 character_ids=(character_id,),
-                forced_rarities=(rarity, rarity, rarity),
                 use_default_character_pool=False,
                 generation_context=None,
-                card_creation_source="other",
+                card_creation_source=CARD_CREATION_SOURCE_OTHER,
+                allow_rarity_modifications=False,
+                card_pool_rarity_filter=rarity,
+                use_uniform_noncombat_odds=True,
             )
-            for rarity in (CardRarity.COMMON, CardRarity.UNCOMMON, CardRarity.RARE)
+            for rarity in self._REWARD_RARITIES
         ]
         return EventResult(
             finished=True,

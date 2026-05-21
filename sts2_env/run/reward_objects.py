@@ -22,6 +22,7 @@ from sts2_env.run.rewards import (
     DEFAULT_CARD_REWARD_OPTION_COUNT,
     generate_combat_reward_cards,
     generate_noncombat_reward_cards,
+    generate_uniform_noncombat_reward_cards_with_options,
 )
 
 if TYPE_CHECKING:
@@ -218,6 +219,8 @@ class CardReward(Reward):
     allow_hook_upgrades: bool = True
     has_custom_card_pool: bool = False
     custom_card_ids: tuple[CardId, ...] = field(default_factory=tuple)
+    card_pool_rarity_filter: CardRarity | None = None
+    use_uniform_noncombat_odds: bool = False
     upgrade_after_generation: bool = False
     cards: list[CardInstance] = field(default_factory=list)
     max_rerolls: int = 0
@@ -245,6 +248,8 @@ class CardReward(Reward):
         allow_hook_upgrades: bool = True,
         has_custom_card_pool: bool = False,
         custom_card_ids: tuple[CardId, ...] | None = None,
+        card_pool_rarity_filter: CardRarity | None = None,
+        use_uniform_noncombat_odds: bool = False,
         upgrade_after_generation: bool = False,
         cards: list[CardInstance] | None = None,
     ):
@@ -275,6 +280,8 @@ class CardReward(Reward):
         self.allow_hook_upgrades = allow_hook_upgrades
         self.has_custom_card_pool = has_custom_card_pool
         self.custom_card_ids = tuple(custom_card_ids or ())
+        self.card_pool_rarity_filter = card_pool_rarity_filter
+        self.use_uniform_noncombat_odds = use_uniform_noncombat_odds
         self.upgrade_after_generation = upgrade_after_generation
         self.cards = resolved_cards
         self.max_rerolls = 0
@@ -299,7 +306,7 @@ class CardReward(Reward):
             allow_hook_upgrades=self.allow_hook_upgrades,
             has_custom_card_pool=self.has_custom_card_pool,
             custom_card_ids=self.custom_card_ids,
-            card_pool_rarity_filter=None,
+            card_pool_rarity_filter=self.card_pool_rarity_filter,
         )
         for relic in player.get_relic_objects():
             options = relic.modify_card_reward_creation_options(
@@ -319,7 +326,13 @@ class CardReward(Reward):
             )
         if not self.cards:
             character_ids = None if options.use_default_character_pool and not options.character_ids else options.character_ids
-            if options.card_creation_source == CARD_CREATION_SOURCE_OTHER:
+            if options.card_creation_source == CARD_CREATION_SOURCE_OTHER and self.use_uniform_noncombat_odds:
+                self.cards = generate_uniform_noncombat_reward_cards_with_options(
+                    run_state,
+                    options,
+                    default_character_id=player.character_id,
+                )
+            elif options.card_creation_source == CARD_CREATION_SOURCE_OTHER:
                 self.cards = generate_noncombat_reward_cards(
                     run_state,
                     num_cards=options.num_cards,
@@ -355,6 +368,7 @@ class CardReward(Reward):
         self.allow_hook_upgrades = options.allow_hook_upgrades
         self.has_custom_card_pool = options.has_custom_card_pool
         self.custom_card_ids = options.custom_card_ids
+        self.card_pool_rarity_filter = options.card_pool_rarity_filter
         listeners = [*player.get_relic_objects(), *run_state.modifiers]
         for listener in listeners:
             modify_card_reward_options = getattr(listener, "modify_card_reward_options", None)
