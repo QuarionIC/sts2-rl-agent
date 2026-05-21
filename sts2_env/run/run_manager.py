@@ -1553,7 +1553,7 @@ class RunManager:
             return {"phase": self.phase, "description": "Cannot afford potion."}
 
         if action_type == "remove_card":
-            removable = [card for card in player.deck if card.rarity.name != "QUEST" and card.is_removable]
+            removable = player.removable_deck_cards()
             if (
                 not inv.removal_used
                 and player.gold >= inv.removal_cost

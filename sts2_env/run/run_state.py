@@ -514,13 +514,13 @@ class PlayerState:
         return [card for card in self.deck if card.card_type != CardType.QUEST]
 
     def removable_deck_cards(self) -> list[CardInstance]:
-        return [
-            card for card in self.deck
-            if card.card_type != CardType.QUEST and card.rarity.name != "QUEST" and card.is_removable
-        ]
+        return [card for card in self.deck if card.is_removable]
 
     def transformable_deck_cards(self) -> list[CardInstance]:
-        return [card for card in self.removable_deck_cards()]
+        return [
+            card for card in self.deck
+            if card.card_type != CardType.QUEST and card.is_removable
+        ]
 
     def basic_strike_defend_cards(self) -> list[CardInstance]:
         return [

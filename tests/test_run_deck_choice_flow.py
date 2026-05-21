@@ -150,6 +150,40 @@ def test_remove_card_reward_uses_run_level_deck_choice():
     assert len(mgr.run_state.player.deck) == starting_deck - 1
 
 
+def test_remove_card_reward_can_remove_quest_cards():
+    mgr = RunManager(seed=805, character_id="Ironclad")
+    quest = create_card(CardId.BYRDONIS_EGG)
+    mgr.run_state.player.deck = [quest]
+    reward = RemoveCardReward(mgr.run_state.player.player_id, count=1)
+
+    result = reward.select(mgr)
+
+    assert result["removed"] == 1
+    assert mgr.run_state.player.deck == []
+
+
+def test_shop_remove_card_can_choose_quest_cards():
+    mgr = RunManager(seed=806, character_id="Ironclad")
+    quest = create_card(CardId.BYRDONIS_EGG)
+    mgr.run_state.player.deck = [quest, create_card(CardId.STRIKE_IRONCLAD)]
+    mgr.run_state.player.gold = 999
+    mgr._phase = RunManager.PHASE_SHOP
+    mgr._shop_inventory = ShopInventory(removal_cost=75)
+
+    result = mgr._do_shop_action({"action": "remove_card"})
+
+    assert result["phase"] == RunManager.PHASE_SHOP
+    assert mgr.run_state.pending_choice is not None
+    assert [option.card.card_id for option in mgr.run_state.pending_choice.options] == [
+        CardId.BYRDONIS_EGG,
+        CardId.STRIKE_IRONCLAD,
+    ]
+    mgr.take_action({"action": "choose", "index": 0})
+    assert [card.card_id for card in mgr.run_state.player.deck] == [CardId.STRIKE_IRONCLAD]
+    assert mgr._shop_inventory is not None
+    assert mgr._shop_inventory.removal_used
+
+
 def test_upgrade_cards_reward_uses_run_level_deck_choice():
     mgr = RunManager(seed=807, character_id="Ironclad")
     reward = UpgradeCardsReward(mgr.run_state.player.player_id, count=1)
