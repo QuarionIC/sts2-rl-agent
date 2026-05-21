@@ -187,59 +187,124 @@ def apply_cubex_construct_room_setup(creature: Creature, combat: CombatState) ->
 
 # ---- Flyconid (HP 47-49 / 51-53 asc) ----
 
-def create_flyconid(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(47, 49)
-    creature = Creature(max_hp=hp, monster_id="FLYCONID")
+FLYCONID_BASE_MIN_HP = 47
+FLYCONID_BASE_MAX_HP = 49
+FLYCONID_TOUGH_MIN_HP = 51
+FLYCONID_TOUGH_MAX_HP = 53
+FLYCONID_BASE_SMASH_DAMAGE = 11
+FLYCONID_DEADLY_SMASH_DAMAGE = 12
+FLYCONID_BASE_SPORE_DAMAGE = 8
+FLYCONID_DEADLY_SPORE_DAMAGE = 9
+FLYCONID_VULNERABLE_SPORES_VULNERABLE = 2
+FLYCONID_FRAIL_SPORES_FRAIL = 2
+FLYCONID_INITIAL_MOVE = "INITIAL"
+FLYCONID_RANDOM_MOVE = "RAND"
+FLYCONID_VULNERABLE_SPORES_MOVE = "VULNERABLE_SPORES_MOVE"
+FLYCONID_FRAIL_SPORES_MOVE = "FRAIL_SPORES_MOVE"
+FLYCONID_SMASH_MOVE = "SMASH_MOVE"
+FLYCONID_VULNERABLE_SPORES_WEIGHT = 3.0
+FLYCONID_FRAIL_SPORES_WEIGHT = 2.0
+FLYCONID_SMASH_WEIGHT = 1.0
 
-    smash_dmg = 11
-    spore_dmg = 8
-    vulnerable_spores_vulnerable = 2
-    frail_spores_frail = 2
+
+def create_flyconid(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        FLYCONID_TOUGH_MIN_HP,
+        FLYCONID_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        FLYCONID_TOUGH_MAX_HP,
+        FLYCONID_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id="FLYCONID")
 
     def vulnerable_spores(combat: CombatState) -> None:
         apply_power_to_living_player_targets(
             combat,
             PowerId.VULNERABLE,
-            vulnerable_spores_vulnerable,
+            FLYCONID_VULNERABLE_SPORES_VULNERABLE,
             applier=creature,
         )
 
     def frail_spores(combat: CombatState) -> None:
+        spore_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FLYCONID_DEADLY_SPORE_DAMAGE,
+            FLYCONID_BASE_SPORE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, spore_dmg)
-        apply_power_to_living_player_targets(combat, PowerId.FRAIL, frail_spores_frail, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, FLYCONID_FRAIL_SPORES_FRAIL, applier=creature)
 
     def smash(combat: CombatState) -> None:
+        smash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            FLYCONID_DEADLY_SMASH_DAMAGE,
+            FLYCONID_BASE_SMASH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, smash_dmg)
 
+    spore_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FLYCONID_DEADLY_SPORE_DAMAGE,
+        FLYCONID_BASE_SPORE_DAMAGE,
+    )
+    smash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        FLYCONID_DEADLY_SMASH_DAMAGE,
+        FLYCONID_BASE_SMASH_DAMAGE,
+    )
+
     # Initial random: FrailSpores(2) or Smash(1)
-    initial_rand = RandomBranchState("INITIAL")
-    initial_rand.add_branch("FRAIL_SPORES_MOVE", weight=2.0)
-    initial_rand.add_branch("SMASH_MOVE", weight=1.0)
+    initial_rand = RandomBranchState(FLYCONID_INITIAL_MOVE)
+    initial_rand.add_branch(FLYCONID_FRAIL_SPORES_MOVE, weight=FLYCONID_FRAIL_SPORES_WEIGHT)
+    initial_rand.add_branch(FLYCONID_SMASH_MOVE, weight=FLYCONID_SMASH_WEIGHT)
 
     # Main random: all 3, cannot repeat
-    main_rand = RandomBranchState("RAND")
-    main_rand.add_branch("VULNERABLE_SPORES_MOVE", MoveRepeatType.CANNOT_REPEAT, weight=3.0)
-    main_rand.add_branch("FRAIL_SPORES_MOVE", MoveRepeatType.CANNOT_REPEAT, weight=2.0)
-    main_rand.add_branch("SMASH_MOVE", MoveRepeatType.CANNOT_REPEAT, weight=1.0)
+    main_rand = RandomBranchState(FLYCONID_RANDOM_MOVE)
+    main_rand.add_branch(
+        FLYCONID_VULNERABLE_SPORES_MOVE,
+        MoveRepeatType.CANNOT_REPEAT,
+        weight=FLYCONID_VULNERABLE_SPORES_WEIGHT,
+    )
+    main_rand.add_branch(
+        FLYCONID_FRAIL_SPORES_MOVE,
+        MoveRepeatType.CANNOT_REPEAT,
+        weight=FLYCONID_FRAIL_SPORES_WEIGHT,
+    )
+    main_rand.add_branch(FLYCONID_SMASH_MOVE, MoveRepeatType.CANNOT_REPEAT, weight=FLYCONID_SMASH_WEIGHT)
 
     states: dict[str, MonsterState] = {
-        "INITIAL": initial_rand,
-        "RAND": main_rand,
-        "VULNERABLE_SPORES_MOVE": MoveState(
-            "VULNERABLE_SPORES_MOVE",
+        FLYCONID_INITIAL_MOVE: initial_rand,
+        FLYCONID_RANDOM_MOVE: main_rand,
+        FLYCONID_VULNERABLE_SPORES_MOVE: MoveState(
+            FLYCONID_VULNERABLE_SPORES_MOVE,
             vulnerable_spores,
             [debuff_intent()],
-            follow_up_id="RAND",
+            follow_up_id=FLYCONID_RANDOM_MOVE,
         ),
-        "FRAIL_SPORES_MOVE": MoveState(
-            "FRAIL_SPORES_MOVE",
+        FLYCONID_FRAIL_SPORES_MOVE: MoveState(
+            FLYCONID_FRAIL_SPORES_MOVE,
             frail_spores,
-            [attack_intent(spore_dmg), debuff_intent()],
-            follow_up_id="RAND",
+            [attack_intent(spore_intent_damage), debuff_intent()],
+            follow_up_id=FLYCONID_RANDOM_MOVE,
         ),
-        "SMASH_MOVE": MoveState("SMASH_MOVE", smash, [attack_intent(smash_dmg)], follow_up_id="RAND"),
+        FLYCONID_SMASH_MOVE: MoveState(
+            FLYCONID_SMASH_MOVE,
+            smash,
+            [attack_intent(smash_intent_damage)],
+            follow_up_id=FLYCONID_RANDOM_MOVE,
+        ),
     }
-    return creature, MonsterAI(states, "INITIAL", rng)
+    return creature, MonsterAI(states, FLYCONID_INITIAL_MOVE, rng)
 
 
 # ---- Fogmog (HP 74 / 78 asc) ----

@@ -519,6 +519,30 @@ class TestFixedRotation:
         block_cubex_ai.states["SUBMERGE_MOVE"].perform(block_combat)
         assert block_cubex.block == 15
 
+    def test_flyconid_ascension_scaling_matches_csharp(self):
+        rng_seed = 1271
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=70)
+        flyconid, flyconid_ai = create_flyconid(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(flyconid, flyconid_ai)
+
+        smash = flyconid_ai.states["SMASH_MOVE"]
+        assert smash.intents[0].damage == 12
+        ally_hp_before_smash = ally.current_hp
+        smash.perform(combat)
+        assert ally.current_hp == ally_hp_before_smash - 12
+
+        frail_spores = flyconid_ai.states["FRAIL_SPORES_MOVE"]
+        assert frail_spores.intents[0].damage == 9
+        ally_hp_before_spores = ally.current_hp
+        frail_spores.perform(combat)
+        assert ally.current_hp == ally_hp_before_spores - 9
+        assert ally.get_power_amount(PowerId.FRAIL) == 2
+
+        flyconid_ai.states["VULNERABLE_SPORES_MOVE"].perform(combat)
+        assert ally.get_power_amount(PowerId.VULNERABLE) == 2
+
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle
 

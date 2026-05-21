@@ -309,6 +309,14 @@ class TestAct1NormalEncounters:
                 "SMASH_MOVE",
             }
 
+    def test_flyconid_tough_ascension_hp_matches_csharp(self):
+        for seed in range(5):
+            combat = _make_combat(seed)
+            combat.ascension_level = 8
+            setup_flyconid_normal(combat, Rng(seed))
+            assert combat.enemies[1].monster_id == "FLYCONID"
+            assert 51 <= combat.enemies[1].max_hp <= 53
+
     def test_fogmog_count(self):
         combat = _make_combat()
         setup_fogmog_normal(combat, Rng(42))

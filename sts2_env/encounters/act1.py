@@ -93,7 +93,7 @@ def setup_flyconid_normal(combat: CombatState, rng: Rng) -> None:
     slime_creator = rng.choice([create_leaf_slime_m, create_twig_slime_m])
     slime, slime_ai = slime_creator(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(slime, slime_ai)
-    creature, ai = create_flyconid(rng)
+    creature, ai = create_flyconid(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
@@ -191,7 +191,7 @@ def setup_slithering_strangler_normal(combat: CombatState, rng: Rng) -> None:
 def setup_snapping_jaxfruit_normal(combat: CombatState, rng: Rng) -> None:
     creature, ai = create_snapping_jaxfruit(rng)
     combat.add_enemy(creature, ai)
-    flyconid, flyconid_ai = create_flyconid(rng)
+    flyconid, flyconid_ai = create_flyconid(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(flyconid, flyconid_ai)
 
 
