@@ -2526,107 +2526,245 @@ def create_knowledge_demon(rng: Rng, ascension_level: int = 0) -> tuple[Creature
 
 # ---- KaiserCrab (Crusher + Rocket) ----
 
-def create_crusher(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 199
-    creature = Creature(max_hp=hp, monster_id="CRUSHER")
-    thrash_dmg = 12
-    enlarging_dmg = 4
-    bug_sting_dmg = 6
-    bug_sting_debuff = 2
-    guarded_strike_dmg = 12
-    guarded_block = 18
+CRUSHER_MONSTER_ID = "CRUSHER"
+CRUSHER_BASE_HP = 199
+CRUSHER_TOUGH_HP = 209
+CRUSHER_BASE_THRASH_DAMAGE = 12
+CRUSHER_DEADLY_THRASH_DAMAGE = 14
+CRUSHER_ENLARGING_STRIKE_DAMAGE = 4
+CRUSHER_BASE_BUG_STING_DAMAGE = 6
+CRUSHER_DEADLY_BUG_STING_DAMAGE = 7
+CRUSHER_BUG_STING_REPEAT = 2
+CRUSHER_BUG_STING_DEBUFF = 2
+CRUSHER_ADAPT_STRENGTH = 2
+CRUSHER_BASE_GUARDED_STRIKE_DAMAGE = 12
+CRUSHER_DEADLY_GUARDED_STRIKE_DAMAGE = 14
+CRUSHER_GUARDED_STRIKE_BLOCK = 18
+CRUSHER_BACK_ATTACK_LEFT_AMOUNT = 1
+CRUSHER_CRAB_RAGE_AMOUNT = 1
+CRUSHER_THRASH_MOVE = "THRASH_MOVE"
+CRUSHER_ENLARGING_STRIKE_MOVE = "ENLARGING_STRIKE_MOVE"
+CRUSHER_BUG_STING_MOVE = "BUG_STING_MOVE"
+CRUSHER_ADAPT_MOVE = "ADAPT_MOVE"
+CRUSHER_GUARDED_STRIKE_MOVE = "GUARDED_STRIKE_MOVE"
+
+
+def create_crusher(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        CRUSHER_TOUGH_HP,
+        CRUSHER_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=CRUSHER_MONSTER_ID)
 
     def thrash(combat: CombatState) -> None:
+        thrash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CRUSHER_DEADLY_THRASH_DAMAGE,
+            CRUSHER_BASE_THRASH_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, thrash_dmg)
 
     def enlarging_strike(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, enlarging_dmg)
+        _deal_damage_to_player(combat, creature, CRUSHER_ENLARGING_STRIKE_DAMAGE)
 
     def bug_sting(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, bug_sting_dmg, hits=2)
-        apply_power_to_living_player_targets(combat, PowerId.WEAK, bug_sting_debuff, applier=creature)
-        apply_power_to_living_player_targets(combat, PowerId.FRAIL, bug_sting_debuff, applier=creature)
+        bug_sting_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CRUSHER_DEADLY_BUG_STING_DAMAGE,
+            CRUSHER_BASE_BUG_STING_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, bug_sting_dmg, hits=CRUSHER_BUG_STING_REPEAT)
+        apply_power_to_living_player_targets(combat, PowerId.WEAK, CRUSHER_BUG_STING_DEBUFF, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.FRAIL, CRUSHER_BUG_STING_DEBUFF, applier=creature)
 
     def adapt(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, 2)
+        creature.apply_power(PowerId.STRENGTH, CRUSHER_ADAPT_STRENGTH)
 
     def guarded_strike(combat: CombatState) -> None:
+        guarded_strike_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CRUSHER_DEADLY_GUARDED_STRIKE_DAMAGE,
+            CRUSHER_BASE_GUARDED_STRIKE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, guarded_strike_dmg)
-        _gain_block(creature, guarded_block, combat)
+        _gain_block(creature, CRUSHER_GUARDED_STRIKE_BLOCK, combat)
+
+    thrash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        CRUSHER_DEADLY_THRASH_DAMAGE,
+        CRUSHER_BASE_THRASH_DAMAGE,
+    )
+    bug_sting_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        CRUSHER_DEADLY_BUG_STING_DAMAGE,
+        CRUSHER_BASE_BUG_STING_DAMAGE,
+    )
+    guarded_strike_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        CRUSHER_DEADLY_GUARDED_STRIKE_DAMAGE,
+        CRUSHER_BASE_GUARDED_STRIKE_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "THRASH_MOVE": MoveState("THRASH_MOVE", thrash, [attack_intent(thrash_dmg)], follow_up_id="ENLARGING_STRIKE_MOVE"),
-        "ENLARGING_STRIKE_MOVE": MoveState(
-            "ENLARGING_STRIKE_MOVE",
+        CRUSHER_THRASH_MOVE: MoveState(
+            CRUSHER_THRASH_MOVE,
+            thrash,
+            [attack_intent(thrash_intent_damage)],
+            follow_up_id=CRUSHER_ENLARGING_STRIKE_MOVE,
+        ),
+        CRUSHER_ENLARGING_STRIKE_MOVE: MoveState(
+            CRUSHER_ENLARGING_STRIKE_MOVE,
             enlarging_strike,
-            [attack_intent(enlarging_dmg)],
-            follow_up_id="BUG_STING_MOVE",
+            [attack_intent(CRUSHER_ENLARGING_STRIKE_DAMAGE)],
+            follow_up_id=CRUSHER_BUG_STING_MOVE,
         ),
-        "BUG_STING_MOVE": MoveState(
-            "BUG_STING_MOVE",
+        CRUSHER_BUG_STING_MOVE: MoveState(
+            CRUSHER_BUG_STING_MOVE,
             bug_sting,
-            [multi_attack_intent(bug_sting_dmg, 2), debuff_intent()],
-            follow_up_id="ADAPT_MOVE",
+            [multi_attack_intent(bug_sting_intent_damage, CRUSHER_BUG_STING_REPEAT), debuff_intent()],
+            follow_up_id=CRUSHER_ADAPT_MOVE,
         ),
-        "ADAPT_MOVE": MoveState("ADAPT_MOVE", adapt, [buff_intent()], follow_up_id="GUARDED_STRIKE_MOVE"),
-        "GUARDED_STRIKE_MOVE": MoveState(
-            "GUARDED_STRIKE_MOVE",
+        CRUSHER_ADAPT_MOVE: MoveState(
+            CRUSHER_ADAPT_MOVE,
+            adapt,
+            [buff_intent()],
+            follow_up_id=CRUSHER_GUARDED_STRIKE_MOVE,
+        ),
+        CRUSHER_GUARDED_STRIKE_MOVE: MoveState(
+            CRUSHER_GUARDED_STRIKE_MOVE,
             guarded_strike,
-            [attack_intent(guarded_strike_dmg), defend_intent()],
-            follow_up_id="THRASH_MOVE",
+            [attack_intent(guarded_strike_intent_damage), defend_intent()],
+            follow_up_id=CRUSHER_THRASH_MOVE,
         ),
     }
 
-    creature.apply_power(PowerId.BACK_ATTACK_LEFT, 1)
-    creature.apply_power(PowerId.CRAB_RAGE, 1)
-    return creature, MonsterAI(states, "THRASH_MOVE")
+    creature.apply_power(PowerId.BACK_ATTACK_LEFT, CRUSHER_BACK_ATTACK_LEFT_AMOUNT)
+    creature.apply_power(PowerId.CRAB_RAGE, CRUSHER_CRAB_RAGE_AMOUNT)
+    return creature, MonsterAI(states, CRUSHER_THRASH_MOVE)
 
 
-def create_rocket(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 189
-    creature = Creature(max_hp=hp, monster_id="ROCKET")
-    targeting_dmg = 3
-    precision_dmg = 18
-    laser_dmg = 31
+ROCKET_MONSTER_ID = "ROCKET"
+ROCKET_BASE_HP = 189
+ROCKET_TOUGH_HP = 199
+ROCKET_BASE_TARGETING_RETICLE_DAMAGE = 3
+ROCKET_DEADLY_TARGETING_RETICLE_DAMAGE = 4
+ROCKET_BASE_PRECISION_BEAM_DAMAGE = 18
+ROCKET_DEADLY_PRECISION_BEAM_DAMAGE = 20
+ROCKET_BASE_LASER_DAMAGE = 31
+ROCKET_DEADLY_LASER_DAMAGE = 35
+ROCKET_CHARGE_UP_STRENGTH = 2
+ROCKET_SURROUNDED_AMOUNT = 1
+ROCKET_BACK_ATTACK_RIGHT_AMOUNT = 1
+ROCKET_CRAB_RAGE_AMOUNT = 1
+ROCKET_TARGETING_RETICLE_MOVE = "TARGETING_RETICLE_MOVE"
+ROCKET_PRECISION_BEAM_MOVE = "PRECISION_BEAM_MOVE"
+ROCKET_CHARGE_UP_MOVE = "CHARGE_UP_MOVE"
+ROCKET_LASER_MOVE = "LASER_MOVE"
+ROCKET_RECHARGE_MOVE = "RECHARGE_MOVE"
+
+
+def create_rocket(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        ROCKET_TOUGH_HP,
+        ROCKET_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=ROCKET_MONSTER_ID)
 
     def targeting_reticle(combat: CombatState) -> None:
+        targeting_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            ROCKET_DEADLY_TARGETING_RETICLE_DAMAGE,
+            ROCKET_BASE_TARGETING_RETICLE_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, targeting_dmg)
 
     def precision_beam(combat: CombatState) -> None:
+        precision_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            ROCKET_DEADLY_PRECISION_BEAM_DAMAGE,
+            ROCKET_BASE_PRECISION_BEAM_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, precision_dmg)
 
     def charge_up(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, 2)
+        creature.apply_power(PowerId.STRENGTH, ROCKET_CHARGE_UP_STRENGTH)
 
     def laser(combat: CombatState) -> None:
+        laser_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            ROCKET_DEADLY_LASER_DAMAGE,
+            ROCKET_BASE_LASER_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, laser_dmg)
 
     def recharge(combat: CombatState) -> None:
         return
 
+    targeting_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        ROCKET_DEADLY_TARGETING_RETICLE_DAMAGE,
+        ROCKET_BASE_TARGETING_RETICLE_DAMAGE,
+    )
+    precision_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        ROCKET_DEADLY_PRECISION_BEAM_DAMAGE,
+        ROCKET_BASE_PRECISION_BEAM_DAMAGE,
+    )
+    laser_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        ROCKET_DEADLY_LASER_DAMAGE,
+        ROCKET_BASE_LASER_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "TARGETING_RETICLE_MOVE": MoveState(
-            "TARGETING_RETICLE_MOVE",
+        ROCKET_TARGETING_RETICLE_MOVE: MoveState(
+            ROCKET_TARGETING_RETICLE_MOVE,
             targeting_reticle,
-            [attack_intent(targeting_dmg)],
-            follow_up_id="PRECISION_BEAM_MOVE",
+            [attack_intent(targeting_intent_damage)],
+            follow_up_id=ROCKET_PRECISION_BEAM_MOVE,
         ),
-        "PRECISION_BEAM_MOVE": MoveState(
-            "PRECISION_BEAM_MOVE",
+        ROCKET_PRECISION_BEAM_MOVE: MoveState(
+            ROCKET_PRECISION_BEAM_MOVE,
             precision_beam,
-            [attack_intent(precision_dmg)],
-            follow_up_id="CHARGE_UP_MOVE",
+            [attack_intent(precision_intent_damage)],
+            follow_up_id=ROCKET_CHARGE_UP_MOVE,
         ),
-        "CHARGE_UP_MOVE": MoveState("CHARGE_UP_MOVE", charge_up, [buff_intent()], follow_up_id="LASER_MOVE"),
-        "LASER_MOVE": MoveState("LASER_MOVE", laser, [attack_intent(laser_dmg)], follow_up_id="RECHARGE_MOVE"),
-        "RECHARGE_MOVE": MoveState(
-            "RECHARGE_MOVE",
+        ROCKET_CHARGE_UP_MOVE: MoveState(
+            ROCKET_CHARGE_UP_MOVE,
+            charge_up,
+            [buff_intent()],
+            follow_up_id=ROCKET_LASER_MOVE,
+        ),
+        ROCKET_LASER_MOVE: MoveState(
+            ROCKET_LASER_MOVE,
+            laser,
+            [attack_intent(laser_intent_damage)],
+            follow_up_id=ROCKET_RECHARGE_MOVE,
+        ),
+        ROCKET_RECHARGE_MOVE: MoveState(
+            ROCKET_RECHARGE_MOVE,
             recharge,
             [sleep_intent()],
-            follow_up_id="TARGETING_RETICLE_MOVE",
+            follow_up_id=ROCKET_TARGETING_RETICLE_MOVE,
         ),
     }
 
-    creature.apply_power(PowerId.BACK_ATTACK_RIGHT, 1)
-    creature.apply_power(PowerId.CRAB_RAGE, 1)
-    return creature, MonsterAI(states, "TARGETING_RETICLE_MOVE")
+    creature.apply_power(PowerId.BACK_ATTACK_RIGHT, ROCKET_BACK_ATTACK_RIGHT_AMOUNT)
+    creature.apply_power(PowerId.CRAB_RAGE, ROCKET_CRAB_RAGE_AMOUNT)
+    return creature, MonsterAI(states, ROCKET_TARGETING_RETICLE_MOVE)

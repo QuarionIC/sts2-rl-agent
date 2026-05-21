@@ -114,6 +114,12 @@ from sts2_env.monsters.act2 import (
     DECIMILLIPEDE_SEGMENT_MIN_HP,
     DECIMILLIPEDE_SEGMENT_MONSTER_ID,
     DECIMILLIPEDE_WRITHE_MOVE,
+    CRUSHER_ADAPT_MOVE,
+    CRUSHER_BUG_STING_MOVE,
+    CRUSHER_ENLARGING_STRIKE_MOVE,
+    CRUSHER_GUARDED_STRIKE_MOVE,
+    CRUSHER_MONSTER_ID,
+    CRUSHER_THRASH_MOVE,
     ENTOMANCER_BEES_MOVE,
     ENTOMANCER_MONSTER_ID,
     ENTOMANCER_PHEROMONE_SPIT_MOVE,
@@ -130,6 +136,13 @@ from sts2_env.monsters.act2 import (
     OVICOPTER_EGGS_TO_LAY,
     OVICOPTER_LAY_EGGS_MOVE,
     OVICOPTER_MONSTER_ID,
+    ROCKET_CHARGE_UP_MOVE,
+    ROCKET_LASER_MOVE,
+    ROCKET_MONSTER_ID,
+    ROCKET_PRECISION_BEAM_MOVE,
+    ROCKET_RECHARGE_MOVE,
+    ROCKET_SURROUNDED_AMOUNT,
+    ROCKET_TARGETING_RETICLE_MOVE,
     THE_INSATIABLE_LUNGING_BITE_MOVE,
     THE_INSATIABLE_SALIVATE_MOVE,
     THE_INSATIABLE_THRASH_MOVE_1,
@@ -400,6 +413,21 @@ KNOWLEDGE_DEMON_OVERWHELMING_DAMAGE_A9 = 9
 KNOWLEDGE_DEMON_OVERWHELMING_HITS = 3
 KNOWLEDGE_DEMON_PONDER_DAMAGE_A9 = 13
 KNOWLEDGE_DEMON_PONDER_STRENGTH_A9 = 3
+CRUSHER_BASE_HP = 199
+CRUSHER_A8_HP = 209
+CRUSHER_THRASH_DAMAGE_A9 = 14
+CRUSHER_BUG_STING_DAMAGE_A9 = 7
+CRUSHER_BUG_STING_HITS = 2
+CRUSHER_BUG_STING_DEBUFF = 2
+CRUSHER_ADAPT_STRENGTH = 2
+CRUSHER_GUARDED_STRIKE_DAMAGE_A9 = 14
+CRUSHER_GUARDED_STRIKE_BLOCK = 18
+ROCKET_BASE_HP = 189
+ROCKET_A8_HP = 199
+ROCKET_TARGETING_RETICLE_DAMAGE_A9 = 4
+ROCKET_PRECISION_BEAM_DAMAGE_A9 = 20
+ROCKET_LASER_DAMAGE_A9 = 35
+ROCKET_CHARGE_UP_STRENGTH = 2
 TOUGH_EGG_MULTIPLAYER_INITIAL_HP = 16
 TOUGH_EGG_MULTIPLAYER_HATCHLING_HP = 20
 TOUGH_EGG_BASE_INITIAL_HP_RANGE = (14, 18)
@@ -3269,39 +3297,41 @@ class TestFixedRotation:
         assert multiplayer_knowledge.get_power_amount(PowerId.STRENGTH) == 2
 
         crusher, crusher_ai = create_crusher(Rng(43))
-        assert crusher_ai.current_move.state_id == "THRASH_MOVE"
+        assert crusher.max_hp == CRUSHER_BASE_HP
+        assert crusher_ai.current_move.state_id == CRUSHER_THRASH_MOVE
         assert _run_ai(crusher_ai, Rng(43), 5) == [
-            "THRASH_MOVE",
-            "ENLARGING_STRIKE_MOVE",
-            "BUG_STING_MOVE",
-            "ADAPT_MOVE",
-            "GUARDED_STRIKE_MOVE",
+            CRUSHER_THRASH_MOVE,
+            CRUSHER_ENLARGING_STRIKE_MOVE,
+            CRUSHER_BUG_STING_MOVE,
+            CRUSHER_ADAPT_MOVE,
+            CRUSHER_GUARDED_STRIKE_MOVE,
         ]
 
         combat = _make_combat(44)
         rocket, rocket_ai = create_rocket(Rng(44))
         combat.add_enemy(rocket, rocket_ai)
 
-        assert rocket_ai.current_move.state_id == "TARGETING_RETICLE_MOVE"
+        assert rocket.max_hp == ROCKET_BASE_HP
+        assert rocket_ai.current_move.state_id == ROCKET_TARGETING_RETICLE_MOVE
         assert _run_ai(rocket_ai, Rng(44), 6) == [
-            "TARGETING_RETICLE_MOVE",
-            "PRECISION_BEAM_MOVE",
-            "CHARGE_UP_MOVE",
-            "LASER_MOVE",
-            "RECHARGE_MOVE",
-            "TARGETING_RETICLE_MOVE",
+            ROCKET_TARGETING_RETICLE_MOVE,
+            ROCKET_PRECISION_BEAM_MOVE,
+            ROCKET_CHARGE_UP_MOVE,
+            ROCKET_LASER_MOVE,
+            ROCKET_RECHARGE_MOVE,
+            ROCKET_TARGETING_RETICLE_MOVE,
         ]
 
-        rocket_ai.states["TARGETING_RETICLE_MOVE"].perform(combat)
+        rocket_ai.states[ROCKET_TARGETING_RETICLE_MOVE].perform(combat)
         assert combat.player.get_power_amount(PowerId.VULNERABLE) == 0
 
-        rocket_ai.states["CHARGE_UP_MOVE"].perform(combat)
+        rocket_ai.states[ROCKET_CHARGE_UP_MOVE].perform(combat)
         assert rocket.get_power_amount(PowerId.STRENGTH) == 2
 
         crab_combat = _make_combat(45)
         setup_kaiser_crab_boss(crab_combat, Rng(45))
-        assert [enemy.monster_id for enemy in crab_combat.enemies] == ["CRUSHER", "ROCKET"]
-        assert crab_combat.player.get_power_amount(PowerId.SURROUNDED) == 1
+        assert [enemy.monster_id for enemy in crab_combat.enemies] == [CRUSHER_MONSTER_ID, ROCKET_MONSTER_ID]
+        assert crab_combat.player.get_power_amount(PowerId.SURROUNDED) == ROCKET_SURROUNDED_AMOUNT
 
     def test_act2_boss_ascension_scaling_matches_csharp(self):
         rng_seed = 1288
@@ -3379,6 +3409,88 @@ class TestFixedRotation:
         assert encounter_knowledge_ai.states[KNOWLEDGE_DEMON_SLAP_MOVE].intents[0].damage == (
             KNOWLEDGE_DEMON_SLAP_DAMAGE_A9
         )
+
+        crusher_combat = _make_combat(rng_seed)
+        crusher_combat.ascension_level = 9
+        crusher, crusher_ai = create_crusher(Rng(rng_seed), ascension_level=9)
+        crusher_combat.add_enemy(crusher, crusher_ai)
+        assert crusher.max_hp == CRUSHER_A8_HP
+
+        crusher_thrash = crusher_ai.states[CRUSHER_THRASH_MOVE]
+        assert crusher_thrash.intents[0].damage == CRUSHER_THRASH_DAMAGE_A9
+        player_hp_before_crusher_thrash = crusher_combat.player.current_hp
+        crusher_thrash.perform(crusher_combat)
+        assert crusher_combat.player.current_hp == player_hp_before_crusher_thrash - CRUSHER_THRASH_DAMAGE_A9
+
+        bug_sting = crusher_ai.states[CRUSHER_BUG_STING_MOVE]
+        assert bug_sting.intents[0].damage == CRUSHER_BUG_STING_DAMAGE_A9
+        assert bug_sting.intents[0].hits == CRUSHER_BUG_STING_HITS
+        player_hp_before_bug_sting = crusher_combat.player.current_hp
+        bug_sting.perform(crusher_combat)
+        assert crusher_combat.player.current_hp == (
+            player_hp_before_bug_sting - CRUSHER_BUG_STING_DAMAGE_A9 * CRUSHER_BUG_STING_HITS
+        )
+        assert crusher_combat.player.get_power_amount(PowerId.WEAK) == CRUSHER_BUG_STING_DEBUFF
+        assert crusher_combat.player.get_power_amount(PowerId.FRAIL) == CRUSHER_BUG_STING_DEBUFF
+
+        crusher_ai.states[CRUSHER_ADAPT_MOVE].perform(crusher_combat)
+        assert crusher.get_power_amount(PowerId.STRENGTH) == CRUSHER_ADAPT_STRENGTH
+
+        guarded_strike = crusher_ai.states[CRUSHER_GUARDED_STRIKE_MOVE]
+        assert guarded_strike.intents[0].damage == CRUSHER_GUARDED_STRIKE_DAMAGE_A9
+        player_hp_before_guarded_strike = crusher_combat.player.current_hp
+        guarded_strike.perform(crusher_combat)
+        expected_guarded_strike_damage = CRUSHER_GUARDED_STRIKE_DAMAGE_A9 + CRUSHER_ADAPT_STRENGTH
+        assert crusher_combat.player.current_hp == (
+            player_hp_before_guarded_strike - expected_guarded_strike_damage
+        )
+        assert crusher.block == CRUSHER_GUARDED_STRIKE_BLOCK
+
+        rocket_combat = _make_combat(rng_seed)
+        rocket_combat.ascension_level = 9
+        rocket, rocket_ai = create_rocket(Rng(rng_seed), ascension_level=9)
+        rocket_combat.add_enemy(rocket, rocket_ai)
+        assert rocket.max_hp == ROCKET_A8_HP
+
+        targeting = rocket_ai.states[ROCKET_TARGETING_RETICLE_MOVE]
+        assert targeting.intents[0].damage == ROCKET_TARGETING_RETICLE_DAMAGE_A9
+        player_hp_before_targeting = rocket_combat.player.current_hp
+        targeting.perform(rocket_combat)
+        assert rocket_combat.player.current_hp == (
+            player_hp_before_targeting - ROCKET_TARGETING_RETICLE_DAMAGE_A9
+        )
+
+        precision = rocket_ai.states[ROCKET_PRECISION_BEAM_MOVE]
+        assert precision.intents[0].damage == ROCKET_PRECISION_BEAM_DAMAGE_A9
+        player_hp_before_precision = rocket_combat.player.current_hp
+        precision.perform(rocket_combat)
+        assert rocket_combat.player.current_hp == player_hp_before_precision - ROCKET_PRECISION_BEAM_DAMAGE_A9
+
+        rocket_ai.states[ROCKET_CHARGE_UP_MOVE].perform(rocket_combat)
+        assert rocket.get_power_amount(PowerId.STRENGTH) == ROCKET_CHARGE_UP_STRENGTH
+
+        laser = rocket_ai.states[ROCKET_LASER_MOVE]
+        assert laser.intents[0].damage == ROCKET_LASER_DAMAGE_A9
+        player_hp_before_laser = rocket_combat.player.current_hp
+        laser.perform(rocket_combat)
+        expected_laser_damage = ROCKET_LASER_DAMAGE_A9 + ROCKET_CHARGE_UP_STRENGTH
+        assert rocket_combat.player.current_hp == player_hp_before_laser - expected_laser_damage
+
+        crab_combat = _make_combat(rng_seed)
+        crab_combat.ascension_level = 9
+        crab_ally = _add_test_ally(crab_combat, hp=80)
+        setup_kaiser_crab_boss(crab_combat, Rng(rng_seed))
+        encounter_crusher, encounter_rocket = crab_combat.enemies
+        encounter_crusher_ai = crab_combat.enemy_ais[encounter_crusher.combat_id]
+        encounter_rocket_ai = crab_combat.enemy_ais[encounter_rocket.combat_id]
+        assert encounter_crusher.monster_id == CRUSHER_MONSTER_ID
+        assert encounter_crusher.max_hp == _expected_starting_act_multiplayer_enemy_hp(crab_combat, CRUSHER_A8_HP)
+        assert encounter_crusher_ai.states[CRUSHER_THRASH_MOVE].intents[0].damage == CRUSHER_THRASH_DAMAGE_A9
+        assert encounter_rocket.monster_id == ROCKET_MONSTER_ID
+        assert encounter_rocket.max_hp == _expected_starting_act_multiplayer_enemy_hp(crab_combat, ROCKET_A8_HP)
+        assert encounter_rocket_ai.states[ROCKET_LASER_MOVE].intents[0].damage == ROCKET_LASER_DAMAGE_A9
+        assert crab_combat.player.get_power_amount(PowerId.SURROUNDED) == ROCKET_SURROUNDED_AMOUNT
+        assert crab_ally.get_power_amount(PowerId.SURROUNDED) == ROCKET_SURROUNDED_AMOUNT
 
     def test_tunneler_normal_uses_one_workbug_then_one_tunneler(self):
         combat = _make_combat(31)

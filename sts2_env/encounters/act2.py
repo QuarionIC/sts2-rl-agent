@@ -38,6 +38,7 @@ from sts2_env.monsters.act2 import (
     create_knowledge_demon,
     create_crusher,
     create_rocket,
+    ROCKET_SURROUNDED_AMOUNT,
 )
 
 EncounterSetup = Callable[..., None]
@@ -213,11 +214,19 @@ def setup_knowledge_demon_boss(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_kaiser_crab_boss(combat: CombatState, rng: Rng) -> None:
-    crusher, crusher_ai = create_crusher(rng)
+    ascension_level = getattr(combat, "ascension_level", 0)
+    crusher, crusher_ai = create_crusher(rng, ascension_level=ascension_level)
     combat.add_enemy(crusher, crusher_ai)
-    rocket, rocket_ai = create_rocket(rng)
+    rocket, rocket_ai = create_rocket(rng, ascension_level=ascension_level)
     combat.add_enemy(rocket, rocket_ai)
-    combat.apply_power_to(combat.primary_player, PowerId.SURROUNDED, 1, applier=rocket)
+    for player_state in combat.combat_player_states:
+        if player_state.creature.is_alive:
+            combat.apply_power_to(
+                player_state.creature,
+                PowerId.SURROUNDED,
+                ROCKET_SURROUNDED_AMOUNT,
+                applier=rocket,
+            )
 
 
 BOSS_ENCOUNTERS: list[EncounterSetup] = [
