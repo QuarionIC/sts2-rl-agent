@@ -2136,6 +2136,7 @@ class IronClub(RelicInstance):
     rarity = RelicRarity.ANCIENT
     pool = RelicPool.EVENT
     CARD_THRESHOLD = 4
+    CARDS = 1
 
     def __init__(self, relic_id: RelicId):
         super().__init__(relic_id)
@@ -2146,7 +2147,7 @@ class IronClub(RelicInstance):
             return
         self._cards_played += 1
         if self._cards_played % self.CARD_THRESHOLD == 0:
-            combat.draw_cards(owner, 1)
+            combat.draw_cards(owner, self.CARDS)
 
 
 @register_relic
