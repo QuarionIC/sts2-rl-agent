@@ -18,7 +18,7 @@ from sts2_env.run.reward_objects import (
 )
 from sts2_env.run.rooms import create_room
 from sts2_env.run.shop import generate_shop_inventory
-from sts2_env.run.run_state import RunState
+from sts2_env.run.run_state import PlayerState, RunState
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.modifiers import CharacterCardsModifier
 from sts2_env.run.rewards import CARD_CREATION_SOURCE_OTHER
@@ -34,6 +34,7 @@ EMPTY_MANUAL_REWARD_CARD_COUNT = 0
 ACTIVE_REWARD_RELIC_UPDATE_SEED = 107
 FRESNEL_LENS_RELIC_NAME = "FRESNEL_LENS"
 FRESNEL_LENS_NIMBLE_AMOUNT = 2
+ALLY_PLAYER_ID = 2
 
 
 def test_prayer_wheel_adds_one_extra_card_reward_only_once():
@@ -282,6 +283,23 @@ def test_new_relic_updates_already_populated_card_rewards():
 
     assert isinstance(mgr._current_reward, CardReward)
     assert mgr._offered_cards[0].enchantments["Nimble"] == FRESNEL_LENS_NIMBLE_AMOUNT
+
+
+def test_new_relic_only_updates_same_players_active_card_rewards():
+    run_state = RunState(seed=ACTIVE_REWARD_RELIC_UPDATE_SEED, character_id=IRONCLAD_CHARACTER_ID)
+    ally = run_state.add_player(PlayerState(player_id=ALLY_PLAYER_ID, character_id=IRONCLAD_CHARACTER_ID))
+    card_reward = CardReward(
+        run_state.player.player_id,
+        option_count=1,
+        forced_rarities=(CardRarity.COMMON,),
+        custom_card_ids=(CardId.SHRUG_IT_OFF,),
+        has_custom_card_pool=True,
+    )
+    card_reward.populate(run_state, None)
+
+    assert ally.obtain_relic(FRESNEL_LENS_RELIC_NAME)
+
+    assert "Nimble" not in card_reward.cards[0].enchantments
 
 
 def test_driftwood_allows_rerolling_card_rewards():

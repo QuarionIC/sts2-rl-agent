@@ -1316,6 +1316,8 @@ class PlayerState:
         self.relic_objects.append(relic)
         if self.run_state is not None:
             for reward in list(self.run_state.active_card_rewards):
+                if reward.player_id != self.player_id:
+                    continue
                 reward.on_relic_obtained(relic, self.run_state)
         relic.after_obtained(self)
         return True
