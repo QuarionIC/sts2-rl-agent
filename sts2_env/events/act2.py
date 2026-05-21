@@ -128,6 +128,10 @@ class DollRoom(EventModel):
     """
 
     event_id = "DollRoom"
+    TAKE_TIME_HP_LOSS = 5
+    TAKE_TIME_DOLL_COUNT = 2
+    EXAMINE_HP_LOSS = 15
+    EXAMINE_DOLL_COUNT = 3
 
     def __init__(self) -> None:
         self._doll_choices: dict[str, str] = {}
@@ -146,9 +150,9 @@ class DollRoom(EventModel):
         return [
             EventOption("random", "Random", "Get a random doll relic"),
             EventOption("take_time", "Take Some Time",
-                         "Take 5 damage, choose from 2 dolls"),
+                         f"Take {self.TAKE_TIME_HP_LOSS} damage, choose from {self.TAKE_TIME_DOLL_COUNT} dolls"),
             EventOption("examine", "Examine",
-                         "Take 15 damage, choose from 3 dolls"),
+                         f"Take {self.EXAMINE_HP_LOSS} damage, choose from {self.EXAMINE_DOLL_COUNT} dolls"),
         ]
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
@@ -163,10 +167,10 @@ class DollRoom(EventModel):
             return EventResult(finished=True,
                                description="Got a random doll relic.")
         if option_id == "take_time":
-            run_state.player.lose_hp(5)
+            run_state.player.lose_hp(self.TAKE_TIME_HP_LOSS)
             dolls = list(self._DOLLS)
             self.get_rng(run_state).shuffle(dolls)
-            shown = dolls[:2]
+            shown = dolls[: self.TAKE_TIME_DOLL_COUNT]
             self._doll_choices = {f"doll_{i + 1}": relic_id for i, (relic_id, _) in enumerate(shown)}
             return EventResult(
                 finished=False,
@@ -177,7 +181,7 @@ class DollRoom(EventModel):
                 ],
             )
         if option_id == "examine":
-            run_state.player.lose_hp(15)
+            run_state.player.lose_hp(self.EXAMINE_HP_LOSS)
             dolls = list(self._DOLLS)
             self.get_rng(run_state).shuffle(dolls)
             self._doll_choices = {f"doll_{i + 1}": relic_id for i, (relic_id, _) in enumerate(dolls)}
@@ -1036,6 +1040,11 @@ class SpiralingWhirlpool(EventModel):
     """Observe: Enchant a card with Spiral. Drink: Heal 33% of Max HP."""
 
     event_id = "SpiralingWhirlpool"
+    HEAL_MULTIPLIER = 0.33
+
+    @classmethod
+    def heal_amount(cls, run_state: RunState) -> int:
+        return int(run_state.player.max_hp * cls.HEAL_MULTIPLIER)
 
     def is_allowed(self, run_state: RunState) -> bool:
         return all(
@@ -1044,7 +1053,7 @@ class SpiralingWhirlpool(EventModel):
         )
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
-        heal = int(run_state.player.max_hp * 0.33)
+        heal = self.heal_amount(run_state)
         return [
             EventOption("observe", "Observe the Spiral",
                          "Enchant a card with Spiral"),
@@ -1079,7 +1088,7 @@ class SpiralingWhirlpool(EventModel):
                 )[-1],
                 description="Choose a card to enchant.",
             )
-        heal = int(run_state.player.max_hp * 0.33)
+        heal = self.heal_amount(run_state)
         run_state.player.heal(heal)
         return EventResult(finished=True, description=f"Healed {heal} HP.")
 

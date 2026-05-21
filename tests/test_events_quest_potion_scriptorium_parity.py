@@ -143,7 +143,7 @@ def test_spiraling_whirlpool_requires_spiral_targets_and_applies_observe_drink()
 
     run_state.player.current_hp = run_state.player.max_hp - 20
     heal_before = run_state.player.current_hp
-    heal_amount = int(run_state.player.max_hp * 0.33)
+    heal_amount = event.heal_amount(run_state)
     drink = event.choose(run_state, "drink")
     assert drink.finished
     assert run_state.player.current_hp == min(run_state.player.max_hp, heal_before + heal_amount)

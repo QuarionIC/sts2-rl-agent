@@ -93,8 +93,8 @@ def test_doll_room_take_some_time_damages_and_selected_option_grants_that_relic(
     first = event.choose(run_state, "take_time")
 
     assert not first.finished
-    assert run_state.player.current_hp == hp_before - 5
-    assert len(first.next_options) == 2
+    assert run_state.player.current_hp == hp_before - DollRoom.TAKE_TIME_HP_LOSS
+    assert len(first.next_options) == DollRoom.TAKE_TIME_DOLL_COUNT
     assert set(event._doll_choices) == {"doll_1", "doll_2"}  # noqa: SLF001
     assert {option.option_id for option in first.next_options} == set(event._doll_choices)  # noqa: SLF001
     assert set(event._doll_choices.values()).issubset(_doll_ids())  # noqa: SLF001
@@ -119,8 +119,8 @@ def test_doll_room_examine_damages_and_selected_option_grants_that_relic():
     first = event.choose(run_state, "examine")
 
     assert not first.finished
-    assert run_state.player.current_hp == hp_before - 15
-    assert len(first.next_options) == 3
+    assert run_state.player.current_hp == hp_before - DollRoom.EXAMINE_HP_LOSS
+    assert len(first.next_options) == DollRoom.EXAMINE_DOLL_COUNT
     assert set(event._doll_choices) == {"doll_1", "doll_2", "doll_3"}  # noqa: SLF001
     assert {option.option_id for option in first.next_options} == set(event._doll_choices)  # noqa: SLF001
     assert set(event._doll_choices.values()) == _doll_ids()  # noqa: SLF001
