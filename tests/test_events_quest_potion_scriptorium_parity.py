@@ -325,6 +325,20 @@ def test_future_of_potions_trade_discards_potion_and_builds_upgraded_rewards():
     assert reward.cards[0].card_type in {CardType.ATTACK, CardType.SKILL}
 
 
+def test_future_of_potions_rolls_card_types_for_all_held_potions_before_showing_first_three():
+    run_state = _make_run_state(40502)
+    run_state.player.max_potion_slots = 5
+    for potion_id in ("FirePotion", "Clarity", "FairyInABottle", "AttackPotion", "LiquidMemories"):
+        assert run_state.player.add_potion(create_potion(potion_id))
+    event = TheFutureOfPotions()
+    event.rng = _LastChoiceCountingRng()
+
+    options = event.generate_initial_options(run_state)
+
+    assert [option.option_id for option in options] == ["trade_0", "trade_1", "trade_2"]
+    assert event.rng.choice_calls == 5
+
+
 def test_future_of_potions_no_rarity_modification_limits_dingy_rug_pool():
     run_state = _make_run_state(40501)
     assert run_state.player.obtain_relic(RelicId.DINGY_RUG.name)

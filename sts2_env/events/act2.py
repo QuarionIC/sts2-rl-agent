@@ -1264,6 +1264,11 @@ class TheFutureOfPotions(EventModel):
     """Trade a potion for upgraded card rewards matching rarity."""
 
     event_id = "TheFutureOfPotions"
+    MAX_VISIBLE_POTION_OPTIONS = 3
+    CARD_REWARD_OPTION_COUNT = 3
+    TRADE_OPTION_PREFIX = "trade_"
+    FULL_CARD_TYPE_POOL = (CardType.ATTACK, CardType.SKILL, CardType.POWER)
+    COMMON_TOKEN_CARD_TYPE_POOL = (CardType.ATTACK, CardType.SKILL)
 
     def __init__(self) -> None:
         self._trade_choices: list[tuple[int, CardRarity, CardType]] = []
@@ -1280,24 +1285,25 @@ class TheFutureOfPotions(EventModel):
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
         self._trade_choices = []
         potions = run_state.player.held_potions()
+        potion_card_types = {
+            p.slot_index: self._roll_card_type_for_potion(run_state, p)
+            for p in potions
+        }
         options = []
-        for i, p in enumerate(potions[:3]):
-            card_types = [CardType.ATTACK, CardType.SKILL, CardType.POWER]
-            if p.rarity in {PotionRarity.COMMON, PotionRarity.TOKEN}:
-                card_types = [CardType.ATTACK, CardType.SKILL]
-            chosen_type = self.get_rng(run_state).choice(card_types)
+        for i, p in enumerate(potions[: self.MAX_VISIBLE_POTION_OPTIONS]):
+            chosen_type = potion_card_types[p.slot_index]
             self._trade_choices.append((p.slot_index, self._target_card_rarity(p.rarity), chosen_type))
             options.append(
-                EventOption(f"trade_{i}", f"Trade {p.potion_id}",
+                EventOption(f"{self.TRADE_OPTION_PREFIX}{i}", f"Trade {p.potion_id}",
                              "Discard potion for upgraded card reward")
             )
         return options
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
-        if not option_id.startswith("trade_"):
+        if not option_id.startswith(self.TRADE_OPTION_PREFIX):
             return EventResult(finished=True, description="Nothing happened.")
         try:
-            choice_idx = int(option_id.split("_", 1)[1])
+            choice_idx = int(option_id.removeprefix(self.TRADE_OPTION_PREFIX))
         except ValueError:
             return EventResult(finished=True, description="Nothing happened.")
         if choice_idx < 0 or choice_idx >= len(self._trade_choices):
@@ -1307,7 +1313,7 @@ class TheFutureOfPotions(EventModel):
         run_state.player.remove_potion(slot_index)
         rewards = CardReward(
             run_state.player.player_id,
-            option_count=3,
+            option_count=self.CARD_REWARD_OPTION_COUNT,
             character_ids=(run_state.player.character_id,),
             generation_context=None,
             roll_upgrade=False,
@@ -1330,6 +1336,12 @@ class TheFutureOfPotions(EventModel):
         if potion_rarity == PotionRarity.UNCOMMON:
             return CardRarity.UNCOMMON
         return CardRarity.COMMON
+
+    def _roll_card_type_for_potion(self, run_state: RunState, potion) -> CardType:
+        card_types = self.FULL_CARD_TYPE_POOL
+        if potion.rarity in {PotionRarity.COMMON, PotionRarity.TOKEN}:
+            card_types = self.COMMON_TOKEN_CARD_TYPE_POOL
+        return self.get_rng(run_state).choice(card_types)
 
 register_event(TheFutureOfPotions())
 
