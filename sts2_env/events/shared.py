@@ -2400,7 +2400,7 @@ class Trial(EventModel):
             return EventResult(finished=True, description="Condemned the merchant, gained two relics and Regret.")
         if option_id == "merchant_innocent":
             if _should_defer_event_rewards(run_state):
-                candidates = [card for card in run_state.player.deck if not card.upgraded]
+                candidates = run_state.player.upgradable_deck_cards()
                 rewards: list[object] = [
                     AddCardsReward(run_state.player.player_id, [make_shame()]),
                 ]
@@ -2417,7 +2417,7 @@ class Trial(EventModel):
                     rewards,
                 )
             run_state.player.add_card_instance_to_deck(make_shame())
-            candidates = [card for card in run_state.player.deck if not card.upgraded]
+            candidates = run_state.player.upgradable_deck_cards()
             if not candidates:
                 return EventResult(finished=True, description="Spared the merchant and gained Shame.")
             return self.request_card_choice(

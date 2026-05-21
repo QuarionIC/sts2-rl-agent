@@ -2,6 +2,7 @@
 
 from sts2_env.cards.factory import create_card
 from sts2_env.cards.silent import make_backstab
+from sts2_env.cards.status import make_debt
 from sts2_env.core.enums import CardId, CardType, RoomType
 from sts2_env.events.act2 import CrystalSphere, FakeMerchant, FieldOfManSizedHoles, LuminousChoir
 from sts2_env.events.shared import Bugslayer, DrowningBeacon, GraveOfTheForgotten, Orobas, PunchOff, Reflections, ThisOrThat, Trial
@@ -861,6 +862,21 @@ def test_event_trial_merchant_innocent_routes_to_upgrade_reward_chain():
     assert isinstance(mgr._current_reward, UpgradeCardsReward)
     assert mgr.run_state.pending_choice is not None
     assert any(card.card_id.name == "SHAME" for card in mgr.run_state.player.deck)
+
+
+def test_event_trial_merchant_innocent_ignores_non_upgradable_curses():
+    mgr = RunManager(seed=4423, character_id="Ironclad")
+    mgr.run_state.player.deck = [make_debt()]
+    mgr._phase = RunManager.PHASE_EVENT
+    mgr._event_model = Trial()
+    mgr._event_options = []
+
+    result = mgr._do_event_choice({"option_id": "merchant_innocent"})
+
+    assert result["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert mgr.run_state.pending_choice is None
+    assert mgr._current_reward is None
+    assert [card.card_id for card in mgr.run_state.player.deck] == [CardId.DEBT, CardId.SHAME]
 
 
 def test_event_trial_merchant_guilty_adds_regret_before_relics():
