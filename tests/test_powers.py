@@ -1070,6 +1070,17 @@ class TestPowerAmountChangedHooks:
         assert ally.get_power_amount(PowerId.GUARDED) == 1
         assert simple_combat.player.get_power_amount(PowerId.GUARDED) == 0
 
+    def test_tank_does_not_reapply_guarded_when_existing_tank_stacks(self, simple_combat):
+        ally_state = PlayerState(player_id=2, character_id="Ironclad", max_hp=70, current_hp=70)
+        ally = simple_combat.add_ally_player(ally_state)
+
+        simple_combat.apply_power_to(simple_combat.player, PowerId.TANK, 1)
+        simple_combat.apply_power_to(simple_combat.player, PowerId.TANK, 1)
+
+        assert simple_combat.player.get_power_amount(PowerId.TANK) == 2
+        assert ally.get_power_amount(PowerId.GUARDED) == 1
+        assert getattr(ally.powers[PowerId.GUARDED], "_appliers") == [simple_combat.player]
+
     def test_grapple_keeps_separate_appliers_like_reference(self, simple_combat):
         ally = simple_combat.add_ally_player(PlayerState(player_id=2, character_id="Ironclad", max_hp=70, current_hp=70))
         enemy = simple_combat.enemies[0]

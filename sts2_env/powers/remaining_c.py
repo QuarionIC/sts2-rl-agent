@@ -1490,6 +1490,7 @@ class TankPower(PowerInstance):
 
     def __init__(self, amount: int = 1):
         super().__init__(PowerId.TANK, amount)
+        self._guarded_applied: bool = False
 
     def after_power_amount_changed(
         self,
@@ -1501,8 +1502,9 @@ class TankPower(PowerInstance):
         source: object | None,
         combat: CombatState,
     ) -> None:
-        if owner is not target or power_id != PowerId.TANK or amount <= 0:
+        if owner is not target or power_id != PowerId.TANK or amount <= 0 or self._guarded_applied:
             return
+        self._guarded_applied = True
         for teammate in combat.get_teammates_of(owner):
             if teammate.is_alive and teammate.is_player and teammate is not owner:
                 combat.apply_power_to(teammate, PowerId.GUARDED, amount, applier=owner)
