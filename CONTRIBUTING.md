@@ -70,19 +70,19 @@ pytest tests/ --cov=sts2_env --cov-report=term-missing
 ```
 
 The test suite covers:
-- `test_damage.py` -- damage/block calculation pipelines
+- `test_combat_damage_block_pipeline.py` -- damage/block calculation pipelines
 - `test_combat_flow.py` -- turn flow, card play, end turn
 - `test_ironclad_basic_card_effects_parity.py` -- Ironclad starter card effects
-- `test_powers.py` -- power hook behavior
-- `test_monster_ai.py` -- state machine transitions
-- `test_encounters.py` -- encounter setup
+- `test_power_lifecycle_and_modifier_hooks.py` -- power hook behavior
+- `test_monster_ai_state_machine_parity.py` -- state machine transitions
+- `test_encounter_setup_and_pools_parity.py` -- encounter setup
 - `test_gym_env.py` -- Gymnasium environment API
 - `test_run_env.py` -- full-run environment
 - `test_combat_parity.py` -- simulator vs expected game behavior
-- `test_potions.py` -- potion effects
-- `test_map_gen.py` -- map generation
+- `test_potion_registry_usage_and_generation.py` -- potion effects
+- `test_map_generation_layout_parity.py` -- map generation
 - `test_rewards.py` -- reward calculation
-- `test_shop.py` -- shop system
+- `test_merchant_inventory_pricing_and_rolls.py` -- shop system
 - `test_run_flow.py` -- run manager flow
 
 ---
@@ -175,7 +175,7 @@ The test suite covers:
    register_power_class(PowerId.YOUR_POWER, YourPower)
    ```
 
-5. **Add tests** in `tests/test_powers.py`.
+5. **Add tests** in `tests/test_power_lifecycle_and_modifier_hooks.py`.
 
 ---
 
@@ -212,7 +212,7 @@ The test suite covers:
 
 3. **Add to an encounter** in `encounters/act1.py`.
 
-4. **Add tests** in `tests/test_monster_ai.py`.
+4. **Add tests** in `tests/test_monster_ai_state_machine_parity.py`.
 
 ---
 
