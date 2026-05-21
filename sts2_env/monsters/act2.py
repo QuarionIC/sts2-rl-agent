@@ -754,9 +754,7 @@ def create_spiny_toad(rng: Rng) -> tuple[Creature, MonsterAI]:
 
     def explosion(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, explosion_dmg)
-        # Remove all thorns
-        if PowerId.THORNS in creature.powers:
-            del creature.powers[PowerId.THORNS]
+        combat.apply_power_to(creature, PowerId.THORNS, -spines_amount, applier=creature)
 
     states: dict[str, MonsterState] = {
         "PROTRUDING_SPIKES_MOVE": MoveState(

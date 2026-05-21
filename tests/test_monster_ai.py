@@ -1801,6 +1801,14 @@ class TestFixedRotation:
         toad_ai.states["SPIKE_EXPLOSION_MOVE"].perform(combat)
         assert toad.get_power_amount(PowerId.THORNS) == 0
 
+        extra_thorns_toad, extra_thorns_ai = create_spiny_toad(Rng(138))
+        extra_thorns_combat = _make_combat(138)
+        extra_thorns_combat.add_enemy(extra_thorns_toad, extra_thorns_ai)
+        extra_thorns_toad.apply_power(PowerId.THORNS, 2)
+        extra_thorns_ai.states["PROTRUDING_SPIKES_MOVE"].perform(extra_thorns_combat)
+        extra_thorns_ai.states["SPIKE_EXPLOSION_MOVE"].perform(extra_thorns_combat)
+        assert extra_thorns_toad.get_power_amount(PowerId.THORNS) == 2
+
     def test_slumbering_beetle_damage_wake_stuns_before_roll_out(self):
         rng_seed = 1238
         slumber_amount = 1
