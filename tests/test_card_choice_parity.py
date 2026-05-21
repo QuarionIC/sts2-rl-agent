@@ -22,6 +22,7 @@ from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import CardId, CombatSide, PowerId
 from sts2_env.core.rng import Rng
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
+from sts2_env.run.run_state import PlayerState
 
 
 class _FirstRng:
@@ -253,6 +254,50 @@ class TestGeneratedChoiceParity:
         assert selected in combat.hand
         assert selected.cost == 0
         assert [card.cost for card in unselected] == unselected_original_costs
+
+    def test_splash_adds_selected_attack_as_generated_card(self):
+        """Matches Splash.cs: AddGeneratedCardToCombat adds the selected attack to hand."""
+        combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
+        combat.hand = [create_card(CardId.SPLASH)]
+        combat.energy = 1
+
+        assert combat.play_card(0)
+        assert combat.pending_choice is not None
+        selected = combat.pending_choice.options[0].card
+
+        assert combat.resolve_pending_choice(0)
+
+        assert selected in combat.hand
+        assert selected.owner is combat.player
+        assert combat.count_generated_cards_this_combat(combat.player) == 1
+
+    def test_ally_splash_adds_selected_attack_to_ally_hand(self):
+        combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
+        ally = combat.add_ally_player(
+            PlayerState(player_id=2, character_id="Defect", max_hp=60, current_hp=60)
+        )
+        ally_state = combat.combat_player_state_for(ally)
+        assert ally_state is not None
+        splash = create_card(CardId.SPLASH)
+        splash.owner = ally
+        ally_state.hand = [splash]
+        ally_state.zone_map["hand"] = ally_state.hand
+        ally_state.energy = 1
+        combat.rng = _FirstRng()
+
+        assert combat.play_card_from_creature(ally, 0)
+        assert combat.pending_choice is not None
+        selected = combat.pending_choice.options[0].card
+        generated_ids = {option.card.card_id for option in combat.pending_choice.options}
+
+        assert generated_ids == {CardId.ANGER, CardId.ASHEN_STRIKE, CardId.BLUDGEON}
+
+        assert combat.resolve_pending_choice(0)
+
+        assert selected in ally_state.hand
+        assert selected not in combat.hand
+        assert selected.owner is ally
+        assert combat.count_generated_cards_this_combat(ally) == 1
 
 
 class TestMultiChoiceParity:

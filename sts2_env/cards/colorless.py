@@ -87,6 +87,9 @@ SEEKER_STRIKE_CARDS = 3
 SHOCKWAVE_POWER_KEY = "power"
 SHOCKWAVE_POWER = 3
 SHOCKWAVE_UPGRADED_POWER = 5
+SPLASH_ATTACK_CHOICES = 3
+SPLASH_CHOICE_PROMPT = "Choose one upgraded free attack"
+SPLASH_SOURCE_PILE = "generated"
 STRATAGEM_COST = 1
 STRATAGEM_UPGRADED_COST = 0
 TAG_TEAM_DAMAGE = 11
@@ -515,7 +518,9 @@ def shockwave(card: CardInstance, combat: CombatState, target: Creature | None) 
 
 @register_effect(CardId.SPLASH)
 def splash(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    own_character = combat.character_id.lower()
+    owner = _owner(card, combat)
+    owner_state = combat.combat_player_state_for(owner)
+    own_character = (owner_state.character_id if owner_state is not None else combat.character_id).lower()
     candidate_ids: list[CardId] = []
     for cfg in ALL_CHARACTERS:
         if cfg.character_id.lower() == own_character:
@@ -532,7 +537,12 @@ def splash(card: CardInstance, combat: CombatState, target: Creature | None) -> 
     if not candidate_ids:
         return
 
-    generated = create_cards_from_ids(candidate_ids, combat.combat_card_generation_rng, 3, distinct=True)
+    generated = create_cards_from_ids(
+        candidate_ids,
+        combat.combat_card_generation_rng,
+        SPLASH_ATTACK_CHOICES,
+        distinct=True,
+    )
     for generated_card in generated:
         if card.upgraded:
             combat.upgrade_card(generated_card)
@@ -541,14 +551,15 @@ def splash(card: CardInstance, combat: CombatState, target: Creature | None) -> 
         if selected is None:
             return
         selected.set_temporary_free_this_turn()
-        combat.move_card_to_hand(selected)
+        combat.add_generated_card_to_creature_hand(owner, selected)
 
     combat.request_card_choice(
-        prompt="Choose one upgraded free attack",
+        prompt=SPLASH_CHOICE_PROMPT,
         cards=generated,
-        source_pile="generated",
+        source_pile=SPLASH_SOURCE_PILE,
         resolver=_resolver,
         allow_skip=True,
+        owner=owner,
     )
 
 
