@@ -1609,72 +1609,156 @@ def create_vantom(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Monster
 
 # ---- CeremonialBeast (HP 252 / 262 asc) ----
 
-def create_ceremonial_beast(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = 252
-    creature = Creature(max_hp=hp, monster_id="CEREMONIAL_BEAST")
-    stamp_move = "STAMP_MOVE"
-    plow_move_id = "PLOW_MOVE"
-    stun_move = "STUN_MOVE"
-    beast_cry_move = "BEAST_CRY_MOVE"
-    stomp_move_id = "STOMP_MOVE"
-    crush_move_id = "CRUSH_MOVE"
-    plow_dmg = 18
-    stomp_dmg = 15
-    crush_dmg = 17
-    plow_amount = 150
-    plow_strength = 2
-    crush_strength = 3
-    beast_cry_ringing = 1
+CEREMONIAL_BEAST_ID = "CEREMONIAL_BEAST"
+CEREMONIAL_BEAST_BASE_HP = 252
+CEREMONIAL_BEAST_TOUGH_HP = 262
+CEREMONIAL_BEAST_BASE_PLOW_AMOUNT = 150
+CEREMONIAL_BEAST_DEADLY_PLOW_AMOUNT = 160
+CEREMONIAL_BEAST_BASE_PLOW_DAMAGE = 18
+CEREMONIAL_BEAST_DEADLY_PLOW_DAMAGE = 20
+CEREMONIAL_BEAST_PLOW_STRENGTH = 2
+CEREMONIAL_BEAST_BASE_STOMP_DAMAGE = 15
+CEREMONIAL_BEAST_DEADLY_STOMP_DAMAGE = 17
+CEREMONIAL_BEAST_BASE_CRUSH_DAMAGE = 17
+CEREMONIAL_BEAST_DEADLY_CRUSH_DAMAGE = 19
+CEREMONIAL_BEAST_BASE_CRUSH_STRENGTH = 3
+CEREMONIAL_BEAST_DEADLY_CRUSH_STRENGTH = 4
+CEREMONIAL_BEAST_BEAST_CRY_RINGING = 1
+CEREMONIAL_BEAST_STAMP_MOVE = "STAMP_MOVE"
+CEREMONIAL_BEAST_PLOW_MOVE = "PLOW_MOVE"
+CEREMONIAL_BEAST_STUN_MOVE = "STUN_MOVE"
+CEREMONIAL_BEAST_BEAST_CRY_MOVE = "BEAST_CRY_MOVE"
+CEREMONIAL_BEAST_STOMP_MOVE = "STOMP_MOVE"
+CEREMONIAL_BEAST_CRUSH_MOVE = "CRUSH_MOVE"
+
+
+def create_ceremonial_beast(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        CEREMONIAL_BEAST_TOUGH_HP,
+        CEREMONIAL_BEAST_BASE_HP,
+    )
+    creature = Creature(max_hp=hp, monster_id=CEREMONIAL_BEAST_ID)
 
     def stamp(combat: CombatState) -> None:
+        plow_amount = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CEREMONIAL_BEAST_DEADLY_PLOW_AMOUNT,
+            CEREMONIAL_BEAST_BASE_PLOW_AMOUNT,
+        )
         creature.apply_power(PowerId.PLOW, plow_amount)
 
     def plow_move(combat: CombatState) -> None:
+        plow_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CEREMONIAL_BEAST_DEADLY_PLOW_DAMAGE,
+            CEREMONIAL_BEAST_BASE_PLOW_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, plow_dmg)
         if combat.is_over:
             return
-        combat.apply_power_to(creature, PowerId.STRENGTH, plow_strength, applier=creature)
+        combat.apply_power_to(creature, PowerId.STRENGTH, CEREMONIAL_BEAST_PLOW_STRENGTH, applier=creature)
 
     def stun(combat: CombatState) -> None:
         pass
 
     def beast_cry(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.RINGING, beast_cry_ringing, applier=creature)
+        apply_power_to_living_player_targets(
+            combat,
+            PowerId.RINGING,
+            CEREMONIAL_BEAST_BEAST_CRY_RINGING,
+            applier=creature,
+        )
 
     def stomp(combat: CombatState) -> None:
+        stomp_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CEREMONIAL_BEAST_DEADLY_STOMP_DAMAGE,
+            CEREMONIAL_BEAST_BASE_STOMP_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, stomp_dmg)
 
     def crush(combat: CombatState) -> None:
+        crush_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CEREMONIAL_BEAST_DEADLY_CRUSH_DAMAGE,
+            CEREMONIAL_BEAST_BASE_CRUSH_DAMAGE,
+        )
+        crush_strength = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            CEREMONIAL_BEAST_DEADLY_CRUSH_STRENGTH,
+            CEREMONIAL_BEAST_BASE_CRUSH_STRENGTH,
+        )
         _deal_damage_to_player(combat, creature, crush_dmg)
         if combat.is_over:
             return
         combat.apply_power_to(creature, PowerId.STRENGTH, crush_strength, applier=creature)
 
+    plow_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        CEREMONIAL_BEAST_DEADLY_PLOW_DAMAGE,
+        CEREMONIAL_BEAST_BASE_PLOW_DAMAGE,
+    )
+    stomp_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        CEREMONIAL_BEAST_DEADLY_STOMP_DAMAGE,
+        CEREMONIAL_BEAST_BASE_STOMP_DAMAGE,
+    )
+    crush_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        CEREMONIAL_BEAST_DEADLY_CRUSH_DAMAGE,
+        CEREMONIAL_BEAST_BASE_CRUSH_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        stamp_move: MoveState(stamp_move, stamp, [buff_intent()], follow_up_id=plow_move_id),
-        plow_move_id: MoveState(
-            plow_move_id,
-            plow_move,
-            [attack_intent(plow_dmg), buff_intent()],
-            follow_up_id=plow_move_id,
+        CEREMONIAL_BEAST_STAMP_MOVE: MoveState(
+            CEREMONIAL_BEAST_STAMP_MOVE,
+            stamp,
+            [buff_intent()],
+            follow_up_id=CEREMONIAL_BEAST_PLOW_MOVE,
         ),
-        stun_move: MoveState(
-            stun_move,
+        CEREMONIAL_BEAST_PLOW_MOVE: MoveState(
+            CEREMONIAL_BEAST_PLOW_MOVE,
+            plow_move,
+            [attack_intent(plow_intent_damage), buff_intent()],
+            follow_up_id=CEREMONIAL_BEAST_PLOW_MOVE,
+        ),
+        CEREMONIAL_BEAST_STUN_MOVE: MoveState(
+            CEREMONIAL_BEAST_STUN_MOVE,
             stun,
             [Intent(IntentType.STUN)],
-            follow_up_id=beast_cry_move,
+            follow_up_id=CEREMONIAL_BEAST_BEAST_CRY_MOVE,
             must_perform_once=True,
         ),
-        beast_cry_move: MoveState(beast_cry_move, beast_cry, [debuff_intent()], follow_up_id=stomp_move_id),
-        stomp_move_id: MoveState(stomp_move_id, stomp, [attack_intent(stomp_dmg)], follow_up_id=crush_move_id),
-        crush_move_id: MoveState(
-            crush_move_id,
+        CEREMONIAL_BEAST_BEAST_CRY_MOVE: MoveState(
+            CEREMONIAL_BEAST_BEAST_CRY_MOVE,
+            beast_cry,
+            [debuff_intent()],
+            follow_up_id=CEREMONIAL_BEAST_STOMP_MOVE,
+        ),
+        CEREMONIAL_BEAST_STOMP_MOVE: MoveState(
+            CEREMONIAL_BEAST_STOMP_MOVE,
+            stomp,
+            [attack_intent(stomp_intent_damage)],
+            follow_up_id=CEREMONIAL_BEAST_CRUSH_MOVE,
+        ),
+        CEREMONIAL_BEAST_CRUSH_MOVE: MoveState(
+            CEREMONIAL_BEAST_CRUSH_MOVE,
             crush,
-            [attack_intent(crush_dmg), buff_intent()],
-            follow_up_id=beast_cry_move,
+            [attack_intent(crush_intent_damage), buff_intent()],
+            follow_up_id=CEREMONIAL_BEAST_BEAST_CRY_MOVE,
         ),
     }
-    return creature, MonsterAI(states, stamp_move)
+    return creature, MonsterAI(states, CEREMONIAL_BEAST_STAMP_MOVE)
 
 
 # ---- TheKin (KinPriest + 2 KinFollowers) ----

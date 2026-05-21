@@ -132,6 +132,7 @@ BYRDONIS_TOUGH_HP = 99
 PHROG_PARASITE_TOUGH_MIN_HP = 66
 PHROG_PARASITE_TOUGH_MAX_HP = 68
 VANTOM_TOUGH_HP = 183
+CEREMONIAL_BEAST_TOUGH_HP = 262
 
 
 class _ExclusiveHighRng:
@@ -597,6 +598,15 @@ class TestAct1BossEncounters:
         combat = _make_combat()
         setup_ceremonial_beast_boss(combat, Rng(42))
         assert len(combat.enemies) == 1
+
+    def test_ceremonial_beast_tough_ascension_hp_matches_csharp(self):
+        combat = _make_combat()
+        combat.ascension_level = 8
+
+        setup_ceremonial_beast_boss(combat, Rng(42))
+
+        assert len(combat.enemies) == 1
+        assert combat.enemies[0].max_hp == CEREMONIAL_BEAST_TOUGH_HP
 
     def test_the_kin_count(self):
         combat = _make_combat()

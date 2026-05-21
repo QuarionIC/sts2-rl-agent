@@ -217,6 +217,13 @@ VANTOM_DISMEMBER_WOUNDS = 3
 VANTOM_PREPARE_STRENGTH = 2
 VANTOM_SLIPPERY = 9
 VANTOM_MULTIPLAYER_SLIPPERY = 27
+CEREMONIAL_BEAST_PLOW_AMOUNT_A9 = 160
+CEREMONIAL_BEAST_PLOW_DAMAGE_A9 = 20
+CEREMONIAL_BEAST_PLOW_STRENGTH = 2
+CEREMONIAL_BEAST_STOMP_DAMAGE_A9 = 17
+CEREMONIAL_BEAST_CRUSH_DAMAGE_A9 = 19
+CEREMONIAL_BEAST_CRUSH_STRENGTH_A9 = 4
+CEREMONIAL_BEAST_BEAST_CRY_RINGING = 1
 TOUGH_EGG_INITIAL_HP = 16
 TOUGH_EGG_HATCHLING_HP = 20
 MULTIPLAYER_TEST_PLAYER_COUNT = 2
@@ -866,6 +873,41 @@ class TestFixedRotation:
 
         vantom_ai.states["PREPARE_MOVE"].perform(combat)
         assert vantom.get_power_amount(PowerId.STRENGTH) == VANTOM_PREPARE_STRENGTH
+
+    def test_ceremonial_beast_ascension_scaling_matches_csharp(self):
+        rng_seed = 1281
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        ally = _add_test_ally(combat, hp=100)
+        beast, beast_ai = create_ceremonial_beast(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(beast, beast_ai)
+
+        beast_ai.states["STAMP_MOVE"].perform(combat)
+        assert beast.get_power_amount(PowerId.PLOW) == CEREMONIAL_BEAST_PLOW_AMOUNT_A9
+
+        plow = beast_ai.states["PLOW_MOVE"]
+        assert plow.intents[0].damage == CEREMONIAL_BEAST_PLOW_DAMAGE_A9
+        ally_hp_before_plow = ally.current_hp
+        plow.perform(combat)
+        assert ally.current_hp == ally_hp_before_plow - CEREMONIAL_BEAST_PLOW_DAMAGE_A9
+        assert beast.get_power_amount(PowerId.STRENGTH) == CEREMONIAL_BEAST_PLOW_STRENGTH
+
+        beast.powers.pop(PowerId.STRENGTH)
+        stomp = beast_ai.states["STOMP_MOVE"]
+        assert stomp.intents[0].damage == CEREMONIAL_BEAST_STOMP_DAMAGE_A9
+        ally_hp_before_stomp = ally.current_hp
+        stomp.perform(combat)
+        assert ally.current_hp == ally_hp_before_stomp - CEREMONIAL_BEAST_STOMP_DAMAGE_A9
+
+        crush = beast_ai.states["CRUSH_MOVE"]
+        assert crush.intents[0].damage == CEREMONIAL_BEAST_CRUSH_DAMAGE_A9
+        ally_hp_before_crush = ally.current_hp
+        crush.perform(combat)
+        assert ally.current_hp == ally_hp_before_crush - CEREMONIAL_BEAST_CRUSH_DAMAGE_A9
+        assert beast.get_power_amount(PowerId.STRENGTH) == CEREMONIAL_BEAST_CRUSH_STRENGTH_A9
+
+        beast_ai.states["BEAST_CRY_MOVE"].perform(combat)
+        assert ally.get_power_amount(PowerId.RINGING) == CEREMONIAL_BEAST_BEAST_CRY_RINGING
 
     def test_act1_weak_moves_use_original_player_targets_not_pets(self):
         from sts2_env.monsters.act1_weak import create_shrinker_beetle

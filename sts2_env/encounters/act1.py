@@ -248,7 +248,7 @@ def setup_vantom_boss(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_ceremonial_beast_boss(combat: CombatState, rng: Rng) -> None:
-    creature, ai = create_ceremonial_beast(rng)
+    creature, ai = create_ceremonial_beast(rng, ascension_level=combat.ascension_level)
     combat.add_enemy(creature, ai)
 
 
