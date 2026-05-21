@@ -221,21 +221,39 @@ class EndlessConveyor(EventModel):
     """
 
     event_id = "EndlessConveyor"
+    OPTION_GRAB = "grab"
+    OPTION_OBSERVE = "observe"
+    OPTION_LEAVE = "leave"
+    DISH_CAVIAR = "caviar"
+    DISH_CLAM_ROLL = "clam_roll"
+    DISH_SPICY_SNAPPY = "spicy_snappy"
+    DISH_JELLY_LIVER = "jelly_liver"
+    DISH_FRIED_EEL = "fried_eel"
+    DISH_GOLDEN_FYSH = "golden_fysh"
+    DISH_SEAPUNK_SALAD = "seapunk_salad"
+    DISH_SUSPICIOUS_CONDIMENT = "suspicious_condiment"
+    OBSERVE_CHEF_UPGRADE_COUNT = 1
+    SPICY_SNAPPY_UPGRADE_COUNT = 1
+    JELLY_LIVER_TRANSFORM_COUNT = 1
     GRAB_GOLD = 35
     REQUIRED_GOLD = 105
     GOLDEN_FYSH_GOLD = 75
     CLAM_ROLL_HEAL = 10
     CAVIAR_MAX_HP = 4
     FORCED_SEAPUNK_INTERVAL = 5
-    BASE_DISH_WEIGHTS = (
-        ("caviar", 6.0),
-        ("spicy_snappy", 3.0),
-        ("jelly_liver", 3.0),
-        ("fried_eel", 3.0),
-    )
+    CAVIAR_WEIGHT = 6.0
+    SPICY_SNAPPY_WEIGHT = 3.0
+    JELLY_LIVER_WEIGHT = 3.0
+    FRIED_EEL_WEIGHT = 3.0
     SUSPICIOUS_CONDIMENT_WEIGHT = 3.0
     CLAM_ROLL_WEIGHT = 6.0
     GOLDEN_FYSH_WEIGHT = 1.0
+    BASE_DISH_WEIGHTS = (
+        (DISH_CAVIAR, CAVIAR_WEIGHT),
+        (DISH_SPICY_SNAPPY, SPICY_SNAPPY_WEIGHT),
+        (DISH_JELLY_LIVER, JELLY_LIVER_WEIGHT),
+        (DISH_FRIED_EEL, FRIED_EEL_WEIGHT),
+    )
 
     def __init__(self) -> None:
         self._grabs = 0
@@ -250,29 +268,33 @@ class EndlessConveyor(EventModel):
         self._roll_dish(run_state)
         return [
             self._grab_option(run_state, initial=True),
-            EventOption("observe", "Observe Chef",
+            EventOption(self.OPTION_OBSERVE, "Observe Chef",
                          "Upgrade 1 random card (free)"),
         ]
 
     def choose(self, run_state: RunState, option_id: str) -> EventResult:
-        if option_id == "observe":
-            _upgrade_n_cards(run_state, 1, rng=self.get_rng(run_state))
+        if option_id == self.OPTION_OBSERVE:
+            _upgrade_n_cards(run_state, self.OBSERVE_CHEF_UPGRADE_COUNT, rng=self.get_rng(run_state))
             return EventResult(finished=True,
                                description="Observed chef, upgraded a random card.")
-        if option_id == "leave":
+        if option_id == self.OPTION_LEAVE:
             return EventResult(finished=True, description="Left the conveyor.")
 
-        # grab
         if run_state.player.gold >= self.GRAB_GOLD:
-            if self._current_dish != "golden_fysh":
+            if self._current_dish != self.DISH_GOLDEN_FYSH:
                 run_state.player.lose_gold(self.GRAB_GOLD)
+            should_roll_after_dish = (
+                self._current_dish != self.DISH_JELLY_LIVER
+                or not _should_defer_event_rewards(run_state)
+            )
             self._apply_dish(run_state)
             grabbed_dish_number = self._grabs
-            self._roll_dish(run_state)
+            if should_roll_after_dish:
+                self._roll_dish(run_state)
 
             next_opts = [
                 self._grab_option(run_state, initial=False),
-                EventOption("leave", "Leave", "Done eating"),
+                EventOption(self.OPTION_LEAVE, "Leave", "Done eating"),
             ]
 
             return EventResult(
@@ -285,22 +307,22 @@ class EndlessConveyor(EventModel):
     def _grab_option(self, run_state: RunState, *, initial: bool) -> EventOption:
         label = f"Grab Something ({self.GRAB_GOLD}g)" if initial else f"Grab Another ({self.GRAB_GOLD}g)"
         if run_state.player.gold >= self.GRAB_GOLD:
-            return EventOption("grab", label, "Random dish")
-        return EventOption("grab", "Locked", "Cannot afford another dish", enabled=False)
+            return EventOption(self.OPTION_GRAB, label, "Random dish")
+        return EventOption(self.OPTION_GRAB, "Locked", "Cannot afford another dish", enabled=False)
 
     def _roll_dish(self, run_state: RunState) -> None:
         self._grabs += 1
         if self._grabs % self.FORCED_SEAPUNK_INTERVAL == 0:
-            self._last_dish = "seapunk_salad"
-            self._current_dish = "seapunk_salad"
+            self._last_dish = self.DISH_SEAPUNK_SALAD
+            self._current_dish = self.DISH_SEAPUNK_SALAD
             return
         weighted = list(self.BASE_DISH_WEIGHTS)
         if len(run_state.player.held_potions()) < run_state.player.max_potion_slots:
-            weighted.append(("suspicious_condiment", self.SUSPICIOUS_CONDIMENT_WEIGHT))
+            weighted.append((self.DISH_SUSPICIOUS_CONDIMENT, self.SUSPICIOUS_CONDIMENT_WEIGHT))
         if run_state.player.current_hp != run_state.player.max_hp:
-            weighted.append(("clam_roll", self.CLAM_ROLL_WEIGHT))
+            weighted.append((self.DISH_CLAM_ROLL, self.CLAM_ROLL_WEIGHT))
         if self._grabs > 1:
-            weighted.append(("golden_fysh", self.GOLDEN_FYSH_WEIGHT))
+            weighted.append((self.DISH_GOLDEN_FYSH, self.GOLDEN_FYSH_WEIGHT))
         weighted = [(dish, weight) for dish, weight in weighted if dish != self._last_dish]
         total = sum(weight for _, weight in weighted)
         roll = self.get_rng(run_state).next_float() * total
@@ -316,15 +338,27 @@ class EndlessConveyor(EventModel):
 
     def _apply_dish(self, run_state: RunState) -> None:
         dish = self._current_dish
-        if dish == "caviar":
+        if dish == self.DISH_CAVIAR:
             run_state.player.gain_max_hp(self.CAVIAR_MAX_HP)
-        elif dish == "clam_roll":
+        elif dish == self.DISH_CLAM_ROLL:
             run_state.player.heal(self.CLAM_ROLL_HEAL)
-        elif dish == "spicy_snappy":
-            _upgrade_n_cards(run_state, 1, rng=self.get_rng(run_state))
-        elif dish == "jelly_liver":
-            _transform_n_cards(run_state, 1, rng=self.get_rng(run_state))
-        elif dish == "fried_eel":
+        elif dish == self.DISH_SPICY_SNAPPY:
+            _upgrade_n_cards(run_state, self.SPICY_SNAPPY_UPGRADE_COUNT, rng=self.get_rng(run_state))
+        elif dish == self.DISH_JELLY_LIVER:
+            if _should_defer_event_rewards(run_state):
+                candidates = run_state.player.transformable_deck_cards()
+                run_state.pending_rewards.append(
+                    TransformCardsReward(
+                        run_state.player.player_id,
+                        count=min(self.JELLY_LIVER_TRANSFORM_COUNT, len(candidates)),
+                        cards=candidates,
+                        rng_override=self.get_rng(run_state),
+                        after_selected=lambda: self._roll_dish(run_state),
+                    )
+                )
+            else:
+                _transform_n_cards(run_state, self.JELLY_LIVER_TRANSFORM_COUNT, rng=self.get_rng(run_state))
+        elif dish == self.DISH_FRIED_EEL:
             from sts2_env.run.rewards import generate_noncombat_reward_cards
 
             cards = generate_noncombat_reward_cards(
@@ -335,14 +369,14 @@ class EndlessConveyor(EventModel):
             )
             if cards:
                 run_state.player.add_card_instance_to_deck(cards[0])
-        elif dish == "golden_fysh":
+        elif dish == self.DISH_GOLDEN_FYSH:
             run_state.player.gain_gold(self.GOLDEN_FYSH_GOLD)
-        elif dish == "seapunk_salad":
+        elif dish == self.DISH_SEAPUNK_SALAD:
             if _should_defer_event_rewards(run_state):
                 run_state.pending_rewards.append(AddCardsReward(run_state.player.player_id, [make_feeding_frenzy()]))
             else:
                 run_state.player.add_card_instance_to_deck(make_feeding_frenzy())
-        elif dish == "suspicious_condiment":
+        elif dish == self.DISH_SUSPICIOUS_CONDIMENT:
             potion_id = _roll_event_potion_id(run_state)
             if potion_id is not None:
                 run_state.pending_rewards.append(PotionReward(run_state.player.player_id, potion_id=potion_id))

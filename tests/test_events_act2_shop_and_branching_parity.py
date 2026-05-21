@@ -19,6 +19,13 @@ from sts2_env.potions.base import create_potion
 from sts2_env.run.run_manager import RunManager
 from sts2_env.run.run_state import PlayerState, RunState
 
+FIRST_DECK_CHOICE_INDEX = 0
+ENDLESS_CONVEYOR_OBSERVE_RUN_MANAGER_SEED = 90521
+ENDLESS_CONVEYOR_SPICY_SNAPPY_RUN_MANAGER_SEED = 90522
+ENDLESS_CONVEYOR_JELLY_LIVER_RUN_MANAGER_SEED = 90523
+ENDLESS_CONVEYOR_STARTING_GOLD = 200
+ENDLESS_CONVEYOR_POST_INITIAL_ROLL_GRABS = 1
+
 
 def _make_run_state(seed: int) -> RunState:
     run_state = RunState(seed=seed, character_id="Ironclad")
@@ -331,6 +338,74 @@ def test_endless_conveyor_spicy_snappy_uses_event_rng_for_upgrade_selection():
     assert run_state.rng.rewards.counter == rewards_counter
     assert first.upgraded is False
     assert second.upgraded is True
+
+
+def test_endless_conveyor_observe_does_not_open_run_manager_card_choice():
+    mgr = RunManager(seed=ENDLESS_CONVEYOR_OBSERVE_RUN_MANAGER_SEED, character_id="Ironclad")
+    mgr._phase = RunManager.PHASE_EVENT
+    mgr.run_state.player.gold = ENDLESS_CONVEYOR_STARTING_GOLD
+    mgr.run_state.player.deck = [
+        create_card(CardId.DEFEND_IRONCLAD),
+        create_card(CardId.STRIKE_IRONCLAD),
+    ]
+    conveyor = EndlessConveyor()
+    mgr._event_model = conveyor
+    mgr._event_started = True
+    mgr._event_options = conveyor.generate_initial_options(mgr.run_state)
+
+    result = mgr._do_event_choice({"option_id": EndlessConveyor.OPTION_OBSERVE})
+
+    assert result["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert mgr.run_state.pending_choice is None
+    assert any(card.upgraded for card in mgr.run_state.player.deck)
+
+
+def test_endless_conveyor_spicy_snappy_does_not_open_run_manager_card_choice():
+    mgr = RunManager(seed=ENDLESS_CONVEYOR_SPICY_SNAPPY_RUN_MANAGER_SEED, character_id="Ironclad")
+    mgr._phase = RunManager.PHASE_EVENT
+    mgr.run_state.player.gold = ENDLESS_CONVEYOR_STARTING_GOLD
+    mgr.run_state.player.deck = [
+        create_card(CardId.DEFEND_IRONCLAD),
+        create_card(CardId.STRIKE_IRONCLAD),
+    ]
+    conveyor = EndlessConveyor()
+    conveyor._current_dish = EndlessConveyor.DISH_SPICY_SNAPPY  # noqa: SLF001
+    mgr._event_model = conveyor
+    mgr._event_started = True
+
+    result = mgr._do_event_choice({"option_id": EndlessConveyor.OPTION_GRAB})
+
+    assert result["phase"] == RunManager.PHASE_EVENT
+    assert mgr.run_state.pending_choice is None
+    assert any(card.upgraded for card in mgr.run_state.player.deck)
+
+
+def test_endless_conveyor_jelly_liver_rolls_next_dish_after_deferred_transform_choice():
+    mgr = RunManager(seed=ENDLESS_CONVEYOR_JELLY_LIVER_RUN_MANAGER_SEED, character_id="Ironclad")
+    mgr._phase = RunManager.PHASE_EVENT
+    mgr.run_state.player.gold = ENDLESS_CONVEYOR_STARTING_GOLD
+    mgr.run_state.player.deck = [
+        create_card(CardId.DEFEND_IRONCLAD),
+        create_card(CardId.STRIKE_IRONCLAD),
+    ]
+    conveyor = EndlessConveyor()
+    conveyor.rng = _SwapFirstTwoRng()
+    conveyor._grabs = ENDLESS_CONVEYOR_POST_INITIAL_ROLL_GRABS  # noqa: SLF001
+    conveyor._current_dish = EndlessConveyor.DISH_JELLY_LIVER  # noqa: SLF001
+    mgr._event_model = conveyor
+    mgr._event_started = True
+
+    result = mgr._do_event_choice({"option_id": EndlessConveyor.OPTION_GRAB})
+
+    assert result["phase"] == RunManager.PHASE_CARD_REWARD
+    assert mgr.run_state.pending_choice is not None
+    assert conveyor._current_dish == EndlessConveyor.DISH_JELLY_LIVER  # noqa: SLF001
+
+    final = mgr.take_action({"action": "choose", "index": FIRST_DECK_CHOICE_INDEX})
+
+    assert final["phase"] == RunManager.PHASE_EVENT
+    assert mgr.run_state.pending_choice is None
+    assert conveyor._current_dish == EndlessConveyor.DISH_CAVIAR  # noqa: SLF001
 
 
 def test_endless_conveyor_suspicious_condiment_rolls_specific_potion_reward():
