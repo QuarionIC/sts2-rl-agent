@@ -45,6 +45,18 @@ if TYPE_CHECKING:
 
 # ---- Helpers ----
 
+TOUGH_ENEMIES_ASCENSION_LEVEL = 8
+DEADLY_ENEMIES_ASCENSION_LEVEL = 9
+
+
+def _ascension_value(ascension_level: int, threshold: int, ascension_value: int, base_value: int) -> int:
+    return ascension_value if ascension_level >= threshold else base_value
+
+
+def _combat_ascension_level(combat: CombatState) -> int:
+    return getattr(combat, "ascension_level", 0)
+
+
 def _deal_damage_to_player(combat: CombatState, creature: Creature, base_dmg: int, hits: int = 1) -> None:
     for _ in range(hits):
         targets = living_player_targets(combat)
@@ -231,66 +243,181 @@ def create_tunneler(rng: Rng) -> tuple[Creature, MonsterAI]:
 
 # ---- Bowlbugs ----
 
-def create_bowlbug_egg(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(21, 22)
-    creature = Creature(max_hp=hp, monster_id="BOWLBUG_EGG")
-    bite_dmg = 7
-    protect_block = 7
+BOWLBUG_EGG_MONSTER_ID = "BOWLBUG_EGG"
+BOWLBUG_EGG_BASE_MIN_HP = 21
+BOWLBUG_EGG_BASE_MAX_HP = 22
+BOWLBUG_EGG_TOUGH_MIN_HP = 23
+BOWLBUG_EGG_TOUGH_MAX_HP = 24
+BOWLBUG_EGG_BASE_BITE_DAMAGE = 7
+BOWLBUG_EGG_DEADLY_BITE_DAMAGE = 8
+BOWLBUG_EGG_BASE_PROTECT_BLOCK = 7
+BOWLBUG_EGG_DEADLY_PROTECT_BLOCK = 8
+BOWLBUG_EGG_BITE_MOVE = "BITE_MOVE"
+
+BOWLBUG_NECTAR_MONSTER_ID = "BOWLBUG_NECTAR"
+BOWLBUG_NECTAR_BASE_MIN_HP = 35
+BOWLBUG_NECTAR_BASE_MAX_HP = 38
+BOWLBUG_NECTAR_TOUGH_MIN_HP = 36
+BOWLBUG_NECTAR_TOUGH_MAX_HP = 39
+BOWLBUG_NECTAR_THRASH_DAMAGE = 3
+BOWLBUG_NECTAR_BASE_BUFF_STRENGTH = 15
+BOWLBUG_NECTAR_DEADLY_BUFF_STRENGTH = 16
+BOWLBUG_NECTAR_THRASH_MOVE = "THRASH_MOVE"
+BOWLBUG_NECTAR_BUFF_MOVE = "BUFF_MOVE"
+BOWLBUG_NECTAR_THRASH2_MOVE = "THRASH2_MOVE"
+
+BOWLBUG_ROCK_MONSTER_ID = "BOWLBUG_ROCK"
+BOWLBUG_ROCK_BASE_MIN_HP = 45
+BOWLBUG_ROCK_BASE_MAX_HP = 48
+BOWLBUG_ROCK_TOUGH_MIN_HP = 46
+BOWLBUG_ROCK_TOUGH_MAX_HP = 49
+BOWLBUG_ROCK_BASE_HEADBUTT_DAMAGE = 15
+BOWLBUG_ROCK_DEADLY_HEADBUTT_DAMAGE = 16
+BOWLBUG_ROCK_IMBALANCED_AMOUNT = 1
+BOWLBUG_ROCK_HEADBUTT_MOVE = "HEADBUTT_MOVE"
+BOWLBUG_ROCK_POST_HEADBUTT = "POST_HEADBUTT"
+BOWLBUG_ROCK_DIZZY_MOVE = "DIZZY_MOVE"
+
+BOWLBUG_SILK_MONSTER_ID = "BOWLBUG_SILK"
+BOWLBUG_SILK_BASE_MIN_HP = 40
+BOWLBUG_SILK_BASE_MAX_HP = 43
+BOWLBUG_SILK_TOUGH_MIN_HP = 41
+BOWLBUG_SILK_TOUGH_MAX_HP = 44
+BOWLBUG_SILK_BASE_THRASH_DAMAGE = 4
+BOWLBUG_SILK_DEADLY_THRASH_DAMAGE = 5
+BOWLBUG_SILK_THRASH_REPEAT = 2
+BOWLBUG_SILK_TOXIC_SPIT_WEAK = 1
+BOWLBUG_SILK_TRASH_MOVE = "TRASH_MOVE"
+BOWLBUG_SILK_TOXIC_SPIT_MOVE = "TOXIC_SPIT_MOVE"
+
+
+def create_bowlbug_egg(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        BOWLBUG_EGG_TOUGH_MIN_HP,
+        BOWLBUG_EGG_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        BOWLBUG_EGG_TOUGH_MAX_HP,
+        BOWLBUG_EGG_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=BOWLBUG_EGG_MONSTER_ID)
 
     def bite(combat: CombatState) -> None:
+        bite_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            BOWLBUG_EGG_DEADLY_BITE_DAMAGE,
+            BOWLBUG_EGG_BASE_BITE_DAMAGE,
+        )
+        protect_block = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            BOWLBUG_EGG_DEADLY_PROTECT_BLOCK,
+            BOWLBUG_EGG_BASE_PROTECT_BLOCK,
+        )
         _deal_damage_to_player(combat, creature, bite_dmg)
         _gain_block(creature, protect_block, combat)
 
+    bite_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        BOWLBUG_EGG_DEADLY_BITE_DAMAGE,
+        BOWLBUG_EGG_BASE_BITE_DAMAGE,
+    )
+
     states: dict[str, MonsterState] = {
-        "BITE_MOVE": MoveState(
-            "BITE_MOVE",
+        BOWLBUG_EGG_BITE_MOVE: MoveState(
+            BOWLBUG_EGG_BITE_MOVE,
             bite,
-            [attack_intent(bite_dmg), defend_intent()],
-            follow_up_id="BITE_MOVE",
+            [attack_intent(bite_intent_damage), defend_intent()],
+            follow_up_id=BOWLBUG_EGG_BITE_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "BITE_MOVE")
+    return creature, MonsterAI(states, BOWLBUG_EGG_BITE_MOVE)
 
 
-def create_bowlbug_nectar(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(35, 38)
-    creature = Creature(max_hp=hp, monster_id="BOWLBUG_NECTAR")
-    thrash_dmg = 3
-    buff_str = 15
+def create_bowlbug_nectar(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        BOWLBUG_NECTAR_TOUGH_MIN_HP,
+        BOWLBUG_NECTAR_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        BOWLBUG_NECTAR_TOUGH_MAX_HP,
+        BOWLBUG_NECTAR_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=BOWLBUG_NECTAR_MONSTER_ID)
 
     def thrash(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, thrash_dmg)
+        _deal_damage_to_player(combat, creature, BOWLBUG_NECTAR_THRASH_DAMAGE)
 
     def buff_move(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, buff_str)
+        buff_strength = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            BOWLBUG_NECTAR_DEADLY_BUFF_STRENGTH,
+            BOWLBUG_NECTAR_BASE_BUFF_STRENGTH,
+        )
+        creature.apply_power(PowerId.STRENGTH, buff_strength)
 
     def thrash2(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, thrash_dmg)
+        _deal_damage_to_player(combat, creature, BOWLBUG_NECTAR_THRASH_DAMAGE)
 
     states: dict[str, MonsterState] = {
-        "THRASH_MOVE": MoveState(
-            "THRASH_MOVE",
+        BOWLBUG_NECTAR_THRASH_MOVE: MoveState(
+            BOWLBUG_NECTAR_THRASH_MOVE,
             thrash,
-            [attack_intent(thrash_dmg)],
-            follow_up_id="BUFF_MOVE",
+            [attack_intent(BOWLBUG_NECTAR_THRASH_DAMAGE)],
+            follow_up_id=BOWLBUG_NECTAR_BUFF_MOVE,
         ),
-        "BUFF_MOVE": MoveState("BUFF_MOVE", buff_move, [buff_intent()], follow_up_id="THRASH2_MOVE"),
-        "THRASH2_MOVE": MoveState(
-            "THRASH2_MOVE",
+        BOWLBUG_NECTAR_BUFF_MOVE: MoveState(
+            BOWLBUG_NECTAR_BUFF_MOVE,
+            buff_move,
+            [buff_intent()],
+            follow_up_id=BOWLBUG_NECTAR_THRASH2_MOVE,
+        ),
+        BOWLBUG_NECTAR_THRASH2_MOVE: MoveState(
+            BOWLBUG_NECTAR_THRASH2_MOVE,
             thrash2,
-            [attack_intent(thrash_dmg)],
-            follow_up_id="THRASH2_MOVE",
+            [attack_intent(BOWLBUG_NECTAR_THRASH_DAMAGE)],
+            follow_up_id=BOWLBUG_NECTAR_THRASH2_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "THRASH_MOVE")
+    return creature, MonsterAI(states, BOWLBUG_NECTAR_THRASH_MOVE)
 
 
-def create_bowlbug_rock(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(45, 48)
-    creature = Creature(max_hp=hp, monster_id="BOWLBUG_ROCK")
-    headbutt_dmg = 15
+def create_bowlbug_rock(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        BOWLBUG_ROCK_TOUGH_MIN_HP,
+        BOWLBUG_ROCK_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        BOWLBUG_ROCK_TOUGH_MAX_HP,
+        BOWLBUG_ROCK_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=BOWLBUG_ROCK_MONSTER_ID)
 
     def headbutt(combat: CombatState) -> None:
+        headbutt_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            BOWLBUG_ROCK_DEADLY_HEADBUTT_DAMAGE,
+            BOWLBUG_ROCK_BASE_HEADBUTT_DAMAGE,
+        )
         _deal_damage_to_player(combat, creature, headbutt_dmg)
 
     def dizzy(combat: CombatState) -> None:
@@ -302,56 +429,86 @@ def create_bowlbug_rock(rng: Rng) -> tuple[Creature, MonsterAI]:
         power = creature.powers.get(PowerId.IMBALANCED)
         return bool(getattr(power, "was_fully_blocked", False))
 
-    cond = ConditionalBranchState("POST_HEADBUTT")
-    cond.add_branch(is_off_balance, "DIZZY_MOVE")
-    cond.add_branch(lambda: True, "HEADBUTT_MOVE")
+    cond = ConditionalBranchState(BOWLBUG_ROCK_POST_HEADBUTT)
+    cond.add_branch(is_off_balance, BOWLBUG_ROCK_DIZZY_MOVE)
+    cond.add_branch(lambda: True, BOWLBUG_ROCK_HEADBUTT_MOVE)
+
+    headbutt_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        BOWLBUG_ROCK_DEADLY_HEADBUTT_DAMAGE,
+        BOWLBUG_ROCK_BASE_HEADBUTT_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "HEADBUTT_MOVE": MoveState(
-            "HEADBUTT_MOVE",
+        BOWLBUG_ROCK_HEADBUTT_MOVE: MoveState(
+            BOWLBUG_ROCK_HEADBUTT_MOVE,
             headbutt,
-            [attack_intent(headbutt_dmg)],
-            follow_up_id="POST_HEADBUTT",
+            [attack_intent(headbutt_intent_damage)],
+            follow_up_id=BOWLBUG_ROCK_POST_HEADBUTT,
         ),
-        "POST_HEADBUTT": cond,
-        "DIZZY_MOVE": MoveState(
-            "DIZZY_MOVE",
+        BOWLBUG_ROCK_POST_HEADBUTT: cond,
+        BOWLBUG_ROCK_DIZZY_MOVE: MoveState(
+            BOWLBUG_ROCK_DIZZY_MOVE,
             dizzy,
             [Intent(IntentType.STUN)],
-            follow_up_id="HEADBUTT_MOVE",
+            follow_up_id=BOWLBUG_ROCK_HEADBUTT_MOVE,
         ),
     }
-    creature.apply_power(PowerId.IMBALANCED, 1)
-    return creature, MonsterAI(states, "HEADBUTT_MOVE")
+    creature.apply_power(PowerId.IMBALANCED, BOWLBUG_ROCK_IMBALANCED_AMOUNT)
+    return creature, MonsterAI(states, BOWLBUG_ROCK_HEADBUTT_MOVE)
 
 
-def create_bowlbug_silk(rng: Rng) -> tuple[Creature, MonsterAI]:
-    hp = rng.next_int(40, 43)
-    creature = Creature(max_hp=hp, monster_id="BOWLBUG_SILK")
-    thrash_dmg = 4
-    toxic_spit_weak = 1
+def create_bowlbug_silk(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    min_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        BOWLBUG_SILK_TOUGH_MIN_HP,
+        BOWLBUG_SILK_BASE_MIN_HP,
+    )
+    max_hp = _ascension_value(
+        ascension_level,
+        TOUGH_ENEMIES_ASCENSION_LEVEL,
+        BOWLBUG_SILK_TOUGH_MAX_HP,
+        BOWLBUG_SILK_BASE_MAX_HP,
+    )
+    hp = rng.next_int(min_hp, max_hp)
+    creature = Creature(max_hp=hp, monster_id=BOWLBUG_SILK_MONSTER_ID)
 
     def toxic_spit(combat: CombatState) -> None:
-        apply_power_to_living_player_targets(combat, PowerId.WEAK, toxic_spit_weak, applier=creature)
+        apply_power_to_living_player_targets(combat, PowerId.WEAK, BOWLBUG_SILK_TOXIC_SPIT_WEAK, applier=creature)
 
     def thrash(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, thrash_dmg, hits=2)
+        thrash_dmg = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            BOWLBUG_SILK_DEADLY_THRASH_DAMAGE,
+            BOWLBUG_SILK_BASE_THRASH_DAMAGE,
+        )
+        _deal_damage_to_player(combat, creature, thrash_dmg, hits=BOWLBUG_SILK_THRASH_REPEAT)
+
+    thrash_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        BOWLBUG_SILK_DEADLY_THRASH_DAMAGE,
+        BOWLBUG_SILK_BASE_THRASH_DAMAGE,
+    )
 
     states: dict[str, MonsterState] = {
-        "TRASH_MOVE": MoveState(
-            "TRASH_MOVE",
+        BOWLBUG_SILK_TRASH_MOVE: MoveState(
+            BOWLBUG_SILK_TRASH_MOVE,
             thrash,
-            [multi_attack_intent(thrash_dmg, 2)],
-            follow_up_id="TOXIC_SPIT_MOVE",
+            [multi_attack_intent(thrash_intent_damage, BOWLBUG_SILK_THRASH_REPEAT)],
+            follow_up_id=BOWLBUG_SILK_TOXIC_SPIT_MOVE,
         ),
-        "TOXIC_SPIT_MOVE": MoveState(
-            "TOXIC_SPIT_MOVE",
+        BOWLBUG_SILK_TOXIC_SPIT_MOVE: MoveState(
+            BOWLBUG_SILK_TOXIC_SPIT_MOVE,
             toxic_spit,
             [debuff_intent()],
-            follow_up_id="TRASH_MOVE",
+            follow_up_id=BOWLBUG_SILK_TRASH_MOVE,
         ),
     }
-    return creature, MonsterAI(states, "TOXIC_SPIT_MOVE")
+    return creature, MonsterAI(states, BOWLBUG_SILK_TOXIC_SPIT_MOVE)
 
 
 # ---- Exoskeleton (HP 24-28 / 25-29 asc) ----

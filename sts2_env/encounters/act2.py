@@ -51,9 +51,10 @@ def setup_tunneler_weak(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_bowlbugs_weak(combat: CombatState, rng: Rng) -> None:
+    ascension_level = getattr(combat, "ascension_level", 0)
     creators = [create_bowlbug_egg, create_bowlbug_nectar]
     for creator in creators:
-        creature, ai = creator(rng)
+        creature, ai = creator(rng, ascension_level=ascension_level)
         combat.add_enemy(creature, ai)
 
 
@@ -75,9 +76,10 @@ WEAK_ENCOUNTERS: list[EncounterSetup] = [
 # ---- Normal Encounters ----
 
 def setup_bowlbugs_normal(combat: CombatState, rng: Rng) -> None:
+    ascension_level = getattr(combat, "ascension_level", 0)
     creators = [create_bowlbug_egg, create_bowlbug_rock, create_bowlbug_silk]
     for creator in creators:
-        creature, ai = creator(rng)
+        creature, ai = creator(rng, ascension_level=ascension_level)
         combat.add_enemy(creature, ai)
 
 
@@ -131,8 +133,9 @@ def setup_the_obscura_normal(combat: CombatState, rng: Rng) -> None:
 
 
 def setup_tunneler_normal(combat: CombatState, rng: Rng) -> None:
+    ascension_level = getattr(combat, "ascension_level", 0)
     bug_creator = rng.choice([create_bowlbug_egg, create_bowlbug_silk])
-    bug, bug_ai = bug_creator(rng)
+    bug, bug_ai = bug_creator(rng, ascension_level=ascension_level)
     combat.add_enemy(bug, bug_ai)
     creature, ai = create_tunneler(rng)
     combat.add_enemy(creature, ai)

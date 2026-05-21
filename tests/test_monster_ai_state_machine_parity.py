@@ -235,6 +235,21 @@ KIN_FOLLOWER_BOOMERANG_DAMAGE = 2
 KIN_FOLLOWER_BOOMERANG_HITS = 2
 KIN_FOLLOWER_DANCE_STRENGTH_A9 = 3
 KIN_FOLLOWER_MINION = 1
+BOWLBUG_EGG_BITE_MOVE = "BITE_MOVE"
+BOWLBUG_EGG_BITE_DAMAGE_A9 = 8
+BOWLBUG_EGG_PROTECT_BLOCK_A9 = 8
+BOWLBUG_NECTAR_THRASH_MOVE = "THRASH_MOVE"
+BOWLBUG_NECTAR_BUFF_MOVE = "BUFF_MOVE"
+BOWLBUG_NECTAR_THRASH_DAMAGE = 3
+BOWLBUG_NECTAR_BUFF_STRENGTH_A9 = 16
+BOWLBUG_ROCK_HEADBUTT_MOVE = "HEADBUTT_MOVE"
+BOWLBUG_ROCK_HEADBUTT_DAMAGE_A9 = 16
+BOWLBUG_ROCK_IMBALANCED = 1
+BOWLBUG_SILK_TRASH_MOVE = "TRASH_MOVE"
+BOWLBUG_SILK_TOXIC_SPIT_MOVE = "TOXIC_SPIT_MOVE"
+BOWLBUG_SILK_THRASH_DAMAGE_A9 = 5
+BOWLBUG_SILK_THRASH_HITS = 2
+BOWLBUG_SILK_TOXIC_SPIT_WEAK = 1
 TOUGH_EGG_INITIAL_HP = 16
 TOUGH_EGG_HATCHLING_HP = 20
 MULTIPLAYER_TEST_PLAYER_COUNT = 2
@@ -2144,6 +2159,58 @@ class TestFixedRotation:
 
         _, silk_ai = create_bowlbug_silk(Rng(27))
         assert _run_ai(silk_ai, Rng(27), 3) == ["TOXIC_SPIT_MOVE", "TRASH_MOVE", "TOXIC_SPIT_MOVE"]
+
+    def test_bowlbugs_ascension_scaling_matches_csharp(self):
+        rng_seed = 1283
+
+        egg_combat = _make_combat(rng_seed)
+        egg_combat.ascension_level = 9
+        egg, egg_ai = create_bowlbug_egg(Rng(rng_seed), ascension_level=9)
+        egg_combat.add_enemy(egg, egg_ai)
+        egg_bite = egg_ai.states[BOWLBUG_EGG_BITE_MOVE]
+        assert egg_bite.intents[0].damage == BOWLBUG_EGG_BITE_DAMAGE_A9
+        player_hp_before_bite = egg_combat.player.current_hp
+        egg_bite.perform(egg_combat)
+        assert egg_combat.player.current_hp == player_hp_before_bite - BOWLBUG_EGG_BITE_DAMAGE_A9
+        assert egg.block == BOWLBUG_EGG_PROTECT_BLOCK_A9
+
+        nectar_combat = _make_combat(rng_seed)
+        nectar_combat.ascension_level = 9
+        nectar, nectar_ai = create_bowlbug_nectar(Rng(rng_seed), ascension_level=9)
+        nectar_combat.add_enemy(nectar, nectar_ai)
+        thrash = nectar_ai.states[BOWLBUG_NECTAR_THRASH_MOVE]
+        assert thrash.intents[0].damage == BOWLBUG_NECTAR_THRASH_DAMAGE
+        player_hp_before_thrash = nectar_combat.player.current_hp
+        thrash.perform(nectar_combat)
+        assert nectar_combat.player.current_hp == player_hp_before_thrash - BOWLBUG_NECTAR_THRASH_DAMAGE
+        nectar_ai.states[BOWLBUG_NECTAR_BUFF_MOVE].perform(nectar_combat)
+        assert nectar.get_power_amount(PowerId.STRENGTH) == BOWLBUG_NECTAR_BUFF_STRENGTH_A9
+
+        rock_combat = _make_combat(rng_seed)
+        rock_combat.ascension_level = 9
+        rock, rock_ai = create_bowlbug_rock(Rng(rng_seed), ascension_level=9)
+        rock_combat.add_enemy(rock, rock_ai)
+        headbutt = rock_ai.states[BOWLBUG_ROCK_HEADBUTT_MOVE]
+        assert rock.get_power_amount(PowerId.IMBALANCED) == BOWLBUG_ROCK_IMBALANCED
+        assert headbutt.intents[0].damage == BOWLBUG_ROCK_HEADBUTT_DAMAGE_A9
+        player_hp_before_headbutt = rock_combat.player.current_hp
+        headbutt.perform(rock_combat)
+        assert rock_combat.player.current_hp == player_hp_before_headbutt - BOWLBUG_ROCK_HEADBUTT_DAMAGE_A9
+
+        silk_combat = _make_combat(rng_seed)
+        silk_combat.ascension_level = 9
+        silk, silk_ai = create_bowlbug_silk(Rng(rng_seed), ascension_level=9)
+        silk_combat.add_enemy(silk, silk_ai)
+        silk_ai.states[BOWLBUG_SILK_TOXIC_SPIT_MOVE].perform(silk_combat)
+        assert silk_combat.player.get_power_amount(PowerId.WEAK) == BOWLBUG_SILK_TOXIC_SPIT_WEAK
+        trash = silk_ai.states[BOWLBUG_SILK_TRASH_MOVE]
+        assert trash.intents[0].damage == BOWLBUG_SILK_THRASH_DAMAGE_A9
+        assert trash.intents[0].hits == BOWLBUG_SILK_THRASH_HITS
+        player_hp_before_trash = silk_combat.player.current_hp
+        trash.perform(silk_combat)
+        assert silk_combat.player.current_hp == (
+            player_hp_before_trash - BOWLBUG_SILK_THRASH_DAMAGE_A9 * BOWLBUG_SILK_THRASH_HITS
+        )
 
     def test_act2_exoskeletons_use_original_init_state_and_hard_to_kill(self):
         first, first_ai = create_exoskeleton(Rng(28), slot="first")
