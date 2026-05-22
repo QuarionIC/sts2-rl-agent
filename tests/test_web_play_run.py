@@ -3,6 +3,7 @@
 import sts2_env.events  # noqa: F401
 
 from sts2_env.core.enums import RoomType
+from sts2_env.potions.base import create_potion
 from sts2_env.run.run_manager import RunManager
 from sts2_env.web.play_run import RunSession, serialize_run
 
@@ -88,3 +89,23 @@ def test_web_state_serializes_combat_for_browser_display() -> None:
     assert state["screen"]["end_turn_action_index"] == 0
     assert any(card["actions"] for card in state["screen"]["hand"])
     assert any(action["kind"] == "play_card" for action in state["actions"])
+
+
+def test_web_state_serializes_combat_potion_actions() -> None:
+    mgr = RunManager(seed=456, character_id="Ironclad")
+    assert mgr.run_state.player.add_potion(create_potion("FirePotion"))
+    mgr._enter_combat(RoomType.MONSTER)
+    actions = mgr.get_available_actions()
+
+    state = serialize_run(
+        mgr,
+        actions,
+        seed=456,
+        character="Ironclad",
+        ascension=0,
+        last_description="",
+    )
+
+    assert state["screen"]["potions"]
+    assert state["screen"]["potions"][0]["actions"]
+    assert any(action["kind"] == "use_potion" for action in state["actions"])

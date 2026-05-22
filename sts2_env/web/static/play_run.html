@@ -341,6 +341,12 @@
           <span>${card.actions.map((action) => `<button data-action="${action.action_index}">${escapeHtml(action.target)}</button>`).join(" ") || `<span class="muted">${card.targeted ? "target" : ""}</span>`}</span>
         </div>
       `).join("");
+      const potions = screen.potions.map((potion) => `
+        <div class="item-row">
+          <span>[${potion.index}] ${escapeHtml(potion.name)}</span>
+          <span>${potion.actions.map((action) => `<button data-action="${action.action_index}">${escapeHtml(action.target)}</button>`).join(" ")}</span>
+        </div>
+      `).join("");
       const endTurn = screen.end_turn_action_index === null || screen.end_turn_action_index === undefined
         ? ""
         : `<button data-action="${screen.end_turn_action_index}">End turn</button>`;
@@ -349,6 +355,7 @@
           <div class="section"><h3>Player</h3><div>HP ${escapeHtml(screen.player.hp)} · Block ${escapeHtml(screen.player.block)} · Energy ${escapeHtml(screen.energy)}</div>${endTurn}</div>
           <div class="section"><h3>Enemies</h3><div class="items">${enemies}</div></div>
           <div class="section"><h3>Hand</h3><div class="hand">${hand}</div></div>
+          ${potions ? `<div class="section"><h3>Potions</h3><div class="items">${potions}</div></div>` : ""}
           <div class="section"><h3>Piles</h3><div>Draw ${screen.piles.draw} · Discard ${screen.piles.discard} · Exhaust ${screen.piles.exhaust}</div></div>
         </div>
       `;
