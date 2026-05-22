@@ -36,6 +36,14 @@ Crystal Sphere, rest-site, shop, event, treasure, and boss-relic choices through
 these same state types instead of using AutoSlay's random room handlers. Those
 live messages can be recorded by the replay recorder.
 
+The bridge wiring is guarded by
+`tests/test_bridge_autoslay_coverage.py`, which checks that the main run rooms
+and standalone choice screens stay attached to RL bridge handlers. Deck
+upgrade, transform, enchant, simple-grid, deck-card, and choose-a-card flows
+still keep their default AutoSlay screen handlers registered, but normal
+`CardSelectCmd` paths are expected to be intercepted by `RlCardSelector` before
+those screens handle the choice.
+
 It still does not compare full-run traces end to end.
 
 ## Location
@@ -237,6 +245,9 @@ For `reward_screen`, `crystal_sphere`, `shop`, `event`, `treasure`, and `boss_re
 - No full-run replay comparison yet.
 - Run comparison currently targets actionable slices and can record terminal `game_over` / `run_complete` states, but it is not complete run lifecycle proof.
 - Reward-screen, Crystal Sphere, shop, event, treasure, and boss-relic comparison intentionally ignores localized labels and simulator-only option ids; live C# labels and Python internal ids do not always use the same naming scheme.
+- The AutoSlay wiring guard proves that key handlers are registered, but it is
+  not proof that every original UI path is reachable or intercepted correctly in
+  a live client.
 - Event-triggered combat now routes through the same bridge combat handler as ordinary combat, but it still needs live-game smoke testing.
 - C# bridge handler compilation and live-game smoke testing still require a local `dotnet`/STS2 mod build environment.
 - The trace must be paired with a deterministic simulator factory that recreates the same combat or run setup.

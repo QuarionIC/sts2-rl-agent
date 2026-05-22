@@ -228,11 +228,30 @@ There are still implemented cards that need deeper decompiled-backed coverage, b
 
 ### 3. Bridge/runtime validation gap
 
-The Python-side bridge adapter and the C# combat handler now both understand potion actions, but this workspace has not compiled or smoke-tested the bridge mod against a live game session during this audit.
+The Python-side bridge adapter and the C# bridge handlers now cover the main
+actionable run surfaces: map routing, combat rooms, reward screens, card
+rewards, card bundles, Crystal Sphere, rest sites, shops, events, treasure
+rooms, boss-relic choices, and terminal run states.
 
-Local bridge build validation is currently blocked. On 2026-05-18, this machine did not have `dotnet` on `PATH`, the default macOS Slay the Spire 2 Steam data path was absent, the default Godot Mono path was absent, and no repo-local `nuget.config` was present for the custom STS2 package feed.
+That is still not the same as a proven normal full-run game flow. The current
+mod uses the game's AutoSlay automation framework to navigate menus, drain UI
+screens, and recover from transitions. It replaces the important gameplay
+choices with RL bridge handlers, but it remains an automated run path rather
+than the original manual UI path.
 
-Until that happens, bridge potion support should be considered implemented but not fully field-verified.
+The remaining default AutoSlay card-selection screen handlers are expected to
+be bypassed by `CardSelectCmd.UseSelector(new RlCardSelector())` for normal
+deck upgrade, transform, enchant, simple-grid, deck-card, and choose-a-card
+flows. `tests/test_bridge_autoslay_coverage.py` guards that wiring, but this is
+still weaker than a live-game smoke test that exercises those paths in the
+running client.
+
+Local bridge build validation is currently blocked. On 2026-05-22, this
+machine still did not have `dotnet` on `PATH`, so the C# bridge mod could not be
+compiled here.
+
+Until a C# build and live-game smoke pass are available, bridge support should
+be considered implemented and Python-tested, but not fully field-verified.
 
 ### 4. Reachability / semantic audit backlog
 
@@ -250,8 +269,12 @@ We should not describe `sts2_env` as an exact match until all of the following a
 
 1. The remaining confirmed blockers above are closed.
 2. Every gameplay-affecting divergence is either implemented exactly or proven unreachable.
-3. The bridge path is smoke-tested against a live game for the combat features we depend on.
-4. The remaining no-op markers are limited to base-class defaults or explicitly documented unreachable content.
+3. The bridge path is compiled and smoke-tested against a live game from
+   opening, through map selection, combat, rewards, non-combat rooms, and run
+   completion.
+4. Full-run replay comparison exists, or an equivalent lifecycle proof covers
+   the complete run path instead of only actionable slices.
+5. The remaining no-op markers are limited to base-class defaults or explicitly documented unreachable content.
 
 ## Repository Pointers
 
@@ -261,4 +284,5 @@ We should not describe `sts2_env` as an exact match until all of the following a
 - RL envs: `sts2_env/gym_env/`
 - Bridge adapter: `sts2_env/bridge/state_adapter.py`
 - Bridge mod: `bridge_mod/RlCombatHandler.cs`
+- Bridge AutoSlay wiring guard: `tests/test_bridge_autoslay_coverage.py`
 - Decompiled reference: `decompiled/MegaCrit.Sts2.Core.Models.*`
