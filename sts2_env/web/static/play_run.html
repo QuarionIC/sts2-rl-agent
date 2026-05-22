@@ -151,7 +151,7 @@
     }
     .map-row {
       display: grid;
-      grid-template-columns: repeat(7, minmax(82px, 1fr));
+      grid-template-columns: var(--map-columns);
       gap: 6px;
       min-width: 680px;
     }
@@ -172,6 +172,9 @@
     .node.visited {
       border-color: var(--ok);
       color: var(--ok);
+    }
+    button.node {
+      width: 100%;
     }
     .section {
       border: 1px solid var(--line);
@@ -300,6 +303,9 @@
       $("actions").innerHTML = state.actions.map((action) => (
         `<button data-action="${action.index}">${escapeHtml(action.label)}</button>`
       )).join("");
+      for (const button of $("screen").querySelectorAll("button[data-action]")) {
+        button.addEventListener("click", () => takeAction(button.dataset.action));
+      }
       for (const button of $("actions").querySelectorAll("button")) {
         button.addEventListener("click", () => takeAction(button.dataset.action));
       }
@@ -346,15 +352,19 @@
     }
 
     function renderMap(screen) {
+      const columns = screen.columns && screen.columns.length ? screen.columns : [0];
+      const mapColumns = `repeat(${columns.length}, minmax(82px, 1fr))`;
       const rows = screen.rows.map((row) => {
         const byCol = new Map(row.map((node) => [node.coord[0], node]));
-        const cells = Array.from({ length: 7 }, (_, col) => {
+        const cells = columns.map((col) => {
           const node = byCol.get(col);
           if (!node) return `<div></div>`;
           const classes = ["node", node.reachable ? "reachable" : "", node.visited ? "visited" : ""].join(" ");
-          return `<div class="${classes}"><strong>(${node.coord[0]},${node.coord[1]})</strong><br>${escapeHtml(node.label)}</div>`;
+          const content = `<strong>(${node.coord[0]},${node.coord[1]})</strong><br>${escapeHtml(node.label)}`;
+          if (node.reachable) return `<button class="${classes}" data-action="${node.action_index}">${content}</button>`;
+          return `<div class="${classes}">${content}</div>`;
         }).join("");
-        return `<div class="map-row">${cells}</div>`;
+        return `<div class="map-row" style="--map-columns: ${mapColumns}">${cells}</div>`;
       }).join("");
       const paths = screen.paths.map((path) => {
         const next = path.next.map((node) => `(${node.coord[0]},${node.coord[1]}) ${escapeHtml(node.label)}`).join(", ");

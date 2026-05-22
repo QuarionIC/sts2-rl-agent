@@ -246,11 +246,17 @@ def _map_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
     run_state = mgr.run_state
     act_map = run_state.map
     if act_map is None:
-        return {"type": "map", "title": "Map", "rows": [], "paths": []}
+        return {"type": "map", "title": "Map", "columns": [], "rows": [], "paths": []}
     visited = set(run_state.visited_map_coords)
-    reachable = {tuple(action["coord"]) for action in actions if action.get("action") == "move"}
+    reachable = {
+        tuple(action["coord"]): index
+        for index, action in enumerate(actions)
+        if action.get("action") == "move"
+    }
     rows = []
-    max_row = max((point.row for point in act_map.all_points()), default=0)
+    all_points = act_map.all_points()
+    max_row = max((point.row for point in all_points), default=0)
+    columns = sorted({point.col for point in all_points})
     for row_index in range(max_row, 0, -1):
         row = []
         for point in act_map.get_row(row_index):
@@ -259,6 +265,7 @@ def _map_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
                 "coord": coord,
                 "label": ROOM_LABELS.get(point.point_type.name, display_name(point.point_type.name)),
                 "reachable": coord in reachable,
+                "action_index": reachable.get(coord),
                 "visited": point.coord in visited,
             })
         if row:
@@ -283,7 +290,7 @@ def _map_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
     if run_state.visited_map_coords:
         coord = run_state.visited_map_coords[-1]
         current = (coord.col, coord.row)
-    return {"type": "map", "title": "Map", "current": current, "rows": rows, "paths": paths}
+    return {"type": "map", "title": "Map", "current": current, "columns": columns, "rows": rows, "paths": paths}
 
 
 def _reward_screen(mgr: RunManager) -> dict:

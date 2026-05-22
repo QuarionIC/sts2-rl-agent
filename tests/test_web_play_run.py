@@ -36,7 +36,16 @@ def test_web_session_starts_at_neow_and_advances_to_map() -> None:
     map_state = session.take_action(0)
     assert map_state["phase"] == RunManager.PHASE_MAP_CHOICE
     assert map_state["screen"]["type"] == "map"
+    assert map_state["screen"]["columns"]
     assert map_state["screen"]["paths"]
+    reachable_nodes = [
+        node
+        for row in map_state["screen"]["rows"]
+        for node in row
+        if node["reachable"]
+    ]
+    assert reachable_nodes
+    assert all(node["action_index"] is not None for node in reachable_nodes)
 
 
 def test_web_state_serializes_combat_for_browser_display() -> None:
