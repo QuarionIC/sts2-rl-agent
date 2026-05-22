@@ -13,7 +13,7 @@ import sts2_env.events  # noqa: F401
 import sts2_env.potions.effects  # noqa: F401
 
 from sts2_env.core.combat import CombatState
-from sts2_env.core.enums import PotionTargetType, TargetType
+from sts2_env.core.enums import IntentType, PotionTargetType, TargetType
 from sts2_env.core.rng import INT_MAX
 from sts2_env.run.reward_objects import CardBundlesReward, CardReward, PotionReward, RelicReward
 from sts2_env.run.run_manager import RunManager, SUPPORTED_CHARACTER_IDS
@@ -49,6 +49,23 @@ ROOM_LABELS = {
     "UNKNOWN": "?",
     "ANCIENT": "Event",
     "UNASSIGNED": "?",
+}
+INTENT_LABELS = {
+    IntentType.ATTACK: "Attack",
+    IntentType.MULTI_ATTACK: "Attack",
+    IntentType.DEFEND: "Block",
+    IntentType.BUFF: "Buff",
+    IntentType.DEBUFF: "Debuff",
+    IntentType.DEBUFF_STRONG: "Strong debuff",
+    IntentType.SLEEP: "Sleep",
+    IntentType.SUMMON: "Summon",
+    IntentType.ESCAPE: "Escape",
+    IntentType.UNKNOWN: "Unknown",
+    IntentType.STATUS_CARD: "Status",
+    IntentType.STUN: "Stun",
+    IntentType.HEAL: "Heal",
+    IntentType.DEATH_BLOW: "Death blow",
+    IntentType.CARD_DEBUFF: "Card debuff",
 }
 
 
@@ -153,6 +170,26 @@ def describe_action(action: dict[str, Any]) -> str:
     return str(action)
 
 
+def describe_intent(intent: object) -> str:
+    intent_type = getattr(intent, "intent_type", IntentType.UNKNOWN)
+    label = INTENT_LABELS.get(intent_type, display_name(intent_type))
+    if intent_type == IntentType.ATTACK:
+        return f"{label} {getattr(intent, 'damage', 0)}"
+    if intent_type == IntentType.MULTI_ATTACK:
+        return f"{label} {getattr(intent, 'damage', 0)}x{getattr(intent, 'hits', 1)}"
+    return label
+
+
+def describe_enemy_intents(ai: object | None) -> str:
+    if ai is None:
+        return "Unknown"
+    move = getattr(ai, "current_move", None)
+    intents = getattr(move, "intents", [])
+    if not intents:
+        return "Unknown"
+    return ", ".join(describe_intent(intent) for intent in intents)
+
+
 def display_header(mgr: RunManager) -> None:
     summary = mgr.summary()
     print()
@@ -220,9 +257,9 @@ def display_combat(combat: CombatState) -> None:
         alive = "" if enemy.is_alive else " [dead]"
         powers = f"  Powers: {', '.join(str(p) for p in enemy.powers.values())}" if enemy.powers else ""
         state = ""
-        ai = combat.enemy_ais.get(id(enemy))
-        if ai and ai.state_log:
-            state = f"  State: {display_text(str(ai.state_log[-1]))}"
+        ai = combat.enemy_ais.get(enemy.combat_id)
+        if ai is not None:
+            state = f"  Intent: {describe_enemy_intents(ai)}"
         print(f"    [{i}] {display_name(enemy.monster_id)}  HP {enemy.current_hp}/{enemy.max_hp}  Block {enemy.block}{alive}{state}{display_text(powers)}")
 
     if player.powers:

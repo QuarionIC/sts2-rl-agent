@@ -4,9 +4,11 @@ import sts2_env.events  # noqa: F401
 
 from sts2_env.cli.play_run import (
     describe_card,
+    describe_intent,
     display_event,
     display_map,
     display_name,
+    display_combat,
     display_reward,
     display_rest_site,
     display_shop,
@@ -14,6 +16,7 @@ from sts2_env.cli.play_run import (
     display_treasure,
 )
 from sts2_env.core.enums import RoomType
+from sts2_env.monsters.intents import attack_intent, multi_attack_intent
 from sts2_env.potions.base import create_potion
 from sts2_env.run.reward_objects import RelicReward
 from sts2_env.run.run_manager import RunManager
@@ -69,6 +72,20 @@ def test_interactive_cli_uses_player_readable_names() -> None:
     assert display_text("Obtained relic BOOMING_CONCH.") == "Obtained relic Booming Conch."
     assert display_text("BASH(2E 8dmg)") == "Bash(2E 8dmg)"
     assert "STRIKE_IRONCLAD" not in describe_card(card)
+
+
+def test_interactive_cli_describes_enemy_intents(capsys) -> None:
+    mgr = RunManager(seed=COMBAT_TEST_SEED, character_id="Ironclad")
+    mgr._enter_combat(RoomType.MONSTER)
+    combat = mgr.get_combat_state()
+    assert combat is not None
+
+    display_combat(combat)
+    output = capsys.readouterr().out
+
+    assert "Intent:" in output
+    assert describe_intent(attack_intent(7)) == "Attack 7"
+    assert describe_intent(multi_attack_intent(3, 2)) == "Attack 3x2"
 
 
 def test_interactive_cli_displays_map_position_and_next_paths(capsys) -> None:
