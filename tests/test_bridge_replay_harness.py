@@ -12,6 +12,7 @@ from sts2_env.cards.ironclad_basic import create_ironclad_starter_deck, make_str
 from sts2_env.cards.silent import create_silent_starter_deck, make_strike_silent, make_survivor
 from sts2_env.core.combat import CombatState
 from sts2_env.core.rng import Rng
+from sts2_env.events.act1 import TheLegendsWereTrue
 from sts2_env.monsters.act1_weak import create_shrinker_beetle
 from sts2_env.parity.bridge_replay import (
     BridgeReplayRecorder,
@@ -28,16 +29,20 @@ from sts2_env.parity.bridge_replay_cli import build_parser
 from sts2_env.potions.base import create_potion
 from sts2_env.run.run_manager import RunManager
 
+BRIDGE_REPLAY_SEED = 42
+BRIDGE_REPLAY_LOW_HP = 20
+FIRST_BRIDGE_CHOICE_INDEX = 0
+
 
 def make_basic_replay_combat() -> CombatState:
     combat = CombatState(
         player_hp=80,
         player_max_hp=80,
         deck=create_ironclad_starter_deck(),
-        rng_seed=42,
+        rng_seed=BRIDGE_REPLAY_SEED,
         character_id="Ironclad",
     )
-    creature, ai = create_shrinker_beetle(Rng(42))
+    creature, ai = create_shrinker_beetle(Rng(BRIDGE_REPLAY_SEED))
     combat.add_enemy(creature, ai)
     combat.start_combat()
     combat.hand = [make_strike_ironclad()]
@@ -50,10 +55,10 @@ def make_choice_replay_combat() -> CombatState:
         player_hp=70,
         player_max_hp=70,
         deck=create_silent_starter_deck(),
-        rng_seed=42,
+        rng_seed=BRIDGE_REPLAY_SEED,
         character_id="Silent",
     )
-    creature, ai = create_shrinker_beetle(Rng(42))
+    creature, ai = create_shrinker_beetle(Rng(BRIDGE_REPLAY_SEED))
     combat.add_enemy(creature, ai)
     combat.start_combat()
     combat.hand = [make_survivor(), make_strike_silent(), make_strike_silent()]
@@ -68,12 +73,35 @@ def make_basic_replay_combat_with_block_potion() -> CombatState:
 
 
 def make_basic_replay_run() -> RunManager:
-    return RunManager(seed=42, character_id="Ironclad")
+    return RunManager(seed=BRIDGE_REPLAY_SEED, character_id="Ironclad")
 
 
 def make_card_reward_replay_run() -> RunManager:
-    run = RunManager(seed=42, character_id="Ironclad")
+    run = RunManager(seed=BRIDGE_REPLAY_SEED, character_id="Ironclad")
     run._enter_card_reward(context="regular")
+    return run
+
+
+def make_rest_site_replay_run() -> RunManager:
+    run = RunManager(seed=BRIDGE_REPLAY_SEED, character_id="Ironclad")
+    run.run_state.player.current_hp = BRIDGE_REPLAY_LOW_HP
+    run._enter_rest_site()
+    return run
+
+
+def make_shop_replay_run() -> RunManager:
+    run = RunManager(seed=BRIDGE_REPLAY_SEED, character_id="Ironclad")
+    run._enter_shop()
+    return run
+
+
+def make_event_replay_run() -> RunManager:
+    run = RunManager(seed=BRIDGE_REPLAY_SEED, character_id="Ironclad")
+    event = TheLegendsWereTrue()
+    run._phase = RunManager.PHASE_EVENT
+    run._event_model = event
+    run._event_started = True
+    run._event_options = event.generate_initial_options(run.run_state)
     return run
 
 
@@ -253,7 +281,12 @@ def test_compare_run_replay_handles_map_select_to_combat_transition():
     trace = BridgeReplayTrace(
         mode="run",
         initial_state=initial_state,
-        steps=[BridgeReplayStep(action={"action": BridgeAction.CHOOSE, "index": 0}, resulting_state=resulting_state)],
+        steps=[
+            BridgeReplayStep(
+                action={"action": BridgeAction.CHOOSE, "index": FIRST_BRIDGE_CHOICE_INDEX},
+                resulting_state=resulting_state,
+            )
+        ],
     )
     result = compare_run_replay(trace, factory=make_basic_replay_run)
 
@@ -270,9 +303,107 @@ def test_compare_run_replay_handles_card_reward_pick_to_map_transition():
     trace = BridgeReplayTrace(
         mode="run",
         initial_state=initial_state,
-        steps=[BridgeReplayStep(action={"action": BridgeAction.CHOOSE, "index": 0}, resulting_state=resulting_state)],
+        steps=[
+            BridgeReplayStep(
+                action={"action": BridgeAction.CHOOSE, "index": FIRST_BRIDGE_CHOICE_INDEX},
+                resulting_state=resulting_state,
+            )
+        ],
     )
     result = compare_run_replay(trace, factory=make_card_reward_replay_run)
+
+    assert result.success is True
+    assert result.mismatches == []
+
+
+def test_run_manager_to_bridge_state_serializes_rest_site_options():
+    run = make_rest_site_replay_run()
+    state = run_manager_to_bridge_state(run)
+
+    assert state["type"] == BridgeStateType.REST_SITE
+    assert state["options"]
+    assert state["options"][FIRST_BRIDGE_CHOICE_INDEX]["id"] == "HEAL"
+    assert all("label" in option and "enabled" in option for option in state["options"])
+
+
+def test_compare_run_replay_handles_rest_site_choice_to_map_transition():
+    run = make_rest_site_replay_run()
+    initial_state = run_manager_to_bridge_state(run)
+    run.take_action(run.get_available_actions()[FIRST_BRIDGE_CHOICE_INDEX])
+    resulting_state = run_manager_to_bridge_state(run)
+
+    trace = BridgeReplayTrace(
+        mode="run",
+        initial_state=initial_state,
+        steps=[
+            BridgeReplayStep(
+                action={"action": BridgeAction.CHOOSE, "index": FIRST_BRIDGE_CHOICE_INDEX},
+                resulting_state=resulting_state,
+            )
+        ],
+    )
+    result = compare_run_replay(trace, factory=make_rest_site_replay_run)
+
+    assert result.success is True
+    assert result.mismatches == []
+
+
+def test_run_manager_to_bridge_state_serializes_shop_options():
+    run = make_shop_replay_run()
+    state = run_manager_to_bridge_state(run)
+
+    assert state["type"] == BridgeStateType.SHOP
+    assert state["options"]
+    assert state["options"][FIRST_BRIDGE_CHOICE_INDEX]["action"] == "leave_shop"
+
+
+def test_compare_run_replay_handles_shop_choice_to_map_transition():
+    run = make_shop_replay_run()
+    initial_state = run_manager_to_bridge_state(run)
+    run.take_action(run.get_available_actions()[FIRST_BRIDGE_CHOICE_INDEX])
+    resulting_state = run_manager_to_bridge_state(run)
+
+    trace = BridgeReplayTrace(
+        mode="run",
+        initial_state=initial_state,
+        steps=[
+            BridgeReplayStep(
+                action={"action": BridgeAction.CHOOSE, "index": FIRST_BRIDGE_CHOICE_INDEX},
+                resulting_state=resulting_state,
+            )
+        ],
+    )
+    result = compare_run_replay(trace, factory=make_shop_replay_run)
+
+    assert result.success is True
+    assert result.mismatches == []
+
+
+def test_run_manager_to_bridge_state_serializes_event_options():
+    run = make_event_replay_run()
+    state = run_manager_to_bridge_state(run)
+
+    assert state["type"] == BridgeStateType.EVENT
+    assert [option["id"] for option in state["options"]] == ["nab_map", "find_exit"]
+
+
+def test_compare_run_replay_handles_event_choice_to_map_transition():
+    run = make_event_replay_run()
+    initial_state = run_manager_to_bridge_state(run)
+    run.take_action(run.get_available_actions()[FIRST_BRIDGE_CHOICE_INDEX])
+    resulting_state = run_manager_to_bridge_state(run)
+
+    trace = BridgeReplayTrace(
+        mode="run",
+        initial_state=initial_state,
+        steps=[
+            BridgeReplayStep(
+                action={"action": BridgeAction.CHOOSE, "index": FIRST_BRIDGE_CHOICE_INDEX},
+                resulting_state=resulting_state,
+            )
+        ],
+    )
+    result = compare_run_replay(trace, factory=make_event_replay_run)
 
     assert result.success is True
     assert result.mismatches == []

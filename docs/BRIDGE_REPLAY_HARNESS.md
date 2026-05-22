@@ -20,8 +20,11 @@ Supported bridge message types:
 - `card_select`
 - `map_select`
 - `card_reward`
+- `rest_site`
+- `shop`
+- `event`
 
-It does not yet compare map, shop, event, or post-combat reward flows.
+It still does not compare full-run traces end to end.
 
 ## Location
 
@@ -96,6 +99,9 @@ The recorder only persists states relevant to the comparator:
 - `card_select`
 - `map_select`
 - `card_reward`
+- `rest_site`
+- `shop`
+- `event`
 
 You can also record directly from the existing bridge runner:
 
@@ -185,11 +191,19 @@ For `card_reward`, it checks:
 - card order and metadata
 - `can_skip`
 
+For `rest_site`, `shop`, and `event`, it checks:
+
+- option order
+- option id / action / label / enabled status
+- floor
+- act
+
 ## Current Limitations
 
 - No full-run replay comparison yet.
-- Run comparison currently targets `map_select` and `card_reward` only.
-- No passive comparison for shop, rest, treasure, or event screens yet.
+- Run comparison currently targets actionable slices, not complete run lifecycle proof.
+- Shop, rest-site, and event comparison is intentionally limited to stable option-list fields until the live bridge schema is documented in detail.
+- No passive comparison for treasure or boss-relic screens yet.
 - The trace must be paired with a deterministic simulator factory that recreates the same combat or run setup.
 
 This is deliberate: the goal is to give parity work a reusable combat golden harness now, without blocking on a full run-state serializer.

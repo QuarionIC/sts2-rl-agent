@@ -13,6 +13,9 @@ Supported bridge message types:
 - `card_select`
 - `map_select`
 - `card_reward`
+- `rest_site`
+- `shop`
+- `event`
 """
 
 from __future__ import annotations
@@ -34,11 +37,17 @@ STATE_TYPE_COMBAT = BridgeStateType.COMBAT_ACTION
 STATE_TYPE_CARD_SELECT = BridgeStateType.CARD_SELECT
 STATE_TYPE_MAP_SELECT = BridgeStateType.MAP_SELECT
 STATE_TYPE_CARD_REWARD = BridgeStateType.CARD_REWARD
+STATE_TYPE_REST_SITE = BridgeStateType.REST_SITE
+STATE_TYPE_SHOP = BridgeStateType.SHOP
+STATE_TYPE_EVENT = BridgeStateType.EVENT
 SUPPORTED_STATE_TYPES = frozenset({
     STATE_TYPE_COMBAT,
     STATE_TYPE_CARD_SELECT,
     STATE_TYPE_MAP_SELECT,
     STATE_TYPE_CARD_REWARD,
+    STATE_TYPE_REST_SITE,
+    STATE_TYPE_SHOP,
+    STATE_TYPE_EVENT,
 })
 
 _CARD_TYPE_NAMES = {
@@ -59,6 +68,10 @@ _TARGET_TYPE_NAMES = {
     TargetType.ANY_ALLY: "AnyAlly",
     TargetType.ALL_ALLIES: "AllAllies",
 }
+
+REST_SITE_REPLAY_ACTIONS = frozenset({"rest_option"})
+SHOP_REPLAY_ACTIONS = frozenset({"leave_shop", "buy_card", "buy_relic", "buy_potion", "remove_card"})
+EVENT_REPLAY_ACTIONS = frozenset({"event_choice"})
 
 
 @dataclass(slots=True)
@@ -241,6 +254,24 @@ def _normalize_enemies(enemies: list[dict[str, Any]] | None) -> list[dict[str, A
     return normalized
 
 
+def _normalize_options(options: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for idx, option in enumerate(options or []):
+        item = {
+            "index": int(option.get("index", idx)),
+            "label": str(option.get("label", "")),
+            "enabled": bool(option.get("enabled", True)),
+        }
+        if option.get("id") is not None:
+            item["id"] = str(option["id"])
+        if option.get("action") is not None:
+            item["action"] = str(option["action"])
+        if option.get("description") is not None:
+            item["description"] = str(option["description"])
+        normalized.append(item)
+    return normalized
+
+
 def normalize_bridge_state(state: dict[str, Any]) -> dict[str, Any]:
     """Normalize a raw bridge message into a stable comparison shape."""
     state_type = state.get("type")
@@ -296,7 +327,33 @@ def normalize_bridge_state(state: dict[str, Any]) -> dict[str, Any]:
             "cards": cards,
             "can_skip": bool(state.get("can_skip", False)),
         }
+    if state_type in {STATE_TYPE_REST_SITE, STATE_TYPE_SHOP, STATE_TYPE_EVENT}:
+        return {
+            "type": state_type,
+            "options": _normalize_options(state.get("options")),
+            "floor": int(state.get("floor", 0)),
+            "act": int(state.get("act", 0)),
+        }
     raise ValueError(f"Unsupported bridge state type for replay comparison: {state_type!r}")
+
+
+def _run_choice_state(run: RunManager, state_type: str, actions: list[dict[str, Any]]) -> dict[str, Any]:
+    return normalize_bridge_state({
+        "type": state_type,
+        "options": [
+            {
+                "index": index,
+                "id": action.get("option_id", action.get("action", "")),
+                "action": action.get("action", ""),
+                "label": action.get("label", action.get("card_id", action.get("relic_id", action.get("potion_id", "")))),
+                "description": action.get("description", ""),
+                "enabled": action.get("enabled", True),
+            }
+            for index, action in enumerate(actions)
+        ],
+        "floor": run.run_state.total_floor,
+        "act": run.run_state.current_act_index + 1,
+    })
 
 
 def combat_state_to_bridge_state(combat: CombatState) -> dict[str, Any]:
@@ -421,6 +478,22 @@ def run_manager_to_bridge_state(run: RunManager) -> dict[str, Any]:
             ],
             "can_skip": any(action.get("action") == BridgeAction.SKIP for action in actions),
         })
+
+    if phase == RunManager.PHASE_REST_SITE:
+        actions = [action for action in run.get_available_actions() if action.get("action") in REST_SITE_REPLAY_ACTIONS]
+        return _run_choice_state(run, STATE_TYPE_REST_SITE, actions)
+
+    if phase == RunManager.PHASE_SHOP:
+        actions = [
+            action
+            for action in run.get_available_actions()
+            if action.get("action") in SHOP_REPLAY_ACTIONS
+        ]
+        return _run_choice_state(run, STATE_TYPE_SHOP, actions)
+
+    if phase == RunManager.PHASE_EVENT:
+        actions = [action for action in run.get_available_actions() if action.get("action") in EVENT_REPLAY_ACTIONS]
+        return _run_choice_state(run, STATE_TYPE_EVENT, actions)
 
     raise ValueError(f"RunManager phase {phase!r} is not supported by the replay harness")
 
@@ -573,6 +646,27 @@ def _apply_run_replay_action(run: RunManager, current_state_type: str, action: d
         if combat is None:
             raise AssertionError("Card-select replay currently requires a live combat state")
         _apply_replay_action(combat, action)
+        return
+
+    if current_state_type in {STATE_TYPE_REST_SITE, STATE_TYPE_SHOP, STATE_TYPE_EVENT}:
+        if action.get("action") != BridgeAction.CHOOSE:
+            raise ValueError(f"Unsupported {current_state_type} action type: {action.get('action')!r}")
+        actions_by_state = {
+            STATE_TYPE_REST_SITE: REST_SITE_REPLAY_ACTIONS,
+            STATE_TYPE_SHOP: SHOP_REPLAY_ACTIONS,
+            STATE_TYPE_EVENT: EVENT_REPLAY_ACTIONS,
+        }
+        selectable_actions = [
+            candidate
+            for candidate in run.get_available_actions()
+            if candidate.get("action") in actions_by_state[current_state_type]
+        ]
+        index = int(action.get("index", -1))
+        if not (0 <= index < len(selectable_actions)):
+            raise AssertionError(
+                f"Invalid {current_state_type} index {index} for {len(selectable_actions)} available options"
+            )
+        run.take_action(selectable_actions[index])
         return
 
     raise ValueError(f"Unsupported replay state type: {current_state_type!r}")
