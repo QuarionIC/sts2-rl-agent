@@ -23,6 +23,14 @@ AE = PotionTargetType.ANY_ENEMY
 ALE = PotionTargetType.ALL_ENEMIES
 AP = PotionTargetType.ANY_PLAYER
 
+BLOOD_POTION_ID = "BloodPotion"
+BLOOD_POTION_HEAL_PERCENT = 20
+ENTROPIC_BREW_ID = "EntropicBrew"
+FOUL_POTION_ID = "FoulPotion"
+FOUL_POTION_GOLD = 100
+FRUIT_JUICE_ID = "FruitJuice"
+FRUIT_JUICE_MAX_HP = 5
+
 
 def _r(
     pid: str,
@@ -49,7 +57,7 @@ def _r(
 # ── Common (20) ───────────────────────────────────────────────────────
 _r("AttackPotion",        C,  CO, S)
 _r("BlockPotion",         C,  CO, AP)
-_r("BloodPotion",         C,  AT, AP, character_pool="Ironclad")
+_r(BLOOD_POTION_ID,       C,  AT, AP, character_pool="Ironclad")
 _r("ColorlessPotion",     C,  CO, S)
 _r("DexterityPotion",     C,  CO, AP)
 _r("EnergyPotion",        C,  CO, AP)
@@ -96,10 +104,10 @@ _r("BottledPotential",    R,  CO, AP)
 _r("CosmicConcoction",    R,  CO, S, character_pool="Regent")
 _r("DistilledChaos",      R,  CO, S)
 _r("DropletOfPrecognition", R, CO, S)
-_r("EntropicBrew",        R,  AT, S)
+_r(ENTROPIC_BREW_ID,      R,  AT, S)
 _r("EssenceOfDarkness",   R,  CO, S, character_pool="Defect")
 _r("FairyInABottle",      R,  AU, S, can_be_generated_in_combat=False)
-_r("FruitJuice",          R,  AT, AP, can_be_generated_in_combat=False)
+_r(FRUIT_JUICE_ID,        R,  AT, AP, can_be_generated_in_combat=False)
 _r("GhostInAJar",         R,  CO, AP, character_pool="Silent")
 _r("GigantificationPotion", R, CO, AP)
 _r("LiquidMemories",      R,  CO, S)
@@ -113,7 +121,7 @@ _r("SneckoOil",           R,  CO, AP)
 _r("SoldiersStew",        R,  CO, AP, character_pool="Ironclad")
 
 # ── Event / Token / Deprecated ────────────────────────────────────────
-_r("FoulPotion",          E,  AT, S)
+_r(FOUL_POTION_ID,        E,  AT, S)
 _r("GlowwaterPotion",     E,  CO, S)
 _r("PotionShapedRock",    T,  CO, AE)
 _r("DeprecatedPotion",    N,  CO, AE)

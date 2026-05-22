@@ -33,6 +33,16 @@ from sts2_env.core.enums import (
 )
 from sts2_env.core.rng import INT_MAX, Rng
 from sts2_env.map.map_point import MapCoord
+from sts2_env.core.constants import PERCENT_DENOMINATOR
+from sts2_env.potions.all import (
+    BLOOD_POTION_HEAL_PERCENT,
+    BLOOD_POTION_ID,
+    ENTROPIC_BREW_ID,
+    FOUL_POTION_GOLD,
+    FOUL_POTION_ID,
+    FRUIT_JUICE_ID,
+    FRUIT_JUICE_MAX_HP,
+)
 from sts2_env.potions.base import PotionInstance, create_potion, roll_random_potion_model
 from sts2_env.encounters.events import get_event_encounter_setup
 from sts2_env.run.events import EventModel, EventOption, EventResult, pick_event
@@ -1045,7 +1055,7 @@ class RunManager:
                 })
 
         for potion in self._run_state.player.held_potions():
-            if potion.potion_id == "FoulPotion":
+            if potion.potion_id == FOUL_POTION_ID:
                 actions.append({
                     "action": "use_potion",
                     "slot_index": potion.slot_index,
@@ -1672,19 +1682,19 @@ class RunManager:
         if potion is None:
             return {"phase": self.phase, "description": "Cannot use potion."}
 
-        if potion.potion_id == "FoulPotion":
+        if potion.potion_id == FOUL_POTION_ID:
             if self._phase != self.PHASE_SHOP:
                 return {"phase": self.phase, "description": "Cannot use potion."}
             player.remove_potion(slot)
-            player.gain_gold(100)
-            return {"phase": self.phase, "description": "Used Foul Potion for 100 gold."}
+            player.gain_gold(FOUL_POTION_GOLD)
+            return {"phase": self.phase, "description": f"Used Foul Potion for {FOUL_POTION_GOLD} gold."}
 
-        if potion.potion_id == "EntropicBrew":
+        if potion.potion_id == ENTROPIC_BREW_ID:
             player.remove_potion(slot)
             filled = player.fill_empty_potion_slots()
             return {"phase": self.phase, "description": f"Filled {filled} potion slot(s)."}
 
-        if potion.potion_id in {"BloodPotion", "FruitJuice"}:
+        if potion.potion_id in {BLOOD_POTION_ID, FRUIT_JUICE_ID}:
             target_player_id = action.get("target_player_id")
             if target_player_id is None:
                 return {"phase": self.phase, "description": "Cannot use potion."}
@@ -1693,11 +1703,11 @@ class RunManager:
             except (KeyError, TypeError, ValueError):
                 return {"phase": self.phase, "description": "Cannot use potion."}
             player.remove_potion(slot)
-            if potion.potion_id == "BloodPotion":
-                healed = target.heal(target.max_hp * 20 // 100)
+            if potion.potion_id == BLOOD_POTION_ID:
+                healed = target.heal(target.max_hp * BLOOD_POTION_HEAL_PERCENT // PERCENT_DENOMINATOR)
                 return {"phase": self.phase, "description": f"Healed {healed} HP."}
-            target.gain_max_hp(5)
-            return {"phase": self.phase, "description": "Gained 5 Max HP."}
+            target.gain_max_hp(FRUIT_JUICE_MAX_HP)
+            return {"phase": self.phase, "description": f"Gained {FRUIT_JUICE_MAX_HP} Max HP."}
 
         return {"phase": self.phase, "description": "Cannot use potion."}
 

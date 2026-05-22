@@ -15,7 +15,16 @@ from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import (
     CardRarity, CardType, OrbType, PowerId, ValueProp, PotionTargetType, CardId,
 )
+from sts2_env.core.constants import PERCENT_DENOMINATOR
 from sts2_env.core.damage import calculate_damage, apply_damage
+from sts2_env.potions.all import (
+    BLOOD_POTION_HEAL_PERCENT,
+    BLOOD_POTION_ID,
+    ENTROPIC_BREW_ID,
+    FOUL_POTION_ID,
+    FRUIT_JUICE_ID,
+    FRUIT_JUICE_MAX_HP,
+)
 from sts2_env.potions.base import register_potion_effect
 
 if TYPE_CHECKING:
@@ -124,7 +133,7 @@ def _block_potion(combat: CombatState, user: Creature, target: Creature | None) 
 def _blood_potion(combat: CombatState, user: Creature, target: Creature | None) -> None:
     """Heal target for 20% of max HP."""
     t = target if target is not None else user
-    amount = t.max_hp * 20 // 100
+    amount = t.max_hp * BLOOD_POTION_HEAL_PERCENT // PERCENT_DENOMINATOR
     t.heal(amount)
 
 
@@ -604,7 +613,7 @@ def _fairy_in_a_bottle(combat: CombatState, user: Creature, target: Creature | N
 def _fruit_juice(combat: CombatState, user: Creature, target: Creature | None) -> None:
     """Target gains 5 max HP."""
     t = target if target is not None else user
-    combat.gain_max_hp(t, 5)
+    combat.gain_max_hp(t, FRUIT_JUICE_MAX_HP)
 
 
 def _ghost_in_a_jar(combat: CombatState, user: Creature, target: Creature | None) -> None:
@@ -780,7 +789,7 @@ _ALL_EFFECTS: dict[str, object] = {
     # Common (20)
     "AttackPotion":        _attack_potion,
     "BlockPotion":         _block_potion,
-    "BloodPotion":         _blood_potion,
+    BLOOD_POTION_ID:       _blood_potion,
     "ColorlessPotion":     _colorless_potion,
     "DexterityPotion":     _dexterity_potion,
     "EnergyPotion":        _energy_potion,
@@ -825,10 +834,10 @@ _ALL_EFFECTS: dict[str, object] = {
     "CosmicConcoction":    _cosmic_concoction,
     "DistilledChaos":      _distilled_chaos,
     "DropletOfPrecognition": _droplet_of_precognition,
-    "EntropicBrew":        _entropic_brew,
+    ENTROPIC_BREW_ID:      _entropic_brew,
     "EssenceOfDarkness":   _essence_of_darkness,
     "FairyInABottle":      _fairy_in_a_bottle,
-    "FruitJuice":          _fruit_juice,
+    FRUIT_JUICE_ID:        _fruit_juice,
     "GhostInAJar":         _ghost_in_a_jar,
     "GigantificationPotion": _gigantification_potion,
     "LiquidMemories":      _liquid_memories,
@@ -841,7 +850,7 @@ _ALL_EFFECTS: dict[str, object] = {
     "SneckoOil":           _snecko_oil,
     "SoldiersStew":        _soldiers_stew,
     # Event / Token (3)
-    "FoulPotion":          _foul_potion,
+    FOUL_POTION_ID:        _foul_potion,
     "GlowwaterPotion":     _glowwater_potion,
     "PotionShapedRock":    _potion_shaped_rock,
 }
