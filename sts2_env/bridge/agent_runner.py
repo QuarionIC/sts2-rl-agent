@@ -25,7 +25,7 @@ from typing import Any
 import numpy as np
 
 from sts2_env.bridge.client import STS2GameClient
-from sts2_env.bridge.protocol import BridgeStateType, Phase
+from sts2_env.bridge.protocol import ActionType, BridgeStateType, MSG_TYPE_GAME_STATE, Phase
 from sts2_env.bridge.state_adapter import StateAdapter
 from sts2_env.parity.bridge_replay import BridgeReplayRecorder
 
@@ -124,7 +124,7 @@ def run_agent(
                 msg_type = state.get("type", "")
                 phase = {
                     BridgeStateType.COMBAT_ACTION: Phase.COMBAT_PLAY,
-                    "game_state": state.get("phase", Phase.UNKNOWN),
+                    MSG_TYPE_GAME_STATE: state.get("phase", Phase.UNKNOWN),
                     BridgeStateType.MAP_SELECT: Phase.MAP_SELECT,
                     BridgeStateType.CARD_REWARD: Phase.CARD_REWARD,
                     BridgeStateType.CARD_SELECT: Phase.CARD_REWARD,
@@ -175,7 +175,7 @@ def run_agent(
                     if verbose:
                         _log_combat_action(state, action_int, decoded)
 
-                    if decoded["type"] == "END_TURN":
+                    if decoded["type"] == ActionType.END_TURN:
                         client.end_turn()
                     elif decoded.get("out_of_hand"):
                         client.use_potion(
