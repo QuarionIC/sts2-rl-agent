@@ -41,6 +41,8 @@ from sts2_env.cards.reference_static_metadata import (
 
 CardFactory = Callable[..., CardInstance]
 GenerationContext = Literal["combat", "modifier"]
+REFERENCE_TOKEN_RARITY_TEXT = "TOKEN"
+REFERENCE_X_COST_TEXT = "X"
 
 _CARD_MODULES = (
     "sts2_env.cards.ironclad_basic",
@@ -272,7 +274,7 @@ def _static_metadata_override(card_id: CardId):
 
 def _coerce_reference_rarity(rarity_name: str) -> CardRarity:
     normalized = rarity_name.upper()
-    if normalized == "TOKEN":
+    if normalized == REFERENCE_TOKEN_RARITY_TEXT:
         return CardRarity.STATUS
     return CardRarity[normalized]
 
@@ -344,7 +346,7 @@ def _build_reference_card(
     if star_cost_match is not None:
         star_cost = int(star_cost_match.group(1))
 
-    has_energy_cost_x = cost_text == "X"
+    has_energy_cost_x = cost_text == REFERENCE_X_COST_TEXT
     if static_metadata is not None:
         cost = static_metadata.cost
         has_energy_cost_x = static_metadata.has_energy_cost_x
