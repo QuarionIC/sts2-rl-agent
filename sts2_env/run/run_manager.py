@@ -1174,6 +1174,7 @@ class RunManager:
                 "action": "event_choice",
                 "option_id": opt.option_id,
                 "label": opt.label,
+                "description": opt.description,
                 "enabled": opt.enabled,
             }
             for opt in self._event_options

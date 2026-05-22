@@ -15,7 +15,9 @@ import sts2_env.potions.effects  # noqa: F401
 from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import PotionTargetType, TargetType
 from sts2_env.core.rng import INT_MAX
+from sts2_env.run.reward_objects import CardBundlesReward, CardReward, PotionReward, RelicReward
 from sts2_env.run.run_manager import RunManager, SUPPORTED_CHARACTER_IDS
+from sts2_env.run.shop import is_shop_entry_available
 
 
 HEADER_WIDTH = 72
@@ -224,6 +226,101 @@ def display_combat(combat: CombatState) -> None:
     )
 
 
+def display_reward(mgr: RunManager) -> None:
+    reward = getattr(mgr, "_current_reward", None)
+    if reward is None:
+        return
+    print("\n  REWARD:")
+    if isinstance(reward, CardReward):
+        print("    Choose a card reward.")
+        for i, card in enumerate(getattr(mgr, "_offered_cards", [])):
+            print(f"    [{i}] {describe_card(card)}")
+        return
+    if isinstance(reward, CardBundlesReward):
+        print("    Choose a card bundle.")
+        for i, bundle in enumerate(getattr(mgr, "_offered_card_bundles", [])):
+            names = ", ".join(describe_card(card) for card in bundle)
+            print(f"    [{i}] {names}")
+        return
+    if isinstance(reward, PotionReward):
+        potion = getattr(mgr, "_offered_potion", None)
+        name = potion.potion_id if potion is not None else reward.potion_id
+        print(f"    Potion: {display_name(name)}")
+        return
+    if isinstance(reward, RelicReward):
+        print(f"    Relic: {display_name(reward.relic_id)}")
+
+
+def display_boss_relics(mgr: RunManager) -> None:
+    relics = getattr(mgr, "_boss_relics", [])
+    if not relics:
+        return
+    print("\n  BOSS RELICS:")
+    for i, relic_id in enumerate(relics):
+        print(f"    [{i}] {display_name(relic_id)}")
+
+
+def display_shop(mgr: RunManager) -> None:
+    inv = getattr(mgr, "_shop_inventory", None)
+    if inv is None:
+        return
+    print("\n  SHOP:")
+    print("    Cards:")
+    for i, entry in enumerate(inv.cards):
+        sold = " [sold]" if not is_shop_entry_available(entry) else ""
+        card = describe_card(entry.card) if entry.card is not None else display_name(entry.card_id)
+        sale = " sale" if entry.on_sale else ""
+        print(f"    [{i}] {card} - {entry.price}g{sale}{sold}")
+    offset = len(inv.cards)
+    print("    Colorless:")
+    for i, entry in enumerate(inv.colorless_cards):
+        sold = " [sold]" if not is_shop_entry_available(entry) else ""
+        card = describe_card(entry.card) if entry.card is not None else display_name(entry.card_id)
+        sale = " sale" if entry.on_sale else ""
+        print(f"    [{offset + i}] {card} - {entry.price}g{sale}{sold}")
+    print("    Relics:")
+    for i, entry in enumerate(inv.relics):
+        sold = " [sold]" if not is_shop_entry_available(entry) else ""
+        print(f"    [{i}] {display_name(entry.relic_id)} - {entry.price}g [{entry.relic_rarity.name}]{sold}")
+    print("    Potions:")
+    for i, entry in enumerate(inv.potions):
+        sold = " [sold]" if not is_shop_entry_available(entry) else ""
+        print(f"    [{i}] {display_name(entry.potion_id)} - {entry.price}g [{entry.potion_rarity.name}]{sold}")
+    removal_status = "used" if inv.removal_used else f"{inv.removal_cost}g"
+    print(f"    Remove card: {removal_status}")
+
+
+def display_rest_site(mgr: RunManager) -> None:
+    options = getattr(mgr, "_rest_options", [])
+    if not options:
+        return
+    print("\n  REST SITE:")
+    for option in options:
+        status = "" if option.enabled else " [disabled]"
+        description = f" - {option.description}" if option.description else ""
+        print(f"    {option.label}{description}{status}")
+
+
+def display_event(mgr: RunManager) -> None:
+    event = getattr(mgr, "_event_model", None)
+    if event is None:
+        return
+    print(f"\n  EVENT: {display_name(event.event_id or event.__class__.__name__)}")
+    for option in getattr(mgr, "_event_options", []):
+        description = f" - {option.description}" if option.description else ""
+        status = "" if option.enabled else " [disabled]"
+        print(f"    {option.label}{description}{status}")
+
+
+def display_treasure(mgr: RunManager) -> None:
+    reward = getattr(mgr, "_current_reward", None)
+    print("\n  TREASURE:")
+    if isinstance(reward, RelicReward):
+        print(f"    Chest contains {display_name(reward.relic_id)}.")
+    else:
+        print("    Open the chest.")
+
+
 def display_pending_choices(mgr: RunManager) -> None:
     choice = mgr.run_state.pending_choice
     if choice is None:
@@ -279,6 +376,18 @@ def display_state(mgr: RunManager, actions: list[dict[str, Any]]) -> None:
         display_combat(combat)
     elif mgr.phase == RunManager.PHASE_MAP_CHOICE:
         display_map(mgr, actions)
+    elif mgr.phase == RunManager.PHASE_CARD_REWARD:
+        display_reward(mgr)
+    elif mgr.phase == RunManager.PHASE_BOSS_RELIC:
+        display_boss_relics(mgr)
+    elif mgr.phase == RunManager.PHASE_SHOP:
+        display_shop(mgr)
+    elif mgr.phase == RunManager.PHASE_REST_SITE:
+        display_rest_site(mgr)
+    elif mgr.phase == RunManager.PHASE_EVENT:
+        display_event(mgr)
+    elif mgr.phase == RunManager.PHASE_TREASURE:
+        display_treasure(mgr)
     display_pending_choices(mgr)
     display_actions(actions)
 
