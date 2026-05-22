@@ -168,7 +168,7 @@ def serialize_run(
 
 def _screen(mgr: RunManager, actions: list[dict[str, Any]], combat: CombatState | None) -> dict:
     if combat is not None:
-        return _combat_screen(combat)
+        return _combat_screen(combat, actions)
     phase = mgr.phase
     if phase == RunManager.PHASE_MAP_CHOICE:
         return _map_screen(mgr, actions)
@@ -197,8 +197,9 @@ def _screen(mgr: RunManager, actions: list[dict[str, Any]], combat: CombatState 
     return {"type": "message", "title": PHASE_LABELS.get(phase, phase), "items": []}
 
 
-def _combat_screen(combat: CombatState) -> dict:
+def _combat_screen(combat: CombatState, actions: list[dict[str, Any]]) -> dict:
     player = combat.primary_player
+    end_turn_action_index = _find_action_index(actions, action="end_turn")
     enemies = []
     for index, enemy in enumerate(combat.enemies):
         ai = combat.enemy_ais.get(enemy.combat_id)
@@ -216,6 +217,7 @@ def _combat_screen(combat: CombatState) -> dict:
         "title": "Combat",
         "round": combat.round_number,
         "energy": combat.energy,
+        "end_turn_action_index": end_turn_action_index,
         "player": {
             "hp": f"{player.current_hp}/{player.max_hp}",
             "block": player.block,
@@ -228,6 +230,7 @@ def _combat_screen(combat: CombatState) -> dict:
                 "name": describe_card(card),
                 "playable": combat.can_play_card(card),
                 "targeted": card.target_type_for(player) in {TargetType.ANY_ENEMY, TargetType.ANY_ALLY},
+                "actions": _combat_card_actions(actions, index),
             }
             for index, card in enumerate(combat.hand)
         ],
@@ -236,6 +239,7 @@ def _combat_screen(combat: CombatState) -> dict:
                 "index": index,
                 "name": display_name(potion.potion_id),
                 "targeted": potion.target_type == PotionTargetType.ANY_ENEMY,
+                "actions": _combat_potion_actions(actions, index),
             }
             for index, potion in enumerate(combat.potions)
             if potion is not None
@@ -246,6 +250,32 @@ def _combat_screen(combat: CombatState) -> dict:
             "exhaust": len(combat.exhaust_pile),
         },
     }
+
+
+def _combat_card_actions(actions: list[dict[str, Any]], hand_index: int) -> list[dict[str, Any]]:
+    card_actions = []
+    for index, action in enumerate(actions):
+        if action.get("action") != "play_card" or action.get("hand_index") != hand_index:
+            continue
+        target_name = action.get("target_name")
+        card_actions.append({
+            "action_index": index,
+            "target": display_name(target_name) if target_name else "Play",
+        })
+    return card_actions
+
+
+def _combat_potion_actions(actions: list[dict[str, Any]], slot_index: int) -> list[dict[str, Any]]:
+    potion_actions = []
+    for index, action in enumerate(actions):
+        if action.get("action") != "use_potion" or action.get("slot_index") != slot_index:
+            continue
+        target_name = action.get("target_name")
+        potion_actions.append({
+            "action_index": index,
+            "target": display_name(target_name) if target_name else "Use",
+        })
+    return potion_actions
 
 
 def _map_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:

@@ -85,4 +85,6 @@ def test_web_state_serializes_combat_for_browser_display() -> None:
     assert state["screen"]["type"] == "combat"
     assert state["screen"]["enemies"]
     assert "intent" in state["screen"]["enemies"][0]
+    assert state["screen"]["end_turn_action_index"] == 0
+    assert any(card["actions"] for card in state["screen"]["hand"])
     assert any(action["kind"] == "play_card" for action in state["actions"])

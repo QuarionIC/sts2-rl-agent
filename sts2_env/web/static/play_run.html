@@ -338,12 +338,15 @@
       const hand = screen.hand.map((card) => `
         <div class="card-row">
           <span>${card.playable ? "●" : "○"} [${card.index}] ${escapeHtml(card.name)}</span>
-          <span class="muted">${card.targeted ? "target" : ""}</span>
+          <span>${card.actions.map((action) => `<button data-action="${action.action_index}">${escapeHtml(action.target)}</button>`).join(" ") || `<span class="muted">${card.targeted ? "target" : ""}</span>`}</span>
         </div>
       `).join("");
+      const endTurn = screen.end_turn_action_index === null || screen.end_turn_action_index === undefined
+        ? ""
+        : `<button data-action="${screen.end_turn_action_index}">End turn</button>`;
       return `
         <div class="combat-grid">
-          <div class="section"><h3>Player</h3><div>HP ${escapeHtml(screen.player.hp)} · Block ${escapeHtml(screen.player.block)} · Energy ${escapeHtml(screen.energy)}</div></div>
+          <div class="section"><h3>Player</h3><div>HP ${escapeHtml(screen.player.hp)} · Block ${escapeHtml(screen.player.block)} · Energy ${escapeHtml(screen.energy)}</div>${endTurn}</div>
           <div class="section"><h3>Enemies</h3><div class="items">${enemies}</div></div>
           <div class="section"><h3>Hand</h3><div class="hand">${hand}</div></div>
           <div class="section"><h3>Piles</h3><div>Draw ${screen.piles.draw} · Discard ${screen.piles.discard} · Exhaust ${screen.piles.exhaust}</div></div>
