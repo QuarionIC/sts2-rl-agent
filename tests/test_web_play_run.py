@@ -111,6 +111,26 @@ def test_web_state_serializes_combat_potion_actions() -> None:
     assert any(action["kind"] == "use_potion" for action in state["actions"])
 
 
+def test_web_state_serializes_pending_card_choice() -> None:
+    mgr = RunManager(seed=75, character_id="Ironclad")
+    mgr._enter_rest_site()
+    result = mgr._do_rest_site({"option_id": "SMITH"})
+    actions = mgr.get_available_actions()
+
+    state = serialize_run(
+        mgr,
+        actions,
+        seed=75,
+        character="Ironclad",
+        ascension=0,
+        last_description=result["description"],
+    )
+
+    assert state["screen"]["type"] == "choice"
+    assert state["screen"]["items"]
+    assert all(item["action_index"] is not None for item in state["screen"]["items"])
+
+
 def test_web_session_can_reach_first_combat_reward() -> None:
     session = RunSession()
 

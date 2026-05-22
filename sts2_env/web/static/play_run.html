@@ -319,6 +319,7 @@
       if (screen.type === "combat") return renderCombat(screen);
       if (screen.type === "map") return renderMap(screen);
       if (screen.type === "shop") return renderShop(screen);
+      if (screen.type === "choice") return renderItems(screen.items, "items");
       if (screen.type === "rest") return renderItems(screen.items, "items");
       if (screen.type === "event") return renderItems(screen.items, "items");
       if (screen.type === "reward" || screen.type === "boss_relic" || screen.type === "treasure") {

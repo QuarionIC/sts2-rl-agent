@@ -25,6 +25,7 @@ from sts2_env.cli.play_run import (
     describe_card,
     describe_enemy_intents,
     display_name,
+    display_text,
 )
 from sts2_env.core.combat import CombatState
 from sts2_env.core.enums import PotionTargetType, TargetType
@@ -167,6 +168,8 @@ def serialize_run(
 
 
 def _screen(mgr: RunManager, actions: list[dict[str, Any]], combat: CombatState | None) -> dict:
+    if any(action.get("action") in {"choose", "confirm_choice"} for action in actions):
+        return _choice_screen(actions)
     if combat is not None:
         return _combat_screen(combat, actions)
     phase = mgr.phase
@@ -195,6 +198,36 @@ def _screen(mgr: RunManager, actions: list[dict[str, Any]], combat: CombatState 
     if phase == RunManager.PHASE_TREASURE:
         return _treasure_screen(mgr, actions)
     return {"type": "message", "title": PHASE_LABELS.get(phase, phase), "items": []}
+
+
+def _choice_screen(actions: list[dict[str, Any]]) -> dict:
+    prompt = next(
+        (action.get("prompt") for action in actions if action.get("prompt")),
+        "Choose",
+    )
+    items = []
+    for index, action in enumerate(actions):
+        action_type = action.get("action")
+        if action_type == "confirm_choice":
+            selected_count = action.get("selected_count", 0)
+            items.append({
+                "name": "Confirm" if selected_count else "Skip",
+                "description": f"{selected_count} selected",
+                "selected": False,
+                "action_index": index,
+            })
+        elif action_type == "choose":
+            items.append({
+                "name": display_name(action.get("card_id", action.get("index"))),
+                "description": action.get("source_pile", ""),
+                "selected": bool(action.get("selected")),
+                "action_index": index,
+            })
+    return {
+        "type": "choice",
+        "title": display_text(str(prompt)),
+        "items": items,
+    }
 
 
 def _combat_screen(combat: CombatState, actions: list[dict[str, Any]]) -> dict:
