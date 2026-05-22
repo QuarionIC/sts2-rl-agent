@@ -89,7 +89,7 @@ public class RlAutoSlayer
 
         _screenHandlers = new Dictionary<Type, IScreenHandler>
         {
-            [typeof(NRewardsScreen)] = new RewardsScreenHandler(),
+            [typeof(NRewardsScreen)] = new RlRewardsScreenHandler(),
             [typeof(NCardRewardSelectionScreen)] = new RlCardRewardScreenHandler(),
             [typeof(NDeckUpgradeSelectScreen)] = new DeckUpgradeScreenHandler(),
             [typeof(NDeckTransformSelectScreen)] = new DeckTransformScreenHandler(),

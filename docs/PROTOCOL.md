@@ -204,6 +204,7 @@ These state types use a shared option-list shape and expect a `choose` response:
 - `event`
 - `treasure`
 - `boss_relic`
+- `reward_screen`
 
 Example:
 
@@ -220,6 +221,7 @@ Example:
 ```
 
 For `treasure`, the option action is `collect`. For `boss_relic`, the option action is `pick_relic`.
+For `reward_screen`, reward options use `pick_reward`, and the exit option uses `proceed`.
 
 ### game_over
 

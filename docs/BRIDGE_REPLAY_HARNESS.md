@@ -19,6 +19,7 @@ Supported bridge message types:
 - `combat_action`
 - `card_select`
 - `map_select`
+- `reward_screen`
 - `card_reward`
 - `rest_site`
 - `shop`
@@ -28,10 +29,10 @@ Supported bridge message types:
 - `game_over`
 - `run_complete`
 
-The C# bridge mod now routes ordinary rest-site, shop, event, treasure, and
-boss-relic choices through these same state types instead of using AutoSlay's
-random room handlers. Those live messages can be recorded by the replay
-recorder.
+The C# bridge mod now routes ordinary reward-screen, rest-site, shop, event,
+treasure, and boss-relic choices through these same state types instead of using
+AutoSlay's random room handlers. Those live messages can be recorded by the
+replay recorder.
 
 It still does not compare full-run traces end to end.
 
@@ -107,6 +108,7 @@ The recorder only persists states relevant to the comparator:
 - `combat_action`
 - `card_select`
 - `map_select`
+- `reward_screen`
 - `card_reward`
 - `rest_site`
 - `shop`
@@ -211,7 +213,7 @@ For `rest_site`, it checks:
 - floor
 - act
 
-For `shop`, `event`, `treasure`, and `boss_relic`, it checks:
+For `reward_screen`, `shop`, `event`, `treasure`, and `boss_relic`, it checks:
 
 - option order
 - stable action / enabled status
@@ -222,7 +224,7 @@ For `shop`, `event`, `treasure`, and `boss_relic`, it checks:
 
 - No full-run replay comparison yet.
 - Run comparison currently targets actionable slices and can record terminal `game_over` / `run_complete` states, but it is not complete run lifecycle proof.
-- Shop, event, treasure, and boss-relic comparison intentionally ignores localized labels and simulator-only option ids; live C# labels and Python internal ids do not always use the same naming scheme.
+- Reward-screen, shop, event, treasure, and boss-relic comparison intentionally ignores localized labels and simulator-only option ids; live C# labels and Python internal ids do not always use the same naming scheme.
 - Event-triggered combat now routes through the same bridge combat handler as ordinary combat, but it still needs live-game smoke testing.
 - C# bridge handler compilation and live-game smoke testing still require a local `dotnet`/STS2 mod build environment.
 - The trace must be paired with a deterministic simulator factory that recreates the same combat or run setup.

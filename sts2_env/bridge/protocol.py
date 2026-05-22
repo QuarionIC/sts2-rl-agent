@@ -34,6 +34,7 @@ class BridgeStateType:
     COMBAT_ACTION = "combat_action"
     CARD_SELECT = "card_select"
     MAP_SELECT = "map_select"
+    REWARD_SCREEN = "reward_screen"
     CARD_REWARD = "card_reward"
     REST_SITE = "rest_site"
     SHOP = "shop"

@@ -22,6 +22,7 @@ from sts2_env.parity.bridge_replay import (
     compare_combat_replay,
     compare_run_replay,
     load_replay_trace,
+    normalize_bridge_state,
     run_manager_to_bridge_state,
     save_replay_trace,
 )
@@ -218,6 +219,87 @@ def test_bridge_replay_recorder_records_terminal_run_state():
 
     assert recorder.trace.steps[0].action == {"action": BridgeAction.CHOOSE, "index": 0}
     assert recorder.trace.steps[0].resulting_state == terminal
+
+
+def test_bridge_replay_recorder_normalizes_reward_screen_options():
+    initial = {
+        "type": BridgeStateType.REWARD_SCREEN,
+        "options": [
+            {
+                "index": 0,
+                "id": "gold:25",
+                "action": "pick_reward",
+                "label": "gold:25",
+                "description": "25 Gold",
+                "enabled": True,
+            },
+            {
+                "index": 1,
+                "id": "proceed",
+                "action": "proceed",
+                "label": "proceed",
+                "enabled": True,
+            },
+        ],
+        "floor": 1,
+        "act": 1,
+    }
+    after_pick = {
+        "type": BridgeStateType.REWARD_SCREEN,
+        "options": [
+            {
+                "index": 0,
+                "id": "proceed",
+                "action": "proceed",
+                "label": "proceed",
+                "enabled": True,
+            }
+        ],
+        "floor": 1,
+        "act": 1,
+    }
+    client = FakeBridgeClient([initial, after_pick])
+    recorder = BridgeReplayRecorder(client)
+
+    assert recorder.receive_state() == initial
+    recorder.choose(0)
+    assert recorder.receive_state() == after_pick
+
+    assert recorder.trace.initial_state == {
+        "type": BridgeStateType.REWARD_SCREEN,
+        "options": [
+            {"index": 0, "action": "pick_reward", "enabled": True},
+            {"index": 1, "action": "proceed", "enabled": True},
+        ],
+        "floor": 1,
+        "act": 1,
+    }
+    assert recorder.trace.steps[0].action == {"action": BridgeAction.CHOOSE, "index": 0}
+    assert recorder.trace.steps[0].resulting_state["options"] == [
+        {"index": 0, "action": "proceed", "enabled": True}
+    ]
+
+
+def test_normalize_bridge_state_supports_reward_screen():
+    state = normalize_bridge_state({
+        "type": BridgeStateType.REWARD_SCREEN,
+        "options": [
+            {"action": "pick_reward", "enabled": True},
+            {"action": "proceed", "enabled": False},
+        ],
+        "floor": 2,
+        "act": 1,
+    })
+
+    assert state == {
+        "type": BridgeStateType.REWARD_SCREEN,
+        "options": [
+            {"index": 0, "action": "pick_reward", "enabled": True},
+            {"index": 1, "action": "proceed", "enabled": False},
+        ],
+        "floor": 2,
+        "act": 1,
+    }
 
 
 def test_bridge_replay_recorder_delegates_unknown_attributes():

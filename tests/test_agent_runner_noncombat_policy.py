@@ -7,6 +7,7 @@ from sts2_env.bridge.agent_runner import (
     _pick_card_reward_index,
     _pick_card_select_indexes,
     _pick_map_node,
+    _pick_reward_screen_option,
     _pick_rest_option,
     _pick_shop_option,
     _pick_treasure_option,
@@ -71,6 +72,17 @@ def test_card_select_policy_uses_required_card_count() -> None:
     }
 
     assert _pick_card_select_indexes(state) == [3, 5]
+
+
+def test_reward_screen_policy_picks_rewards_before_proceeding() -> None:
+    state = {
+        "options": [
+            {"index": 0, "action": "proceed", "enabled": True},
+            {"index": 1, "action": "pick_reward", "enabled": True},
+        ],
+    }
+
+    assert _pick_reward_screen_option(state) == 1
 
 
 def test_rest_policy_uses_option_ids_not_order() -> None:

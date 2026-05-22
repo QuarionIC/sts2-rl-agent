@@ -73,6 +73,8 @@ SHOP_PURCHASE_ACTION_PRIORITY = (
     "buy_item",
 )
 SHOP_LEAVE_ACTION = "leave_shop"
+REWARD_PROCEED_ACTION = "proceed"
+REWARD_PICK_ACTION = "pick_reward"
 REST_HEAL_OPTION_ID = "heal"
 REST_SMITH_OPTION_ID = "smith"
 TREASURE_COLLECT_ACTION = "collect"
@@ -239,7 +241,11 @@ def run_agent(
                         else:
                             client.choose_many(indexes)
                     else:
-                        choice = _pick_card_reward_index(state)
+                        choice = (
+                            _pick_reward_screen_option(state)
+                            if msg_type == BridgeStateType.REWARD_SCREEN
+                            else _pick_card_reward_index(state)
+                        )
                         if verbose:
                             logger.info("CARD_REWARD: choosing option %s", choice)
                         _send_choice_or_skip(client, choice)
@@ -301,6 +307,7 @@ def _phase_for_state(state: dict[str, Any]) -> str:
         BridgeStateType.COMBAT_ACTION: Phase.COMBAT_PLAY,
         MSG_TYPE_GAME_STATE: state.get("phase", Phase.UNKNOWN),
         BridgeStateType.MAP_SELECT: Phase.MAP_SELECT,
+        BridgeStateType.REWARD_SCREEN: Phase.CARD_REWARD,
         BridgeStateType.CARD_REWARD: Phase.CARD_REWARD,
         BridgeStateType.CARD_SELECT: Phase.CARD_REWARD,
         BridgeStateType.REST_SITE: Phase.REST,
@@ -357,6 +364,17 @@ def _pick_card_reward_index(state: dict[str, Any]) -> int | None:
             if _canonical_text(card.get("type")) == card_type:
                 return _read_index(card, fallback_index)
     return _read_index(cards[0], DEFAULT_CHOICE_INDEX)
+
+
+def _pick_reward_screen_option(state: dict[str, Any]) -> int:
+    options = _enabled_options(state)
+    if not options:
+        return DEFAULT_CHOICE_INDEX
+    option = _first_matching_option(options, actions=(REWARD_PICK_ACTION,))
+    if option is not None:
+        return _read_index(option, DEFAULT_CHOICE_INDEX)
+    option = _first_matching_option(options, actions=(REWARD_PROCEED_ACTION,)) or options[0]
+    return _read_index(option, DEFAULT_CHOICE_INDEX)
 
 
 def _pick_rest_option(state: dict[str, Any]) -> int:
