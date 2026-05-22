@@ -21,6 +21,7 @@ from sts2_env.run.rewards import (
     generate_combat_reward_cards,
     generate_uniform_noncombat_cards,
 )
+from sts2_env.run.rest_site import SmithOption
 
 
 PANDORAS_BOX_RELIC_ID = "PANDORAS_BOX"
@@ -458,7 +459,7 @@ class MidasModifier(ModifierModel):
         return modified
 
     def modify_rest_site_options(self, player, options, run_state):
-        return [option for option in options if option.option_id != "SMITH"]
+        return [option for option in options if option.option_id != SmithOption.OPTION_ID]
 
 
 class NightTerrorsModifier(ModifierModel):

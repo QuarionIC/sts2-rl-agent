@@ -69,8 +69,10 @@ def execute_rest_site_heal(player: PlayerState, *, is_mimicked: bool = False) ->
 class HealOption(RestSiteOption):
     """Heal floor(maxHp * 0.3) HP."""
 
+    OPTION_ID = "HEAL"
+
     def __init__(self) -> None:
-        super().__init__(option_id="HEAL", label="Rest", description="Heal 30% of max HP")
+        super().__init__(option_id=self.OPTION_ID, label="Rest", description="Heal 30% of max HP")
 
     def execute(self, player: PlayerState, **kwargs: Any) -> str:
         healed = execute_rest_site_heal(player)
@@ -80,9 +82,11 @@ class HealOption(RestSiteOption):
 class SmithOption(RestSiteOption):
     """Upgrade 1 card from deck."""
 
+    OPTION_ID = "SMITH"
+
     def __init__(self, has_upgradable: bool = True) -> None:
         super().__init__(
-            option_id="SMITH",
+            option_id=self.OPTION_ID,
             label="Smith",
             description="Upgrade a card",
             enabled=has_upgradable,
@@ -112,8 +116,10 @@ class SmithOption(RestSiteOption):
 class DigOption(RestSiteOption):
     """Obtain a relic (requires Shovel relic)."""
 
+    OPTION_ID = "DIG"
+
     def __init__(self) -> None:
-        super().__init__(option_id="DIG", label="Dig", description="Obtain a random relic")
+        super().__init__(option_id=self.OPTION_ID, label="Dig", description="Obtain a random relic")
 
     def execute(self, player: PlayerState, **kwargs: Any) -> str:
         player.offer_relic_rewards(1)
@@ -123,11 +129,12 @@ class DigOption(RestSiteOption):
 class LiftOption(RestSiteOption):
     """Increment Girya counter. Max 3 lifts -> +1 Strength each."""
 
+    OPTION_ID = "LIFT"
     MAX_LIFTS = 3
 
     def __init__(self, lifts_done: int = 0) -> None:
         super().__init__(
-            option_id="LIFT",
+            option_id=self.OPTION_ID,
             label="Lift",
             description="Exercise with Girya",
             enabled=lifts_done < self.MAX_LIFTS,
@@ -149,12 +156,13 @@ class LiftOption(RestSiteOption):
 class CookOption(RestSiteOption):
     """Remove 2 cards, gain +9 Max HP."""
 
+    OPTION_ID = "COOK"
     CARD_COUNT = 2
     MAX_HP = 9
 
     def __init__(self, has_enough_removable: bool = True) -> None:
         super().__init__(
-            option_id="COOK",
+            option_id=self.OPTION_ID,
             label="Cook",
             description=f"Remove {self.CARD_COUNT} cards, gain {self.MAX_HP} Max HP",
             enabled=has_enough_removable,
@@ -191,9 +199,11 @@ class CookOption(RestSiteOption):
 class CloneOption(RestSiteOption):
     """Duplicate all cards with Clone enchantment (Pael's Growth relic)."""
 
+    OPTION_ID = "CLONE"
+
     def __init__(self) -> None:
         super().__init__(
-            option_id="CLONE",
+            option_id=self.OPTION_ID,
             label="Clone",
             description="Duplicate all Clone-enchanted cards",
         )
@@ -206,9 +216,11 @@ class CloneOption(RestSiteOption):
 class HatchOption(RestSiteOption):
     """Obtain the Byrdpip relic (from Byrdoni's Nest event pet)."""
 
+    OPTION_ID = "HATCH"
+
     def __init__(self) -> None:
         super().__init__(
-            option_id="HATCH",
+            option_id=self.OPTION_ID,
             label="Hatch",
             description="Hatch the egg",
         )
@@ -221,9 +233,11 @@ class HatchOption(RestSiteOption):
 class MendOption(RestSiteOption):
     """Heal another player (multiplayer only)."""
 
+    OPTION_ID = "MEND"
+
     def __init__(self) -> None:
         super().__init__(
-            option_id="MEND",
+            option_id=self.OPTION_ID,
             label="Mend",
             description="Heal another player for 30% of their max HP",
         )

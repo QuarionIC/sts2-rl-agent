@@ -388,7 +388,7 @@ class Girya(RelicInstance):
 
         if self._times_lifted >= self.MAX_LIFTS:
             return options
-        if not any(getattr(option, "option_id", "") == "LIFT" for option in options):
+        if not any(getattr(option, "option_id", "") == LiftOption.OPTION_ID for option in options):
             options = [*options, LiftOption(self._times_lifted)]
         return options
 
@@ -930,7 +930,7 @@ class Shovel(RelicInstance):
     def modify_rest_site_options(self, owner: Creature, options: list[object], run_state: RunState) -> list[object]:
         from sts2_env.run.rest_site import DigOption
 
-        if not any(getattr(option, "option_id", "") == "DIG" for option in options):
+        if not any(getattr(option, "option_id", "") == DigOption.OPTION_ID for option in options):
             options = [*options, DigOption()]
         return options
 

@@ -2434,7 +2434,7 @@ class MeatCleaver(RelicInstance):
         from sts2_env.run.rest_site import CookOption
 
         removable_count = len(owner.removable_deck_cards())
-        if not any(getattr(option, "option_id", "") == "COOK" for option in options):
+        if not any(getattr(option, "option_id", "") == CookOption.OPTION_ID for option in options):
             options = [*options, CookOption(has_enough_removable=removable_count >= CookOption.CARD_COUNT)]
         return options
 
@@ -2647,7 +2647,7 @@ class PaelsGrowth(RelicInstance):
     def modify_rest_site_options(self, owner: Creature, options: list[object], run_state: RunState) -> list[object]:
         from sts2_env.run.rest_site import CloneOption
 
-        if not any(getattr(option, "option_id", "") == "CLONE" for option in options):
+        if not any(getattr(option, "option_id", "") == CloneOption.OPTION_ID for option in options):
             options = [*options, CloneOption()]
         return options
 

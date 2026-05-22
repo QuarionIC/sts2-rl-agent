@@ -57,7 +57,7 @@ from sts2_env.run.reward_objects import (
     CARD_REWARD_ALTERNATIVE_LIMIT_MESSAGE,
     MAX_CARD_REWARD_ALTERNATIVES,
 )
-from sts2_env.run.rest_site import RestSiteOption, generate_rest_site_options
+from sts2_env.run.rest_site import MendOption, RestSiteOption, generate_rest_site_options
 from sts2_env.run.rewards import generate_combat_reward_cards
 from sts2_env.run.rooms import CombatRoom, Room, RoomVisitContext, create_room
 from sts2_env.run.run_state import RunState
@@ -1070,7 +1070,7 @@ class RunManager:
         for opt in self._rest_options:
             if not opt.enabled:
                 continue
-            if opt.option_id == "MEND":
+            if opt.option_id == MendOption.OPTION_ID:
                 for target in self._run_state.players:
                     if target is self._run_state.player:
                         continue
