@@ -113,13 +113,13 @@ def describe_action(action: dict[str, Any]) -> str:
         target = action.get("target_name")
         text = f"Play {display_name(action.get('card_id'))} from hand[{action.get('hand_index')}]"
         if target is not None:
-            text += f" -> {target}"
+            text += f" -> {display_name(target)}"
         return text
     if kind == "use_potion":
         target = action.get("target_name")
         text = f"Use {display_name(action.get('potion_id'))} from slot {action.get('slot_index')}"
         if target is not None:
-            text += f" -> {target}"
+            text += f" -> {display_name(target)}"
         return text
     if kind == "end_turn":
         return "End turn"

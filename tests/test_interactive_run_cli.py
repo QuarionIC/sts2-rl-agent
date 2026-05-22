@@ -4,6 +4,7 @@ import sts2_env.events  # noqa: F401
 
 from sts2_env.cli.play_run import (
     describe_card,
+    describe_action,
     describe_intent,
     display_event,
     display_map,
@@ -72,6 +73,12 @@ def test_interactive_cli_uses_player_readable_names() -> None:
     assert display_text("Obtained relic BOOMING_CONCH.") == "Obtained relic Booming Conch."
     assert display_text("BASH(2E 8dmg)") == "Bash(2E 8dmg)"
     assert "STRIKE_IRONCLAD" not in describe_card(card)
+    assert describe_action({
+        "action": "play_card",
+        "card_id": "BASH",
+        "hand_index": 0,
+        "target_name": "LEAF_SLIME_S",
+    }) == "Play Bash from hand[0] -> Leaf Slime S"
 
 
 def test_interactive_cli_describes_enemy_intents(capsys) -> None:
