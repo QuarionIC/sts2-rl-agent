@@ -76,6 +76,7 @@ SHOP_LEAVE_ACTION = "leave_shop"
 REWARD_PROCEED_ACTION = "proceed"
 REWARD_PICK_ACTION = "pick_reward"
 CARD_BUNDLE_PICK_ACTION = "pick_card_bundle"
+CRYSTAL_SPHERE_CELL_ACTION = "divine_cell"
 REST_HEAL_OPTION_ID = "heal"
 REST_SMITH_OPTION_ID = "smith"
 TREASURE_COLLECT_ACTION = "collect"
@@ -269,7 +270,11 @@ def run_agent(
                     client.choose(choice)
 
                 elif phase == Phase.EVENT:
-                    choice = _pick_event_option(state)
+                    choice = (
+                        _pick_crystal_sphere_option(state)
+                        if msg_type == BridgeStateType.CRYSTAL_SPHERE
+                        else _pick_event_option(state)
+                    )
                     if verbose:
                         logger.info("EVENT: choosing option %d", choice)
                     client.choose(choice)
@@ -319,6 +324,7 @@ def _phase_for_state(state: dict[str, Any]) -> str:
         BridgeStateType.CARD_SELECT: Phase.CARD_REWARD,
         BridgeStateType.REST_SITE: Phase.REST,
         BridgeStateType.SHOP: Phase.SHOP,
+        BridgeStateType.CRYSTAL_SPHERE: Phase.EVENT,
         BridgeStateType.EVENT: Phase.EVENT,
         BridgeStateType.TREASURE: Phase.TREASURE,
         BridgeStateType.BOSS_RELIC: Phase.BOSS_RELIC,
@@ -436,6 +442,17 @@ def _pick_event_option(state: dict[str, Any]) -> int:
     if not options:
         return DEFAULT_CHOICE_INDEX
     return _read_index(options[0], DEFAULT_CHOICE_INDEX)
+
+
+def _pick_crystal_sphere_option(state: dict[str, Any]) -> int:
+    options = _enabled_options(state)
+    if not options:
+        return DEFAULT_CHOICE_INDEX
+    option = _first_matching_option(options, actions=(CRYSTAL_SPHERE_CELL_ACTION,))
+    if option is not None:
+        return _read_index(option, DEFAULT_CHOICE_INDEX)
+    option = _first_matching_option(options, actions=(REWARD_PROCEED_ACTION,)) or options[0]
+    return _read_index(option, DEFAULT_CHOICE_INDEX)
 
 
 def _pick_treasure_option(state: dict[str, Any]) -> int:

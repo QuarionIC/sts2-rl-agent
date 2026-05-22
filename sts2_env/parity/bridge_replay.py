@@ -14,6 +14,7 @@ Supported bridge message types:
 - `map_select`
 - `reward_screen`
 - `card_bundle`
+- `crystal_sphere`
 - `card_reward`
 - `rest_site`
 - `shop`
@@ -44,6 +45,7 @@ STATE_TYPE_CARD_SELECT = BridgeStateType.CARD_SELECT
 STATE_TYPE_MAP_SELECT = BridgeStateType.MAP_SELECT
 STATE_TYPE_REWARD_SCREEN = BridgeStateType.REWARD_SCREEN
 STATE_TYPE_CARD_BUNDLE = BridgeStateType.CARD_BUNDLE
+STATE_TYPE_CRYSTAL_SPHERE = BridgeStateType.CRYSTAL_SPHERE
 STATE_TYPE_CARD_REWARD = BridgeStateType.CARD_REWARD
 STATE_TYPE_REST_SITE = BridgeStateType.REST_SITE
 STATE_TYPE_SHOP = BridgeStateType.SHOP
@@ -58,6 +60,7 @@ SUPPORTED_STATE_TYPES = frozenset({
     STATE_TYPE_MAP_SELECT,
     STATE_TYPE_REWARD_SCREEN,
     STATE_TYPE_CARD_BUNDLE,
+    STATE_TYPE_CRYSTAL_SPHERE,
     STATE_TYPE_CARD_REWARD,
     STATE_TYPE_REST_SITE,
     STATE_TYPE_SHOP,
@@ -391,7 +394,14 @@ def normalize_bridge_state(state: dict[str, Any]) -> dict[str, Any]:
             "floor": int(state.get("floor", 0)),
             "act": int(state.get("act", 0)),
         }
-    if state_type in {STATE_TYPE_REWARD_SCREEN, STATE_TYPE_SHOP, STATE_TYPE_EVENT, STATE_TYPE_TREASURE, STATE_TYPE_BOSS_RELIC}:
+    if state_type in {
+        STATE_TYPE_REWARD_SCREEN,
+        STATE_TYPE_CRYSTAL_SPHERE,
+        STATE_TYPE_SHOP,
+        STATE_TYPE_EVENT,
+        STATE_TYPE_TREASURE,
+        STATE_TYPE_BOSS_RELIC,
+    }:
         return {
             "type": state_type,
             "options": _normalize_action_options(state.get("options")),

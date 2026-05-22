@@ -7,6 +7,7 @@ from sts2_env.bridge.agent_runner import (
     _pick_card_bundle_index,
     _pick_card_reward_index,
     _pick_card_select_indexes,
+    _pick_crystal_sphere_option,
     _pick_map_node,
     _pick_reward_screen_option,
     _pick_rest_option,
@@ -95,6 +96,17 @@ def test_card_bundle_policy_picks_enabled_bundle_by_action() -> None:
     }
 
     assert _pick_card_bundle_index(state) == 3
+
+
+def test_crystal_sphere_policy_clicks_cells_before_proceeding() -> None:
+    state = {
+        "options": [
+            {"index": 0, "action": "proceed", "enabled": True},
+            {"index": 7, "action": "divine_cell", "x": 5, "y": 6, "enabled": True},
+        ],
+    }
+
+    assert _pick_crystal_sphere_option(state) == 7
 
 
 def test_rest_policy_uses_option_ids_not_order() -> None:

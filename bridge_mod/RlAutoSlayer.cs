@@ -100,7 +100,7 @@ public class RlAutoSlayer
             [typeof(NChooseABundleSelectionScreen)] = new RlCardBundleScreenHandler(),
             [typeof(NChooseARelicSelection)] = new RlChooseARelicScreenHandler(),
             [typeof(NGameOverScreen)] = new RlGameOverScreenHandler(),
-            [typeof(NCrystalSphereScreen)] = new CrystalSphereScreenHandler(),
+            [typeof(NCrystalSphereScreen)] = new RlCrystalSphereScreenHandler(),
         };
     }
 

@@ -352,6 +352,60 @@ def test_bridge_replay_recorder_normalizes_card_bundle_state():
     assert recorder.trace.steps[0].resulting_state == after_pick
 
 
+def test_bridge_replay_recorder_normalizes_crystal_sphere_options():
+    initial = {
+        "type": BridgeStateType.CRYSTAL_SPHERE,
+        "options": [
+            {
+                "index": 0,
+                "action": "divine_cell",
+                "x": 4,
+                "y": 5,
+                "label": "4,5",
+                "enabled": True,
+            },
+            {
+                "index": 1,
+                "action": "proceed",
+                "enabled": False,
+            },
+        ],
+        "floor": 20,
+        "act": 2,
+    }
+    after_pick = {
+        "type": BridgeStateType.CRYSTAL_SPHERE,
+        "options": [
+            {
+                "index": 0,
+                "action": "proceed",
+                "enabled": True,
+            }
+        ],
+        "floor": 20,
+        "act": 2,
+    }
+    client = FakeBridgeClient([initial, after_pick])
+    recorder = BridgeReplayRecorder(client)
+
+    assert recorder.receive_state() == initial
+    recorder.choose(0)
+    assert recorder.receive_state() == after_pick
+
+    assert recorder.trace.initial_state == {
+        "type": BridgeStateType.CRYSTAL_SPHERE,
+        "options": [
+            {"index": 0, "action": "divine_cell", "enabled": True},
+            {"index": 1, "action": "proceed", "enabled": False},
+        ],
+        "floor": 20,
+        "act": 2,
+    }
+    assert recorder.trace.steps[0].resulting_state["options"] == [
+        {"index": 0, "action": "proceed", "enabled": True}
+    ]
+
+
 def test_bridge_replay_recorder_delegates_unknown_attributes():
     client = FakeBridgeClient([])
     recorder = BridgeReplayRecorder(client)

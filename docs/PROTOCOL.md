@@ -218,6 +218,22 @@ Sent when the player must choose one whole bundle of cards.
 }
 ```
 
+### crystal_sphere
+
+Sent when the Crystal Sphere minigame needs a cell click or final proceed.
+
+```json
+{
+  "type": "crystal_sphere",
+  "options": [
+    {"index": 0, "action": "divine_cell", "x": 4, "y": 5, "enabled": true},
+    {"index": 1, "action": "proceed", "enabled": true}
+  ],
+  "floor": 20,
+  "act": 2
+}
+```
+
 ### choice option states
 
 These state types use a shared option-list shape and expect a `choose` response:
@@ -225,6 +241,7 @@ These state types use a shared option-list shape and expect a `choose` response:
 - `rest_site`
 - `shop`
 - `event`
+- `crystal_sphere`
 - `treasure`
 - `boss_relic`
 - `reward_screen`
@@ -245,6 +262,7 @@ Example:
 
 For `treasure`, the option action is `collect`. For `boss_relic`, the option action is `pick_relic`.
 For `reward_screen`, reward options use `pick_reward`, and the exit option uses `proceed`.
+For `crystal_sphere`, hidden-cell options use `divine_cell`, and the exit option uses `proceed`.
 
 ### game_over
 

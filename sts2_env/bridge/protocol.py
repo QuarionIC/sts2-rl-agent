@@ -36,6 +36,7 @@ class BridgeStateType:
     MAP_SELECT = "map_select"
     REWARD_SCREEN = "reward_screen"
     CARD_BUNDLE = "card_bundle"
+    CRYSTAL_SPHERE = "crystal_sphere"
     CARD_REWARD = "card_reward"
     REST_SITE = "rest_site"
     SHOP = "shop"
