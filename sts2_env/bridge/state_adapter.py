@@ -30,7 +30,7 @@ from sts2_env.core.constants import (
     POTION_ACTION_START,
     POTION_TARGET_OPTIONS,
 )
-from sts2_env.core.enums import CardId
+from sts2_env.core.enums import CardId, PotionUsageType
 from sts2_env.gym_env.observation import (
     CARD_FEATURES,
     ENEMY_FEATURES,
@@ -287,7 +287,7 @@ class StateAdapter:
                 if not potion or not potion.get("can_use", True):
                     continue
                 usage = str(potion.get("usage", "")).upper()
-                if usage == "AUTOMATIC":
+                if usage == PotionUsageType.AUTOMATIC.name:
                     continue
                 slot = int(potion.get("slot", list_index))
                 if slot < 0 or slot >= MAX_POTION_SLOTS:
