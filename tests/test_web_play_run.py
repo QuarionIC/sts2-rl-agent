@@ -109,3 +109,43 @@ def test_web_state_serializes_combat_potion_actions() -> None:
     assert state["screen"]["potions"]
     assert state["screen"]["potions"][0]["actions"]
     assert any(action["kind"] == "use_potion" for action in state["actions"])
+
+
+def test_web_session_can_reach_first_combat_reward() -> None:
+    session = RunSession()
+
+    state = session.start(character="Ironclad", seed=123)
+    assert state["screen"]["title"] == "Neow"
+    state = session.take_action(0)
+    assert state["screen"]["title"] == "Relic Reward"
+    state = session.take_action(0)
+    assert state["screen"]["title"] == "Map"
+    state = session.take_action(0)
+    assert state["screen"]["title"] == "Combat"
+
+    steps = 0
+    while state["phase"] == RunManager.PHASE_COMBAT and steps < 200:
+        play_action = next(
+            (
+                action
+                for action in state["actions"]
+                if action["kind"] == "play_card"
+                and ("Strike" in action["label"] or "Bash" in action["label"])
+            ),
+            None,
+        )
+        if play_action is None:
+            play_action = next(
+                (action for action in state["actions"] if action["kind"] == "play_card"),
+                None,
+            )
+        action_index = (
+            play_action["index"]
+            if play_action is not None
+            else next(action["index"] for action in state["actions"] if action["kind"] == "end_turn")
+        )
+        state = session.take_action(action_index)
+        steps += 1
+
+    assert state["phase"] == RunManager.PHASE_CARD_REWARD
+    assert state["screen"]["title"] == "Card Reward"
