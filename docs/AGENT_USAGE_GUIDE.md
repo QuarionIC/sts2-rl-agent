@@ -188,11 +188,11 @@ python -m sts2_env.bridge.agent_runner \
 
 4. **Watch the game play.** The agent will:
    - Start a new run with a random seed
-   - Navigate the map (using simple heuristics for now)
+   - Navigate the map (prefer elites when healthy, safer nodes when low on HP)
    - Fight combats (using the trained model)
-   - Pick card rewards (heuristic: skip if deck > 30 cards)
+   - Pick card rewards (prefer powers, then attacks, then skills; skip if deck > 30 cards)
    - Use rest sites (heuristic: rest if HP < 50%, otherwise upgrade)
-   - Handle events (heuristic: pick first option)
+   - Handle shops, events, treasure, and boss relics through bridge option lists
 
 5. **Monitor output.** With `--verbose`, the agent logs every action:
    ```
@@ -208,11 +208,12 @@ python -m sts2_env.bridge.agent_runner \
 | Phase | Strategy | Source |
 |-------|----------|--------|
 | Combat | Trained MaskablePPO model | Model prediction |
-| Map navigation | Pick first available node | Heuristic (TODO: train) |
-| Card rewards | Pick first card; skip if deck > 30 | Heuristic (TODO: train) |
+| Map navigation | Prefer elites when healthy; prefer rest/shop/treasure when low on HP | Heuristic (TODO: train) |
+| Card rewards | Prefer powers, then attacks, then skills; skip if deck > 30 | Heuristic (TODO: train) |
 | Rest sites | Rest if HP < 50%, otherwise upgrade | Heuristic (TODO: train) |
-| Shop | Skip | Heuristic (TODO: train) |
-| Events | Pick first option | Heuristic (TODO: train) |
+| Shop | Buy enabled relic/card/potion options before leaving | Heuristic (TODO: train) |
+| Events | Pick the first enabled event option | Heuristic (TODO: train) |
+| Treasure / Boss relics | Pick the bridge option matching collect / pick relic | Heuristic (TODO: train) |
 
 For a fully trained agent, use the full-run model instead of the combat-only model. The full-run model handles all phases via the trained policy.
 

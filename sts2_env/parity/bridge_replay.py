@@ -187,6 +187,12 @@ class BridgeReplayRecorder:
     def choose(self, index: int) -> None:
         self.send_action({"action": BridgeAction.CHOOSE, "index": index})
 
+    def choose_many(self, indexes: list[int]) -> None:
+        self.send_action({"action": BridgeAction.CHOOSE, "indexes": indexes})
+
+    def skip(self) -> None:
+        self.send_action({"action": BridgeAction.SKIP})
+
     def use_potion(self, slot: int, target_index: int = -1) -> None:
         self.send_action({"action": BridgeAction.POTION, "slot": slot, "target_index": target_index})
 
@@ -589,6 +595,15 @@ def _apply_replay_action(combat: CombatState, action: dict[str, Any]) -> None:
         combat.end_player_turn()
         return
     if action_type == BridgeAction.CHOOSE:
+        if "indexes" in action:
+            for index in action["indexes"]:
+                success = combat.resolve_pending_choice(int(index))
+                if not success:
+                    raise AssertionError(f"Simulator failed to apply choose-many action: {action}")
+            success = combat.resolve_pending_choice(None)
+            if not success:
+                raise AssertionError(f"Simulator failed to confirm choose-many action: {action}")
+            return
         success = combat.resolve_pending_choice(int(action["index"]))
         if not success:
             raise AssertionError(f"Simulator failed to apply choose action: {action}")

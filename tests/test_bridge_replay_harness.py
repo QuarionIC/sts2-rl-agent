@@ -179,6 +179,33 @@ def test_bridge_replay_recorder_records_state_action_state_sequence():
     assert recorder.trace.steps[0].resulting_state["player"]["energy"] == 0
 
 
+def test_bridge_replay_recorder_records_skip_and_multi_select_actions():
+    initial = {
+        "type": BridgeStateType.CARD_SELECT,
+        "cards": [{"index": 0, "id": "STRIKE_IRONCLAD"}, {"index": 1, "id": "DEFEND_IRONCLAD"}],
+        "min_select": 0,
+        "max_select": 2,
+    }
+    after_multi = {
+        "type": BridgeStateType.CARD_SELECT,
+        "cards": [{"index": 0, "id": "STRIKE_IRONCLAD"}],
+        "min_select": 0,
+        "max_select": 1,
+    }
+    after_skip = {"type": BridgeStateType.MAP_SELECT, "nodes": [], "floor": 1, "act": 1}
+    client = FakeBridgeClient([initial, after_multi, after_skip])
+    recorder = BridgeReplayRecorder(client)
+
+    assert recorder.receive_state() == initial
+    recorder.choose_many([0, 1])
+    assert recorder.receive_state() == after_multi
+    recorder.skip()
+    assert recorder.receive_state() == after_skip
+
+    assert recorder.trace.steps[0].action == {"action": BridgeAction.CHOOSE, "indexes": [0, 1]}
+    assert recorder.trace.steps[1].action == {"action": BridgeAction.SKIP}
+
+
 def test_bridge_replay_recorder_delegates_unknown_attributes():
     client = FakeBridgeClient([])
     recorder = BridgeReplayRecorder(client)

@@ -22,8 +22,6 @@ import sys
 import time
 from typing import Any
 
-import numpy as np
-
 from sts2_env.bridge.client import STS2GameClient
 from sts2_env.bridge.protocol import (
     ActionType,
@@ -37,6 +35,44 @@ from sts2_env.bridge.state_adapter import StateAdapter
 from sts2_env.parity.bridge_replay import BridgeReplayRecorder
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_CHOICE_INDEX = 0
+CARD_REWARD_LARGE_DECK_SIZE = 30
+REST_HP_RATIO_THRESHOLD = 0.5
+
+ROOM_PRIORITY_HEALTHY = (
+    "boss",
+    "elite",
+    "monster",
+    "event",
+    "unknown",
+    "treasure",
+    "shop",
+    "restsite",
+)
+ROOM_PRIORITY_LOW_HP = (
+    "restsite",
+    "shop",
+    "treasure",
+    "monster",
+    "event",
+    "unknown",
+    "elite",
+    "boss",
+)
+CARD_REWARD_TYPE_PRIORITY = ("power", "attack", "skill")
+SHOP_PURCHASE_ACTION_PRIORITY = (
+    "buy_relic",
+    "buy_card",
+    "buy_potion",
+    "remove_card",
+    "buy_item",
+)
+SHOP_LEAVE_ACTION = "leave_shop"
+REST_HEAL_OPTION_ID = "heal"
+REST_SMITH_OPTION_ID = "smith"
+TREASURE_COLLECT_ACTION = "collect"
+BOSS_RELIC_PICK_ACTION = "pick_relic"
 
 
 def load_model(model_path: str) -> Any:
@@ -198,71 +234,57 @@ def run_agent(
                         )
 
                 elif phase == Phase.MAP_SELECT:
-                    # ---- Map: pick path heuristically ----
                     choice = _pick_map_node(state)
                     if verbose:
                         logger.info("MAP: choosing node %d", choice)
                     client.choose(choice)
 
                 elif phase == Phase.CARD_REWARD:
-                    # ---- Card reward: pick best card ----
                     if msg_type == BridgeStateType.CARD_SELECT:
-                        cards = state.get("cards", [])
-                        min_select = state.get("min_select", 1)
-                        max_select = state.get("max_select", 1)
-                        if max_select > 1 or min_select > 1:
-                            indexes = list(range(min(min_select, len(cards))))
-                            if verbose:
-                                logger.info("CARD_SELECT: choosing indexes %s", indexes)
-                            if indexes:
-                                client.choose_many(indexes)
-                            else:
-                                client.skip()
-                        else:
-                            choice = 0
-                            if verbose:
-                                logger.info("CARD_SELECT: choosing option %d", choice)
-                            if choice >= len(cards):
-                                client.skip()
-                            else:
-                                client.choose(choice)
-                    else:
-                        choice = _pick_best_card(state)
+                        indexes = _pick_card_select_indexes(state)
                         if verbose:
-                            logger.info("CARD_REWARD: choosing option %d", choice)
-                        if choice >= len(state.get("cards", [])):
+                            logger.info("CARD_SELECT: choosing indexes %s", indexes)
+                        if not indexes:
                             client.skip()
+                        elif len(indexes) == 1:
+                            client.choose(indexes[0])
                         else:
-                            client.choose(choice)
+                            client.choose_many(indexes)
+                    else:
+                        choice = _pick_card_reward_index(state)
+                        if verbose:
+                            logger.info("CARD_REWARD: choosing option %s", choice)
+                        _send_choice_or_skip(client, choice)
 
                 elif phase == Phase.REST:
-                    # ---- Rest: heal if low HP, otherwise upgrade ----
                     choice = _pick_rest_option(state)
                     if verbose:
                         logger.info("REST: choosing option %d", choice)
                     client.choose(choice)
 
                 elif phase == Phase.SHOP:
-                    # ---- Shop: skip for now ----
+                    choice = _pick_shop_option(state)
                     if verbose:
-                        logger.info("SHOP: skipping (choosing 0)")
-                    client.choose(0)
+                        logger.info("SHOP: choosing option %d", choice)
+                    client.choose(choice)
 
                 elif phase == Phase.EVENT:
-                    # ---- Event: choose first option ----
+                    choice = _pick_event_option(state)
                     if verbose:
-                        logger.info("EVENT: choosing option 0")
-                    client.choose(0)
+                        logger.info("EVENT: choosing option %d", choice)
+                    client.choose(choice)
 
                 elif phase == Phase.TREASURE:
+                    choice = _pick_treasure_option(state)
                     if verbose:
-                        logger.info("TREASURE: collecting option 0")
-                    client.choose(0)
+                        logger.info("TREASURE: choosing option %d", choice)
+                    client.choose(choice)
 
                 elif phase == Phase.BOSS_RELIC:
+                    choice = _pick_boss_relic_option(state)
                     if verbose:
-                        logger.info("BOSS_RELIC: choosing option 0")
-                    client.choose(0)
+                        logger.info("BOSS_RELIC: choosing option %d", choice)
+                    client.choose(choice)
 
                 elif phase == Phase.COMBAT_WAITING:
                     # Game is processing enemy turn / animations — just wait
@@ -286,67 +308,187 @@ def run_agent(
 
 
 def _pick_map_node(state: dict[str, Any]) -> int:
-    """Simple heuristic for map node selection.
+    """Choose a reachable map node from the bridge state's node list."""
+    nodes = list(state.get("nodes", []))
+    if not nodes:
+        return DEFAULT_CHOICE_INDEX
+    hp_ratio = _read_hp_ratio(state)
+    priority = (
+        ROOM_PRIORITY_LOW_HP
+        if hp_ratio is not None and hp_ratio < REST_HP_RATIO_THRESHOLD
+        else ROOM_PRIORITY_HEALTHY
+    )
+    for room_type in priority:
+        for fallback_index, node in enumerate(nodes):
+            if _canonical_text(node.get("type")) == room_type:
+                return _read_index(node, fallback_index)
+    return _read_index(nodes[0], DEFAULT_CHOICE_INDEX)
 
-    Strategy:
-      - Prefer elite fights (for relics) if HP is high
-      - Prefer rest sites if HP is low
-      - Otherwise pick the first available option
 
-    TODO: Replace with a trained map navigation model.
-    """
-    # For now, just pick the first available node
-    return 0
+def _pick_card_select_indexes(state: dict[str, Any]) -> list[int]:
+    """Choose required card indexes for upgrade/transform/select screens."""
+    cards = list(state.get("cards", []))
+    min_select = max(int(state.get("min_select", 1)), 0)
+    max_select = max(int(state.get("max_select", min_select)), 0)
+    if not cards or max_select == 0 or min_select == 0:
+        return []
+    count = min(min_select, max_select, len(cards))
+    return [_read_index(card, fallback) for fallback, card in enumerate(cards[:count])]
 
 
-def _pick_best_card(state: dict[str, Any]) -> int:
-    """Simple heuristic for card reward selection.
-
-    Strategy:
-      - Prefer uncommon/rare cards
-      - Prefer cards that synergize with current deck
-      - Skip if the deck is already large
-
-    TODO: Replace with a proper card evaluation model.
-    """
-    run_state = state.get("run_state", {})
-    deck_size = len(run_state.get("deck", []))
-
-    # If deck is getting large, skip more often
-    if deck_size > 30:
-        # Skip (index beyond the offered cards)
-        return 99  # Large index = skip in most implementations
-
-    # Otherwise pick the first card (index 0)
-    return 0
+def _pick_card_reward_index(state: dict[str, Any]) -> int | None:
+    """Choose a card reward, or return None when skipping is the best action."""
+    cards = list(state.get("cards", []))
+    can_skip = bool(state.get("can_skip", False))
+    if not cards:
+        return None if can_skip else DEFAULT_CHOICE_INDEX
+    if can_skip and _read_deck_size(state) > CARD_REWARD_LARGE_DECK_SIZE:
+        return None
+    for card_type in CARD_REWARD_TYPE_PRIORITY:
+        for fallback_index, card in enumerate(cards):
+            if _canonical_text(card.get("type")) == card_type:
+                return _read_index(card, fallback_index)
+    return _read_index(cards[0], DEFAULT_CHOICE_INDEX)
 
 
 def _pick_rest_option(state: dict[str, Any]) -> int:
-    """Heuristic for rest site decisions.
+    """Choose a rest-site option by option identity, not display order."""
+    options = _enabled_options(state)
+    if not options:
+        return DEFAULT_CHOICE_INDEX
+    hp_ratio = _read_hp_ratio(state)
+    preferred = (
+        REST_HEAL_OPTION_ID
+        if hp_ratio is not None and hp_ratio < REST_HP_RATIO_THRESHOLD
+        else REST_SMITH_OPTION_ID
+    )
+    option = _first_matching_option(options, option_ids=(preferred,))
+    if option is None and preferred == REST_SMITH_OPTION_ID:
+        option = _first_matching_option(options, option_ids=(REST_HEAL_OPTION_ID,))
+    if option is None:
+        option = options[0]
+    return _read_index(option, DEFAULT_CHOICE_INDEX)
 
-    Strategy:
-      - Rest (heal) if HP < 50%
-      - Smith (upgrade a card) otherwise
 
-    Index mapping: 0=Rest, 1=Smith, 2+=special
-    """
-    run_state = state.get("run_state", {})
-    combat = state.get("combat_state")
+def _pick_shop_option(state: dict[str, Any]) -> int:
+    """Buy an enabled shop item when one exists; leave when only exit remains."""
+    options = _enabled_options(state)
+    if not options:
+        return DEFAULT_CHOICE_INDEX
+    for action in SHOP_PURCHASE_ACTION_PRIORITY:
+        option = _first_matching_option(options, actions=(action,))
+        if option is not None:
+            return _read_index(option, DEFAULT_CHOICE_INDEX)
+    option = _first_matching_option(options, actions=(SHOP_LEAVE_ACTION,)) or options[0]
+    return _read_index(option, DEFAULT_CHOICE_INDEX)
 
-    # Try to get HP from run state or last combat state
-    hp = 0
-    max_hp = 1
-    if combat:
-        player = combat.get("player", {})
-        hp = player.get("hp", 0)
-        max_hp = max(player.get("max_hp", 1), 1)
 
-    hp_ratio = hp / max_hp if max_hp > 0 else 1.0
+def _pick_event_option(state: dict[str, Any]) -> int:
+    """Choose the first enabled event option."""
+    options = _enabled_options(state)
+    if not options:
+        return DEFAULT_CHOICE_INDEX
+    return _read_index(options[0], DEFAULT_CHOICE_INDEX)
 
-    if hp_ratio < 0.5:
-        return 0  # Rest (heal)
+
+def _pick_treasure_option(state: dict[str, Any]) -> int:
+    option = _first_matching_option(
+        _enabled_options(state),
+        actions=(TREASURE_COLLECT_ACTION,),
+    )
+    return _read_index(option, DEFAULT_CHOICE_INDEX) if option is not None else DEFAULT_CHOICE_INDEX
+
+
+def _pick_boss_relic_option(state: dict[str, Any]) -> int:
+    option = _first_matching_option(
+        _enabled_options(state),
+        actions=(BOSS_RELIC_PICK_ACTION,),
+    )
+    return _read_index(option, DEFAULT_CHOICE_INDEX) if option is not None else DEFAULT_CHOICE_INDEX
+
+
+def _send_choice_or_skip(client: Any, choice_index: int | None) -> None:
+    if choice_index is None:
+        client.skip()
     else:
-        return 1  # Smith (upgrade)
+        client.choose(choice_index)
+
+
+def _enabled_options(state: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        option
+        for option in state.get("options", [])
+        if bool(option.get("enabled", True))
+    ]
+
+
+def _first_matching_option(
+    options: list[dict[str, Any]],
+    *,
+    option_ids: tuple[str, ...] = (),
+    actions: tuple[str, ...] = (),
+) -> dict[str, Any] | None:
+    option_id_set = {_canonical_text(value) for value in option_ids}
+    action_set = {_canonical_text(value) for value in actions}
+    for option in options:
+        if option_id_set and _canonical_text(option.get("id")) in option_id_set:
+            return option
+        if action_set and _canonical_text(option.get("action")) in action_set:
+            return option
+    return None
+
+
+def _read_deck_size(state: dict[str, Any]) -> int:
+    run_state = state.get("run_state", {})
+    if isinstance(run_state, dict):
+        deck = run_state.get("deck")
+        if isinstance(deck, list):
+            return len(deck)
+    return int(state.get("deck_size", 0) or 0)
+
+
+def _read_hp_ratio(state: dict[str, Any]) -> float | None:
+    for container in _candidate_player_containers(state):
+        hp, max_hp = _read_hp_pair(container)
+        if hp is not None and max_hp and max_hp > 0:
+            return hp / max_hp
+    return None
+
+
+def _candidate_player_containers(state: dict[str, Any]) -> list[dict[str, Any]]:
+    containers: list[dict[str, Any]] = []
+    for key in ("player", "run_state", "combat_state"):
+        value = state.get(key)
+        if isinstance(value, dict):
+            if isinstance(value.get("player"), dict):
+                containers.append(value["player"])
+            containers.append(value)
+    containers.append(state)
+    return containers
+
+
+def _read_hp_pair(container: dict[str, Any]) -> tuple[int | None, int | None]:
+    hp_value = container.get("hp")
+    if isinstance(hp_value, str) and "/" in hp_value:
+        hp_text, max_hp_text = hp_value.split("/", 1)
+        return _optional_int(hp_text), _optional_int(max_hp_text)
+    return _optional_int(hp_value), _optional_int(container.get("max_hp"))
+
+
+def _read_index(option: dict[str, Any], fallback: int) -> int:
+    value = _optional_int(option.get("index"))
+    return fallback if value is None else value
+
+
+def _optional_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _canonical_text(value: Any) -> str:
+    return str(value or "").replace("_", "").replace(" ", "").casefold()
 
 
 # ----------------------------------------------------------------
