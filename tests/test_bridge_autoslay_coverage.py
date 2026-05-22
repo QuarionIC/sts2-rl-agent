@@ -43,3 +43,20 @@ def test_card_select_screens_are_guarded_by_rl_selector() -> None:
     assert "[typeof(NDeckCardSelectScreen)] = new DeckCardSelectScreenHandler()" in source
     assert "[typeof(NSimpleCardSelectScreen)] = new SimpleCardSelectScreenHandler()" in source
     assert "[typeof(NChooseACardSelectionScreen)] = new ChooseACardScreenHandler()" in source
+
+
+def test_autoslay_run_flow_uses_named_protocol_and_timing_constants() -> None:
+    source = _rl_auto_slayer_source()
+    compact_source = "".join(source.split())
+
+    assert "RunCompleteState(NonCombatBridgeProtocol.TerminatedResult)" in compact_source
+    assert "RunCompleteState(NonCombatBridgeProtocol.VictoryResult)" in compact_source
+    assert "NonCombatBridgeProtocol.GameOverState" in source
+    assert "NonCombatBridgeProtocol.GameOverMessage" in source
+    assert '"{\\"type\\":\\"run_complete\\"' not in source
+    assert '"{\\"type\\":\\"game_over\\"' not in source
+    assert "while (runState.TotalFloor < FinalRunFloor)" in source
+    assert "TimeSpan.FromMinutes(RunTimeoutMinutes)" in source
+    assert "TimeSpan.FromSeconds(RunStateTimeoutSeconds)" in source
+    assert "TimeSpan.FromSeconds(RoomAssignmentTimeoutSeconds)" in source
+    assert "TimeSpan.FromSeconds(RewardsScreenTimeoutSeconds)" in source

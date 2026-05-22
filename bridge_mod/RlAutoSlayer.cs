@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
@@ -52,6 +53,43 @@ namespace STS2BridgeMod;
 /// </summary>
 public class RlAutoSlayer
 {
+    private const string MainMenuPath = "/root/Game/RootSceneContainer/MainMenu";
+    private const string RestSiteProceedButtonPath =
+        "/root/Game/RootSceneContainer/Run/RoomContainer/RestSiteRoom/ProceedButton";
+    private const string EventRoomPath =
+        "/root/Game/RootSceneContainer/Run/RoomContainer/EventRoom";
+    private const string AbandonRunOptionsButtonPath =
+        "/root/Game/RootSceneContainer/Run/GlobalUi/TopBar/RightAlignedStuff/Options";
+    private const string AbandonRunButtonPath =
+        "/root/Game/RootSceneContainer/Run/GlobalUi/CapstoneScreenContainer/OptionsScreen/AbandonRunButton";
+    private const string AbandonRunProceedButtonPath =
+        "/root/Game/RootSceneContainer/Run/GlobalUi/OverlayScreensContainer/GameOverScreen/UI/ProceedButton";
+    private const string AbandonRunMenuButtonPath = "MainMenuTextButtons/AbandonRunButton";
+    private const string AbandonPopupPrimaryYesButtonPath = "VerticalPopup/YesButton";
+    private const string AbandonPopupFallbackYesButtonPath = "YesButton";
+    private const string SingleplayerButtonPath = "MainMenuTextButtons/SingleplayerButton";
+    private const string CharacterSelectScreenPath = "Submenus/CharacterSelectScreen";
+    private const string StandardRunButtonPath = "Submenus/SingleplayerSubmenu/StandardButton";
+    private const string CharacterButtonContainerPath = "CharSelectButtons/ButtonContainer";
+    private const string CharacterConfirmButtonPath =
+        "Submenus/CharacterSelectScreen/ConfirmButton";
+    private const string PreferredCharacterId = "Ironclad";
+    private const int FinalRunFloor = 49;
+    private const int RunTimeoutMinutes = 60;
+    private const int RunStateTimeoutSeconds = 60;
+    private const int RoomAssignmentTimeoutSeconds = 60;
+    private const int NonCombatSettleDelayMs = 500;
+    private const int BossTransitionTimeoutSeconds = 10;
+    private const int ActTransitionTimeoutSeconds = 5;
+    private const int OverlayCloseRetryLimit = 3;
+    private const int OverlayDrainSettleDelayMs = 100;
+    private const int EventProceedTimeoutSeconds = 5;
+    private const int RewardsScreenTimeoutSeconds = 10;
+    private const int MainMenuTimeoutSeconds = 30;
+    private const int AbandonPopupTimeoutSeconds = 5;
+    private const int AbandonRunSettleDelayMs = 1000;
+    private const int MenuClickSettleDelayMs = 500;
+    private const int CharacterSelectDelayMs = 100;
     private readonly Dictionary<RoomType, IRoomHandler> _roomHandlers;
     private readonly Dictionary<Type, IScreenHandler> _screenHandlers;
     private readonly RlMapHandler _mapHandler;
@@ -143,7 +181,7 @@ public class RlAutoSlayer
         {
             await WaitHelper.WithTimeout(
                 (CancellationToken token) => PlayRunAsync(seed, token),
-                TimeSpan.FromMinutes(60), // longer timeout for RL (agent might be slow)
+                TimeSpan.FromMinutes(RunTimeoutMinutes),
                 ct);
             Logger.Log($"[RlAutoSlayer] Run completed with seed: {seed}");
         }
@@ -165,8 +203,8 @@ public class RlAutoSlayer
             // Notify Python that the run is over
             if (!_completionSignalSent)
             {
-                BridgeServer.Instance.SendState(
-                    "{\"type\":\"run_complete\",\"result\":\"terminated\"}");
+                BridgeServer.Instance.SendState(RunCompleteState(
+                    NonCombatBridgeProtocol.TerminatedResult));
                 _completionSignalSent = true;
             }
         }
@@ -205,7 +243,7 @@ public class RlAutoSlayer
 
         await WaitHelper.Until(
             () => RunManager.Instance.DebugOnlyGetState() != null, ct,
-            TimeSpan.FromSeconds(60), "Run state not initialized");
+            TimeSpan.FromSeconds(RunStateTimeoutSeconds), "Run state not initialized");
 
         RunState runState = RunManager.Instance.DebugOnlyGetState();
         Logger.Log($"[RlAutoSlayer] RunState available. Floor: {runState.TotalFloor}");
@@ -217,10 +255,10 @@ public class RlAutoSlayer
                     Logger.Log($"[RlAutoSlayer] Waiting for room... type={room.RoomType}");
                 return room != null && room.RoomType != RoomType.Unassigned;
             },
-            ct, TimeSpan.FromSeconds(60), "Room type not assigned");
+            ct, TimeSpan.FromSeconds(RoomAssignmentTimeoutSeconds), "Room type not assigned");
 
         // Main game loop
-        while (runState.TotalFloor < 49)
+        while (runState.TotalFloor < FinalRunFloor)
         {
             ct.ThrowIfCancellationRequested();
             RoomType roomType = runState.CurrentRoom.RoomType;
@@ -239,7 +277,7 @@ public class RlAutoSlayer
             }
             else
             {
-                await Task.Delay(500, ct);
+                await Task.Delay(NonCombatSettleDelayMs, ct);
             }
 
             await DrainOverlayScreensAsync(ct);
@@ -264,7 +302,8 @@ public class RlAutoSlayer
                     if (currentRoom == null) return false;
                     postBossRoomType = currentRoom.RoomType;
                     return postBossRoomType != RoomType.Boss;
-                }, ct, TimeSpan.FromSeconds(10), "Act transition did not start after boss");
+                }, ct, TimeSpan.FromSeconds(BossTransitionTimeoutSeconds),
+                    "Act transition did not start after boss");
 
                 Logger.Log($"[RlAutoSlayer] Post-boss transition: room type is now {postBossRoomType}");
 
@@ -274,22 +313,22 @@ public class RlAutoSlayer
                     _watchdog.Reset(
                         $"Entering {postBossRoomType} room (Act {runState.CurrentActIndex + 1}, Floor {runState.ActFloor})");
                     await HandleRoomAsync(postBossRoomType, ct);
-                    await Task.Delay(500, ct);
+                    await Task.Delay(NonCombatSettleDelayMs, ct);
                     await DrainOverlayScreensAsync(ct);
                     _watchdog.Reset("Waiting for main menu after victory");
                     await WaitForMainMenuAsync(ct);
                     Logger.Log("[RlAutoSlayer] Victory! Run completed and returned to main menu");
 
                     // Notify Python of victory
-                    BridgeServer.Instance.SendState(
-                        "{\"type\":\"run_complete\",\"result\":\"victory\"}");
+                    BridgeServer.Instance.SendState(RunCompleteState(
+                        NonCombatBridgeProtocol.VictoryResult));
                     _completionSignalSent = true;
                     return;
                 }
 
                 await WaitHelper.Until(
                     () => runState.VisitedMapCoords.Count == 0, ct,
-                    TimeSpan.FromSeconds(5),
+                    TimeSpan.FromSeconds(ActTransitionTimeoutSeconds),
                     "Act transition did not complete (VisitedMapCoords not cleared)");
             }
 
@@ -339,10 +378,10 @@ public class RlAutoSlayer
             if (handledScreens.Contains(currentOverlay))
             {
                 consecutiveFailures++;
-                if (consecutiveFailures >= 3)
+                if (consecutiveFailures >= OverlayCloseRetryLimit)
                 {
                     Logger.Log(
-                        $"[RlAutoSlayer] Infinite loop: screen {currentOverlay.GetType().Name} not closing after 3 attempts");
+                        $"[RlAutoSlayer] Infinite loop: screen {currentOverlay.GetType().Name} not closing after {OverlayCloseRetryLimit} attempts");
                     throw new InvalidOperationException(
                         "Screen " + currentOverlay.GetType().Name + " not closing after being handled");
                 }
@@ -374,7 +413,7 @@ public class RlAutoSlayer
                 break;
             }
 
-            await Task.Delay(100, ct);
+            await Task.Delay(OverlayDrainSettleDelayMs, ct);
         }
     }
 
@@ -382,7 +421,7 @@ public class RlAutoSlayer
     {
         Node root = ((SceneTree)Engine.GetMainLoop()).Root;
         NProceedButton nodeOrNull = root.GetNodeOrNull<NProceedButton>(
-            "/root/Game/RootSceneContainer/Run/RoomContainer/RestSiteRoom/ProceedButton");
+            RestSiteProceedButtonPath);
         if (nodeOrNull != null && nodeOrNull.IsEnabled)
         {
             Logger.Log("[RlAutoSlayer] Clicking rest site proceed button");
@@ -393,8 +432,7 @@ public class RlAutoSlayer
     private async Task ClickEventProceedIfNeeded(CancellationToken ct)
     {
         Node root = ((SceneTree)Engine.GetMainLoop()).Root;
-        Node eventRoom = root.GetNodeOrNull(
-            "/root/Game/RootSceneContainer/Run/RoomContainer/EventRoom");
+        Node eventRoom = root.GetNodeOrNull(EventRoomPath);
         if (eventRoom == null)
             return;
 
@@ -413,7 +451,8 @@ public class RlAutoSlayer
                 return true;
             }
             return false;
-        }, ct, TimeSpan.FromSeconds(5), "Event proceed option or map did not appear");
+        }, ct, TimeSpan.FromSeconds(EventProceedTimeoutSeconds),
+            "Event proceed option or map did not appear");
 
         if (proceedOption != null)
         {
@@ -428,7 +467,7 @@ public class RlAutoSlayer
         await WaitHelper.Until(
             () => NOverlayStack.Instance?.Peek() is NRewardsScreen ||
                   (NMapScreen.Instance?.IsOpen ?? false),
-            ct, TimeSpan.FromSeconds(10),
+            ct, TimeSpan.FromSeconds(RewardsScreenTimeoutSeconds),
             "Rewards screen did not appear after combat");
     }
 
@@ -437,9 +476,9 @@ public class RlAutoSlayer
         Logger.Log("[RlAutoSlayer] Waiting for main menu");
         Node root = ((SceneTree)Engine.GetMainLoop()).Root;
         await WaitHelper.Until(
-            () => root.GetNodeOrNull<Control>(
-                "/root/Game/RootSceneContainer/MainMenu")?.IsVisibleInTree() ?? false,
-            ct, TimeSpan.FromSeconds(30), "Main menu did not appear after game over");
+            () => root.GetNodeOrNull<Control>(MainMenuPath)?.IsVisibleInTree() ?? false,
+            ct, TimeSpan.FromSeconds(MainMenuTimeoutSeconds),
+            "Main menu did not appear after game over");
     }
 
     private async Task PlayMainMenuAsync(CancellationToken ct)
@@ -447,38 +486,38 @@ public class RlAutoSlayer
         Logger.Log("[RlAutoSlayer] Playing main menu");
         Node root = ((SceneTree)Engine.GetMainLoop()).Root;
         Control mainMenu = await WaitHelper.ForNode<Control>(
-            root, "/root/Game/RootSceneContainer/MainMenu", ct, TimeSpan.FromSeconds(30));
+            root, MainMenuPath, ct, TimeSpan.FromSeconds(MainMenuTimeoutSeconds));
 
         // Abandon existing run if present (best effort)
         try
         {
             NButton abandonBtn = mainMenu.GetNodeOrNull<NButton>(
-                "MainMenuTextButtons/AbandonRunButton");
+                AbandonRunMenuButtonPath);
             if (abandonBtn != null && abandonBtn.Visible)
             {
                 Logger.Log("[RlAutoSlayer] Abandoning existing run");
                 await UiHelper.Click(abandonBtn);
-                await Task.Delay(500, ct);
+                await Task.Delay(MenuClickSettleDelayMs, ct);
                 // Try to find and click Yes on the confirmation popup
                 try
                 {
                     await WaitHelper.Until(
                         () => NModalContainer.Instance?.OpenModal != null, ct,
-                        TimeSpan.FromSeconds(5), "Abandon popup");
+                        TimeSpan.FromSeconds(AbandonPopupTimeoutSeconds), "Abandon popup");
                     Node popup = (Node)NModalContainer.Instance.OpenModal;
-                    NButton yesBtn = popup.GetNodeOrNull<NButton>("VerticalPopup/YesButton")
-                        ?? popup.GetNodeOrNull<NButton>("YesButton");
+                    NButton yesBtn = popup.GetNodeOrNull<NButton>(AbandonPopupPrimaryYesButtonPath)
+                        ?? popup.GetNodeOrNull<NButton>(AbandonPopupFallbackYesButtonPath);
                     if (yesBtn != null)
                     {
                         await UiHelper.Click(yesBtn);
-                        await Task.Delay(500, ct);
+                        await Task.Delay(MenuClickSettleDelayMs, ct);
                     }
                 }
                 catch
                 {
                     Logger.Log("[RlAutoSlayer] Popup not found, trying to continue anyway");
                 }
-                await Task.Delay(1000, ct);
+                await Task.Delay(AbandonRunSettleDelayMs, ct);
             }
         }
         catch (Exception ex)
@@ -488,21 +527,21 @@ public class RlAutoSlayer
 
         // Click singleplayer
         NButton spButton = mainMenu.GetNode<NButton>(
-            "MainMenuTextButtons/SingleplayerButton");
+            SingleplayerButtonPath);
         Logger.Log("[RlAutoSlayer] Clicking singleplayer");
         await UiHelper.Click(spButton);
 
         // Navigate to character select
         Control charSelectScreen = mainMenu.GetNodeOrNull<Control>(
-            "Submenus/CharacterSelectScreen");
+            CharacterSelectScreenPath);
         NButton standardButton = mainMenu.GetNodeOrNull<NButton>(
-            "Submenus/SingleplayerSubmenu/StandardButton");
+            StandardRunButtonPath);
         await WaitHelper.Until(delegate
         {
             charSelectScreen = mainMenu.GetNodeOrNull<Control>(
-                "Submenus/CharacterSelectScreen");
+                CharacterSelectScreenPath);
             standardButton = mainMenu.GetNodeOrNull<NButton>(
-                "Submenus/SingleplayerSubmenu/StandardButton");
+                StandardRunButtonPath);
             bool csVisible = charSelectScreen?.Visible ?? false;
             bool sbVisible = standardButton?.Visible ?? false;
             return csVisible || sbVisible;
@@ -518,17 +557,17 @@ public class RlAutoSlayer
                 await UiHelper.Click(standardButton);
                 await WaitHelper.Until(
                     () => mainMenu.GetNodeOrNull<Control>(
-                        "Submenus/CharacterSelectScreen")?.Visible ?? false,
+                        CharacterSelectScreenPath)?.Visible ?? false,
                     ct, AutoSlayConfig.nodeWaitTimeout,
                     "CharacterSelectScreen did not become visible");
                 charSelectScreen = mainMenu.GetNode<Control>(
-                    "Submenus/CharacterSelectScreen");
+                    CharacterSelectScreenPath);
             }
         }
 
         // Select Ironclad (first character) — our agent was trained on Ironclad
         Node buttonContainer = charSelectScreen.GetNode(
-            "CharSelectButtons/ButtonContainer");
+            CharacterButtonContainerPath);
         List<NCharacterSelectButton> buttons =
             UiHelper.FindAll<NCharacterSelectButton>(buttonContainer);
         foreach (NCharacterSelectButton btn in buttons)
@@ -540,15 +579,15 @@ public class RlAutoSlayer
 
         // Pick Ironclad (first available) instead of random
         NCharacterSelectButton selectedChar = available.FirstOrDefault(
-            b => b.Character.Id.Entry.Contains("Ironclad",
+            b => b.Character.Id.Entry.Contains(PreferredCharacterId,
                 StringComparison.OrdinalIgnoreCase))
             ?? available.First();
         Logger.Log($"[RlAutoSlayer] Selecting character: {selectedChar.Character.Id}");
         selectedChar.Select();
-        await Task.Delay(100, ct);
+        await Task.Delay(CharacterSelectDelayMs, ct);
 
         NButton confirmBtn = await WaitHelper.ForNode<NButton>(
-            mainMenu, "Submenus/CharacterSelectScreen/ConfirmButton", ct);
+            mainMenu, CharacterConfirmButtonPath, ct);
         Logger.Log("[RlAutoSlayer] Confirming character");
         await UiHelper.Click(confirmBtn);
     }
@@ -556,19 +595,28 @@ public class RlAutoSlayer
     private async Task AbandonRunAsync(CancellationToken ct)
     {
         Node root = ((SceneTree)Engine.GetMainLoop()).Root;
-        await Task.Delay(1000, ct);
+        await Task.Delay(AbandonRunSettleDelayMs, ct);
         await UiHelper.Click(await WaitHelper.ForNode<NButton>(
             root,
-            "/root/Game/RootSceneContainer/Run/GlobalUi/TopBar/RightAlignedStuff/Options",
+            AbandonRunOptionsButtonPath,
             ct));
         await UiHelper.Click(await WaitHelper.ForNode<NButton>(
             root,
-            "/root/Game/RootSceneContainer/Run/GlobalUi/CapstoneScreenContainer/OptionsScreen/AbandonRunButton",
+            AbandonRunButtonPath,
             ct));
         await UiHelper.Click(await WaitHelper.ForNode<NButton>(
             root,
-            "/root/Game/RootSceneContainer/Run/GlobalUi/OverlayScreensContainer/GameOverScreen/UI/ProceedButton",
+            AbandonRunProceedButtonPath,
             ct));
+    }
+
+    private static string RunCompleteState(string result)
+    {
+        return JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            [NonCombatBridgeProtocol.TypeField] = NonCombatBridgeProtocol.RunCompleteState,
+            [NonCombatBridgeProtocol.ResultField] = result,
+        });
     }
 
     private static void SetSharedCurrentWatchdog(Watchdog? watchdog)
@@ -593,8 +641,13 @@ public class RlAutoSlayer
 /// </summary>
 public class RlGameOverScreenHandler : IScreenHandler, IHandler
 {
+    private const int HandlerTimeoutMinutes = 2;
+    private const int ContinueButtonTimeoutSeconds = 30;
+    private const int SummaryAnimationTimeoutSeconds = 90;
+    private const int WatchdogRefreshCycles = 20;
+
     public Type ScreenType => typeof(NGameOverScreen);
-    public TimeSpan Timeout => TimeSpan.FromMinutes(2);
+    public TimeSpan Timeout => TimeSpan.FromMinutes(HandlerTimeoutMinutes);
 
     public async Task HandleAsync(Rng random, CancellationToken ct)
     {
@@ -603,8 +656,12 @@ public class RlGameOverScreenHandler : IScreenHandler, IHandler
             (NGameOverScreen)NOverlayStack.Instance.Peek();
 
         // Notify Python that the game is over
-        BridgeServer.Instance.SendState(
-            "{\"type\":\"game_over\",\"message\":\"Game over\"}");
+        BridgeServer.Instance.SendState(JsonSerializer.Serialize(
+            new Dictionary<string, object>
+            {
+                [NonCombatBridgeProtocol.TypeField] = NonCombatBridgeProtocol.GameOverState,
+                [NonCombatBridgeProtocol.MessageField] = NonCombatBridgeProtocol.GameOverMessage,
+            }));
 
         NGameOverContinueButton continueButton =
             UiHelper.FindFirst<NGameOverContinueButton>(screen);
@@ -615,7 +672,8 @@ public class RlGameOverScreenHandler : IScreenHandler, IHandler
         }
 
         await WaitHelper.Until(() => continueButton.IsEnabled, ct,
-            TimeSpan.FromSeconds(30), "Continue button did not become enabled");
+            TimeSpan.FromSeconds(ContinueButtonTimeoutSeconds),
+            "Continue button did not become enabled");
         await UiHelper.Click(continueButton);
 
         NReturnToMainMenuButton mainMenuButton = null;
@@ -626,12 +684,13 @@ public class RlGameOverScreenHandler : IScreenHandler, IHandler
                 return true;
             mainMenuButton = UiHelper.FindFirst<NReturnToMainMenuButton>(screen);
             waitCycles++;
-            if (waitCycles % 20 == 0)
+            if (waitCycles % WatchdogRefreshCycles == 0)
             {
                 RlAutoSlayer.CurrentWatchdog?.Reset("Waiting for game over summary animation");
             }
             return mainMenuButton != null && mainMenuButton.Visible && mainMenuButton.IsEnabled;
-        }, ct, TimeSpan.FromSeconds(90), "Main menu button did not become enabled");
+        }, ct, TimeSpan.FromSeconds(SummaryAnimationTimeoutSeconds),
+            "Main menu button did not become enabled");
 
         if (!GodotObject.IsInstanceValid(screen) || !screen.IsVisibleInTree())
             return;
@@ -639,6 +698,7 @@ public class RlGameOverScreenHandler : IScreenHandler, IHandler
         await UiHelper.Click(mainMenuButton);
         await WaitHelper.Until(
             () => !GodotObject.IsInstanceValid(screen) || !screen.IsVisibleInTree(),
-            ct, TimeSpan.FromSeconds(30), "Game over screen did not close");
+            ct, TimeSpan.FromSeconds(ContinueButtonTimeoutSeconds),
+            "Game over screen did not close");
     }
 }

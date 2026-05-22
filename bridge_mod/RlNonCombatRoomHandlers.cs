@@ -32,8 +32,13 @@ namespace STS2BridgeMod;
 
 internal static class NonCombatBridgeProtocol
 {
+    public const string TypeField = "type";
+    public const string ResultField = "result";
+    public const string MessageField = "message";
     public const string CardSelectState = "card_select";
     public const string CardRewardState = "card_reward";
+    public const string GameOverState = "game_over";
+    public const string RunCompleteState = "run_complete";
     public const string RestSiteState = "rest_site";
     public const string RewardScreenState = "reward_screen";
     public const string CardBundleState = "card_bundle";
@@ -58,6 +63,9 @@ internal static class NonCombatBridgeProtocol
     public const string PickCardBundleAction = "pick_card_bundle";
     public const string DivineCellAction = "divine_cell";
     public const string ProceedAction = "proceed";
+    public const string VictoryResult = "victory";
+    public const string TerminatedResult = "terminated";
+    public const string GameOverMessage = "Game over";
 }
 
 public class RlRestSiteRoomHandler : IRoomHandler, IHandler
