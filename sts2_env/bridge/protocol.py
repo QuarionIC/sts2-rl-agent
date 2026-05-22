@@ -35,6 +35,12 @@ class BridgeStateType:
     CARD_SELECT = "card_select"
     MAP_SELECT = "map_select"
     CARD_REWARD = "card_reward"
+    REST_SITE = "rest_site"
+    SHOP = "shop"
+    EVENT = "event"
+    GAME_OVER = "game_over"
+    PONG = "pong"
+    ERROR = "error"
 
 
 # ----------------------------------------------------------------

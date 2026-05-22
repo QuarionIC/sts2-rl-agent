@@ -124,17 +124,17 @@ def run_agent(
                 msg_type = state.get("type", "")
                 phase = {
                     BridgeStateType.COMBAT_ACTION: Phase.COMBAT_PLAY,
-                    "game_state": state.get("phase", "UNKNOWN"),
+                    "game_state": state.get("phase", Phase.UNKNOWN),
                     BridgeStateType.MAP_SELECT: Phase.MAP_SELECT,
                     BridgeStateType.CARD_REWARD: Phase.CARD_REWARD,
                     BridgeStateType.CARD_SELECT: Phase.CARD_REWARD,
-                    "rest_site": Phase.REST,
-                    "shop": Phase.SHOP,
-                    "event": Phase.EVENT,
-                    "game_over": "GAME_OVER",
-                    "pong": "PONG",
-                    "error": "ERROR",
-                }.get(msg_type, state.get("phase", "UNKNOWN"))
+                    BridgeStateType.REST_SITE: Phase.REST,
+                    BridgeStateType.SHOP: Phase.SHOP,
+                    BridgeStateType.EVENT: Phase.EVENT,
+                    BridgeStateType.GAME_OVER: BridgeStateType.GAME_OVER,
+                    BridgeStateType.PONG: BridgeStateType.PONG,
+                    BridgeStateType.ERROR: BridgeStateType.ERROR,
+                }.get(msg_type, state.get("phase", Phase.UNKNOWN))
                 step_count += 1
 
                 if verbose and step_count % 10 == 1:
@@ -143,12 +143,12 @@ def run_agent(
                 if verbose and msg_type:
                     logger.debug("Received: type=%s keys=%s", msg_type, list(state.keys()))
 
-                if phase == "PONG":
+                if phase == BridgeStateType.PONG:
                     continue
-                if phase == "GAME_OVER":
+                if phase == BridgeStateType.GAME_OVER:
                     logger.info("Game over! Result: %s", state.get("result", "unknown"))
                     break
-                if phase == "ERROR":
+                if phase == BridgeStateType.ERROR:
                     logger.warning("Game error: %s", state.get("message", ""))
                     continue
 
@@ -177,7 +177,7 @@ def run_agent(
 
                     if decoded["type"] == "END_TURN":
                         client.end_turn()
-                    elif decoded["type"] == "POTION" or decoded.get("out_of_hand"):
+                    elif decoded.get("out_of_hand"):
                         client.use_potion(
                             decoded.get("slot", decoded.get("potion_slot", -1)),
                             decoded.get("target_index", -1),

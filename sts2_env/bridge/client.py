@@ -25,6 +25,8 @@ from sts2_env.bridge.protocol import (
     ActionType,
     BridgeAction,
     MSG_TYPE_GAME_STATE,
+    MSG_TYPE_ERROR,
+    MSG_TYPE_PONG,
 )
 
 logger = logging.getLogger(__name__)
@@ -159,10 +161,10 @@ class STS2GameClient:
                 continue
 
             msg_type = data.get("type", "")
-            if msg_type in ("pong",):
+            if msg_type == MSG_TYPE_PONG:
                 logger.debug("Received pong")
                 continue
-            elif msg_type == "error":
+            elif msg_type == MSG_TYPE_ERROR:
                 logger.warning("Server error: %s", data)
                 continue
             else:
