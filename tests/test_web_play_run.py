@@ -4,6 +4,7 @@ import sts2_env.events  # noqa: F401
 
 from sts2_env.core.enums import RoomType
 from sts2_env.potions.base import create_potion
+from sts2_env.run.events import get_event
 from sts2_env.run.run_manager import RunManager
 from sts2_env.web.play_run import RunSession, serialize_run
 
@@ -57,6 +58,22 @@ def _skip_reward_screens_until_map(state: dict, session: RunSession) -> dict:
 def _take_first_map_node(state: dict, session: RunSession) -> dict:
     move_action = next(action for action in state["actions"] if action["kind"] == "move")
     return session.take_action(move_action["index"])
+
+
+def _enter_legends_were_true_event(session: RunSession) -> dict:
+    state = session.start(character="Ironclad", seed=321)
+    assert session.mgr is not None
+    event = get_event("TheLegendsWereTrue")
+    assert event is not None
+    event.reset_rng_for_run(session.mgr.run_state)
+    event.ensure_vars_calculated(session.mgr.run_state)
+    session.mgr._phase = RunManager.PHASE_EVENT
+    session.mgr._event_model = event
+    session.mgr._event_started = True
+    session.mgr._event_options = event.generate_initial_options(session.mgr.run_state)
+    state = session.state()
+    assert state["screen"]["title"] == "Thelegendsweretrue"
+    return state
 
 
 def _reach_first_combat_reward(session: RunSession) -> dict:
@@ -266,6 +283,44 @@ def test_web_session_can_take_boss_relic_and_enter_next_act() -> None:
     assert state["screen"]["title"] == "Map"
     assert state["act"] == 2
     assert "Sozu" in state["relics"]
+
+
+def test_web_session_can_finish_direct_event_and_return_to_map() -> None:
+    session = RunSession()
+
+    state = _enter_legends_were_true_event(session)
+    nab_action = next(
+        item["action_index"]
+        for item in state["screen"]["items"]
+        if item["name"] == "Nab the Map"
+    )
+    starting_deck_size = state["deck_size"]
+    state = session.take_action(nab_action)
+
+    assert state["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert state["screen"]["title"] == "Map"
+    assert state["deck_size"] == starting_deck_size + 1
+
+
+def test_web_session_can_finish_event_reward_and_return_to_map() -> None:
+    session = RunSession()
+
+    state = _enter_legends_were_true_event(session)
+    exit_action = next(
+        item["action_index"]
+        for item in state["screen"]["items"]
+        if item["name"] == "Slowly Find an Exit"
+    )
+    state = session.take_action(exit_action)
+
+    assert state["phase"] == RunManager.PHASE_CARD_REWARD
+    assert state["screen"]["title"] == "Potion Reward"
+
+    state = _skip_current_reward_screen(state, session)
+
+    assert state["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert state["screen"]["title"] == "Map"
+    assert state["hp"] == "72/80"
 
 
 def test_web_session_can_reach_first_combat_reward() -> None:
