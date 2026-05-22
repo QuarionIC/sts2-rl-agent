@@ -24,6 +24,10 @@ Supported bridge message types:
 - `shop`
 - `event`
 
+The C# bridge mod now routes ordinary rest-site, shop, and event room choices
+through these same state types instead of using AutoSlay's random room handlers.
+Those live messages can be recorded by the replay recorder.
+
 It still does not compare full-run traces end to end.
 
 ## Location
@@ -191,10 +195,17 @@ For `card_reward`, it checks:
 - card order and metadata
 - `can_skip`
 
-For `rest_site`, `shop`, and `event`, it checks:
+For `rest_site`, it checks:
 
 - option order
 - option id / action / label / enabled status
+- floor
+- act
+
+For `shop` and `event`, it checks:
+
+- option order
+- stable action / enabled status
 - floor
 - act
 
@@ -202,8 +213,9 @@ For `rest_site`, `shop`, and `event`, it checks:
 
 - No full-run replay comparison yet.
 - Run comparison currently targets actionable slices, not complete run lifecycle proof.
-- Shop, rest-site, and event comparison is intentionally limited to stable option-list fields until the live bridge schema is documented in detail.
+- Shop and event comparison intentionally ignores localized labels and simulator-only option ids; live C# text keys and Python event option ids do not use the same naming scheme.
 - No passive comparison for treasure or boss-relic screens yet.
+- Event-triggered combat is still handled by the bridge mod's inherited AutoSlay-style event combat cleanup, not by a normal combat replay loop.
 - The trace must be paired with a deterministic simulator factory that recreates the same combat or run setup.
 
 This is deliberate: the goal is to give parity work a reusable combat golden harness now, without blocking on a full run-state serializer.

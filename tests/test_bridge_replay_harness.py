@@ -384,7 +384,8 @@ def test_run_manager_to_bridge_state_serializes_event_options():
     state = run_manager_to_bridge_state(run)
 
     assert state["type"] == BridgeStateType.EVENT
-    assert [option["id"] for option in state["options"]] == ["nab_map", "find_exit"]
+    assert [option["action"] for option in state["options"]] == ["event_choice", "event_choice"]
+    assert [option["index"] for option in state["options"]] == [0, 1]
 
 
 def test_compare_run_replay_handles_event_choice_to_map_transition():

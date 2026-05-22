@@ -272,6 +272,17 @@ def _normalize_options(options: list[dict[str, Any]] | None) -> list[dict[str, A
     return normalized
 
 
+def _normalize_action_options(options: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for idx, option in enumerate(options or []):
+        normalized.append({
+            "index": int(option.get("index", idx)),
+            "action": str(option.get("action", "")),
+            "enabled": bool(option.get("enabled", True)),
+        })
+    return normalized
+
+
 def normalize_bridge_state(state: dict[str, Any]) -> dict[str, Any]:
     """Normalize a raw bridge message into a stable comparison shape."""
     state_type = state.get("type")
@@ -327,10 +338,17 @@ def normalize_bridge_state(state: dict[str, Any]) -> dict[str, Any]:
             "cards": cards,
             "can_skip": bool(state.get("can_skip", False)),
         }
-    if state_type in {STATE_TYPE_REST_SITE, STATE_TYPE_SHOP, STATE_TYPE_EVENT}:
+    if state_type == STATE_TYPE_REST_SITE:
         return {
             "type": state_type,
             "options": _normalize_options(state.get("options")),
+            "floor": int(state.get("floor", 0)),
+            "act": int(state.get("act", 0)),
+        }
+    if state_type in {STATE_TYPE_SHOP, STATE_TYPE_EVENT}:
+        return {
+            "type": state_type,
+            "options": _normalize_action_options(state.get("options")),
             "floor": int(state.get("floor", 0)),
             "act": int(state.get("act", 0)),
         }
