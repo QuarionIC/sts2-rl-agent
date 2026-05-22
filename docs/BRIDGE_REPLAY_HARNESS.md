@@ -219,7 +219,7 @@ For `shop`, `event`, `treasure`, and `boss_relic`, it checks:
 - No full-run replay comparison yet.
 - Run comparison currently targets actionable slices, not complete run lifecycle proof.
 - Shop, event, treasure, and boss-relic comparison intentionally ignores localized labels and simulator-only option ids; live C# labels and Python internal ids do not always use the same naming scheme.
-- Event-triggered combat is still handled by the bridge mod's inherited AutoSlay-style event combat cleanup, not by a normal combat replay loop.
+- Event-triggered combat now routes through the same bridge combat handler as ordinary combat, but it still needs live-game smoke testing.
 - C# bridge handler compilation and live-game smoke testing still require a local `dotnet`/STS2 mod build environment.
 - The trace must be paired with a deterministic simulator factory that recreates the same combat or run setup.
 

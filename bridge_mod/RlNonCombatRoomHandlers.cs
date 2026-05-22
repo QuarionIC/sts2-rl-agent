@@ -10,13 +10,8 @@ using Godot;
 using MegaCrit.Sts2.Core.AutoSlay;
 using MegaCrit.Sts2.Core.AutoSlay.Handlers;
 using MegaCrit.Sts2.Core.AutoSlay.Helpers;
-using MegaCrit.Sts2.Core.Combat;
-using MegaCrit.Sts2.Core.Commands;
-using MegaCrit.Sts2.Core.Context;
-using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Merchant;
 using MegaCrit.Sts2.Core.Models;
-using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.Events;
 using MegaCrit.Sts2.Core.Nodes.Events.Custom;
@@ -587,19 +582,13 @@ public class RlEventRoomHandler : IRoomHandler, IHandler
 {
     private const string RoomPath = "/root/Game/RootSceneContainer/Run/RoomContainer/EventRoom";
     private const int MaxIterations = 50;
-    private const int MaxEventCombatKillAttempts = 20;
-    private const int MaxNoEnemyWaitLoops = 100;
     private const int AgentTimeoutSeconds = 30;
-    private const int HandlerTimeoutMinutes = 3;
+    private const int HandlerTimeoutMinutes = 12;
     private const int EventRoomResumeDelayMs = 500;
     private const int EventProceedCloseTimeoutSeconds = 5;
     private const int EventChoiceResultTimeoutSeconds = 5;
     private const int EventOptionsLoadTimeoutSeconds = 30;
     private const int EventOptionsLogInterval = 50;
-    private const int EventCombatBuffAmount = 100;
-    private const int EventCombatKillSettleDelayMs = 1000;
-    private const int EventCombatNoEnemyPollDelayMs = 100;
-    private const int EventCombatEndTimeoutSeconds = 30;
     private const int FakeMerchantProceedTimeoutSeconds = 10;
     private const int AncientDialoguePollDelayMs = 100;
     private const int AncientDialogueClickDelayMs = 500;
@@ -625,7 +614,7 @@ public class RlEventRoomHandler : IRoomHandler, IHandler
             ct.ThrowIfCancellationRequested();
             if (!GodotObject.IsInstanceValid(eventRoom) || !eventRoom.IsInsideTree())
             {
-                if (!await TryResumeEventAfterCombat(ct))
+                if (!await TryResumeEventAfterCombat(random, ct))
                 {
                     AutoSlayLog.Action("Event room no longer valid, exiting");
                     break;
@@ -790,7 +779,7 @@ public class RlEventRoomHandler : IRoomHandler, IHandler
         }, ct, TimeSpan.FromSeconds(EventChoiceResultTimeoutSeconds), "Event options did not reappear after choice");
     }
 
-    private static async Task<bool> TryResumeEventAfterCombat(CancellationToken ct)
+    private static async Task<bool> TryResumeEventAfterCombat(Rng random, CancellationToken ct)
     {
         RunState runState = RunManager.Instance.DebugOnlyGetState();
         if (runState == null || runState.CurrentRoomCount <= 1)
@@ -803,78 +792,10 @@ public class RlEventRoomHandler : IRoomHandler, IHandler
             return false;
         }
 
-        AutoSlayLog.Action("Event triggered combat, handling combat first");
-        await HandleEventCombat(ct);
+        AutoSlayLog.Action("Event triggered combat, routing through bridge combat handler");
+        await new RlCombatHandler().HandleAsync(random, ct);
         AutoSlayLog.Action("Combat finished, checking if event resumes");
         return true;
-    }
-
-    private static async Task HandleEventCombat(CancellationToken ct)
-    {
-        await WaitHelper.Until(
-            () => CombatManager.Instance.IsInProgress,
-            ct,
-            AutoSlayConfig.nodeWaitTimeout,
-            "Event combat not started");
-        AutoSlayLog.Action("Event combat started, applying buffs and killing enemies");
-        Creature player = LocalContext.GetMe(RunManager.Instance.DebugOnlyGetState()).Creature;
-        await PowerCmd.Apply<StrengthPower>(player, EventCombatBuffAmount, player, null);
-        await PowerCmd.Apply<PlatingPower>(player, EventCombatBuffAmount, player, null);
-        await PowerCmd.Apply<RegenPower>(player, EventCombatBuffAmount, player, null);
-
-        int killAttempts = 0;
-        int noEnemyWaitLoops = 0;
-        while (CombatManager.Instance.IsInProgress && killAttempts < MaxEventCombatKillAttempts)
-        {
-            ct.ThrowIfCancellationRequested();
-            CombatState combatState = CombatManager.Instance.DebugOnlyGetState();
-            if (combatState == null)
-            {
-                AutoSlayLog.Info("Combat state became null, exiting kill loop");
-                break;
-            }
-
-            foreach (Creature enemy in combatState.Enemies)
-            {
-                foreach (PowerModel power in enemy.Powers.Where(power => power.ShouldStopCombatFromEnding()).ToList())
-                {
-                    AutoSlayLog.Info($"Removing blocking power {power.GetType().Name} from {enemy}");
-                    await PowerCmd.Remove(power);
-                }
-            }
-
-            List<Creature> liveEnemies = combatState.Enemies.Where(enemy => enemy.IsAlive).ToList();
-            if (liveEnemies.Count > 0)
-            {
-                AutoSlayLog.Action($"Killing {liveEnemies.Count} event combat enemies (attempt {killAttempts + 1})");
-                await CreatureCmd.Kill(liveEnemies);
-                killAttempts++;
-                noEnemyWaitLoops = 0;
-                await Task.Delay(EventCombatKillSettleDelayMs, ct);
-                await CombatManager.Instance.CheckWinCondition();
-            }
-            else
-            {
-                noEnemyWaitLoops++;
-                if (noEnemyWaitLoops > MaxNoEnemyWaitLoops)
-                {
-                    AutoSlayLog.Info("Event combat still in progress but no enemies for 10s, breaking loop");
-                    break;
-                }
-                await Task.Delay(EventCombatNoEnemyPollDelayMs, ct);
-            }
-        }
-
-        if (CombatManager.Instance.IsInProgress)
-        {
-            await CombatManager.Instance.CheckWinCondition();
-        }
-        await WaitHelper.Until(
-            () => !CombatManager.Instance.IsInProgress,
-            ct,
-            TimeSpan.FromSeconds(EventCombatEndTimeoutSeconds),
-            "Event combat did not end");
-        AutoSlayLog.Action("Event combat finished");
     }
 
     private static async Task HandleFakeMerchantEvent(NFakeMerchant fakeMerchant, CancellationToken ct)
