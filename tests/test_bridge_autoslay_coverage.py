@@ -1,12 +1,44 @@
 """Coverage guards for the AutoSlay bridge wiring."""
 
+import re
 from pathlib import Path
 
 RL_AUTO_SLAYER = Path(__file__).resolve().parents[1] / "bridge_mod" / "RlAutoSlayer.cs"
+CARD_SELECT_CMD = (
+    Path(__file__).resolve().parents[1]
+    / "decompiled"
+    / "MegaCrit.Sts2.Core.Commands"
+    / "CardSelectCmd.cs"
+)
 
 
 def _rl_auto_slayer_source() -> str:
     return RL_AUTO_SLAYER.read_text(encoding="utf-8")
+
+
+def _card_select_cmd_source() -> str:
+    return CARD_SELECT_CMD.read_text(encoding="utf-8")
+
+
+def _method_bodies(source: str, method_name: str) -> list[str]:
+    pattern = re.compile(
+        rf"\n\tpublic static (?:async )?Task[^\n]*\b{re.escape(method_name)}\b"
+    )
+    starts = [match.start() for match in pattern.finditer(source)]
+    bodies: list[str] = []
+    for start in starts:
+        next_method = source.find("\n\tpublic static", start + 1)
+        if next_method == -1:
+            next_method = source.find("\n\tprivate static", start + 1)
+        bodies.append(source[start:next_method])
+    return bodies
+
+
+def _method_body_with_call(source: str, method_name: str, call: str) -> str:
+    for body in _method_bodies(source, method_name):
+        if call in body:
+            return body
+    raise AssertionError(f"{method_name} does not call {call}")
 
 
 def test_autoslay_run_rooms_route_through_rl_handlers() -> None:
@@ -60,3 +92,36 @@ def test_autoslay_run_flow_uses_named_protocol_and_timing_constants() -> None:
     assert "TimeSpan.FromSeconds(RunStateTimeoutSeconds)" in source
     assert "TimeSpan.FromSeconds(RoomAssignmentTimeoutSeconds)" in source
     assert "TimeSpan.FromSeconds(RewardsScreenTimeoutSeconds)" in source
+
+
+def test_decompiled_card_select_cmd_intercepts_default_selection_screens() -> None:
+    source = _card_select_cmd_source()
+    guarded_screens = {
+        "FromChooseACardScreen": "NChooseACardSelectionScreen.ShowScreen",
+        "FromSimpleGridForRewards": "NSimpleCardSelectScreen.Create",
+        "FromSimpleGrid": "NSimpleCardSelectScreen.Create",
+        "FromDeckForUpgrade": "NDeckUpgradeSelectScreen.ShowScreen",
+        "FromDeckForTransformation": "NDeckTransformSelectScreen.ShowScreen",
+        "FromDeckForEnchantment": "NDeckEnchantSelectScreen.ShowScreen",
+        "FromDeckGeneric": "NDeckCardSelectScreen.Create",
+    }
+
+    for method_name, screen_call in guarded_screens.items():
+        method = _method_body_with_call(source, method_name, screen_call)
+        assert "Selector != null" in method or "Selector == null" in method
+        assert method.index("Selector") < method.index(screen_call)
+
+
+def test_decompiled_card_bundle_path_does_not_use_card_selector() -> None:
+    source = _card_select_cmd_source()
+    method = _method_body_with_call(
+        source,
+        "FromChooseABundleScreen",
+        "NChooseABundleSelectionScreen.ShowScreen",
+    )
+
+    assert "Selector" not in method
+    assert "NChooseABundleSelectionScreen.ShowScreen" in method
+    assert "[typeof(NChooseABundleSelectionScreen)] = new RlCardBundleScreenHandler()" in (
+        _rl_auto_slayer_source()
+    )
