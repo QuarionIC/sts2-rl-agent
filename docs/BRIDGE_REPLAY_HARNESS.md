@@ -25,6 +25,8 @@ Supported bridge message types:
 - `event`
 - `treasure`
 - `boss_relic`
+- `game_over`
+- `run_complete`
 
 The C# bridge mod now routes ordinary rest-site, shop, event, treasure, and
 boss-relic choices through these same state types instead of using AutoSlay's
@@ -111,6 +113,8 @@ The recorder only persists states relevant to the comparator:
 - `event`
 - `treasure`
 - `boss_relic`
+- `game_over`
+- `run_complete`
 
 You can also record directly from the existing bridge runner:
 
@@ -217,7 +221,7 @@ For `shop`, `event`, `treasure`, and `boss_relic`, it checks:
 ## Current Limitations
 
 - No full-run replay comparison yet.
-- Run comparison currently targets actionable slices, not complete run lifecycle proof.
+- Run comparison currently targets actionable slices and can record terminal `game_over` / `run_complete` states, but it is not complete run lifecycle proof.
 - Shop, event, treasure, and boss-relic comparison intentionally ignores localized labels and simulator-only option ids; live C# labels and Python internal ids do not always use the same naming scheme.
 - Event-triggered combat now routes through the same bridge combat handler as ordinary combat, but it still needs live-game smoke testing.
 - C# bridge handler compilation and live-game smoke testing still require a local `dotnet`/STS2 mod build environment.

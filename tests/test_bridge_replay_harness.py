@@ -206,6 +206,20 @@ def test_bridge_replay_recorder_records_skip_and_multi_select_actions():
     assert recorder.trace.steps[1].action == {"action": BridgeAction.SKIP}
 
 
+def test_bridge_replay_recorder_records_terminal_run_state():
+    initial = {"type": BridgeStateType.MAP_SELECT, "nodes": [{"index": 0, "type": "Monster"}], "floor": 1, "act": 1}
+    terminal = {"type": "run_complete", "result": "victory"}
+    client = FakeBridgeClient([initial, terminal])
+    recorder = BridgeReplayRecorder(client)
+
+    assert recorder.receive_state() == initial
+    recorder.choose(0)
+    assert recorder.receive_state() == terminal
+
+    assert recorder.trace.steps[0].action == {"action": BridgeAction.CHOOSE, "index": 0}
+    assert recorder.trace.steps[0].resulting_state == terminal
+
+
 def test_bridge_replay_recorder_delegates_unknown_attributes():
     client = FakeBridgeClient([])
     recorder = BridgeReplayRecorder(client)

@@ -18,6 +18,8 @@ Supported bridge message types:
 - `event`
 - `treasure`
 - `boss_relic`
+- `game_over`
+- `run_complete`
 """
 
 from __future__ import annotations
@@ -44,6 +46,8 @@ STATE_TYPE_SHOP = BridgeStateType.SHOP
 STATE_TYPE_EVENT = BridgeStateType.EVENT
 STATE_TYPE_TREASURE = BridgeStateType.TREASURE
 STATE_TYPE_BOSS_RELIC = BridgeStateType.BOSS_RELIC
+STATE_TYPE_GAME_OVER = BridgeStateType.GAME_OVER
+STATE_TYPE_RUN_COMPLETE = "run_complete"
 SUPPORTED_STATE_TYPES = frozenset({
     STATE_TYPE_COMBAT,
     STATE_TYPE_CARD_SELECT,
@@ -54,6 +58,8 @@ SUPPORTED_STATE_TYPES = frozenset({
     STATE_TYPE_EVENT,
     STATE_TYPE_TREASURE,
     STATE_TYPE_BOSS_RELIC,
+    STATE_TYPE_GAME_OVER,
+    STATE_TYPE_RUN_COMPLETE,
 })
 
 _CARD_TYPE_NAMES = {
@@ -366,6 +372,13 @@ def normalize_bridge_state(state: dict[str, Any]) -> dict[str, Any]:
             "floor": int(state.get("floor", 0)),
             "act": int(state.get("act", 0)),
         }
+    if state_type in {STATE_TYPE_GAME_OVER, STATE_TYPE_RUN_COMPLETE}:
+        normalized: dict[str, Any] = {"type": state_type}
+        if "result" in state:
+            normalized["result"] = str(state.get("result", ""))
+        if "message" in state:
+            normalized["message"] = str(state.get("message", ""))
+        return normalized
     raise ValueError(f"Unsupported bridge state type for replay comparison: {state_type!r}")
 
 
