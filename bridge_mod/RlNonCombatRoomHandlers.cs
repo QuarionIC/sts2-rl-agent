@@ -32,6 +32,8 @@ namespace STS2BridgeMod;
 
 internal static class NonCombatBridgeProtocol
 {
+    public const string CardSelectState = "card_select";
+    public const string CardRewardState = "card_reward";
     public const string RestSiteState = "rest_site";
     public const string RewardScreenState = "reward_screen";
     public const string CardBundleState = "card_bundle";

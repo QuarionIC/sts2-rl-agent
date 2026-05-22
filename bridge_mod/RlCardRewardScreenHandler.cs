@@ -26,17 +26,21 @@ namespace STS2BridgeMod;
 
 public class RlCardRewardScreenHandler : IScreenHandler, IHandler
 {
-    private static readonly TimeSpan AgentTimeout = TimeSpan.FromSeconds(30);
+    private const int AgentTimeoutSeconds = 30;
+    private const int HandlerTimeoutSeconds = 30;
+    private const int InitialSettleDelayMs = 400;
+    private const int CloseTimeoutSeconds = 10;
+    private static readonly TimeSpan AgentTimeout = TimeSpan.FromSeconds(AgentTimeoutSeconds);
 
     public Type ScreenType => typeof(NCardRewardSelectionScreen);
-    public TimeSpan Timeout => TimeSpan.FromSeconds(30);
+    public TimeSpan Timeout => TimeSpan.FromSeconds(HandlerTimeoutSeconds);
 
     public async Task HandleAsync(Rng random, CancellationToken ct)
     {
         Logger.Log("[RlCardReward] Card reward screen appeared");
         NCardRewardSelectionScreen screen =
             (NCardRewardSelectionScreen)NOverlayStack.Instance.Peek();
-        await Task.Delay(400, ct);
+        await Task.Delay(InitialSettleDelayMs, ct);
 
         List<NCardHolder> holders = UiHelper.FindAll<NCardHolder>(screen);
         if (holders.Count == 0)
@@ -67,7 +71,7 @@ public class RlCardRewardScreenHandler : IScreenHandler, IHandler
 
         var stateMsg = new Dictionary<string, object>
         {
-            ["type"] = "card_reward",
+            ["type"] = NonCombatBridgeProtocol.CardRewardState,
             ["cards"] = cards,
             ["can_skip"] = true,
         };
@@ -89,7 +93,7 @@ public class RlCardRewardScreenHandler : IScreenHandler, IHandler
                     var root = doc.RootElement;
                     string action = root.GetProperty("action").GetString() ?? "";
 
-                    if (action == "skip")
+                    if (action == NonCombatBridgeProtocol.SkipAction)
                     {
                         Logger.Log("[RlCardReward] Agent chose to skip");
                         if (!TrySkipCardReward())
@@ -97,7 +101,7 @@ public class RlCardRewardScreenHandler : IScreenHandler, IHandler
                         return;
                     }
 
-                    if (action == "choose" &&
+                    if (action == NonCombatBridgeProtocol.ChooseAction &&
                         root.TryGetProperty("index", out var idxProp))
                     {
                         int idx = idxProp.GetInt32();
@@ -132,7 +136,7 @@ public class RlCardRewardScreenHandler : IScreenHandler, IHandler
         chosenHolder.EmitSignal(NCardHolder.SignalName.Pressed, chosenHolder);
         await WaitHelper.Until(
             () => !GodotObject.IsInstanceValid(screen) || !screen.IsVisibleInTree(),
-            ct, TimeSpan.FromSeconds(10),
+            ct, TimeSpan.FromSeconds(CloseTimeoutSeconds),
             "Card reward screen did not close after selection");
         Logger.Log("[RlCardReward] Card reward screen handled");
     }

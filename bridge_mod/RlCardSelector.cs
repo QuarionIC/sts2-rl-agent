@@ -23,7 +23,8 @@ namespace STS2BridgeMod;
 
 public class RlCardSelector : ICardSelector
 {
-    private static readonly TimeSpan AgentTimeout = TimeSpan.FromSeconds(30);
+    private const int AgentTimeoutSeconds = 30;
+    private static readonly TimeSpan AgentTimeout = TimeSpan.FromSeconds(AgentTimeoutSeconds);
 
     /// <summary>
     /// Called for deck upgrade, deck transform, deck enchant, hand selection,
@@ -58,7 +59,7 @@ public class RlCardSelector : ICardSelector
 
         var stateMsg = new Dictionary<string, object>
         {
-            ["type"] = "card_select",
+            ["type"] = NonCombatBridgeProtocol.CardSelectState,
             ["cards"] = cards,
             ["min_select"] = minSelect,
             ["max_select"] = maxSelect,
@@ -86,8 +87,8 @@ public class RlCardSelector : ICardSelector
             }
         }
 
-        // Fallback: select random cards
-        Logger.Log("[RlCardSelector] Falling back to random selection");
+        // Fallback: select the first legal cards.
+        Logger.Log("[RlCardSelector] Falling back to deterministic selection");
         return FallbackSelect(cardList, minSelect, maxSelect);
     }
 
@@ -120,7 +121,7 @@ public class RlCardSelector : ICardSelector
 
         var stateMsg = new Dictionary<string, object>
         {
-            ["type"] = "card_reward",
+            ["type"] = NonCombatBridgeProtocol.CardRewardState,
             ["cards"] = cards,
             ["can_skip"] = true,
         };
@@ -142,13 +143,13 @@ public class RlCardSelector : ICardSelector
                     var root = doc.RootElement;
                     string action = root.GetProperty("action").GetString() ?? "";
 
-                    if (action == "skip")
+                    if (action == NonCombatBridgeProtocol.SkipAction)
                     {
                         Logger.Log("[RlCardSelector] Agent chose to skip card reward");
                         return null;
                     }
 
-                    if (action == "choose" &&
+                    if (action == NonCombatBridgeProtocol.ChooseAction &&
                         root.TryGetProperty("index", out var idxProp))
                     {
                         int idx = idxProp.GetInt32();
@@ -190,7 +191,7 @@ public class RlCardSelector : ICardSelector
             var root = doc.RootElement;
             string action = root.GetProperty("action").GetString() ?? "";
 
-            if (action == "skip")
+            if (action == NonCombatBridgeProtocol.SkipAction)
             {
                 if (minSelect <= 0)
                 {
@@ -200,7 +201,7 @@ public class RlCardSelector : ICardSelector
                 // Can't skip if min is > 0, fall through
             }
 
-            if (action == "choose")
+            if (action == NonCombatBridgeProtocol.ChooseAction)
             {
                 // Single index
                 if (root.TryGetProperty("index", out var idxProp))
@@ -257,7 +258,7 @@ public class RlCardSelector : ICardSelector
             Logger.Log($"[RlCardSelector] Error parsing response: {ex.Message}");
         }
 
-        Logger.Log("[RlCardSelector] Invalid response, falling back to random");
+        Logger.Log("[RlCardSelector] Invalid response, falling back to deterministic selection");
         return FallbackSelect(cardList, minSelect, maxSelect);
     }
 
