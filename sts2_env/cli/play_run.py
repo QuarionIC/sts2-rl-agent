@@ -176,6 +176,11 @@ def display_map(mgr: RunManager, actions: list[dict[str, Any]]) -> None:
     if act_map is None:
         return
     print("\n  MAP:")
+    if run_state.visited_map_coords:
+        current = run_state.visited_map_coords[-1]
+        print(f"    Current: ({current.col},{current.row})   * reachable   x visited")
+    else:
+        print("    Current: start   * reachable   x visited")
     max_row = max((point.row for point in act_map.all_points()), default=0)
     for row in range(max_row, 0, -1):
         points = act_map.get_row(row)
@@ -187,6 +192,23 @@ def display_map(mgr: RunManager, actions: list[dict[str, Any]]) -> None:
             marker = "*" if coord in reachable else "x" if point.coord in visited else " "
             parts.append(f"{marker}({point.col},{point.row}) {ROOM_LABELS.get(point.point_type.name, display_name(point.point_type.name))}")
         print("    " + "   ".join(parts))
+    if reachable:
+        print("\n  NEXT PATHS:")
+        for point in sorted(
+            (act_map.get_point(action_coord) for action_coord in run_state.get_available_next_coords()),
+            key=lambda item: (item.col, item.row) if item is not None else (-1, -1),
+        ):
+            if point is None:
+                continue
+            children = ", ".join(
+                f"({child.col},{child.row}) {ROOM_LABELS.get(child.point_type.name, display_name(child.point_type.name))}"
+                for child in sorted(point.children, key=lambda child: child.col)
+            )
+            suffix = f" -> {children}" if children else ""
+            print(
+                f"    ({point.col},{point.row}) "
+                f"{ROOM_LABELS.get(point.point_type.name, display_name(point.point_type.name))}{suffix}"
+            )
 
 
 def display_combat(combat: CombatState) -> None:

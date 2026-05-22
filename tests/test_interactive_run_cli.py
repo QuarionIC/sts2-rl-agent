@@ -5,6 +5,7 @@ import sts2_env.events  # noqa: F401
 from sts2_env.cli.play_run import (
     describe_card,
     display_event,
+    display_map,
     display_name,
     display_reward,
     display_rest_site,
@@ -68,6 +69,20 @@ def test_interactive_cli_uses_player_readable_names() -> None:
     assert display_text("Obtained relic BOOMING_CONCH.") == "Obtained relic Booming Conch."
     assert display_text("BASH(2E 8dmg)") == "Bash(2E 8dmg)"
     assert "STRIKE_IRONCLAD" not in describe_card(card)
+
+
+def test_interactive_cli_displays_map_position_and_next_paths(capsys) -> None:
+    mgr = RunManager(seed=COMBAT_TEST_SEED, character_id="Ironclad")
+    actions = mgr.get_available_actions()
+
+    display_map(mgr, actions)
+    output = capsys.readouterr().out
+
+    assert "MAP:" in output
+    assert "Current: start" in output
+    assert "* reachable" in output
+    assert "NEXT PATHS:" in output
+    assert "->" in output
 
 
 def test_interactive_cli_shows_event_option_descriptions(capsys) -> None:
