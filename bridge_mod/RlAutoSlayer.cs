@@ -97,7 +97,7 @@ public class RlAutoSlayer
             [typeof(NDeckCardSelectScreen)] = new DeckCardSelectScreenHandler(),
             [typeof(NSimpleCardSelectScreen)] = new SimpleCardSelectScreenHandler(),
             [typeof(NChooseACardSelectionScreen)] = new ChooseACardScreenHandler(),
-            [typeof(NChooseABundleSelectionScreen)] = new ChooseABundleScreenHandler(),
+            [typeof(NChooseABundleSelectionScreen)] = new RlCardBundleScreenHandler(),
             [typeof(NChooseARelicSelection)] = new RlChooseARelicScreenHandler(),
             [typeof(NGameOverScreen)] = new RlGameOverScreenHandler(),
             [typeof(NCrystalSphereScreen)] = new CrystalSphereScreenHandler(),

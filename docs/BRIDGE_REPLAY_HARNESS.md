@@ -20,6 +20,7 @@ Supported bridge message types:
 - `card_select`
 - `map_select`
 - `reward_screen`
+- `card_bundle`
 - `card_reward`
 - `rest_site`
 - `shop`
@@ -29,10 +30,10 @@ Supported bridge message types:
 - `game_over`
 - `run_complete`
 
-The C# bridge mod now routes ordinary reward-screen, rest-site, shop, event,
-treasure, and boss-relic choices through these same state types instead of using
-AutoSlay's random room handlers. Those live messages can be recorded by the
-replay recorder.
+The C# bridge mod now routes ordinary reward-screen, card-bundle, rest-site,
+shop, event, treasure, and boss-relic choices through these same state types
+instead of using AutoSlay's random room handlers. Those live messages can be
+recorded by the replay recorder.
 
 It still does not compare full-run traces end to end.
 
@@ -109,6 +110,7 @@ The recorder only persists states relevant to the comparator:
 - `card_select`
 - `map_select`
 - `reward_screen`
+- `card_bundle`
 - `card_reward`
 - `rest_site`
 - `shop`
@@ -205,6 +207,14 @@ For `card_reward`, it checks:
 - offered card list
 - card order and metadata
 - `can_skip`
+
+For `card_bundle`, it checks:
+
+- bundle order
+- cards inside each bundle
+- stable action / enabled status
+- floor
+- act
 
 For `rest_site`, it checks:
 

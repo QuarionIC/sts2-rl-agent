@@ -8,7 +8,12 @@ import sts2_env.powers  # noqa: F401
 import sts2_env.potions  # noqa: F401
 
 from sts2_env.bridge.protocol import BridgeAction, BridgeStateType
-from sts2_env.cards.ironclad_basic import create_ironclad_starter_deck, make_strike_ironclad
+from sts2_env.cards.ironclad_basic import (
+    create_ironclad_starter_deck,
+    make_bash,
+    make_defend_ironclad,
+    make_strike_ironclad,
+)
 from sts2_env.cards.silent import create_silent_starter_deck, make_strike_silent, make_survivor
 from sts2_env.core.combat import CombatState
 from sts2_env.core.rng import Rng
@@ -29,6 +34,7 @@ from sts2_env.parity.bridge_replay import (
 from sts2_env.parity.bridge_replay_cli import build_parser
 from sts2_env.potions.base import create_potion
 from sts2_env.run.reward_objects import RelicReward
+from sts2_env.run.reward_objects import CardBundlesReward
 from sts2_env.run.run_manager import RunManager
 
 BRIDGE_REPLAY_SEED = 42
@@ -81,6 +87,20 @@ def make_basic_replay_run() -> RunManager:
 def make_card_reward_replay_run() -> RunManager:
     run = RunManager(seed=BRIDGE_REPLAY_SEED, character_id="Ironclad")
     run._enter_card_reward(context="regular")
+    return run
+
+
+def make_card_bundle_replay_run() -> RunManager:
+    run = RunManager(seed=BRIDGE_REPLAY_SEED, character_id="Ironclad")
+    run._phase = RunManager.PHASE_CARD_REWARD
+    run._current_reward = CardBundlesReward(
+        run.run_state.player.player_id,
+        [
+            [make_strike_ironclad(), make_defend_ironclad(), make_bash()],
+            [make_defend_ironclad(), make_strike_ironclad(), make_bash()],
+        ],
+    )
+    run._prime_next_card_bundles_reward()
     return run
 
 
@@ -302,6 +322,36 @@ def test_normalize_bridge_state_supports_reward_screen():
     }
 
 
+def test_bridge_replay_recorder_normalizes_card_bundle_state():
+    initial = {
+        "type": BridgeStateType.CARD_BUNDLE,
+        "bundles": [
+            {
+                "index": 0,
+                "action": "pick_card_bundle",
+                "cards": [
+                    {"id": "STRIKE_IRONCLAD", "type": "Attack", "cost": 1},
+                    {"id": "DEFEND_IRONCLAD", "type": "Skill", "cost": 1},
+                ],
+                "enabled": True,
+            }
+        ],
+        "floor": 1,
+        "act": 1,
+    }
+    after_pick = {"type": BridgeStateType.MAP_SELECT, "nodes": [], "floor": 2, "act": 1}
+    client = FakeBridgeClient([initial, after_pick])
+    recorder = BridgeReplayRecorder(client)
+
+    assert recorder.receive_state() == initial
+    recorder.choose(0)
+    assert recorder.receive_state() == after_pick
+
+    assert recorder.trace.initial_state == initial
+    assert recorder.trace.steps[0].action == {"action": BridgeAction.CHOOSE, "index": 0}
+    assert recorder.trace.steps[0].resulting_state == after_pick
+
+
 def test_bridge_replay_recorder_delegates_unknown_attributes():
     client = FakeBridgeClient([])
     recorder = BridgeReplayRecorder(client)
@@ -449,6 +499,42 @@ def test_compare_run_replay_handles_card_reward_pick_to_map_transition():
         ],
     )
     result = compare_run_replay(trace, factory=make_card_reward_replay_run)
+
+    assert result.success is True
+    assert result.mismatches == []
+
+
+def test_run_manager_to_bridge_state_serializes_card_bundle_options():
+    run = make_card_bundle_replay_run()
+    state = run_manager_to_bridge_state(run)
+
+    assert state["type"] == BridgeStateType.CARD_BUNDLE
+    assert [bundle["action"] for bundle in state["bundles"]] == ["pick_card_bundle", "pick_card_bundle"]
+    assert [bundle["index"] for bundle in state["bundles"]] == [0, 1]
+    assert [card["id"] for card in state["bundles"][0]["cards"]] == [
+        "STRIKE_IRONCLAD",
+        "DEFEND_IRONCLAD",
+        "BASH",
+    ]
+
+
+def test_compare_run_replay_handles_card_bundle_pick_to_map_transition():
+    run = make_card_bundle_replay_run()
+    initial_state = run_manager_to_bridge_state(run)
+    run.take_action({"action": "pick_card_bundle", "index": 0})
+    resulting_state = run_manager_to_bridge_state(run)
+
+    trace = BridgeReplayTrace(
+        mode="run",
+        initial_state=initial_state,
+        steps=[
+            BridgeReplayStep(
+                action={"action": BridgeAction.CHOOSE, "index": FIRST_BRIDGE_CHOICE_INDEX},
+                resulting_state=resulting_state,
+            )
+        ],
+    )
+    result = compare_run_replay(trace, factory=make_card_bundle_replay_run)
 
     assert result.success is True
     assert result.mismatches == []

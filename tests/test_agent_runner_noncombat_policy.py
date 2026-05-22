@@ -4,6 +4,7 @@ from sts2_env.bridge.agent_runner import (
     TERMINAL_PHASES,
     _phase_for_state,
     _pick_boss_relic_option,
+    _pick_card_bundle_index,
     _pick_card_reward_index,
     _pick_card_select_indexes,
     _pick_map_node,
@@ -83,6 +84,17 @@ def test_reward_screen_policy_picks_rewards_before_proceeding() -> None:
     }
 
     assert _pick_reward_screen_option(state) == 1
+
+
+def test_card_bundle_policy_picks_enabled_bundle_by_action() -> None:
+    state = {
+        "bundles": [
+            {"index": 0, "action": "inspect", "enabled": True},
+            {"index": 3, "action": "pick_card_bundle", "enabled": True},
+        ],
+    }
+
+    assert _pick_card_bundle_index(state) == 3
 
 
 def test_rest_policy_uses_option_ids_not_order() -> None:

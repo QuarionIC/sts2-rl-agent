@@ -13,6 +13,7 @@ Supported bridge message types:
 - `card_select`
 - `map_select`
 - `reward_screen`
+- `card_bundle`
 - `card_reward`
 - `rest_site`
 - `shop`
@@ -42,6 +43,7 @@ STATE_TYPE_COMBAT = BridgeStateType.COMBAT_ACTION
 STATE_TYPE_CARD_SELECT = BridgeStateType.CARD_SELECT
 STATE_TYPE_MAP_SELECT = BridgeStateType.MAP_SELECT
 STATE_TYPE_REWARD_SCREEN = BridgeStateType.REWARD_SCREEN
+STATE_TYPE_CARD_BUNDLE = BridgeStateType.CARD_BUNDLE
 STATE_TYPE_CARD_REWARD = BridgeStateType.CARD_REWARD
 STATE_TYPE_REST_SITE = BridgeStateType.REST_SITE
 STATE_TYPE_SHOP = BridgeStateType.SHOP
@@ -55,6 +57,7 @@ SUPPORTED_STATE_TYPES = frozenset({
     STATE_TYPE_CARD_SELECT,
     STATE_TYPE_MAP_SELECT,
     STATE_TYPE_REWARD_SCREEN,
+    STATE_TYPE_CARD_BUNDLE,
     STATE_TYPE_CARD_REWARD,
     STATE_TYPE_REST_SITE,
     STATE_TYPE_SHOP,
@@ -89,6 +92,7 @@ SHOP_REPLAY_ACTIONS = frozenset({"leave_shop", "buy_card", "buy_relic", "buy_pot
 EVENT_REPLAY_ACTIONS = frozenset({"event_choice"})
 TREASURE_REPLAY_ACTIONS = frozenset({"collect"})
 BOSS_RELIC_REPLAY_ACTIONS = frozenset({"pick_relic"})
+CARD_BUNDLE_REPLAY_ACTIONS = frozenset({"pick_card_bundle"})
 
 
 @dataclass(slots=True)
@@ -306,6 +310,18 @@ def _normalize_action_options(options: list[dict[str, Any]] | None) -> list[dict
     return normalized
 
 
+def _normalize_card_bundles(bundles: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for idx, bundle in enumerate(bundles or []):
+        normalized.append({
+            "index": int(bundle.get("index", idx)),
+            "action": str(bundle.get("action", "")),
+            "cards": _normalize_cards(bundle.get("cards")),
+            "enabled": bool(bundle.get("enabled", True)),
+        })
+    return normalized
+
+
 def normalize_bridge_state(state: dict[str, Any]) -> dict[str, Any]:
     """Normalize a raw bridge message into a stable comparison shape."""
     state_type = state.get("type")
@@ -360,6 +376,13 @@ def normalize_bridge_state(state: dict[str, Any]) -> dict[str, Any]:
             "type": STATE_TYPE_CARD_REWARD,
             "cards": cards,
             "can_skip": bool(state.get("can_skip", False)),
+        }
+    if state_type == STATE_TYPE_CARD_BUNDLE:
+        return {
+            "type": STATE_TYPE_CARD_BUNDLE,
+            "bundles": _normalize_card_bundles(state.get("bundles")),
+            "floor": int(state.get("floor", 0)),
+            "act": int(state.get("act", 0)),
         }
     if state_type == STATE_TYPE_REST_SITE:
         return {
@@ -510,6 +533,31 @@ def run_manager_to_bridge_state(run: RunManager) -> dict[str, Any]:
 
     if phase == RunManager.PHASE_CARD_REWARD:
         actions = run.get_available_actions()
+        bundle_actions = [action for action in actions if action.get("action") in CARD_BUNDLE_REPLAY_ACTIONS]
+        if bundle_actions:
+            offered_bundles = getattr(run, "_offered_card_bundles", [])
+            return normalize_bridge_state({
+                "type": STATE_TYPE_CARD_BUNDLE,
+                "bundles": [
+                    {
+                        "index": int(action["index"]),
+                        "action": action["action"],
+                        "cards": [
+                            {
+                                "id": card.card_id.name,
+                                "type": _CARD_TYPE_NAMES[card.card_type],
+                                "cost": card.cost,
+                                "upgraded": card.upgraded or None,
+                            }
+                            for card in offered_bundles[action["index"]]
+                        ],
+                        "enabled": True,
+                    }
+                    for action in bundle_actions
+                ],
+                "floor": run.run_state.total_floor,
+                "act": run.run_state.current_act_index + 1,
+            })
         card_actions = [action for action in actions if action.get("action") == "pick_card"]
         offered_cards = getattr(run, "_offered_cards", [])
         return normalize_bridge_state({
@@ -697,6 +745,20 @@ def _apply_run_replay_action(run: RunManager, current_state_type: str, action: d
             return
         index = int(action.get("index", -1))
         run.take_action({"action": "pick_card", "index": index})
+        return
+
+    if current_state_type == STATE_TYPE_CARD_BUNDLE:
+        if action.get("action") != BridgeAction.CHOOSE:
+            raise ValueError(f"Unsupported card_bundle action type: {action.get('action')!r}")
+        bundle_actions = [
+            candidate
+            for candidate in run.get_available_actions()
+            if candidate.get("action") in CARD_BUNDLE_REPLAY_ACTIONS
+        ]
+        index = int(action.get("index", -1))
+        if not (0 <= index < len(bundle_actions)):
+            raise AssertionError(f"Invalid card_bundle index {index} for {len(bundle_actions)} available bundles")
+        run.take_action({"action": "pick_card_bundle", "index": index})
         return
 
     if current_state_type == STATE_TYPE_COMBAT:

@@ -195,6 +195,29 @@ Sent when the player must select cards (upgrade, transform, etc.).
 }
 ```
 
+### card_bundle
+
+Sent when the player must choose one whole bundle of cards.
+
+```json
+{
+  "type": "card_bundle",
+  "bundles": [
+    {
+      "index": 0,
+      "action": "pick_card_bundle",
+      "cards": [
+        {"id": "STRIKE_IRONCLAD", "type": "Attack", "cost": 1},
+        {"id": "DEFEND_IRONCLAD", "type": "Skill", "cost": 1}
+      ],
+      "enabled": true
+    }
+  ],
+  "floor": 1,
+  "act": 1
+}
+```
+
 ### choice option states
 
 These state types use a shared option-list shape and expect a `choose` response:
@@ -328,6 +351,8 @@ For multi-card `card_select` prompts, the client may send:
 ```
 
 `request_id` should be echoed back on all non-ping actions when present in the state.
+
+For `card_bundle`, `index` maps to the `bundles` array and selects the whole bundle.
 
 ### skip
 

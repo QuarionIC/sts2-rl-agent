@@ -34,6 +34,7 @@ internal static class NonCombatBridgeProtocol
 {
     public const string RestSiteState = "rest_site";
     public const string RewardScreenState = "reward_screen";
+    public const string CardBundleState = "card_bundle";
     public const string ShopState = "shop";
     public const string EventState = "event";
     public const string TreasureState = "treasure";
@@ -51,6 +52,7 @@ internal static class NonCombatBridgeProtocol
     public const string CollectTreasureAction = "collect";
     public const string PickRelicAction = "pick_relic";
     public const string PickRewardAction = "pick_reward";
+    public const string PickCardBundleAction = "pick_card_bundle";
     public const string ProceedAction = "proceed";
 }
 

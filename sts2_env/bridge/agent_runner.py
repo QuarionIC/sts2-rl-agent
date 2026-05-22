@@ -75,6 +75,7 @@ SHOP_PURCHASE_ACTION_PRIORITY = (
 SHOP_LEAVE_ACTION = "leave_shop"
 REWARD_PROCEED_ACTION = "proceed"
 REWARD_PICK_ACTION = "pick_reward"
+CARD_BUNDLE_PICK_ACTION = "pick_card_bundle"
 REST_HEAL_OPTION_ID = "heal"
 REST_SMITH_OPTION_ID = "smith"
 TREASURE_COLLECT_ACTION = "collect"
@@ -230,7 +231,12 @@ def run_agent(
                     client.choose(choice)
 
                 elif phase == Phase.CARD_REWARD:
-                    if msg_type == BridgeStateType.CARD_SELECT:
+                    if msg_type == BridgeStateType.CARD_BUNDLE:
+                        choice = _pick_card_bundle_index(state)
+                        if verbose:
+                            logger.info("CARD_BUNDLE: choosing bundle %s", choice)
+                        client.choose(choice)
+                    elif msg_type == BridgeStateType.CARD_SELECT:
                         indexes = _pick_card_select_indexes(state)
                         if verbose:
                             logger.info("CARD_SELECT: choosing indexes %s", indexes)
@@ -308,6 +314,7 @@ def _phase_for_state(state: dict[str, Any]) -> str:
         MSG_TYPE_GAME_STATE: state.get("phase", Phase.UNKNOWN),
         BridgeStateType.MAP_SELECT: Phase.MAP_SELECT,
         BridgeStateType.REWARD_SCREEN: Phase.CARD_REWARD,
+        BridgeStateType.CARD_BUNDLE: Phase.CARD_REWARD,
         BridgeStateType.CARD_REWARD: Phase.CARD_REWARD,
         BridgeStateType.CARD_SELECT: Phase.CARD_REWARD,
         BridgeStateType.REST_SITE: Phase.REST,
@@ -374,6 +381,20 @@ def _pick_reward_screen_option(state: dict[str, Any]) -> int:
     if option is not None:
         return _read_index(option, DEFAULT_CHOICE_INDEX)
     option = _first_matching_option(options, actions=(REWARD_PROCEED_ACTION,)) or options[0]
+    return _read_index(option, DEFAULT_CHOICE_INDEX)
+
+
+def _pick_card_bundle_index(state: dict[str, Any]) -> int:
+    bundles = [
+        bundle
+        for bundle in state.get("bundles", [])
+        if bool(bundle.get("enabled", True))
+    ]
+    if not bundles:
+        return DEFAULT_CHOICE_INDEX
+    option = _first_matching_option(bundles, actions=(CARD_BUNDLE_PICK_ACTION,))
+    if option is None:
+        option = bundles[0]
     return _read_index(option, DEFAULT_CHOICE_INDEX)
 
 
