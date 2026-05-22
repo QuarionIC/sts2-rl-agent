@@ -1286,10 +1286,10 @@ class Byrdpip(RelicInstance):
                     seen.add(marker)
                     if is_byrdonis_egg(card):
                         combat.transform_card(card, make_byrd_swoop_from_byrdonis_egg(card))
-        combat.summon_event_pet(creature, "BYRDPIP")
+        combat.summon_event_pet(creature, RelicId.BYRDPIP)
 
     def before_combat_start(self, owner: Creature, combat: CombatState) -> None:
-        combat.summon_event_pet(owner, "BYRDPIP")
+        combat.summon_event_pet(owner, RelicId.BYRDPIP)
 
 
 @register_relic
@@ -2686,12 +2686,12 @@ class PaelsLegion(RelicInstance):
     def before_combat_start(self, owner: Creature, combat: CombatState) -> None:
         self._cooldown = 0
         self._affected_card = None
-        combat.summon_event_pet(owner, "PAELS_LEGION")
+        combat.summon_event_pet(owner, RelicId.PAELS_LEGION)
 
     def after_obtained(self, owner: Creature) -> None:
         combat, creature = _active_combat_creature(owner)
         if combat is not None and creature is not None:
-            combat.summon_event_pet(creature, "PAELS_LEGION")
+            combat.summon_event_pet(creature, RelicId.PAELS_LEGION)
 
     def modify_block_multiplicative(
         self,

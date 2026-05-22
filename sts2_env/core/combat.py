@@ -69,6 +69,7 @@ from sts2_env.core.enums import (
 from sts2_env.core.rng import INT_MAX, Rng
 from sts2_env.core.selection import CardChoiceOption, PendingCardChoice
 from sts2_env.potions.base import PotionInstance
+from sts2_env.relics.base import RelicId
 
 if TYPE_CHECKING:
     from sts2_env.monsters.state_machine import MonsterAI
@@ -2873,10 +2874,14 @@ class CombatState:
             None,
         )
 
-    def summon_event_pet(self, owner: Creature, monster_id: str) -> Creature | None:
+    def summon_event_pet(self, owner: Creature, monster_id: str | RelicId) -> Creature | None:
         from sts2_env.core.hooks import fire_after_creature_added_to_combat
         from sts2_env.monsters.shared import create_byrdpip, create_paels_legion
 
+        if isinstance(monster_id, RelicId):
+            pet_id = monster_id.name
+        else:
+            pet_id = monster_id
         state = self.combat_player_state_for(owner)
         if state is None or owner.side != CombatSide.PLAYER or not getattr(owner, "is_player", False):
             return None
@@ -2886,7 +2891,7 @@ class CombatState:
                 for ally in self.allies
                 if getattr(ally, "is_pet", False)
                 and getattr(ally, "pet_owner", None) is owner
-                and getattr(ally, "monster_id", None) == monster_id
+                and getattr(ally, "monster_id", None) == pet_id
             ),
             None,
         )
@@ -2894,10 +2899,10 @@ class CombatState:
             return existing
 
         factories = {
-            "BYRDPIP": create_byrdpip,
-            "PAELS_LEGION": create_paels_legion,
+            RelicId.BYRDPIP.name: create_byrdpip,
+            RelicId.PAELS_LEGION.name: create_paels_legion,
         }
-        factory = factories.get(monster_id)
+        factory = factories.get(pet_id)
         if factory is None:
             return None
         pet, _ = factory(self.rng)

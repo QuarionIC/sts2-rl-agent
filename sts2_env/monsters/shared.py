@@ -24,6 +24,7 @@ from sts2_env.core.creature import Creature
 from sts2_env.core.enums import CombatSide, MoveRepeatType, PowerId, ValueProp
 from sts2_env.core.damage import calculate_damage, apply_damage
 from sts2_env.core.rng import Rng
+from sts2_env.relics.base import RelicId
 from sts2_env.monsters.intents import (
     Intent, IntentType, attack_intent, multi_attack_intent,
     buff_intent, debuff_intent, strong_debuff_intent, status_intent,
@@ -101,7 +102,7 @@ def create_architect(rng: Rng) -> tuple[Creature, MonsterAI]:
 # Pet companion; does nothing in combat.
 
 def create_byrdpip(rng: Rng) -> tuple[Creature, MonsterAI]:
-    creature = Creature(max_hp=NOOP_MONSTER_HP, monster_id="BYRDPIP")
+    creature = Creature(max_hp=NOOP_MONSTER_HP, monster_id=RelicId.BYRDPIP.name)
 
     def nothing(combat: CombatState) -> None:
         pass
@@ -116,7 +117,7 @@ def create_byrdpip(rng: Rng) -> tuple[Creature, MonsterAI]:
 # Pet companion; does nothing in combat.
 
 def create_paels_legion(rng: Rng) -> tuple[Creature, MonsterAI]:
-    creature = Creature(max_hp=NOOP_MONSTER_HP, monster_id="PAELS_LEGION")
+    creature = Creature(max_hp=NOOP_MONSTER_HP, monster_id=RelicId.PAELS_LEGION.name)
 
     def nothing(combat: CombatState) -> None:
         pass
