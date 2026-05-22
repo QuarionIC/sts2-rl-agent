@@ -72,7 +72,7 @@ def _enter_legends_were_true_event(session: RunSession) -> dict:
     session.mgr._event_started = True
     session.mgr._event_options = event.generate_initial_options(session.mgr.run_state)
     state = session.state()
-    assert state["screen"]["title"] == "Thelegendsweretrue"
+    assert state["screen"]["title"] == "The Legends Were True"
     return state
 
 

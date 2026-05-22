@@ -73,7 +73,10 @@ def display_name(value: object) -> str:
     text = str(value)
     if "." in text:
         text = text.rsplit(".", 1)[-1]
-    return text.replace("_", " ").title()
+    text = text.replace("_", " ")
+    text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", text)
+    text = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", text)
+    return text.title()
 
 
 def display_text(text: str) -> str:

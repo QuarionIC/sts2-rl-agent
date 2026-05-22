@@ -71,6 +71,7 @@ def test_interactive_cli_uses_player_readable_names() -> None:
     card = mgr.run_state.player.deck[0]
 
     assert display_name("BOOMING_CONCH") == "Booming Conch"
+    assert display_name("TheLegendsWereTrue") == "The Legends Were True"
     assert display_text("Obtained relic BOOMING_CONCH.") == "Obtained relic Booming Conch."
     assert display_text("BASH(2E 8dmg)") == "Bash(2E 8dmg)"
     assert "STRIKE_IRONCLAD" not in describe_card(card)
