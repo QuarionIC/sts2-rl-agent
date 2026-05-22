@@ -10,7 +10,17 @@ from sts2_env.web.play_run import RunSession, serialize_run
 
 
 FULL_RUN_FLOW_SEED = 123
+ROOM_SCREEN_TEST_SEED = 321
+PENDING_CHOICE_TEST_SEED = 75
 COMBAT_TEST_SEED = 456
+LEGENDS_WERE_TRUE_EVENT_ID = "TheLegendsWereTrue"
+LEGENDS_WERE_TRUE_TITLE = "The Legends Were True"
+LEGENDS_NAB_MAP_LABEL = "Nab the Map"
+LEGENDS_FIND_EXIT_LABEL = "Slowly Find an Exit"
+BOSS_RELIC_WITHOUT_FOLLOWUP_CHOICE = "SOZU"
+REST_TEST_STARTING_HP = 40
+REST_TEST_EXPECTED_HP = "64/80"
+LEGENDS_EXIT_EXPECTED_HP = "72/80"
 MAX_COMBAT_ACTIONS_TO_REACH_REWARD = 200
 MAX_REWARD_SCREENS_TO_SKIP = 10
 
@@ -61,9 +71,9 @@ def _take_first_map_node(state: dict, session: RunSession) -> dict:
 
 
 def _enter_legends_were_true_event(session: RunSession) -> dict:
-    state = session.start(character="Ironclad", seed=321)
+    state = session.start(character="Ironclad", seed=ROOM_SCREEN_TEST_SEED)
     assert session.mgr is not None
-    event = get_event("TheLegendsWereTrue")
+    event = get_event(LEGENDS_WERE_TRUE_EVENT_ID)
     assert event is not None
     event.reset_rng_for_run(session.mgr.run_state)
     event.ensure_vars_calculated(session.mgr.run_state)
@@ -72,7 +82,7 @@ def _enter_legends_were_true_event(session: RunSession) -> dict:
     session.mgr._event_started = True
     session.mgr._event_options = event.generate_initial_options(session.mgr.run_state)
     state = session.state()
-    assert state["screen"]["title"] == "The Legends Were True"
+    assert state["screen"]["title"] == LEGENDS_WERE_TRUE_TITLE
     return state
 
 
@@ -140,14 +150,14 @@ def test_web_session_starts_at_neow_and_advances_to_map() -> None:
 
 
 def test_web_treasure_item_links_to_collect_action() -> None:
-    mgr = RunManager(seed=321, character_id="Ironclad")
+    mgr = RunManager(seed=ROOM_SCREEN_TEST_SEED, character_id="Ironclad")
     mgr._enter_treasure()
     actions = mgr.get_available_actions()
 
     state = serialize_run(
         mgr,
         actions,
-        seed=321,
+        seed=ROOM_SCREEN_TEST_SEED,
         character="Ironclad",
         ascension=0,
         last_description="",
@@ -159,7 +169,7 @@ def test_web_treasure_item_links_to_collect_action() -> None:
 
 def test_web_session_can_collect_treasure_and_return_to_map() -> None:
     session = RunSession()
-    session.start(character="Ironclad", seed=321)
+    session.start(character="Ironclad", seed=ROOM_SCREEN_TEST_SEED)
     assert session.mgr is not None
     session.mgr._enter_treasure()
 
@@ -214,7 +224,7 @@ def test_web_state_serializes_combat_potion_actions() -> None:
 
 
 def test_web_state_serializes_pending_card_choice() -> None:
-    mgr = RunManager(seed=75, character_id="Ironclad")
+    mgr = RunManager(seed=PENDING_CHOICE_TEST_SEED, character_id="Ironclad")
     mgr._enter_rest_site()
     result = mgr._do_rest_site({"option_id": "SMITH"})
     actions = mgr.get_available_actions()
@@ -222,7 +232,7 @@ def test_web_state_serializes_pending_card_choice() -> None:
     state = serialize_run(
         mgr,
         actions,
-        seed=75,
+        seed=PENDING_CHOICE_TEST_SEED,
         character="Ironclad",
         ascension=0,
         last_description=result["description"],
@@ -235,9 +245,9 @@ def test_web_state_serializes_pending_card_choice() -> None:
 
 def test_web_session_can_rest_and_return_to_map() -> None:
     session = RunSession()
-    session.start(character="Ironclad", seed=321)
+    session.start(character="Ironclad", seed=ROOM_SCREEN_TEST_SEED)
     assert session.mgr is not None
-    session.mgr.run_state.player.current_hp = 40
+    session.mgr.run_state.player.current_hp = REST_TEST_STARTING_HP
     session.mgr._enter_rest_site()
 
     state = session.state()
@@ -246,12 +256,12 @@ def test_web_session_can_rest_and_return_to_map() -> None:
 
     assert state["phase"] == RunManager.PHASE_MAP_CHOICE
     assert state["screen"]["title"] == "Map"
-    assert state["hp"] == "64/80"
+    assert state["hp"] == REST_TEST_EXPECTED_HP
 
 
 def test_web_session_can_leave_shop_from_shop_screen() -> None:
     session = RunSession()
-    session.start(character="Ironclad", seed=321)
+    session.start(character="Ironclad", seed=ROOM_SCREEN_TEST_SEED)
     assert session.mgr is not None
     session.mgr._enter_shop()
 
@@ -270,10 +280,10 @@ def test_web_session_can_leave_shop_from_shop_screen() -> None:
 
 def test_web_session_can_take_boss_relic_and_enter_next_act() -> None:
     session = RunSession()
-    session.start(character="Ironclad", seed=321)
+    session.start(character="Ironclad", seed=ROOM_SCREEN_TEST_SEED)
     assert session.mgr is not None
     session.mgr._phase = RunManager.PHASE_BOSS_RELIC
-    session.mgr._boss_relics = ["SOZU"]
+    session.mgr._boss_relics = [BOSS_RELIC_WITHOUT_FOLLOWUP_CHOICE]
 
     state = session.state()
     relic_action = state["screen"]["items"][0]["action_index"]
@@ -292,7 +302,7 @@ def test_web_session_can_finish_direct_event_and_return_to_map() -> None:
     nab_action = next(
         item["action_index"]
         for item in state["screen"]["items"]
-        if item["name"] == "Nab the Map"
+        if item["name"] == LEGENDS_NAB_MAP_LABEL
     )
     starting_deck_size = state["deck_size"]
     state = session.take_action(nab_action)
@@ -309,7 +319,7 @@ def test_web_session_can_finish_event_reward_and_return_to_map() -> None:
     exit_action = next(
         item["action_index"]
         for item in state["screen"]["items"]
-        if item["name"] == "Slowly Find an Exit"
+        if item["name"] == LEGENDS_FIND_EXIT_LABEL
     )
     state = session.take_action(exit_action)
 
@@ -320,7 +330,7 @@ def test_web_session_can_finish_event_reward_and_return_to_map() -> None:
 
     assert state["phase"] == RunManager.PHASE_MAP_CHOICE
     assert state["screen"]["title"] == "Map"
-    assert state["hp"] == "72/80"
+    assert state["hp"] == LEGENDS_EXIT_EXPECTED_HP
 
 
 def test_web_session_can_reach_first_combat_reward() -> None:
