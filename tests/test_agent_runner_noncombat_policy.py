@@ -1,6 +1,8 @@
 """Tests for bridge agent non-combat choices."""
 
 from sts2_env.bridge.agent_runner import (
+    TERMINAL_PHASES,
+    _phase_for_state,
     _pick_boss_relic_option,
     _pick_card_reward_index,
     _pick_card_select_indexes,
@@ -9,6 +11,14 @@ from sts2_env.bridge.agent_runner import (
     _pick_shop_option,
     _pick_treasure_option,
 )
+from sts2_env.bridge.protocol import BridgeStateType
+
+
+def test_phase_mapping_treats_run_complete_as_terminal() -> None:
+    phase = _phase_for_state({"type": BridgeStateType.RUN_COMPLETE, "result": "victory"})
+
+    assert phase == BridgeStateType.RUN_COMPLETE
+    assert phase in TERMINAL_PHASES
 
 
 def test_map_policy_prefers_rest_when_hp_is_low() -> None:

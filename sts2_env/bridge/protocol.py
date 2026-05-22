@@ -41,6 +41,7 @@ class BridgeStateType:
     TREASURE = "treasure"
     BOSS_RELIC = "boss_relic"
     GAME_OVER = "game_over"
+    RUN_COMPLETE = "run_complete"
     PONG = "pong"
     ERROR = "error"
 

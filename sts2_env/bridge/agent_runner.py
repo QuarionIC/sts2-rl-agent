@@ -39,6 +39,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_CHOICE_INDEX = 0
 CARD_REWARD_LARGE_DECK_SIZE = 30
 REST_HP_RATIO_THRESHOLD = 0.5
+TERMINAL_PHASES = frozenset({
+    BridgeStateType.GAME_OVER,
+    BridgeStateType.RUN_COMPLETE,
+})
 
 ROOM_PRIORITY_HEALTHY = (
     "boss",
@@ -162,24 +166,8 @@ def run_agent(
                     _reconnect_with_retry(client)
                     continue
 
-                # Mod sends a bridge state "type" field; map it to runner phases.
-                # Map to our Phase constants
                 msg_type = state.get("type", "")
-                phase = {
-                    BridgeStateType.COMBAT_ACTION: Phase.COMBAT_PLAY,
-                    MSG_TYPE_GAME_STATE: state.get("phase", Phase.UNKNOWN),
-                    BridgeStateType.MAP_SELECT: Phase.MAP_SELECT,
-                    BridgeStateType.CARD_REWARD: Phase.CARD_REWARD,
-                    BridgeStateType.CARD_SELECT: Phase.CARD_REWARD,
-                    BridgeStateType.REST_SITE: Phase.REST,
-                    BridgeStateType.SHOP: Phase.SHOP,
-                    BridgeStateType.EVENT: Phase.EVENT,
-                    BridgeStateType.TREASURE: Phase.TREASURE,
-                    BridgeStateType.BOSS_RELIC: Phase.BOSS_RELIC,
-                    BridgeStateType.GAME_OVER: BridgeStateType.GAME_OVER,
-                    MSG_TYPE_PONG: MSG_TYPE_PONG,
-                    MSG_TYPE_ERROR: MSG_TYPE_ERROR,
-                }.get(msg_type, state.get("phase", Phase.UNKNOWN))
+                phase = _phase_for_state(state)
                 step_count += 1
 
                 if verbose and step_count % 10 == 1:
@@ -190,8 +178,8 @@ def run_agent(
 
                 if phase == MSG_TYPE_PONG:
                     continue
-                if phase == BridgeStateType.GAME_OVER:
-                    logger.info("Game over! Result: %s", state.get("result", "unknown"))
+                if phase in TERMINAL_PHASES:
+                    logger.info("Run finished: %s", state.get("result", state.get("message", "unknown")))
                     break
                 if phase == MSG_TYPE_ERROR:
                     logger.warning("Game error: %s", state.get("message", ""))
@@ -305,6 +293,26 @@ def run_agent(
 # ----------------------------------------------------------------
 # Heuristic decision functions for non-combat phases
 # ----------------------------------------------------------------
+
+
+def _phase_for_state(state: dict[str, Any]) -> str:
+    msg_type = state.get("type", "")
+    return {
+        BridgeStateType.COMBAT_ACTION: Phase.COMBAT_PLAY,
+        MSG_TYPE_GAME_STATE: state.get("phase", Phase.UNKNOWN),
+        BridgeStateType.MAP_SELECT: Phase.MAP_SELECT,
+        BridgeStateType.CARD_REWARD: Phase.CARD_REWARD,
+        BridgeStateType.CARD_SELECT: Phase.CARD_REWARD,
+        BridgeStateType.REST_SITE: Phase.REST,
+        BridgeStateType.SHOP: Phase.SHOP,
+        BridgeStateType.EVENT: Phase.EVENT,
+        BridgeStateType.TREASURE: Phase.TREASURE,
+        BridgeStateType.BOSS_RELIC: Phase.BOSS_RELIC,
+        BridgeStateType.GAME_OVER: BridgeStateType.GAME_OVER,
+        BridgeStateType.RUN_COMPLETE: BridgeStateType.RUN_COMPLETE,
+        MSG_TYPE_PONG: MSG_TYPE_PONG,
+        MSG_TYPE_ERROR: MSG_TYPE_ERROR,
+    }.get(msg_type, state.get("phase", Phase.UNKNOWN))
 
 
 def _pick_map_node(state: dict[str, Any]) -> int:

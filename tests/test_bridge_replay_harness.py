@@ -208,7 +208,7 @@ def test_bridge_replay_recorder_records_skip_and_multi_select_actions():
 
 def test_bridge_replay_recorder_records_terminal_run_state():
     initial = {"type": BridgeStateType.MAP_SELECT, "nodes": [{"index": 0, "type": "Monster"}], "floor": 1, "act": 1}
-    terminal = {"type": "run_complete", "result": "victory"}
+    terminal = {"type": BridgeStateType.RUN_COMPLETE, "result": "victory"}
     client = FakeBridgeClient([initial, terminal])
     recorder = BridgeReplayRecorder(client)
 
