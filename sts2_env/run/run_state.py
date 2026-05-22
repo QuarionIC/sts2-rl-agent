@@ -26,7 +26,7 @@ from sts2_env.map.map_point import MapCoord, MapPoint
 from sts2_env.map.generator import ActMap, generate_act_map
 from sts2_env.map.acts import ActConfig, ALL_ACTS
 from sts2_env.potions.base import PotionInstance
-from sts2_env.relics.base import RelicRarity
+from sts2_env.relics.base import RelicId, RelicRarity
 from sts2_env.cards.base import (
     CardInstance,
     capture_self_mutating_card_progress,
@@ -49,6 +49,10 @@ SCROLL_BOXES_UNCOMMON_CARDS_PER_BUNDLE = 1
 SCROLL_BOXES_CLAW_CARDS_PER_BUNDLE = 3
 SCROLL_BOXES_CLAW_BUNDLE_CHANCE_PERCENT = 1
 SCROLL_BOXES_CLAW_BUNDLE_ROLL_BOUND = 100
+EVENT_PET_RELIC_IDS = frozenset({
+    RelicId.BYRDPIP.name,
+    RelicId.PAELS_LEGION.name,
+})
 
 
 @dataclass(frozen=True)
@@ -230,7 +234,7 @@ class PlayerState:
         return tradable
 
     def has_event_pet(self) -> bool:
-        return any(relic_id in {"BYRDPIP", "PAELS_LEGION"} for relic_id in self.relics)
+        return any(relic_id in EVENT_PET_RELIC_IDS for relic_id in self.relics)
 
     def _roll_relic_rarity(self, rng: Any) -> RelicRarity:
         roll = rng.next_float()
