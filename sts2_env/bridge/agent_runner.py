@@ -25,7 +25,14 @@ from typing import Any
 import numpy as np
 
 from sts2_env.bridge.client import STS2GameClient
-from sts2_env.bridge.protocol import ActionType, BridgeStateType, MSG_TYPE_GAME_STATE, Phase
+from sts2_env.bridge.protocol import (
+    ActionType,
+    BridgeStateType,
+    MSG_TYPE_ERROR,
+    MSG_TYPE_GAME_STATE,
+    MSG_TYPE_PONG,
+    Phase,
+)
 from sts2_env.bridge.state_adapter import StateAdapter
 from sts2_env.parity.bridge_replay import BridgeReplayRecorder
 
@@ -132,8 +139,8 @@ def run_agent(
                     BridgeStateType.SHOP: Phase.SHOP,
                     BridgeStateType.EVENT: Phase.EVENT,
                     BridgeStateType.GAME_OVER: BridgeStateType.GAME_OVER,
-                    BridgeStateType.PONG: BridgeStateType.PONG,
-                    BridgeStateType.ERROR: BridgeStateType.ERROR,
+                    MSG_TYPE_PONG: MSG_TYPE_PONG,
+                    MSG_TYPE_ERROR: MSG_TYPE_ERROR,
                 }.get(msg_type, state.get("phase", Phase.UNKNOWN))
                 step_count += 1
 
@@ -143,12 +150,12 @@ def run_agent(
                 if verbose and msg_type:
                     logger.debug("Received: type=%s keys=%s", msg_type, list(state.keys()))
 
-                if phase == BridgeStateType.PONG:
+                if phase == MSG_TYPE_PONG:
                     continue
                 if phase == BridgeStateType.GAME_OVER:
                     logger.info("Game over! Result: %s", state.get("result", "unknown"))
                     break
-                if phase == BridgeStateType.ERROR:
+                if phase == MSG_TYPE_ERROR:
                     logger.warning("Game error: %s", state.get("message", ""))
                     continue
 
