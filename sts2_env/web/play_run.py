@@ -38,6 +38,10 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 STATE_SESSION_ID = "default"
+START_PHASE = "START"
+START_PHASE_LABEL = "Start"
+START_SCREEN_TITLE = "Start Run"
+START_NOTICE = "Ready to start."
 
 
 class RunSession:
@@ -65,7 +69,10 @@ class RunSession:
 
     def take_action(self, action_index: int) -> dict:
         with self.lock:
-            mgr = self._ensure_run()
+            if self.mgr is None:
+                self.last_description = "Start a new run first."
+                return self.state()
+            mgr = self.mgr
             actions = mgr.get_available_actions()
             if action_index < 0 or action_index >= len(actions):
                 self.last_description = "Invalid action."
@@ -75,7 +82,14 @@ class RunSession:
             return self.state()
 
     def state(self) -> dict:
-        mgr = self._ensure_run()
+        if self.mgr is None:
+            return serialize_start_state(
+                seed=self.seed,
+                character=self.character,
+                ascension=self.ascension,
+                last_description=self.last_description,
+            )
+        mgr = self.mgr
         actions = mgr.get_available_actions()
         return serialize_run(
             mgr,
@@ -86,11 +100,34 @@ class RunSession:
             last_description=self.last_description,
         )
 
-    def _ensure_run(self) -> RunManager:
-        if self.mgr is None:
-            self.seed = 0
-            self.mgr = RunManager(seed=self.seed, character_id=self.character, start_with_neow=True)
-        return self.mgr
+
+def serialize_start_state(
+    *,
+    seed: int | None,
+    character: str,
+    ascension: int,
+    last_description: str,
+) -> dict:
+    return {
+        "session_id": STATE_SESSION_ID,
+        "seed": seed,
+        "character": character,
+        "ascension": ascension,
+        "phase": START_PHASE,
+        "phase_label": START_PHASE_LABEL,
+        "act": "-",
+        "floor": "-",
+        "hp": "-",
+        "gold": "-",
+        "deck_size": "-",
+        "relics": [],
+        "is_over": False,
+        "player_won": False,
+        "last_description": last_description or START_NOTICE,
+        "actions": [],
+        "screen": {"type": "start", "title": START_SCREEN_TITLE, "items": []},
+        "inventory": {"deck": [], "relics": [], "potions": []},
+    }
 
 
 def serialize_run(

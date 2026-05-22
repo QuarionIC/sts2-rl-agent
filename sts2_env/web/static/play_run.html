@@ -309,6 +309,7 @@
     }
 
     function renderScreen(screen) {
+      if (screen.type === "start") return `<div class="section">Choose a character and start a new run.</div>`;
       if (screen.type === "combat") return renderCombat(screen);
       if (screen.type === "map") return renderMap(screen);
       if (screen.type === "shop") return renderShop(screen);

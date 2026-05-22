@@ -7,6 +7,18 @@ from sts2_env.run.run_manager import RunManager
 from sts2_env.web.play_run import RunSession, serialize_run
 
 
+def test_web_session_waits_for_new_run_before_neow() -> None:
+    session = RunSession()
+
+    state = session.state()
+
+    assert state["phase"] == "START"
+    assert state["screen"]["type"] == "start"
+    assert state["screen"]["title"] == "Start Run"
+    assert state["actions"] == []
+    assert state["last_description"] == "Ready to start."
+
+
 def test_web_session_starts_at_neow_and_advances_to_map() -> None:
     session = RunSession()
 
