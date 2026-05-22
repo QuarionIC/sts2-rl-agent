@@ -9,6 +9,7 @@ from sts2_env.cli.play_run import (
     display_event,
     display_map,
     display_name,
+    display_boss_relics,
     display_combat,
     display_reward,
     display_rest_site,
@@ -157,6 +158,19 @@ def test_interactive_cli_displays_rest_site_options(capsys) -> None:
     assert "REST SITE:" in output
     assert "Rest" in output
     assert "Smith" in output
+
+
+def test_interactive_cli_displays_boss_relic_choices(capsys) -> None:
+    mgr = RunManager(seed=COMBAT_TEST_SEED, character_id="Ironclad")
+    mgr._phase = RunManager.PHASE_BOSS_RELIC
+    mgr._boss_relics = ["BLACK_STAR", "SOZU", "BEAUTIFUL_BRACELET"]
+
+    display_boss_relics(mgr)
+    output = capsys.readouterr().out
+
+    assert "BOSS RELICS:" in output
+    assert "Black Star" in output
+    assert "Beautiful Bracelet" in output
 
 
 def test_interactive_cli_displays_treasure_relic(capsys) -> None:
