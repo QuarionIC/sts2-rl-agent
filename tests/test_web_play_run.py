@@ -149,3 +149,18 @@ def test_web_session_can_reach_first_combat_reward() -> None:
 
     assert state["phase"] == RunManager.PHASE_CARD_REWARD
     assert state["screen"]["title"] == "Card Reward"
+    reward_steps = 0
+    while state["phase"] == RunManager.PHASE_CARD_REWARD and reward_steps < 10:
+        item = next(
+            (
+                item
+                for item in state["screen"]["items"]
+                if item["name"].startswith("Skip")
+            ),
+            state["screen"]["items"][0],
+        )
+        state = session.take_action(item["action_index"])
+        reward_steps += 1
+
+    assert state["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert state["screen"]["title"] == "Map"

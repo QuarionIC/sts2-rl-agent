@@ -331,11 +331,12 @@ def _map_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
 
 def _reward_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
     reward = getattr(mgr, "_current_reward", None)
+    alternative_items = _reward_alternative_items(actions)
     if isinstance(reward, CardReward):
         return {
             "type": "reward",
             "title": "Card Reward",
-            "items": [
+            "items": alternative_items + [
                 {
                     "name": describe_card(card),
                     "action_index": _find_action_index(actions, action="pick_card", index=index),
@@ -347,7 +348,7 @@ def _reward_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
         return {
             "type": "reward",
             "title": "Card Bundle",
-            "items": [
+            "items": alternative_items + [
                 {
                     "name": ", ".join(describe_card(card) for card in bundle),
                     "action_index": _find_action_index(actions, action="pick_card_bundle", index=index),
@@ -360,7 +361,7 @@ def _reward_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
         return {
             "type": "reward",
             "title": "Potion Reward",
-            "items": [
+            "items": alternative_items + [
                 {
                     "name": display_name(potion.potion_id if potion else reward.potion_id),
                     "action_index": _find_action_index(actions, action="pick_potion"),
@@ -371,7 +372,7 @@ def _reward_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
         return {
             "type": "reward",
             "title": "Relic Reward",
-            "items": [
+            "items": alternative_items + [
                 {
                     "name": display_name(reward.relic_id),
                     "action_index": _find_action_index(actions, action="pick_relic_reward"),
@@ -379,6 +380,22 @@ def _reward_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
             ],
         }
     return {"type": "reward", "title": "Reward", "items": []}
+
+
+def _reward_alternative_items(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    alternatives = []
+    labels = {
+        "skip": "Skip",
+        "skip_potion": "Skip potion",
+        "skip_relic": "Skip relic",
+        "reroll_card_reward": "Reroll",
+        "sacrifice_card_reward": "Sacrifice",
+    }
+    for index, action in enumerate(actions):
+        action_type = action.get("action")
+        if action_type in labels:
+            alternatives.append({"name": labels[action_type], "action_index": index})
+    return alternatives
 
 
 def _shop_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
