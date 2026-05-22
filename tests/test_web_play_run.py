@@ -140,6 +140,20 @@ def test_web_treasure_item_links_to_collect_action() -> None:
     assert state["screen"]["items"][0]["action_index"] == 0
 
 
+def test_web_session_can_collect_treasure_and_return_to_map() -> None:
+    session = RunSession()
+    session.start(character="Ironclad", seed=321)
+    assert session.mgr is not None
+    session.mgr._enter_treasure()
+
+    state = session.state()
+    collect_action = state["screen"]["items"][0]["action_index"]
+    state = session.take_action(collect_action)
+
+    assert state["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert state["screen"]["title"] == "Map"
+
+
 def test_web_state_serializes_combat_for_browser_display() -> None:
     mgr = RunManager(seed=COMBAT_TEST_SEED, character_id="Ironclad")
     mgr._enter_combat(RoomType.MONSTER)
@@ -200,6 +214,41 @@ def test_web_state_serializes_pending_card_choice() -> None:
     assert state["screen"]["type"] == "choice"
     assert state["screen"]["items"]
     assert all(item["action_index"] is not None for item in state["screen"]["items"])
+
+
+def test_web_session_can_rest_and_return_to_map() -> None:
+    session = RunSession()
+    session.start(character="Ironclad", seed=321)
+    assert session.mgr is not None
+    session.mgr.run_state.player.current_hp = 40
+    session.mgr._enter_rest_site()
+
+    state = session.state()
+    rest_action = next(item["action_index"] for item in state["screen"]["items"] if item["name"] == "Rest")
+    state = session.take_action(rest_action)
+
+    assert state["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert state["screen"]["title"] == "Map"
+    assert state["hp"] == "64/80"
+
+
+def test_web_session_can_leave_shop_from_shop_screen() -> None:
+    session = RunSession()
+    session.start(character="Ironclad", seed=321)
+    assert session.mgr is not None
+    session.mgr._enter_shop()
+
+    state = session.state()
+    leave_action = next(
+        item["action_index"]
+        for section in state["screen"]["sections"]
+        for item in section["items"]
+        if item["name"] == "Leave shop"
+    )
+    state = session.take_action(leave_action)
+
+    assert state["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert state["screen"]["title"] == "Map"
 
 
 def test_web_session_can_reach_first_combat_reward() -> None:
