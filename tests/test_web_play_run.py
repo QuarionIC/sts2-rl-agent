@@ -251,6 +251,23 @@ def test_web_session_can_leave_shop_from_shop_screen() -> None:
     assert state["screen"]["title"] == "Map"
 
 
+def test_web_session_can_take_boss_relic_and_enter_next_act() -> None:
+    session = RunSession()
+    session.start(character="Ironclad", seed=321)
+    assert session.mgr is not None
+    session.mgr._phase = RunManager.PHASE_BOSS_RELIC
+    session.mgr._boss_relics = ["SOZU"]
+
+    state = session.state()
+    relic_action = state["screen"]["items"][0]["action_index"]
+    state = session.take_action(relic_action)
+
+    assert state["phase"] == RunManager.PHASE_MAP_CHOICE
+    assert state["screen"]["title"] == "Map"
+    assert state["act"] == 2
+    assert "Sozu" in state["relics"]
+
+
 def test_web_session_can_reach_first_combat_reward() -> None:
     session = RunSession()
 
