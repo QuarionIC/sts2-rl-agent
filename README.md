@@ -107,6 +107,18 @@ Without `--character`, the CLI asks you to pick a character first. Inside the
 game, enter the number beside an action. Shortcuts: `a` takes the first listed
 action, `c` confirms or skips, and `q` quits.
 
+### Play a Full Run in the Browser
+
+Run the local web UI:
+
+```bash
+python -m sts2_env.web.play_run --port 8765
+```
+
+Then open <http://127.0.0.1:8765/>. The browser UI uses the same `RunManager`
+logic as the terminal version, but presents the run as clickable screens for
+map, combat, events, rewards, shop, rest sites, treasure, and boss relics.
+
 ### Train a Combat Agent
 
 Train a MaskablePPO agent on single-combat encounters:
