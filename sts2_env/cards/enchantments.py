@@ -13,6 +13,16 @@ if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
 
 
+ATTACK_ONLY_ENCHANTMENTS = frozenset({
+    "Sharp",
+    "Momentum",
+    "Corrupted",
+    "Favored",
+    "Vigorous",
+    "Instinct",
+})
+
+
 def _used_key(name: str) -> str:
     return f"_enchant_used_{name.lower()}"
 
@@ -57,7 +67,7 @@ def can_enchant_card(card: CardInstance, name: str) -> bool:
     if card.is_enchanted and name not in card.enchantments:
         return False
 
-    if name in {"Sharp", "Momentum", "Corrupted", "Favored", "Vigorous", "Instinct"}:
+    if name in ATTACK_ONLY_ENCHANTMENTS:
         return card.card_type == CardType.ATTACK
     if name == "RoyallyApproved":
         return card.card_type in {CardType.ATTACK, CardType.SKILL}
