@@ -173,21 +173,27 @@ def _screen(mgr: RunManager, actions: list[dict[str, Any]], combat: CombatState 
     if phase == RunManager.PHASE_MAP_CHOICE:
         return _map_screen(mgr, actions)
     if phase == RunManager.PHASE_CARD_REWARD:
-        return _reward_screen(mgr)
+        return _reward_screen(mgr, actions)
     if phase == RunManager.PHASE_BOSS_RELIC:
         return {
             "type": "boss_relic",
             "title": "Boss Relics",
-            "items": [display_name(relic_id) for relic_id in getattr(mgr, "_boss_relics", [])],
+            "items": [
+                {
+                    "name": display_name(relic_id),
+                    "action_index": _find_action_index(actions, action="pick_relic", index=index),
+                }
+                for index, relic_id in enumerate(getattr(mgr, "_boss_relics", []))
+            ],
         }
     if phase == RunManager.PHASE_SHOP:
-        return _shop_screen(mgr)
+        return _shop_screen(mgr, actions)
     if phase == RunManager.PHASE_REST_SITE:
-        return _rest_screen(mgr)
+        return _rest_screen(mgr, actions)
     if phase == RunManager.PHASE_EVENT:
-        return _event_screen(mgr)
+        return _event_screen(mgr, actions)
     if phase == RunManager.PHASE_TREASURE:
-        return _treasure_screen(mgr)
+        return _treasure_screen(mgr, actions)
     return {"type": "message", "title": PHASE_LABELS.get(phase, phase), "items": []}
 
 
@@ -293,32 +299,59 @@ def _map_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
     return {"type": "map", "title": "Map", "current": current, "columns": columns, "rows": rows, "paths": paths}
 
 
-def _reward_screen(mgr: RunManager) -> dict:
+def _reward_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
     reward = getattr(mgr, "_current_reward", None)
     if isinstance(reward, CardReward):
         return {
             "type": "reward",
             "title": "Card Reward",
-            "items": [describe_card(card) for card in getattr(mgr, "_offered_cards", [])],
+            "items": [
+                {
+                    "name": describe_card(card),
+                    "action_index": _find_action_index(actions, action="pick_card", index=index),
+                }
+                for index, card in enumerate(getattr(mgr, "_offered_cards", []))
+            ],
         }
     if isinstance(reward, CardBundlesReward):
         return {
             "type": "reward",
             "title": "Card Bundle",
             "items": [
-                ", ".join(describe_card(card) for card in bundle)
-                for bundle in getattr(mgr, "_offered_card_bundles", [])
+                {
+                    "name": ", ".join(describe_card(card) for card in bundle),
+                    "action_index": _find_action_index(actions, action="pick_card_bundle", index=index),
+                }
+                for index, bundle in enumerate(getattr(mgr, "_offered_card_bundles", []))
             ],
         }
     if isinstance(reward, PotionReward):
         potion = getattr(mgr, "_offered_potion", None)
-        return {"type": "reward", "title": "Potion Reward", "items": [display_name(potion.potion_id if potion else reward.potion_id)]}
+        return {
+            "type": "reward",
+            "title": "Potion Reward",
+            "items": [
+                {
+                    "name": display_name(potion.potion_id if potion else reward.potion_id),
+                    "action_index": _find_action_index(actions, action="pick_potion"),
+                },
+            ],
+        }
     if isinstance(reward, RelicReward):
-        return {"type": "reward", "title": "Relic Reward", "items": [display_name(reward.relic_id)]}
+        return {
+            "type": "reward",
+            "title": "Relic Reward",
+            "items": [
+                {
+                    "name": display_name(reward.relic_id),
+                    "action_index": _find_action_index(actions, action="pick_relic_reward"),
+                },
+            ],
+        }
     return {"type": "reward", "title": "Reward", "items": []}
 
 
-def _shop_screen(mgr: RunManager) -> dict:
+def _shop_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
     inv = getattr(mgr, "_shop_inventory", None)
     if inv is None:
         return {"type": "shop", "title": "Shop", "sections": []}
@@ -329,57 +362,111 @@ def _shop_screen(mgr: RunManager) -> dict:
             {
                 "title": "Cards",
                 "items": [
-                    _shop_item(describe_card(entry.card) if entry.card is not None else display_name(entry.card_id), entry.price, entry)
-                    for entry in [*inv.cards, *inv.colorless_cards]
+                    _shop_item(
+                        describe_card(entry.card) if entry.card is not None else display_name(entry.card_id),
+                        entry.price,
+                        entry,
+                        action_index=_find_action_index(actions, action="buy_card", index=index),
+                    )
+                    for index, entry in enumerate([*inv.cards, *inv.colorless_cards])
                 ],
             },
             {
                 "title": "Relics",
-                "items": [_shop_item(display_name(entry.relic_id), entry.price, entry) for entry in inv.relics],
+                "items": [
+                    _shop_item(
+                        display_name(entry.relic_id),
+                        entry.price,
+                        entry,
+                        action_index=_find_action_index(actions, action="buy_relic", index=index),
+                    )
+                    for index, entry in enumerate(inv.relics)
+                ],
             },
             {
                 "title": "Potions",
-                "items": [_shop_item(display_name(entry.potion_id), entry.price, entry) for entry in inv.potions],
+                "items": [
+                    _shop_item(
+                        display_name(entry.potion_id),
+                        entry.price,
+                        entry,
+                        action_index=_find_action_index(actions, action="buy_potion", index=index),
+                    )
+                    for index, entry in enumerate(inv.potions)
+                ],
             },
             {
                 "title": "Services",
-                "items": [{"name": "Remove card", "price": inv.removal_cost, "sold": inv.removal_used}],
+                "items": [
+                    {
+                        "name": "Remove card",
+                        "price": inv.removal_cost,
+                        "sold": inv.removal_used,
+                        "action_index": _find_action_index(actions, action="remove_card"),
+                    },
+                ],
             },
         ],
     }
 
 
-def _shop_item(name: str, price: int, entry: object) -> dict:
-    return {"name": name, "price": price, "sold": not is_shop_entry_available(entry)}
+def _shop_item(name: str, price: int, entry: object, *, action_index: int | None) -> dict:
+    return {
+        "name": name,
+        "price": price,
+        "sold": not is_shop_entry_available(entry),
+        "action_index": action_index,
+    }
 
 
-def _rest_screen(mgr: RunManager) -> dict:
+def _rest_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
     return {
         "type": "rest",
         "title": "Rest Site",
         "items": [
-            {"name": option.label, "description": option.description, "enabled": option.enabled}
+            {
+                "name": option.label,
+                "description": option.description,
+                "enabled": option.enabled,
+                "action_index": _find_action_index(actions, action="rest_option", option_id=option.option_id),
+            }
             for option in getattr(mgr, "_rest_options", [])
         ],
     }
 
 
-def _event_screen(mgr: RunManager) -> dict:
+def _event_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
     event = getattr(mgr, "_event_model", None)
     return {
         "type": "event",
         "title": display_name(event.event_id if event is not None else "Event"),
         "items": [
-            {"name": option.label, "description": option.description, "enabled": option.enabled}
+            {
+                "name": option.label,
+                "description": option.description,
+                "enabled": option.enabled,
+                "action_index": _find_action_index(actions, action="event_choice", option_id=option.option_id),
+            }
             for option in getattr(mgr, "_event_options", [])
         ],
     }
 
 
-def _treasure_screen(mgr: RunManager) -> dict:
+def _treasure_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
     reward = getattr(mgr, "_current_reward", None)
     item = display_name(reward.relic_id) if isinstance(reward, RelicReward) else "Chest"
-    return {"type": "treasure", "title": "Treasure", "items": [item]}
+    return {
+        "type": "treasure",
+        "title": "Treasure",
+        "items": [{"name": item, "action_index": _find_action_index(actions, action="collect")}],
+    }
+
+
+def _find_action_index(actions: list[dict[str, Any]], **criteria: Any) -> int | None:
+    for index, action in enumerate(actions):
+        if all(action.get(key) == value for key, value in criteria.items()):
+            return index
+    return None
 
 
 def _inventory(mgr: RunManager) -> dict:

@@ -322,7 +322,7 @@
       if (screen.type === "rest") return renderItems(screen.items, "items");
       if (screen.type === "event") return renderItems(screen.items, "items");
       if (screen.type === "reward" || screen.type === "boss_relic" || screen.type === "treasure") {
-        return `<div class="items">${screen.items.map((item) => `<div class="item-row">${escapeHtml(item)}</div>`).join("")}</div>`;
+        return renderItems(screen.items, "items");
       }
       return "";
     }
@@ -377,7 +377,7 @@
       return `<div class="sections">${screen.sections.map((section) => `
         <div class="section">
           <h3>${escapeHtml(section.title)}</h3>
-          <div class="items">${section.items.map((item) => `<div class="item-row"><span>${escapeHtml(item.name)}</span><span>${item.sold ? "sold" : `${escapeHtml(item.price)}g`}</span></div>`).join("")}</div>
+          <div class="items">${section.items.map((item) => renderItemRow(item, item.sold ? "sold" : `${item.price}g`)).join("")}</div>
         </div>
       `).join("")}</div>`;
     }
@@ -385,8 +385,16 @@
     function renderItems(items) {
       return `<div class="items">${items.map((item) => {
         if (typeof item === "string") return `<div class="item-row">${escapeHtml(item)}</div>`;
-        return `<div class="item-row"><span>${escapeHtml(item.name)}</span><span class="muted">${escapeHtml(item.description || "")}</span></div>`;
+        return renderItemRow(item, item.description || "");
       }).join("")}</div>`;
+    }
+
+    function renderItemRow(item, detail) {
+      const content = `<span>${escapeHtml(item.name)}</span><span class="muted">${escapeHtml(detail || "")}</span>`;
+      if (item.action_index === null || item.action_index === undefined || item.sold || item.enabled === false) {
+        return `<div class="item-row">${content}</div>`;
+      }
+      return `<button class="item-row" data-action="${item.action_index}">${content}</button>`;
     }
 
     function escapeHtml(value) {

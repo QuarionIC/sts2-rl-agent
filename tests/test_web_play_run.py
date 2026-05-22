@@ -31,7 +31,9 @@ def test_web_session_starts_at_neow_and_advances_to_map() -> None:
     reward = session.take_action(0)
     assert reward["phase"] == RunManager.PHASE_CARD_REWARD
     assert reward["screen"]["type"] == "reward"
-    assert reward["screen"]["items"] == ["Booming Conch"]
+    assert reward["screen"]["items"] == [
+        {"name": "Booming Conch", "action_index": 0},
+    ]
 
     map_state = session.take_action(0)
     assert map_state["phase"] == RunManager.PHASE_MAP_CHOICE
@@ -46,6 +48,24 @@ def test_web_session_starts_at_neow_and_advances_to_map() -> None:
     ]
     assert reachable_nodes
     assert all(node["action_index"] is not None for node in reachable_nodes)
+
+
+def test_web_treasure_item_links_to_collect_action() -> None:
+    mgr = RunManager(seed=321, character_id="Ironclad")
+    mgr._enter_treasure()
+    actions = mgr.get_available_actions()
+
+    state = serialize_run(
+        mgr,
+        actions,
+        seed=321,
+        character="Ironclad",
+        ascension=0,
+        last_description="",
+    )
+
+    assert state["screen"]["type"] == "treasure"
+    assert state["screen"]["items"][0]["action_index"] == 0
 
 
 def test_web_state_serializes_combat_for_browser_display() -> None:
