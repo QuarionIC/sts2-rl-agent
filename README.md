@@ -88,6 +88,25 @@ Episodes/sec:   1276
 Steps/sec:      28101
 ```
 
+### Play a Full Run in the Terminal
+
+Start from the opening event, choose map nodes, fight combats, collect rewards,
+and continue the run from the command line:
+
+```bash
+python -m sts2_env.cli.play_run
+```
+
+Useful options:
+
+```bash
+python -m sts2_env.cli.play_run --character Silent --seed 123 --ascension 0
+```
+
+Without `--character`, the CLI asks you to pick a character first. Inside the
+game, enter the number beside an action. Shortcuts: `a` takes the first listed
+action, `c` confirms or skips, and `q` quits.
+
 ### Train a Combat Agent
 
 Train a MaskablePPO agent on single-combat encounters:

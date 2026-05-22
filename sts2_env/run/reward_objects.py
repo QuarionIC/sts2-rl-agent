@@ -75,6 +75,8 @@ class Reward:
         return {"description": f"Collected {self.reward_type.name.lower()} reward."}
 
     def skip(self, run_manager: RunManager) -> dict:
+        if not self.skippable:
+            return {"description": f"Cannot skip {self.reward_type.name.lower()} reward.", "success": False}
         return {"description": f"Skipped {self.reward_type.name.lower()} reward."}
 
 
@@ -167,8 +169,14 @@ class RelicReward(Reward):
         is_wax: bool = False,
         rng_stream: str = "rewards",
         setup_attrs: dict[str, object] | None = None,
+        skippable: bool = True,
     ):
-        super().__init__(player_id=player_id, reward_type=RewardType.RELIC, rewards_set_index=RELIC_REWARD_SET_INDEX)
+        super().__init__(
+            player_id=player_id,
+            reward_type=RewardType.RELIC,
+            rewards_set_index=RELIC_REWARD_SET_INDEX,
+            skippable=skippable,
+        )
         self.relic_id = relic_id
         self.rarity = rarity
         self.is_wax = is_wax

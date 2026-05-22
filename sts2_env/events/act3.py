@@ -233,11 +233,11 @@ class Neow(EventModel):
                 if option_id == "cursed":
                     return _event_result_with_rewards(
                         "Gained a cursed relic from Neow.",
-                        [RelicReward(run_state.player.player_id, relic_id=relic_id)],
+                        [RelicReward(run_state.player.player_id, relic_id=relic_id, skippable=False)],
                     )
                 return _event_result_with_rewards(
                     "Gained a positive relic from Neow.",
-                    [RelicReward(run_state.player.player_id, relic_id=relic_id)],
+                    [RelicReward(run_state.player.player_id, relic_id=relic_id, skippable=False)],
                 )
             run_state.player.obtain_relic(relic_id)
         if option_id == "cursed":
