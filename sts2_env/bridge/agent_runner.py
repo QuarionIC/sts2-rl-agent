@@ -368,7 +368,7 @@ def _log_combat_action(
     hand = combat.get("hand", [])
     enemies = combat.get("enemies", [])
 
-    if decoded["type"] == "END_TURN":
+    if decoded["type"] == ActionType.END_TURN:
         logger.info(
             "COMBAT [HP:%d/%d E:%d] -> END_TURN (round %d)",
             player.get("hp", 0),
@@ -376,7 +376,7 @@ def _log_combat_action(
             player.get("energy", 0),
             combat.get("round", 0),
         )
-    elif decoded["type"] == "POTION" or decoded.get("out_of_hand"):
+    elif decoded["type"] == ActionType.POTION or decoded.get("out_of_hand"):
         slot = decoded.get("slot", decoded.get("potion_slot", -1))
         ti = decoded.get("target_index", -1)
         potions = combat.get("potions", [])
