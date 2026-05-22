@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from sts2_env.core.constants import PERCENT_DENOMINATOR, VULNERABLE_MULTIPLIER
 from sts2_env.core.enums import (
-    RelicRarity, CombatSide, CardType, OrbType, PowerId, RoomType, ValueProp,
+    RelicRarity, CombatSide, CardType, MapPointType, OrbType, PowerId, RoomType, ValueProp,
 )
 from sts2_env.relics.base import RelicId, RelicPool, RelicInstance
 from sts2_env.relics.registry import register_relic
@@ -653,7 +653,7 @@ class Planisphere(RelicInstance):
         if act_map is None or not visited:
             return
         current = act_map.get_point(visited[-1])
-        if current is not None and getattr(getattr(current, "point_type", None), "name", None) == "UNKNOWN":
+        if current is not None and getattr(current, "point_type", None) == MapPointType.UNKNOWN:
             owner.heal(self.HEAL)
 
 
