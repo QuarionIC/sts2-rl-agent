@@ -440,6 +440,15 @@ def _shop_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
         "title": "Shop",
         "sections": [
             {
+                "title": "Exit",
+                "items": [
+                    {
+                        "name": "Leave shop",
+                        "action_index": _find_action_index(actions, action="leave_shop"),
+                    },
+                ],
+            },
+            {
                 "title": "Cards",
                 "items": [
                     _shop_item(

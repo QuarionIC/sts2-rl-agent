@@ -8,38 +8,70 @@ from sts2_env.run.run_manager import RunManager
 from sts2_env.web.play_run import RunSession, serialize_run
 
 
+FULL_RUN_FLOW_SEED = 123
+COMBAT_TEST_SEED = 456
+MAX_COMBAT_ACTIONS_TO_REACH_REWARD = 200
+MAX_REWARD_SCREENS_TO_SKIP = 10
+
+
+def _first_damage_or_end_turn_action_index(state: dict) -> int:
+    play_action = next(
+        (
+            action
+            for action in state["actions"]
+            if action["kind"] == "play_card"
+            and ("Strike" in action["label"] or "Bash" in action["label"])
+        ),
+        None,
+    )
+    if play_action is None:
+        play_action = next(
+            (action for action in state["actions"] if action["kind"] == "play_card"),
+            None,
+        )
+    if play_action is not None:
+        return play_action["index"]
+    return next(action["index"] for action in state["actions"] if action["kind"] == "end_turn")
+
+
+def _skip_current_reward_screen(state: dict, session: RunSession) -> dict:
+    item = next(
+        (
+            item
+            for item in state["screen"]["items"]
+            if item["name"].startswith("Skip")
+        ),
+        state["screen"]["items"][0],
+    )
+    return session.take_action(item["action_index"])
+
+
+def _skip_reward_screens_until_map(state: dict, session: RunSession) -> dict:
+    reward_steps = 0
+    while state["phase"] == RunManager.PHASE_CARD_REWARD and reward_steps < MAX_REWARD_SCREENS_TO_SKIP:
+        state = _skip_current_reward_screen(state, session)
+        reward_steps += 1
+    return state
+
+
+def _take_first_map_node(state: dict, session: RunSession) -> dict:
+    move_action = next(action for action in state["actions"] if action["kind"] == "move")
+    return session.take_action(move_action["index"])
+
+
 def _reach_first_combat_reward(session: RunSession) -> dict:
-    state = session.start(character="Ironclad", seed=123)
+    state = session.start(character="Ironclad", seed=FULL_RUN_FLOW_SEED)
     assert state["screen"]["title"] == "Neow"
     state = session.take_action(0)
     assert state["screen"]["title"] == "Relic Reward"
     state = session.take_action(0)
     assert state["screen"]["title"] == "Map"
-    state = session.take_action(0)
+    state = _take_first_map_node(state, session)
     assert state["screen"]["title"] == "Combat"
 
     steps = 0
-    while state["phase"] == RunManager.PHASE_COMBAT and steps < 200:
-        play_action = next(
-            (
-                action
-                for action in state["actions"]
-                if action["kind"] == "play_card"
-                and ("Strike" in action["label"] or "Bash" in action["label"])
-            ),
-            None,
-        )
-        if play_action is None:
-            play_action = next(
-                (action for action in state["actions"] if action["kind"] == "play_card"),
-                None,
-            )
-        action_index = (
-            play_action["index"]
-            if play_action is not None
-            else next(action["index"] for action in state["actions"] if action["kind"] == "end_turn")
-        )
-        state = session.take_action(action_index)
+    while state["phase"] == RunManager.PHASE_COMBAT and steps < MAX_COMBAT_ACTIONS_TO_REACH_REWARD:
+        state = session.take_action(_first_damage_or_end_turn_action_index(state))
         steps += 1
 
     assert state["phase"] == RunManager.PHASE_CARD_REWARD
@@ -62,7 +94,7 @@ def test_web_session_waits_for_new_run_before_neow() -> None:
 def test_web_session_starts_at_neow_and_advances_to_map() -> None:
     session = RunSession()
 
-    state = session.start(character="Ironclad", seed=123)
+    state = session.start(character="Ironclad", seed=FULL_RUN_FLOW_SEED)
     assert state["phase"] == RunManager.PHASE_EVENT
     assert state["screen"]["type"] == "event"
     assert state["screen"]["title"] == "Neow"
@@ -109,14 +141,14 @@ def test_web_treasure_item_links_to_collect_action() -> None:
 
 
 def test_web_state_serializes_combat_for_browser_display() -> None:
-    mgr = RunManager(seed=456, character_id="Ironclad")
+    mgr = RunManager(seed=COMBAT_TEST_SEED, character_id="Ironclad")
     mgr._enter_combat(RoomType.MONSTER)
     actions = mgr.get_available_actions()
 
     state = serialize_run(
         mgr,
         actions,
-        seed=456,
+        seed=COMBAT_TEST_SEED,
         character="Ironclad",
         ascension=0,
         last_description="",
@@ -131,7 +163,7 @@ def test_web_state_serializes_combat_for_browser_display() -> None:
 
 
 def test_web_state_serializes_combat_potion_actions() -> None:
-    mgr = RunManager(seed=456, character_id="Ironclad")
+    mgr = RunManager(seed=COMBAT_TEST_SEED, character_id="Ironclad")
     assert mgr.run_state.player.add_potion(create_potion("FirePotion"))
     mgr._enter_combat(RoomType.MONSTER)
     actions = mgr.get_available_actions()
@@ -139,7 +171,7 @@ def test_web_state_serializes_combat_potion_actions() -> None:
     state = serialize_run(
         mgr,
         actions,
-        seed=456,
+        seed=COMBAT_TEST_SEED,
         character="Ironclad",
         ascension=0,
         last_description="",
@@ -174,18 +206,7 @@ def test_web_session_can_reach_first_combat_reward() -> None:
     session = RunSession()
 
     state = _reach_first_combat_reward(session)
-    reward_steps = 0
-    while state["phase"] == RunManager.PHASE_CARD_REWARD and reward_steps < 10:
-        item = next(
-            (
-                item
-                for item in state["screen"]["items"]
-                if item["name"].startswith("Skip")
-            ),
-            state["screen"]["items"][0],
-        )
-        state = session.take_action(item["action_index"])
-        reward_steps += 1
+    state = _skip_reward_screens_until_map(state, session)
 
     assert state["phase"] == RunManager.PHASE_MAP_CHOICE
     assert state["screen"]["title"] == "Map"
@@ -204,16 +225,22 @@ def test_web_session_can_take_card_reward_and_return_to_map() -> None:
     state = session.take_action(card_reward["action_index"])
 
     while state["phase"] == RunManager.PHASE_CARD_REWARD:
-        item = next(
-            (
-                item
-                for item in state["screen"]["items"]
-                if item["name"].startswith("Skip")
-            ),
-            state["screen"]["items"][0],
-        )
-        state = session.take_action(item["action_index"])
+        state = _skip_current_reward_screen(state, session)
 
     assert state["phase"] == RunManager.PHASE_MAP_CHOICE
     assert state["screen"]["title"] == "Map"
     assert state["deck_size"] == starting_deck_size + 1
+
+
+def test_web_session_can_continue_to_second_map_node_after_rewards() -> None:
+    session = RunSession()
+
+    state = _reach_first_combat_reward(session)
+    state = _skip_reward_screens_until_map(state, session)
+    assert state["screen"]["current"] == (0, 1)
+
+    state = _take_first_map_node(state, session)
+
+    assert state["phase"] == RunManager.PHASE_COMBAT
+    assert state["screen"]["title"] == "Combat"
+    assert state["floor"] == 2
