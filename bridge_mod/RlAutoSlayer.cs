@@ -46,8 +46,9 @@ namespace STS2BridgeMod;
 /// AutoSlayer but replaces random decision handlers with RL agent handlers
 /// that communicate with Python via BridgeServer TCP.
 ///
-/// Combat, map navigation, card rewards, events, shops, and rest sites are
-/// bridge-driven. Treasure and most screen handlers still use AutoSlay helpers.
+/// Combat, map navigation, card rewards, events, shops, rest sites, treasure,
+/// and boss relic choices are bridge-driven. Most other screen handlers still
+/// use AutoSlay helpers.
 /// </summary>
 public class RlAutoSlayer
 {
@@ -80,7 +81,7 @@ public class RlAutoSlayer
             [RoomType.Boss] = combatHandler,
             [RoomType.Event] = new RlEventRoomHandler(),
             [RoomType.Shop] = new RlShopRoomHandler(),
-            [RoomType.Treasure] = new TreasureRoomHandler(),
+            [RoomType.Treasure] = new RlTreasureRoomHandler(),
             [RoomType.RestSite] = new RlRestSiteRoomHandler(),
         };
 
@@ -97,7 +98,7 @@ public class RlAutoSlayer
             [typeof(NSimpleCardSelectScreen)] = new SimpleCardSelectScreenHandler(),
             [typeof(NChooseACardSelectionScreen)] = new ChooseACardScreenHandler(),
             [typeof(NChooseABundleSelectionScreen)] = new ChooseABundleScreenHandler(),
-            [typeof(NChooseARelicSelection)] = new ChooseARelicScreenHandler(),
+            [typeof(NChooseARelicSelection)] = new RlChooseARelicScreenHandler(),
             [typeof(NGameOverScreen)] = new RlGameOverScreenHandler(),
             [typeof(NCrystalSphereScreen)] = new CrystalSphereScreenHandler(),
         };

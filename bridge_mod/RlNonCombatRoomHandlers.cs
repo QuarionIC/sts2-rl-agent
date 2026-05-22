@@ -21,11 +21,14 @@ using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.Events;
 using MegaCrit.Sts2.Core.Nodes.Events.Custom;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
+using MegaCrit.Sts2.Core.Nodes.Relics;
 using MegaCrit.Sts2.Core.Nodes.RestSite;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
+using MegaCrit.Sts2.Core.Nodes.Screens;
 using MegaCrit.Sts2.Core.Nodes.Screens.Map;
 using MegaCrit.Sts2.Core.Nodes.Screens.Overlays;
 using MegaCrit.Sts2.Core.Nodes.Screens.Shops;
+using MegaCrit.Sts2.Core.Nodes.Screens.TreasureRoomRelic;
 using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
@@ -37,6 +40,8 @@ internal static class NonCombatBridgeProtocol
     public const string RestSiteState = "rest_site";
     public const string ShopState = "shop";
     public const string EventState = "event";
+    public const string TreasureState = "treasure";
+    public const string BossRelicState = "boss_relic";
     public const string ChooseAction = "choose";
     public const string SkipAction = "skip";
     public const string RestOptionAction = "rest_option";
@@ -47,6 +52,8 @@ internal static class NonCombatBridgeProtocol
     public const string RemoveCardAction = "remove_card";
     public const string BuyItemAction = "buy_item";
     public const string EventChoiceAction = "event_choice";
+    public const string CollectTreasureAction = "collect";
+    public const string PickRelicAction = "pick_relic";
 }
 
 public class RlRestSiteRoomHandler : IRoomHandler, IHandler
@@ -148,6 +155,221 @@ public class RlRestSiteRoomHandler : IRoomHandler, IHandler
         }
 
         return random.NextItem(buttons);
+    }
+
+    private static int ReadChoiceIndex(string responseJson)
+    {
+        using JsonDocument doc = JsonDocument.Parse(responseJson);
+        JsonElement root = doc.RootElement;
+        string action = root.GetProperty("action").GetString() ?? "";
+        if (action == NonCombatBridgeProtocol.ChooseAction &&
+            root.TryGetProperty("index", out JsonElement indexProp))
+        {
+            return indexProp.GetInt32();
+        }
+        return -1;
+    }
+}
+
+public class RlTreasureRoomHandler : IRoomHandler, IHandler
+{
+    private const string RoomPath = "/root/Game/RootSceneContainer/Run/RoomContainer/TreasureRoom";
+    private const int AgentTimeoutSeconds = 30;
+    private const int HandlerTimeoutSeconds = 30;
+    private const int ChestOpenDelayMs = 1000;
+    private const int RelicPickupDelayMs = 500;
+    private const int ProceedTimeoutSeconds = 5;
+    private static readonly TimeSpan AgentTimeout = TimeSpan.FromSeconds(AgentTimeoutSeconds);
+
+    public RoomType[] HandledTypes => new[] { RoomType.Treasure };
+    public TimeSpan Timeout => TimeSpan.FromSeconds(HandlerTimeoutSeconds);
+
+    public async Task HandleAsync(Rng random, CancellationToken ct)
+    {
+        AutoSlayLog.Action("Waiting for treasure room");
+        Node root = ((SceneTree)Engine.GetMainLoop()).Root;
+        NTreasureRoom room = await WaitHelper.ForNode<NTreasureRoom>(root, RoomPath, ct);
+
+        NClickableControl chest = room.GetNode<NClickableControl>("Chest");
+        AutoSlayLog.Action("Opening chest");
+        await UiHelper.Click(chest);
+        await Task.Delay(ChestOpenDelayMs, ct);
+
+        List<NTreasureRoomRelicHolder> holders = UiHelper.FindAll<NTreasureRoomRelicHolder>(room)
+            .Where(holder => holder.IsEnabled && holder.Visible)
+            .ToList();
+        if (holders.Count > 0)
+        {
+            NTreasureRoomRelicHolder chosenHolder = await ChooseTreasureRelicHolder(holders, random, ct);
+            AutoSlayLog.Action("Picking up treasure relic: " + chosenHolder.Relic.Model.Id.Entry);
+            await UiHelper.Click(chosenHolder);
+            await Task.Delay(RelicPickupDelayMs, ct);
+        }
+
+        NProceedButton proceedButton = room.ProceedButton;
+        await WaitHelper.Until(
+            () => proceedButton.IsEnabled,
+            ct,
+            TimeSpan.FromSeconds(ProceedTimeoutSeconds),
+            "Proceed button not enabled after picking relics");
+        AutoSlayLog.Action("Clicking proceed");
+        await UiHelper.Click(proceedButton);
+    }
+
+    private static async Task<NTreasureRoomRelicHolder> ChooseTreasureRelicHolder(
+        List<NTreasureRoomRelicHolder> holders,
+        Rng random,
+        CancellationToken ct)
+    {
+        if (!BridgeServer.Instance.IsClientConnected)
+        {
+            return random.NextItem(holders);
+        }
+
+        try
+        {
+            string stateJson = JsonSerializer.Serialize(new Dictionary<string, object>
+            {
+                ["type"] = NonCombatBridgeProtocol.TreasureState,
+                ["options"] = holders.Select((holder, index) => RelicOption(
+                    index,
+                    NonCombatBridgeProtocol.CollectTreasureAction,
+                    holder.Relic.Model)).ToList(),
+                ["floor"] = RunManager.Instance.DebugOnlyGetState().TotalFloor,
+                ["act"] = RunManager.Instance.DebugOnlyGetState().CurrentActIndex + 1,
+            });
+            string? responseJson = await BridgeServer.Instance.SendStateAndWaitForActionAsync(
+                stateJson,
+                AgentTimeout,
+                ct);
+            if (responseJson == null)
+            {
+                return random.NextItem(holders);
+            }
+            int chosenIndex = ReadChoiceIndex(responseJson);
+            if (chosenIndex >= 0 && chosenIndex < holders.Count)
+            {
+                return holders[chosenIndex];
+            }
+        }
+        catch (Exception ex)
+        {
+            AutoSlayLog.Warn("[RlTreasure] Agent error: " + ex.Message);
+        }
+
+        return random.NextItem(holders);
+    }
+
+    private static Dictionary<string, object> RelicOption(int index, string action, RelicModel relic)
+    {
+        return new Dictionary<string, object>
+        {
+            ["index"] = index,
+            ["id"] = relic.Id.Entry,
+            ["action"] = action,
+            ["label"] = relic.Title.GetFormattedText(),
+            ["description"] = relic.DynamicDescription.GetFormattedText(),
+            ["enabled"] = true,
+        };
+    }
+
+    private static int ReadChoiceIndex(string responseJson)
+    {
+        using JsonDocument doc = JsonDocument.Parse(responseJson);
+        JsonElement root = doc.RootElement;
+        string action = root.GetProperty("action").GetString() ?? "";
+        if (action == NonCombatBridgeProtocol.ChooseAction &&
+            root.TryGetProperty("index", out JsonElement indexProp))
+        {
+            return indexProp.GetInt32();
+        }
+        return -1;
+    }
+}
+
+public class RlChooseARelicScreenHandler : IScreenHandler, IHandler
+{
+    private const int AgentTimeoutSeconds = 30;
+    private const int HandlerTimeoutSeconds = 30;
+    private static readonly TimeSpan AgentTimeout = TimeSpan.FromSeconds(AgentTimeoutSeconds);
+
+    public Type ScreenType => typeof(NChooseARelicSelection);
+    public TimeSpan Timeout => TimeSpan.FromSeconds(HandlerTimeoutSeconds);
+
+    public async Task HandleAsync(Rng random, CancellationToken ct)
+    {
+        AutoSlayLog.EnterScreen("NChooseARelicSelection");
+        NChooseARelicSelection currentScreen = AutoSlayer.GetCurrentScreen<NChooseARelicSelection>();
+        List<NRelicBasicHolder> holders = UiHelper.FindAll<NRelicBasicHolder>(currentScreen)
+            .Where(holder => holder.IsEnabled && holder.Visible)
+            .ToList();
+        if (holders.Count == 0)
+        {
+            AutoSlayLog.Warn("No relic holders found in relic selection screen");
+            return;
+        }
+
+        NRelicBasicHolder chosenHolder = await ChooseBossRelicHolder(holders, random, ct);
+        AutoSlayLog.Action("Selecting boss relic: " + chosenHolder.Relic.Model.Id.Entry);
+        await UiHelper.Click(chosenHolder);
+        AutoSlayLog.ExitScreen("NChooseARelicSelection");
+    }
+
+    private static async Task<NRelicBasicHolder> ChooseBossRelicHolder(
+        List<NRelicBasicHolder> holders,
+        Rng random,
+        CancellationToken ct)
+    {
+        if (!BridgeServer.Instance.IsClientConnected)
+        {
+            return random.NextItem(holders);
+        }
+
+        try
+        {
+            string stateJson = JsonSerializer.Serialize(new Dictionary<string, object>
+            {
+                ["type"] = NonCombatBridgeProtocol.BossRelicState,
+                ["options"] = holders.Select((holder, index) => RelicOption(
+                    index,
+                    NonCombatBridgeProtocol.PickRelicAction,
+                    holder.Relic.Model)).ToList(),
+                ["floor"] = RunManager.Instance.DebugOnlyGetState().TotalFloor,
+                ["act"] = RunManager.Instance.DebugOnlyGetState().CurrentActIndex + 1,
+            });
+            string? responseJson = await BridgeServer.Instance.SendStateAndWaitForActionAsync(
+                stateJson,
+                AgentTimeout,
+                ct);
+            if (responseJson == null)
+            {
+                return random.NextItem(holders);
+            }
+            int chosenIndex = ReadChoiceIndex(responseJson);
+            if (chosenIndex >= 0 && chosenIndex < holders.Count)
+            {
+                return holders[chosenIndex];
+            }
+        }
+        catch (Exception ex)
+        {
+            AutoSlayLog.Warn("[RlChooseARelic] Agent error: " + ex.Message);
+        }
+
+        return random.NextItem(holders);
+    }
+
+    private static Dictionary<string, object> RelicOption(int index, string action, RelicModel relic)
+    {
+        return new Dictionary<string, object>
+        {
+            ["index"] = index,
+            ["id"] = relic.Id.Entry,
+            ["action"] = action,
+            ["label"] = relic.Title.GetFormattedText(),
+            ["description"] = relic.DynamicDescription.GetFormattedText(),
+            ["enabled"] = true,
+        };
     }
 
     private static int ReadChoiceIndex(string responseJson)

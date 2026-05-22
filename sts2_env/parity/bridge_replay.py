@@ -16,6 +16,8 @@ Supported bridge message types:
 - `rest_site`
 - `shop`
 - `event`
+- `treasure`
+- `boss_relic`
 """
 
 from __future__ import annotations
@@ -40,6 +42,8 @@ STATE_TYPE_CARD_REWARD = BridgeStateType.CARD_REWARD
 STATE_TYPE_REST_SITE = BridgeStateType.REST_SITE
 STATE_TYPE_SHOP = BridgeStateType.SHOP
 STATE_TYPE_EVENT = BridgeStateType.EVENT
+STATE_TYPE_TREASURE = BridgeStateType.TREASURE
+STATE_TYPE_BOSS_RELIC = BridgeStateType.BOSS_RELIC
 SUPPORTED_STATE_TYPES = frozenset({
     STATE_TYPE_COMBAT,
     STATE_TYPE_CARD_SELECT,
@@ -48,6 +52,8 @@ SUPPORTED_STATE_TYPES = frozenset({
     STATE_TYPE_REST_SITE,
     STATE_TYPE_SHOP,
     STATE_TYPE_EVENT,
+    STATE_TYPE_TREASURE,
+    STATE_TYPE_BOSS_RELIC,
 })
 
 _CARD_TYPE_NAMES = {
@@ -72,6 +78,8 @@ _TARGET_TYPE_NAMES = {
 REST_SITE_REPLAY_ACTIONS = frozenset({"rest_option"})
 SHOP_REPLAY_ACTIONS = frozenset({"leave_shop", "buy_card", "buy_relic", "buy_potion", "remove_card"})
 EVENT_REPLAY_ACTIONS = frozenset({"event_choice"})
+TREASURE_REPLAY_ACTIONS = frozenset({"collect"})
+BOSS_RELIC_REPLAY_ACTIONS = frozenset({"pick_relic"})
 
 
 @dataclass(slots=True)
@@ -345,7 +353,7 @@ def normalize_bridge_state(state: dict[str, Any]) -> dict[str, Any]:
             "floor": int(state.get("floor", 0)),
             "act": int(state.get("act", 0)),
         }
-    if state_type in {STATE_TYPE_SHOP, STATE_TYPE_EVENT}:
+    if state_type in {STATE_TYPE_SHOP, STATE_TYPE_EVENT, STATE_TYPE_TREASURE, STATE_TYPE_BOSS_RELIC}:
         return {
             "type": state_type,
             "options": _normalize_action_options(state.get("options")),
@@ -513,6 +521,14 @@ def run_manager_to_bridge_state(run: RunManager) -> dict[str, Any]:
         actions = [action for action in run.get_available_actions() if action.get("action") in EVENT_REPLAY_ACTIONS]
         return _run_choice_state(run, STATE_TYPE_EVENT, actions)
 
+    if phase == RunManager.PHASE_TREASURE:
+        actions = [action for action in run.get_available_actions() if action.get("action") in TREASURE_REPLAY_ACTIONS]
+        return _run_choice_state(run, STATE_TYPE_TREASURE, actions)
+
+    if phase == RunManager.PHASE_BOSS_RELIC:
+        actions = [action for action in run.get_available_actions() if action.get("action") in BOSS_RELIC_REPLAY_ACTIONS]
+        return _run_choice_state(run, STATE_TYPE_BOSS_RELIC, actions)
+
     raise ValueError(f"RunManager phase {phase!r} is not supported by the replay harness")
 
 
@@ -666,13 +682,21 @@ def _apply_run_replay_action(run: RunManager, current_state_type: str, action: d
         _apply_replay_action(combat, action)
         return
 
-    if current_state_type in {STATE_TYPE_REST_SITE, STATE_TYPE_SHOP, STATE_TYPE_EVENT}:
+    if current_state_type in {
+        STATE_TYPE_REST_SITE,
+        STATE_TYPE_SHOP,
+        STATE_TYPE_EVENT,
+        STATE_TYPE_TREASURE,
+        STATE_TYPE_BOSS_RELIC,
+    }:
         if action.get("action") != BridgeAction.CHOOSE:
             raise ValueError(f"Unsupported {current_state_type} action type: {action.get('action')!r}")
         actions_by_state = {
             STATE_TYPE_REST_SITE: REST_SITE_REPLAY_ACTIONS,
             STATE_TYPE_SHOP: SHOP_REPLAY_ACTIONS,
             STATE_TYPE_EVENT: EVENT_REPLAY_ACTIONS,
+            STATE_TYPE_TREASURE: TREASURE_REPLAY_ACTIONS,
+            STATE_TYPE_BOSS_RELIC: BOSS_RELIC_REPLAY_ACTIONS,
         }
         selectable_actions = [
             candidate

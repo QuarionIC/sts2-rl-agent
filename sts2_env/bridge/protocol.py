@@ -38,6 +38,8 @@ class BridgeStateType:
     REST_SITE = "rest_site"
     SHOP = "shop"
     EVENT = "event"
+    TREASURE = "treasure"
+    BOSS_RELIC = "boss_relic"
     GAME_OVER = "game_over"
     PONG = "pong"
     ERROR = "error"
@@ -58,6 +60,8 @@ class Phase:
     SHOP = "SHOP"
     REST = "REST"
     EVENT = "EVENT"
+    TREASURE = "TREASURE"
+    BOSS_RELIC = "BOSS_RELIC"
     UNKNOWN = "UNKNOWN"
 
     # All phases where the agent should act
@@ -68,13 +72,15 @@ class Phase:
         SHOP,
         REST,
         EVENT,
+        TREASURE,
+        BOSS_RELIC,
     })
 
     # Phases where we use the trained combat model
     COMBAT_PHASES = frozenset({COMBAT_PLAY})
 
     # Phases where we use heuristic decision-making
-    NON_COMBAT_PHASES = frozenset({MAP_SELECT, CARD_REWARD, SHOP, REST, EVENT})
+    NON_COMBAT_PHASES = frozenset({MAP_SELECT, CARD_REWARD, SHOP, REST, EVENT, TREASURE, BOSS_RELIC})
 
 
 # ----------------------------------------------------------------

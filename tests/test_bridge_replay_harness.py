@@ -27,6 +27,7 @@ from sts2_env.parity.bridge_replay import (
 )
 from sts2_env.parity.bridge_replay_cli import build_parser
 from sts2_env.potions.base import create_potion
+from sts2_env.run.reward_objects import RelicReward
 from sts2_env.run.run_manager import RunManager
 
 BRIDGE_REPLAY_SEED = 42
@@ -102,6 +103,20 @@ def make_event_replay_run() -> RunManager:
     run._event_model = event
     run._event_started = True
     run._event_options = event.generate_initial_options(run.run_state)
+    return run
+
+
+def make_treasure_replay_run() -> RunManager:
+    run = RunManager(seed=BRIDGE_REPLAY_SEED, character_id="Ironclad")
+    run._phase = RunManager.PHASE_TREASURE
+    run._current_reward = RelicReward(run.run_state.player.player_id, relic_id="LANTERN")
+    return run
+
+
+def make_boss_relic_replay_run() -> RunManager:
+    run = RunManager(seed=BRIDGE_REPLAY_SEED, character_id="Ironclad")
+    run._phase = RunManager.PHASE_BOSS_RELIC
+    run._boss_relics = ["BLACK_STAR", "SOZU", "BEAUTIFUL_BRACELET"]
     return run
 
 
@@ -405,6 +420,69 @@ def test_compare_run_replay_handles_event_choice_to_map_transition():
         ],
     )
     result = compare_run_replay(trace, factory=make_event_replay_run)
+
+    assert result.success is True
+    assert result.mismatches == []
+
+
+def test_run_manager_to_bridge_state_serializes_treasure_collect_option():
+    run = make_treasure_replay_run()
+    state = run_manager_to_bridge_state(run)
+
+    assert state["type"] == BridgeStateType.TREASURE
+    assert state["options"] == [
+        {"index": 0, "action": "collect", "enabled": True}
+    ]
+
+
+def test_compare_run_replay_handles_treasure_collect_to_map_transition():
+    run = make_treasure_replay_run()
+    initial_state = run_manager_to_bridge_state(run)
+    run.take_action(run.get_available_actions()[FIRST_BRIDGE_CHOICE_INDEX])
+    resulting_state = run_manager_to_bridge_state(run)
+
+    trace = BridgeReplayTrace(
+        mode="run",
+        initial_state=initial_state,
+        steps=[
+            BridgeReplayStep(
+                action={"action": BridgeAction.CHOOSE, "index": FIRST_BRIDGE_CHOICE_INDEX},
+                resulting_state=resulting_state,
+            )
+        ],
+    )
+    result = compare_run_replay(trace, factory=make_treasure_replay_run)
+
+    assert result.success is True
+    assert result.mismatches == []
+
+
+def test_run_manager_to_bridge_state_serializes_boss_relic_options():
+    run = make_boss_relic_replay_run()
+    state = run_manager_to_bridge_state(run)
+
+    assert state["type"] == BridgeStateType.BOSS_RELIC
+    assert [option["action"] for option in state["options"]] == ["pick_relic", "pick_relic", "pick_relic"]
+    assert [option["index"] for option in state["options"]] == [0, 1, 2]
+
+
+def test_compare_run_replay_handles_boss_relic_pick_to_next_act_map():
+    run = make_boss_relic_replay_run()
+    initial_state = run_manager_to_bridge_state(run)
+    run.take_action(run.get_available_actions()[FIRST_BRIDGE_CHOICE_INDEX])
+    resulting_state = run_manager_to_bridge_state(run)
+
+    trace = BridgeReplayTrace(
+        mode="run",
+        initial_state=initial_state,
+        steps=[
+            BridgeReplayStep(
+                action={"action": BridgeAction.CHOOSE, "index": FIRST_BRIDGE_CHOICE_INDEX},
+                resulting_state=resulting_state,
+            )
+        ],
+    )
+    result = compare_run_replay(trace, factory=make_boss_relic_replay_run)
 
     assert result.success is True
     assert result.mismatches == []

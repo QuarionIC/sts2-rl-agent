@@ -23,10 +23,13 @@ Supported bridge message types:
 - `rest_site`
 - `shop`
 - `event`
+- `treasure`
+- `boss_relic`
 
-The C# bridge mod now routes ordinary rest-site, shop, and event room choices
-through these same state types instead of using AutoSlay's random room handlers.
-Those live messages can be recorded by the replay recorder.
+The C# bridge mod now routes ordinary rest-site, shop, event, treasure, and
+boss-relic choices through these same state types instead of using AutoSlay's
+random room handlers. Those live messages can be recorded by the replay
+recorder.
 
 It still does not compare full-run traces end to end.
 
@@ -106,6 +109,8 @@ The recorder only persists states relevant to the comparator:
 - `rest_site`
 - `shop`
 - `event`
+- `treasure`
+- `boss_relic`
 
 You can also record directly from the existing bridge runner:
 
@@ -202,7 +207,7 @@ For `rest_site`, it checks:
 - floor
 - act
 
-For `shop` and `event`, it checks:
+For `shop`, `event`, `treasure`, and `boss_relic`, it checks:
 
 - option order
 - stable action / enabled status
@@ -213,9 +218,9 @@ For `shop` and `event`, it checks:
 
 - No full-run replay comparison yet.
 - Run comparison currently targets actionable slices, not complete run lifecycle proof.
-- Shop and event comparison intentionally ignores localized labels and simulator-only option ids; live C# text keys and Python event option ids do not use the same naming scheme.
-- No passive comparison for treasure or boss-relic screens yet.
+- Shop, event, treasure, and boss-relic comparison intentionally ignores localized labels and simulator-only option ids; live C# labels and Python internal ids do not always use the same naming scheme.
 - Event-triggered combat is still handled by the bridge mod's inherited AutoSlay-style event combat cleanup, not by a normal combat replay loop.
+- C# bridge handler compilation and live-game smoke testing still require a local `dotnet`/STS2 mod build environment.
 - The trace must be paired with a deterministic simulator factory that recreates the same combat or run setup.
 
 This is deliberate: the goal is to give parity work a reusable combat golden harness now, without blocking on a full run-state serializer.

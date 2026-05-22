@@ -195,6 +195,32 @@ Sent when the player must select cards (upgrade, transform, etc.).
 }
 ```
 
+### choice option states
+
+These state types use a shared option-list shape and expect a `choose` response:
+
+- `rest_site`
+- `shop`
+- `event`
+- `treasure`
+- `boss_relic`
+
+Example:
+
+```json
+{
+  "type": "boss_relic",
+  "options": [
+    {"index": 0, "id": "BLACK_STAR", "action": "pick_relic", "label": "Black Star", "enabled": true},
+    {"index": 1, "id": "SOZU", "action": "pick_relic", "label": "Sozu", "enabled": true}
+  ],
+  "floor": 17,
+  "act": 1
+}
+```
+
+For `treasure`, the option action is `collect`. For `boss_relic`, the option action is `pick_relic`.
+
 ### game_over
 
 Sent when the run ends.

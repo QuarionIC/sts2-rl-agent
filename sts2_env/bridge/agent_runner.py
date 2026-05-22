@@ -138,6 +138,8 @@ def run_agent(
                     BridgeStateType.REST_SITE: Phase.REST,
                     BridgeStateType.SHOP: Phase.SHOP,
                     BridgeStateType.EVENT: Phase.EVENT,
+                    BridgeStateType.TREASURE: Phase.TREASURE,
+                    BridgeStateType.BOSS_RELIC: Phase.BOSS_RELIC,
                     BridgeStateType.GAME_OVER: BridgeStateType.GAME_OVER,
                     MSG_TYPE_PONG: MSG_TYPE_PONG,
                     MSG_TYPE_ERROR: MSG_TYPE_ERROR,
@@ -250,6 +252,16 @@ def run_agent(
                     # ---- Event: choose first option ----
                     if verbose:
                         logger.info("EVENT: choosing option 0")
+                    client.choose(0)
+
+                elif phase == Phase.TREASURE:
+                    if verbose:
+                        logger.info("TREASURE: collecting option 0")
+                    client.choose(0)
+
+                elif phase == Phase.BOSS_RELIC:
+                    if verbose:
+                        logger.info("BOSS_RELIC: choosing option 0")
                     client.choose(0)
 
                 elif phase == Phase.COMBAT_WAITING:
