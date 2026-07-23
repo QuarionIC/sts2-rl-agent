@@ -114,6 +114,8 @@ def run_agent(
     verbose: bool = False,
     record_replay_path: str | None = None,
     replay_factory: str | None = None,
+    action_delay: float = 0.0,
+    combat_delay: float = 0.0,
 ) -> None:
     """Main agent loop.
 
@@ -126,6 +128,8 @@ def run_agent(
         port: Bridge server port.
         deterministic: Whether to use deterministic action selection.
         verbose: Whether to log every action taken.
+        action_delay: Seconds to pause before each non-combat decision.
+        combat_delay: Seconds to pause before each combat action (end turn is instant).
     """
     model = load_model(model_path)
     adapter = StateAdapter()
@@ -189,6 +193,14 @@ def run_agent(
                     logger.warning("Game error: %s", state.get("message", ""))
                     continue
 
+                # Pause before non-combat decisions so a human can follow along.
+                if (
+                    action_delay > 0
+                    and phase != Phase.COMBAT_WAITING
+                    and phase not in Phase.COMBAT_PHASES
+                ):
+                    time.sleep(action_delay)
+
                 if phase in Phase.COMBAT_PHASES:
                     # ---- Combat: use trained model ----
                     obs = adapter.encode_observation(state)
@@ -211,6 +223,10 @@ def run_agent(
 
                     if verbose:
                         _log_combat_action(state, action_int, decoded)
+
+                    # Small pause before combat actions; ending the turn is instant.
+                    if combat_delay > 0 and decoded["type"] != ActionType.END_TURN:
+                        time.sleep(combat_delay)
 
                     if decoded["type"] == ActionType.END_TURN:
                         client.end_turn()
@@ -697,6 +713,18 @@ def main() -> None:
         default=None,
         help="Optional module:function factory to store in replay metadata for later comparison.",
     )
+    parser.add_argument(
+        "--action-delay",
+        type=float,
+        default=0.0,
+        help="Seconds to pause before each non-combat decision so a human can follow along (e.g. 1.0).",
+    )
+    parser.add_argument(
+        "--combat-delay",
+        type=float,
+        default=0.0,
+        help="Seconds to pause before each combat action (end turn is always instant).",
+    )
 
     args = parser.parse_args()
 
@@ -716,6 +744,8 @@ def main() -> None:
         verbose=args.verbose,
         record_replay_path=args.record_replay,
         replay_factory=args.replay_factory,
+        action_delay=args.action_delay,
+        combat_delay=args.combat_delay,
     )
 
 
