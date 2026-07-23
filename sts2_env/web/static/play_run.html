@@ -145,9 +145,9 @@
     }
     .map {
       display: grid;
-      gap: 6px;
+      gap: 28px;
       overflow-x: auto;
-      padding-bottom: 8px;
+      padding: 6px 0 14px;
     }
     .map-wrap {
       position: relative;
@@ -161,12 +161,15 @@
       z-index: 0;
     }
     .map-edges line {
-      stroke: #555;
-      stroke-width: 1.5;
+      stroke: #8b93ad;
+      stroke-width: 2;
+      stroke-linecap: round;
+      opacity: 0.75;
     }
     .map-edges line.taken {
       stroke: var(--ok);
-      stroke-width: 2.5;
+      stroke-width: 3;
+      opacity: 1;
     }
     .map .node {
       position: relative;
@@ -179,7 +182,7 @@
     .map-row {
       display: grid;
       grid-template-columns: var(--map-columns);
-      gap: 6px;
+      gap: 14px;
       min-width: 680px;
     }
     .node {
@@ -457,8 +460,9 @@
         const from = centers.get(edge.from);
         const to = centers.get(edge.to);
         if (!from || !to) return "";
-        // Rows render top-down with higher rows above: connect top of `from` to bottom of `to`.
-        return `<line x1="${from.x}" y1="${from.top}" x2="${to.x}" y2="${to.bottom}"${edge.taken ? ' class="taken"' : ""} />`;
+        // Rows render top-down with higher rows above: connect top of `from` to
+        // bottom of `to`, with a small gap so lines don't touch the node borders.
+        return `<line x1="${from.x}" y1="${from.top - 3}" x2="${to.x}" y2="${to.bottom + 3}"${edge.taken ? ' class="taken"' : ""} />`;
       }).join("");
     }
 
