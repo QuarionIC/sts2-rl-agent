@@ -20,6 +20,7 @@ using MegaCrit.Sts2.Core.AutoSlay.Handlers.Screens;
 using MegaCrit.Sts2.Core.AutoSlay.Helpers;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Helpers;
+using MegaCrit.Sts2.Core.Multiplayer.Game.Lobby;
 using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.Events;
@@ -73,7 +74,8 @@ public class RlAutoSlayer
     private const string CharacterButtonContainerPath = "CharSelectButtons/ButtonContainer";
     private const string CharacterConfirmButtonPath =
         "Submenus/CharacterSelectScreen/ConfirmButton";
-    private const string PreferredCharacterId = "Ironclad";
+    private const string PreferredCharacterId = "Necrobinder";
+    private const int PreferredAscension = 10;
     private const int FinalRunFloor = 49;
     private const int RunTimeoutMinutes = 60;
     private const int RunStateTimeoutSeconds = 60;
@@ -565,7 +567,7 @@ public class RlAutoSlayer
             }
         }
 
-        // Select Ironclad (first character) — our agent was trained on Ironclad
+        // Select the preferred character (agent is trained on this character)
         Node buttonContainer = charSelectScreen.GetNode(
             CharacterButtonContainerPath);
         List<NCharacterSelectButton> buttons =
@@ -577,7 +579,7 @@ public class RlAutoSlayer
         List<NCharacterSelectButton> available =
             buttons.Where(b => !b.IsLocked).ToList();
 
-        // Pick Ironclad (first available) instead of random
+        // Pick the preferred character instead of random
         NCharacterSelectButton selectedChar = available.FirstOrDefault(
             b => b.Character.Id.Entry.Contains(PreferredCharacterId,
                 StringComparison.OrdinalIgnoreCase))
@@ -585,6 +587,25 @@ public class RlAutoSlayer
         Logger.Log($"[RlAutoSlayer] Selecting character: {selectedChar.Character.Id}");
         selectedChar.Select();
         await Task.Delay(CharacterSelectDelayMs, ct);
+
+        // Force the preferred ascension level (clamped to what is unlocked)
+        if (charSelectScreen is NCharacterSelectScreen selectScreen
+            && selectScreen.Lobby != null)
+        {
+            StartRunLobby lobby = selectScreen.Lobby;
+            int target = Math.Min(PreferredAscension, lobby.MaxAscension);
+            if (lobby.Ascension != target)
+            {
+                lobby.SyncAscensionChange(target);
+            }
+            Logger.Log(
+                $"[RlAutoSlayer] Ascension set to {lobby.Ascension} " +
+                $"(max unlocked: {lobby.MaxAscension})");
+        }
+        else
+        {
+            Logger.Log("[RlAutoSlayer] Could not access lobby to set ascension");
+        }
 
         NButton confirmBtn = await WaitHelper.ForNode<NButton>(
             mainMenu, CharacterConfirmButtonPath, ct);

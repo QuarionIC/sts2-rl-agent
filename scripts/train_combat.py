@@ -45,6 +45,8 @@ def train(args):
     from sts2_env.gym_env.combat_env import STS2CombatEnv
 
     print(f"Training MaskablePPO on STS2 combat")
+    print(f"  character:       {args.character}")
+    print(f"  ascension:       {args.ascension}")
     print(f"  n_envs:          {args.n_envs}")
     print(f"  total_timesteps: {args.total_timesteps}")
     print(f"  learning_rate:   {args.lr}")
@@ -65,7 +67,10 @@ def train(args):
         def _init():
             from gymnasium.wrappers import TimeLimit
 
-            env = STS2CombatEnv()
+            env = STS2CombatEnv(
+                character_id=args.character,
+                ascension_level=args.ascension,
+            )
             # Bound episode length in steps: the env only truncates on turn
             # count, but an agent can take many steps per turn, which makes
             # evaluation episodes arbitrarily long.
@@ -136,13 +141,19 @@ def train(args):
 
     # Quick evaluation
     print("\n--- Final Evaluation ---")
-    evaluate(model, n_episodes=100)
+    evaluate(model, n_episodes=100, character_id=args.character, ascension_level=args.ascension)
 
     train_env.close()
     eval_env.close()
 
 
-def evaluate(model, n_episodes: int = 100, max_episode_steps: int = 1000):
+def evaluate(
+    model,
+    n_episodes: int = 100,
+    max_episode_steps: int = 1000,
+    character_id: str = "Ironclad",
+    ascension_level: int = 0,
+):
     """Evaluate trained model."""
     from gymnasium.wrappers import TimeLimit
     from sb3_contrib.common.wrappers import ActionMasker
@@ -151,7 +162,13 @@ def evaluate(model, n_episodes: int = 100, max_episode_steps: int = 1000):
     def mask_fn(env):
         return env.unwrapped.action_masks()
 
-    env = ActionMasker(TimeLimit(STS2CombatEnv(), max_episode_steps=max_episode_steps), mask_fn)
+    env = ActionMasker(
+        TimeLimit(
+            STS2CombatEnv(character_id=character_id, ascension_level=ascension_level),
+            max_episode_steps=max_episode_steps,
+        ),
+        mask_fn,
+    )
     wins = 0
     total_rewards = []
 
@@ -176,6 +193,10 @@ def evaluate(model, n_episodes: int = 100, max_episode_steps: int = 1000):
 
 def main():
     parser = argparse.ArgumentParser(description="Train MaskablePPO on STS2 combat")
+    parser.add_argument("--character", type=str, default="Ironclad",
+                        help="Character to train (Ironclad, Silent, Defect, Regent, Necrobinder)")
+    parser.add_argument("--ascension", type=int, default=0,
+                        help="Ascension level for encounters (default: 0)")
     parser.add_argument("--total-timesteps", type=int, default=500_000,
                         help="Total training timesteps (default: 500000)")
     parser.add_argument("--n-envs", type=int, default=4,

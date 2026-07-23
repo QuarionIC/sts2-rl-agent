@@ -263,6 +263,11 @@ class StateAdapter:
             card = hand[i]
             cost = card.get("cost", 0)
 
+            # The mod reports true playability (covers unplayable status/curse
+            # cards like Dazed, and play-prevention effects).
+            if not card.get("playable", True):
+                continue
+
             # Check if card is playable (enough energy, cost >= 0)
             if cost < 0:
                 # X-cost cards (cost = -1) are always playable if energy > 0

@@ -9,9 +9,9 @@ import numpy as np
 from gymnasium import spaces
 
 from sts2_env.cards.base import reset_instance_counter
-from sts2_env.cards.ironclad import create_ironclad_starter_deck
+from sts2_env.characters import create_starting_deck, get_character
 from sts2_env.core.combat import CombatState
-from sts2_env.core.constants import ACTION_END_TURN, ACTION_SPACE_SIZE, IRONCLAD_STARTING_HP
+from sts2_env.core.constants import ACTION_END_TURN, ACTION_SPACE_SIZE
 from sts2_env.encounters.act1 import ALL_ACT1_ENCOUNTERS, EncounterSetup
 from sts2_env.core.rng import INT_MAX_EXCLUSIVE, Rng
 from sts2_env.gym_env.action_space import (
@@ -38,8 +38,10 @@ class STS2CombatEnv(gymnasium.Env):
     def __init__(
         self,
         encounter_pool: list[EncounterSetup] | None = None,
-        player_hp: int = IRONCLAD_STARTING_HP,
-        player_max_hp: int = IRONCLAD_STARTING_HP,
+        character_id: str = "Ironclad",
+        ascension_level: int = 0,
+        player_hp: int | None = None,
+        player_max_hp: int | None = None,
         max_turns: int = 200,
         render_mode: str | None = None,
     ):
@@ -49,8 +51,13 @@ class STS2CombatEnv(gymnasium.Env):
         )
         self.action_space = spaces.Discrete(ACTION_SPACE_SIZE)
         self.encounter_pool = encounter_pool or ALL_ACT1_ENCOUNTERS
-        self.player_hp = player_hp
-        self.player_max_hp = player_max_hp
+        self.character = get_character(character_id)
+        self.character_id = self.character.character_id
+        self.ascension_level = ascension_level
+        self.player_hp = player_hp if player_hp is not None else self.character.starting_hp
+        self.player_max_hp = (
+            player_max_hp if player_max_hp is not None else self.character.starting_hp
+        )
         self.max_turns = max_turns
         self.render_mode = render_mode
 
@@ -64,7 +71,7 @@ class STS2CombatEnv(gymnasium.Env):
         rng = Rng(rng_seed)
 
         # Create deck
-        deck = create_ironclad_starter_deck()
+        deck = create_starting_deck(self.character_id)
 
         # Create combat
         self.combat = CombatState(
@@ -72,7 +79,9 @@ class STS2CombatEnv(gymnasium.Env):
             player_max_hp=self.player_max_hp,
             deck=deck,
             rng_seed=rng_seed,
-            character_id="Ironclad",
+            character_id=self.character_id,
+            relics=[self.character.starting_relic],
+            ascension_level=self.ascension_level,
         )
 
         # Setup encounter
