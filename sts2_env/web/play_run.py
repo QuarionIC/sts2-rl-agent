@@ -38,6 +38,7 @@ from sts2_env.run.shop import is_shop_entry_available
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
+DEFAULT_ASCENSION = 0
 STATE_SESSION_ID = "default"
 START_PHASE = "START"
 START_PHASE_LABEL = "Start"
@@ -311,12 +312,28 @@ def _combat_potion_actions(actions: list[dict[str, Any]], slot_index: int) -> li
     return potion_actions
 
 
+#: In-game act names (from decompiled act classes: Overgrowth/Hive/Glory/Underdocks).
+ACT_NAMES = {0: "Overgrowth", 1: "Hive", 2: "Glory", 3: "Underdocks"}
+
+
+def _boss_name(mgr: RunManager) -> str | None:
+    """Human-readable name of this act's boss, rolled when the map was generated."""
+    setup_fn = mgr.act_boss_setup
+    if setup_fn is None:
+        return None
+    name = setup_fn.__name__
+    name = name.removeprefix("setup_").removesuffix("_boss")
+    return display_name(name)
+
+
 def _map_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
     run_state = mgr.run_state
     act_map = run_state.map
     if act_map is None:
         return {"type": "map", "title": "Map", "columns": [], "rows": [], "paths": []}
     visited = set(run_state.visited_map_coords)
+    act_index = run_state.current_act_index
+    boss_label = _boss_name(mgr)
     reachable = {
         tuple(action["coord"]): index
         for index, action in enumerate(actions)
@@ -330,12 +347,15 @@ def _map_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
         row = []
         for point in act_map.get_row(row_index):
             coord = (point.col, point.row)
+            is_boss = act_map.boss_point is not None and point is act_map.boss_point
             row.append({
                 "coord": coord,
                 "label": ROOM_LABELS.get(point.point_type.name, display_name(point.point_type.name)),
                 "reachable": coord in reachable,
                 "action_index": reachable.get(coord),
                 "visited": point.coord in visited,
+                "next": [(child.col, child.row) for child in point.children],
+                "boss": boss_label if is_boss else None,
             })
         if row:
             rows.append(row)
@@ -359,7 +379,17 @@ def _map_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
     if run_state.visited_map_coords:
         coord = run_state.visited_map_coords[-1]
         current = (coord.col, coord.row)
-    return {"type": "map", "title": "Map", "current": current, "columns": columns, "rows": rows, "paths": paths}
+    return {
+        "type": "map",
+        "title": "Map",
+        "current": current,
+        "columns": columns,
+        "rows": rows,
+        "paths": paths,
+        "act_name": ACT_NAMES.get(act_index, f"Act {act_index + 1}"),
+        "act_index": act_index,
+        "bosses": [boss_label] if boss_label else [],
+    }
 
 
 def _reward_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
@@ -589,7 +619,10 @@ class PlayRunHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/new":
             query = parse_qs(parsed.query)
             seed = _optional_int(query.get("seed", [""])[0])
-            ascension = _optional_int(query.get("ascension", ["0"])[0]) or 0
+            raw_ascension = query.get("ascension", [None])[0]
+            ascension = _optional_int(raw_ascension) if raw_ascension is not None else None
+            if ascension is None:
+                ascension = DEFAULT_ASCENSION
             character = query.get("character", [CHARACTERS[DEFAULT_CHARACTER_INDEX]])[0]
             skip_neow = query.get("skip_neow", ["0"])[0] in {"1", "true", "yes"}
             self._send_json(self.session.start(
@@ -642,14 +675,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--open", action="store_true", help="Open the UI in the default browser.")
+    parser.add_argument(
+        "--ascension",
+        type=int,
+        default=DEFAULT_ASCENSION,
+        help="Default ascension level for new runs (overridable per run via /api/new?ascension=N).",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
+    global DEFAULT_ASCENSION
     args = parse_args(argv)
+    DEFAULT_ASCENSION = args.ascension
+    PlayRunHandler.session.ascension = args.ascension
     server = make_server(args.host, args.port)
     url = f"http://{args.host}:{args.port}/"
-    print(f"Serving STS2 full-run web UI at {url}")
+    print(f"Serving STS2 full-run web UI at {url} (ascension {args.ascension})")
     if args.open:
         webbrowser.open(url)
     try:

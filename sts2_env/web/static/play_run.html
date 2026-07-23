@@ -149,6 +149,33 @@
       overflow-x: auto;
       padding-bottom: 8px;
     }
+    .map-wrap {
+      position: relative;
+    }
+    .map-edges {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .map-edges line {
+      stroke: #555;
+      stroke-width: 1.5;
+    }
+    .map-edges line.taken {
+      stroke: var(--ok);
+      stroke-width: 2.5;
+    }
+    .map .node {
+      position: relative;
+      z-index: 1;
+    }
+    .node.boss {
+      border-color: var(--danger);
+      color: var(--text);
+    }
     .map-row {
       display: grid;
       grid-template-columns: var(--map-columns);
@@ -289,6 +316,7 @@
       $("character").value = state.character;
       $("summary").innerHTML = [
         ["Character", state.character],
+        ["Ascension", state.ascension],
         ["Seed", state.seed],
         ["Act", state.act],
         ["Floor", state.floor],
@@ -312,6 +340,7 @@
       $("relics").innerHTML = state.relics.length ? state.relics.map((r) => `<span class="pill">${escapeHtml(r)}</span>`).join("") : `<span class="muted">None</span>`;
       $("deck").innerHTML = state.inventory.deck.map((card) => `<div class="card-row">${escapeHtml(card)}</div>`).join("");
       $("potions").innerHTML = state.inventory.potions.length ? state.inventory.potions.map((p) => `<span class="pill">${escapeHtml(p.name)}</span>`).join("") : `<span class="muted">None</span>`;
+      drawMapEdges();
     }
 
     function renderScreen(screen) {
@@ -365,15 +394,33 @@
     function renderMap(screen) {
       const columns = screen.columns && screen.columns.length ? screen.columns : [0];
       const mapColumns = `repeat(${columns.length}, minmax(82px, 1fr))`;
+      const visitedCoords = new Set();
+      for (const row of screen.rows) {
+        for (const node of row) {
+          if (node.visited) visitedCoords.add(`${node.coord[0]},${node.coord[1]}`);
+        }
+      }
+      mapEdges = [];
+      for (const row of screen.rows) {
+        for (const node of row) {
+          for (const next of node.next || []) {
+            const from = `${node.coord[0]},${node.coord[1]}`;
+            const to = `${next[0]},${next[1]}`;
+            mapEdges.push({ from, to, taken: visitedCoords.has(from) && visitedCoords.has(to) });
+          }
+        }
+      }
       const rows = screen.rows.map((row) => {
         const byCol = new Map(row.map((node) => [node.coord[0], node]));
         const cells = columns.map((col) => {
           const node = byCol.get(col);
           if (!node) return `<div></div>`;
-          const classes = ["node", node.reachable ? "reachable" : "", node.visited ? "visited" : ""].join(" ");
-          const content = `<strong>(${node.coord[0]},${node.coord[1]})</strong><br>${escapeHtml(node.label)}`;
-          if (node.reachable) return `<button class="${classes}" data-action="${node.action_index}">${content}</button>`;
-          return `<div class="${classes}">${content}</div>`;
+          const classes = ["node", node.reachable ? "reachable" : "", node.visited ? "visited" : "", node.boss ? "boss" : ""].join(" ");
+          const label = node.boss ? `${escapeHtml(node.label)}<br><strong>${escapeHtml(node.boss)}</strong>` : escapeHtml(node.label);
+          const content = `<strong>(${node.coord[0]},${node.coord[1]})</strong><br>${label}`;
+          const coordAttr = `data-coord="${node.coord[0]},${node.coord[1]}"`;
+          if (node.reachable) return `<button class="${classes}" ${coordAttr} data-action="${node.action_index}">${content}</button>`;
+          return `<div class="${classes}" ${coordAttr}>${content}</div>`;
         }).join("");
         return `<div class="map-row" style="--map-columns: ${mapColumns}">${cells}</div>`;
       }).join("");
@@ -381,8 +428,41 @@
         const next = path.next.map((node) => `(${node.coord[0]},${node.coord[1]}) ${escapeHtml(node.label)}`).join(", ");
         return `<div class="path-row"><strong>(${path.coord[0]},${path.coord[1]}) ${escapeHtml(path.label)}</strong><span>${next}</span></div>`;
       }).join("");
-      return `<div class="section"><h3>Current</h3>${screen.current ? `(${screen.current[0]},${screen.current[1]})` : "Start"}</div><h3>Map</h3><div class="map">${rows}</div><h3>Next Paths</h3><div class="paths">${paths}</div>`;
+      const actTitle = screen.act_name ? `Map — ${escapeHtml(screen.act_name)}` : "Map";
+      const bossLine = screen.bosses && screen.bosses.length
+        ? `<div class="muted">Boss${screen.bosses.length > 1 ? " (one of)" : ""}: ${screen.bosses.map(escapeHtml).join(" / ")}</div>`
+        : "";
+      return `<div class="section"><h3>Current</h3>${screen.current ? `(${screen.current[0]},${screen.current[1]})` : "Start"}</div><h3>${actTitle}</h3>${bossLine}<div class="map-wrap"><svg class="map-edges"></svg><div class="map">${rows}</div></div><h3>Next Paths</h3><div class="paths">${paths}</div>`;
     }
+
+    let mapEdges = [];
+
+    function drawMapEdges() {
+      const svg = document.querySelector(".map-edges");
+      if (!svg) return;
+      const wrap = svg.parentElement;
+      const wrapRect = wrap.getBoundingClientRect();
+      svg.setAttribute("width", wrapRect.width);
+      svg.setAttribute("height", wrapRect.height);
+      const centers = new Map();
+      for (const el of wrap.querySelectorAll("[data-coord]")) {
+        const r = el.getBoundingClientRect();
+        centers.set(el.dataset.coord, {
+          x: r.left - wrapRect.left + r.width / 2,
+          top: r.top - wrapRect.top,
+          bottom: r.bottom - wrapRect.top,
+        });
+      }
+      svg.innerHTML = mapEdges.map((edge) => {
+        const from = centers.get(edge.from);
+        const to = centers.get(edge.to);
+        if (!from || !to) return "";
+        // Rows render top-down with higher rows above: connect top of `from` to bottom of `to`.
+        return `<line x1="${from.x}" y1="${from.top}" x2="${to.x}" y2="${to.bottom}"${edge.taken ? ' class="taken"' : ""} />`;
+      }).join("");
+    }
+
+    window.addEventListener("resize", drawMapEdges);
 
     function renderShop(screen) {
       return `<div class="sections">${screen.sections.map((section) => `

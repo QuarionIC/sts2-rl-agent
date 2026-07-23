@@ -259,6 +259,9 @@ class RunManager:
         # Initialize the run (ascension effects + first map)
         self._run_state.initialize_run()
 
+        # Roll this act's boss up-front so it is visible on the map.
+        self._act_boss_setup = self._roll_act_boss()
+
         # Phase tracking
         self._phase: str = self.PHASE_MAP_CHOICE
         self._combat: CombatState | None = None
@@ -320,6 +323,17 @@ class RunManager:
     @property
     def current_room(self) -> Room | None:
         return self._current_room
+
+    @property
+    def act_boss_setup(self):
+        """Encounter setup for this act's boss, rolled when the act map is generated."""
+        return self._act_boss_setup
+
+    def _roll_act_boss(self):
+        pool = _get_encounter_pools(self._run_state.current_act_index)["boss"]
+        if not pool:
+            return None
+        return self._rng.choice(pool)
 
     # ------------------------------------------------------------------
     # Step-based API
@@ -557,7 +571,12 @@ class RunManager:
         else:
             pool = pools["normal"]
 
-        if pool:
+        if room_type == RoomType.BOSS and self._act_boss_setup is not None:
+            # Boss was rolled when the act map was generated.
+            setup_fn = self._act_boss_setup
+            encounter_rng = Rng(self._rng.next_int(0, INT_MAX))
+            setup_fn(self._combat, encounter_rng)
+        elif pool:
             setup_fn = self._rng.choice(pool)
             encounter_rng = Rng(self._rng.next_int(0, INT_MAX))
             setup_fn(self._combat, encounter_rng)
@@ -2085,6 +2104,7 @@ class RunManager:
             # Run completed (all acts cleared)
             self._phase = self.PHASE_RUN_OVER
         else:
+            self._act_boss_setup = self._roll_act_boss()
             self._enter_map_choice()
 
     # ------------------------------------------------------------------
