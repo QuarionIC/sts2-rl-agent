@@ -57,11 +57,19 @@ def train(args):
 
     # Wrap env with action masker
     def mask_fn(env):
-        return env.action_masks()
+        # `env` may be wrapped (e.g. TimeLimit); gymnasium wrappers don't
+        # forward unknown attributes, so reach the base env explicitly.
+        return env.unwrapped.action_masks()
 
     def make_masked_env(seed: int):
         def _init():
+            from gymnasium.wrappers import TimeLimit
+
             env = STS2CombatEnv()
+            # Bound episode length in steps: the env only truncates on turn
+            # count, but an agent can take many steps per turn, which makes
+            # evaluation episodes arbitrarily long.
+            env = TimeLimit(env, max_episode_steps=args.max_episode_steps)
             env = ActionMasker(env, mask_fn)
             return env
         return _init
@@ -76,20 +84,28 @@ def train(args):
     eval_env = DummyVecEnv([make_masked_env(9999)])
 
     # Create model
-    model = MaskablePPO(
-        "MlpPolicy",
-        train_env,
-        learning_rate=args.lr,
-        n_steps=args.n_steps,
-        batch_size=args.batch_size,
-        n_epochs=args.n_epochs,
-        gamma=args.gamma,
-        gae_lambda=0.95,
-        clip_range=0.2,
-        ent_coef=args.ent_coef,
-        verbose=1,
-        tensorboard_log=str(output_dir / "tb_logs"),
-    )
+    if args.resume_from:
+        print(f"Resuming from checkpoint: {args.resume_from}")
+        model = MaskablePPO.load(
+            args.resume_from,
+            env=train_env,
+            tensorboard_log=str(output_dir / "tb_logs"),
+        )
+    else:
+        model = MaskablePPO(
+            "MlpPolicy",
+            train_env,
+            learning_rate=args.lr,
+            n_steps=args.n_steps,
+            batch_size=args.batch_size,
+            n_epochs=args.n_epochs,
+            gamma=args.gamma,
+            gae_lambda=0.95,
+            clip_range=0.2,
+            ent_coef=args.ent_coef,
+            verbose=1,
+            tensorboard_log=str(output_dir / "tb_logs"),
+        )
 
     # Eval callback
     eval_callback = EvalCallback(
@@ -107,6 +123,7 @@ def train(args):
         total_timesteps=args.total_timesteps,
         callback=eval_callback,
         progress_bar=True,
+        reset_num_timesteps=not args.resume_from,
     )
     elapsed = time.perf_counter() - start
 
@@ -125,15 +142,16 @@ def train(args):
     eval_env.close()
 
 
-def evaluate(model, n_episodes: int = 100):
+def evaluate(model, n_episodes: int = 100, max_episode_steps: int = 1000):
     """Evaluate trained model."""
+    from gymnasium.wrappers import TimeLimit
     from sb3_contrib.common.wrappers import ActionMasker
     from sts2_env.gym_env.combat_env import STS2CombatEnv
 
     def mask_fn(env):
-        return env.action_masks()
+        return env.unwrapped.action_masks()
 
-    env = ActionMasker(STS2CombatEnv(), mask_fn)
+    env = ActionMasker(TimeLimit(STS2CombatEnv(), max_episode_steps=max_episode_steps), mask_fn)
     wins = 0
     total_rewards = []
 
@@ -178,6 +196,10 @@ def main():
                         help="Evaluate every N steps (default: 10000)")
     parser.add_argument("--eval-episodes", type=int, default=20,
                         help="Episodes per evaluation (default: 20)")
+    parser.add_argument("--max-episode-steps", type=int, default=1000,
+                        help="Hard cap on env steps per episode (default: 1000)")
+    parser.add_argument("--resume-from", type=str, default=None,
+                        help="Path to a saved model .zip to resume training from")
     parser.add_argument("--output-dir", type=str, default="output/combat_ppo",
                         help="Output directory (default: output/combat_ppo)")
     args = parser.parse_args()
