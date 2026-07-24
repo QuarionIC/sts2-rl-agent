@@ -6,13 +6,16 @@ run-start / Neow flow and the relic-grab-bag legality checks.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from sts2_env.cards.base import new_card_instance_id_after
 from sts2_env.cards.factory import card_metadata, eligible_character_cards, eligible_registered_cards
 from sts2_env.core.card_pools import CardPoolId
 from sts2_env.core.enums import CardRarity, CombatSide, MapPointType, PowerId, RoomType
+from sts2_env.core.rng import Rng
 from sts2_env.core.selection import CardChoiceOption, PendingCardChoice
+from sts2_env.relics.base import RelicId
 from sts2_env.run.events import EventResult
 from sts2_env.run.reward_objects import CardReward, GoldReward, RelicReward
 from sts2_env.run.rewards import (
@@ -21,7 +24,7 @@ from sts2_env.run.rewards import (
     generate_combat_reward_cards,
     generate_uniform_noncombat_cards,
 )
-from sts2_env.run.rest_site import SmithOption
+from sts2_env.run.rest_site import RecallOption, SmithOption
 
 
 PANDORAS_BOX_RELIC_ID = "PANDORAS_BOX"
@@ -132,6 +135,16 @@ class ModifierModel:
 
     def has_neow_event_option(self) -> bool:
         return False
+
+    def affects_neow_choice(self) -> bool:
+        """Whether this modifier's mere presence suppresses Neow's default
+        relic-choice flow, even when it has no explicit option of its own
+        (``has_neow_event_option()`` is False). True for run-challenge-style
+        modifiers (Murderous, Terminal, ...); modifiers that are unrelated
+        to Neow (e.g. Act4Heart, which is always active for every run)
+        override this to False so they don't accidentally blank out Neow.
+        """
+        return True
 
     def _remove_pandoras_box(self, run_state) -> None:
         for player in run_state.players:
@@ -269,6 +282,12 @@ class BigGameHunterModifier(ModifierModel):
     def modify_generated_map(self, player, run_state, act_map, act_index):
         from sts2_env.core.rng import Rng
         from sts2_env.map.generator import generate_act_map
+
+        # Act4Heart mod: Big Game Hunter never modifies the hand-authored
+        # Act 4 map. (decompiled_mods/Act4Heart/Act4Heart.Hooks/Act4Hooks.cs
+        # :BlockBigGameHunter_Before_ModifyGeneratedMap)
+        if act_index == 3:
+            return act_map
 
         current_elites = sum(1 for point in act_map.room_points() if point.point_type == MapPointType.ELITE)
         treasure_row = act_map.map_length - BIG_GAME_HUNTER_TREASURE_ROW_OFFSET
@@ -545,3 +564,147 @@ class SealedDeckModifier(ModifierModel):
             finished=False,
             description=f"Choose {SEALED_DECK_PICK_COUNT} cards for your sealed deck.",
         )
+
+
+# ---------------------------------------------------------------------------
+# Act4Heart mod -- always active for this simulator (see task spec: the
+# mod is confirmed always loaded, not ascension-gated or unlockable).
+# ---------------------------------------------------------------------------
+
+ACT4_HEART_ACT_INDEX = 3
+ACT4_HEART_HEAL_ASCENSION_THRESHOLD = 2
+ACT4_HEART_HEAL_ASCENSION_FRACTION = 0.75
+
+# Emerald Key Super Elite buff (Act4Heart.Keys/GreenKeyHooks.cs:SeBuff).
+# amount = act_number * mult + add, where act_number = act_index + 1.
+EMERALD_KEY_STRENGTH_MULT = 1
+EMERALD_KEY_STRENGTH_ADD = 0
+EMERALD_KEY_METALLICIZE_MULT = 2
+EMERALD_KEY_METALLICIZE_ADD = 2
+EMERALD_KEY_REGENERATE_MULT = 2
+EMERALD_KEY_REGENERATE_ADD = 1
+EMERALD_KEY_MAXHP_PERCENT = 25
+EMERALD_KEY_LAST_MARKABLE_ACT_INDEX = 2  # Acts 1-3 (0-indexed 0..2) only
+
+
+class SuperEliteMarker:
+    """Sentinel added to a MapPoint.quests to mark the Emerald Key's
+    secretly pre-selected Super Elite for that act.
+
+    C# ref: GreenKeyHooks.SuperEliteQuest.
+    """
+    __slots__ = ()
+
+
+class Act4HeartModifier(ModifierModel):
+    """Always-on hooks for the Act4Heart mod.
+
+    Covers:
+      - Act 4 ("TheEnding"): hand-authored map, heal on entry.
+      - Emerald Key: per-act (Acts 1-3) secretly pre-selected Elite, random
+        buff at combat start, key awarded on that elite's death.
+      - Ruby Key: granted via the Recall rest-site option (see
+        run/rest_site.py:RecallOption, added here).
+      - Sapphire Key: granted via RunManager._do_treasure_skip.
+      - Act 3->4 gate: the real mod shows a KeyDoor event when missing
+        keys, but "Delusion" (always available) proceeds to Act 4 exactly
+        like "Succeed" -- there is no mechanical difference between the two
+        non-fatal paths, so the run always proceeds straight to Act 4 here.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("act4_heart")
+
+    def affects_neow_choice(self) -> bool:
+        # Unrelated to Neow -- must not suppress the default relic choices
+        # just because this always-on modifier is present in every run.
+        return False
+
+    # -- Act 4 map + heal -------------------------------------------------
+
+    def modify_generated_map(self, player, run_state, act_map, act_index):
+        if act_index == ACT4_HEART_ACT_INDEX:
+            from sts2_env.map.generator import generate_act4_heart_map
+
+            return generate_act4_heart_map()
+        if 0 <= act_index <= EMERALD_KEY_LAST_MARKABLE_ACT_INDEX:
+            self._mark_super_elite(run_state, act_map, act_index)
+        return act_map
+
+    def after_act_entered(self, run_state) -> None:
+        if run_state.current_act_index != ACT4_HEART_ACT_INDEX:
+            return
+        for player in run_state.players:
+            missing = player.max_hp - player.current_hp
+            if missing <= 0:
+                continue
+            if run_state.ascension_level >= ACT4_HEART_HEAL_ASCENSION_THRESHOLD:
+                missing = math.floor(missing * ACT4_HEART_HEAL_ASCENSION_FRACTION)
+            player.heal(missing)
+
+    # -- Ruby Key (Recall rest-site option) --------------------------------
+
+    def modify_rest_site_options(self, player, options, run_state):
+        if RelicId.RUBY_KEY.name not in player.relics:
+            options = [*options, RecallOption()]
+        return options
+
+    # -- Emerald Key (Super Elite) ------------------------------------------
+
+    def _mark_super_elite(self, run_state, act_map, act_index: int) -> None:
+        if self._everyone_has_relic(run_state, RelicId.EMERALD_KEY):
+            return
+        for point in act_map.all_points():
+            if any(isinstance(quest, SuperEliteMarker) for quest in point.quests):
+                return  # already marked (defensive; mirrors C# guard)
+        elite_points = [p for p in act_map.room_points() if p.point_type == MapPointType.ELITE]
+        if not elite_points:
+            return
+        rng = Rng(run_state.rng.seed + act_index, "se_coord")
+        index = rng.next_int_exclusive(0, len(elite_points))
+        elite_points[index].add_quest(SuperEliteMarker())
+
+    def _current_map_point(self, run_state):
+        if not run_state.visited_map_coords or run_state.map is None:
+            return None
+        return run_state.map.get_point(run_state.visited_map_coords[-1])
+
+    def _is_marked_super_elite(self, run_state) -> bool:
+        point = self._current_map_point(run_state)
+        return point is not None and any(isinstance(quest, SuperEliteMarker) for quest in point.quests)
+
+    @staticmethod
+    def _everyone_has_relic(run_state, relic_id) -> bool:
+        return all(relic_id.name in player.relics for player in run_state.players)
+
+    def after_room_entered(self, run_state, room, combat=None) -> None:
+        if combat is None or getattr(room, "room_type", None) != RoomType.ELITE:
+            return
+        if not self._is_marked_super_elite(run_state):
+            return
+        act_number = run_state.current_act_index + 1
+        rng = Rng(run_state.rng.seed + act_number, "se_buff")
+        roll = rng.next_int_exclusive(0, 4)
+        for enemy in list(combat.enemies):
+            if roll == 0:
+                amount = act_number * EMERALD_KEY_STRENGTH_MULT + EMERALD_KEY_STRENGTH_ADD
+                combat.apply_power_to(enemy, PowerId.STRENGTH, amount, applier=enemy)
+            elif roll == 1:
+                amount = act_number * EMERALD_KEY_METALLICIZE_MULT + EMERALD_KEY_METALLICIZE_ADD
+                combat.apply_power_to(enemy, PowerId.METALLICIZE, amount, applier=enemy)
+            elif roll == 2:
+                amount = act_number * EMERALD_KEY_REGENERATE_MULT + EMERALD_KEY_REGENERATE_ADD
+                combat.apply_power_to(enemy, PowerId.REGENERATE_A4H, amount, applier=enemy)
+            else:
+                bonus = round(enemy.max_hp * EMERALD_KEY_MAXHP_PERCENT / 100)
+                enemy.max_hp += bonus
+                enemy.current_hp += bonus
+
+    def modify_rewards(self, player, rewards, room, run_state):
+        if getattr(room, "room_type", None) != RoomType.ELITE:
+            return rewards
+        if not self._is_marked_super_elite(run_state):
+            return rewards
+        if RelicId.EMERALD_KEY.name in player.relics:
+            return rewards
+        return [*rewards, RelicReward(player.player_id, relic_id=RelicId.EMERALD_KEY.name)]

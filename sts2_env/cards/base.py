@@ -331,6 +331,12 @@ class CardInstance:
         return "eternal" not in self.keywords
 
     @property
+    def returns_to_hand_on_exhaust(self) -> bool:
+        """True for cards that redirect back to hand instead of the exhaust
+        pile whenever they're exhausted (e.g. Necronomicurse)."""
+        return "returns_to_hand_on_exhaust" in self.keywords
+
+    @property
     def is_shiv(self) -> bool:
         return CardTag.SHIV in self.tags
 

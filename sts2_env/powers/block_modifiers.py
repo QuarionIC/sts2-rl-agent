@@ -142,12 +142,17 @@ class ColossusPower(PowerInstance):
 
 # ── IntangiblePower ──────────────────────────────────────────────────────
 class IntangiblePower(PowerInstance):
-    """All damage and HP loss is reduced to 1 (or 5 if attacker has The Boot relic).
+    """All damage and HP loss is reduced to 1.
 
     C#:
-      - ModifyHpLostAfterOsty: caps HP loss at min(cap, amount).
-      - ModifyDamageCap: returns 1 (or 5 with The Boot) for the owner.
+      - ModifyHpLostAfterOsty: caps HP loss at min(1, amount).
+      - ModifyDamageCap: returns 1 for the owner.
       - AfterTurnEnd (Enemy side): ticks down.
+
+    The Boot relic no longer has a hardcoded special case here — it now
+    raises this cap back up independently via its own late after-Osty hook
+    (``TheBoot.modify_hp_lost_after_osty``), which runs after this power's
+    ``modify_hp_lost`` in the hook chain.
 
     In our hook system we use ``modify_hp_lost`` to cap all incoming damage,
     and ``modify_damage_cap`` for the raw damage cap.
@@ -156,26 +161,10 @@ class IntangiblePower(PowerInstance):
     power_type = PowerType.BUFF
     stack_type = PowerStackType.COUNTER
 
-    # Base cap is 1; The Boot relic raises it to 5.
-    _DEFAULT_CAP = 1
+    DAMAGE_CAP = 1
 
     def __init__(self, amount: int):
         super().__init__(PowerId.INTANGIBLE, amount)
-
-    def _get_damage_cap(self, dealer: Creature | None) -> int:
-        """Return damage cap, accounting for The Boot relic on dealer."""
-        if dealer is not None:
-            if getattr(dealer, "_has_the_boot", False):
-                return 5
-            relic_owner = getattr(dealer, "pet_owner", None) or dealer
-            combat = getattr(relic_owner, "combat_state", None) or getattr(dealer, "combat_state", None)
-            if combat is not None:
-                from sts2_env.relics.base import RelicId
-
-                for relic in combat.relics_for_creature(relic_owner):
-                    if relic.relic_id == RelicId.THE_BOOT:
-                        return 5
-        return self._DEFAULT_CAP
 
     def modify_hp_lost(
         self, owner: Creature, target: Creature, amount: float,
@@ -183,8 +172,7 @@ class IntangiblePower(PowerInstance):
     ) -> float:
         if target is not owner:
             return amount
-        cap = self._get_damage_cap(dealer)
-        return min(float(cap), amount)
+        return min(float(self.DAMAGE_CAP), amount)
 
     def modify_damage_cap(
         self, owner: Creature, dealer: Creature | None, target: Creature,
@@ -192,7 +180,7 @@ class IntangiblePower(PowerInstance):
     ) -> float:
         if target is not owner:
             return float("inf")
-        return float(self._get_damage_cap(dealer))
+        return float(self.DAMAGE_CAP)
 
     def on_turn_end_enemy_side(self, owner: Creature) -> None:
         if self.skip_next_tick:

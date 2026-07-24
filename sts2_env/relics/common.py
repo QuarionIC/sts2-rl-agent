@@ -53,9 +53,12 @@ class AmethystAubergine(RelicInstance):
         from sts2_env.run.reward_objects import GoldReward
 
         room_type = getattr(room, "room_type", None)
+        final_boss_act_index = getattr(
+            run_state, "final_boss_act_index", len(getattr(run_state, "acts", ())) - 1
+        )
         is_final_boss = (
             room_type == RoomType.BOSS
-            and run_state.current_act_index >= len(getattr(run_state, "acts", ())) - 1
+            and run_state.current_act_index >= final_boss_act_index
         )
         if room is not None and room_type in {RoomType.MONSTER, RoomType.ELITE, RoomType.BOSS} and not is_final_boss:
             return [*rewards, GoldReward(owner.player_id, self.GOLD, self.GOLD)]

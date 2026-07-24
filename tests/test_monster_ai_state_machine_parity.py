@@ -26,6 +26,7 @@ from sts2_env.encounters.act2 import (
     setup_tunneler_normal,
 )
 from sts2_env.encounters.act3 import (
+    setup_aeonglass_boss,
     setup_construct_menagerie_normal,
     setup_doormaker_boss,
     setup_devoted_sculptor_weak,
@@ -58,7 +59,7 @@ from sts2_env.encounters.act4 import (
     setup_sludge_spinner_weak,
     setup_soul_fysh_boss,
     setup_skulking_colony_elite,
-    setup_toadpoles_normal,
+    setup_seapunk_normal,
     setup_toadpoles_weak,
     setup_terror_eel_elite,
     setup_two_tailed_rats_normal,
@@ -174,9 +175,9 @@ from sts2_env.monsters.act4 import (
     SLUDGE_SPINNER_MONSTER_ID,
     SKULKING_COLONY_INERTIA_MOVE,
     SKULKING_COLONY_MONSTER_ID,
-    SKULKING_COLONY_SMASH_MOVE,
-    SKULKING_COLONY_SUPER_CRAB_MOVE,
+    SKULKING_COLONY_PIERCING_STABS_MOVE,
     SKULKING_COLONY_ZOOM_MOVE,
+    SKULKING_COLONY_ZOOM_MOVE_2,
     TERROR_EEL_CRASH_MOVE,
     TERROR_EEL_MONSTER_ID,
     TERROR_EEL_STUN_MOVE,
@@ -346,7 +347,8 @@ from sts2_env.monsters.shared import (
     TORCH_HEAD_AMALGAM_BEAM_MOVE,
     TORCH_HEAD_AMALGAM_MINION,
     TORCH_HEAD_AMALGAM_MONSTER_ID,
-    TORCH_HEAD_AMALGAM_TACKLE_1_MOVE,
+    TORCH_HEAD_AMALGAM_STRONG_TACKLE_MOVE,
+    TORCH_HEAD_AMALGAM_TACKLE_2_MOVE,
     TORCH_HEAD_AMALGAM_TACKLE_3_MOVE,
     create_battle_friend_v2,
     create_battle_friend_v3,
@@ -363,6 +365,15 @@ from sts2_env.monsters.shared import (
     create_the_adversary_mk_three,
 )
 from sts2_env.monsters.act3 import (
+    AEONGLASS_BASE_HP,
+    AEONGLASS_EBB_BLOCK,
+    AEONGLASS_EBB_MOVE,
+    AEONGLASS_EYE_LASERS_MOVE,
+    AEONGLASS_EYE_LASERS_REPEAT,
+    AEONGLASS_INCREASING_INTENSITY_MOVE,
+    AEONGLASS_MONSTER_ID,
+    AEONGLASS_TOUGH_HP,
+    create_aeonglass,
     DEVOTED_SCULPTOR_FORBIDDEN_INCANTATION_MOVE,
     DEVOTED_SCULPTOR_MONSTER_ID,
     DEVOTED_SCULPTOR_SAVAGE_MOVE,
@@ -497,7 +508,7 @@ from sts2_env.run.run_state import PlayerState
 STARTING_ACT_INDEX = 0
 NIBBIT_SLICE_MOVE_ID = "SLICE_MOVE"
 NIBBIT_SLICE_MOVE_BLOCK = 5
-RUBY_RAIDER_KILLSHOT_DAMAGE_A9 = 12
+RUBY_RAIDER_KILLSHOT_DAMAGE_A9 = 11
 RUBY_RAIDER_SWING_DAMAGE_A9 = 6
 RUBY_RAIDER_SWING_BLOCK_A9 = 6
 RUBY_RAIDER_BIG_SWING_DAMAGE_A9 = 13
@@ -508,12 +519,12 @@ RUBY_RAIDER_RELOAD_BLOCK = 3
 RUBY_RAIDER_HOUNDS_DAMAGE = 1
 RUBY_RAIDER_HOUNDS_HITS_A9 = 9
 RUBY_RAIDER_TRACK_FRAIL = 2
-BYGONE_EFFIGY_SLASH_DAMAGE_A9 = 17
+BYGONE_EFFIGY_SLASH_DAMAGE_A9 = 15
 BYGONE_EFFIGY_WAKE_STRENGTH = 10
 BYGONE_EFFIGY_SLOW = 1
 BYRDONIS_PECK_DAMAGE_A9 = 4
 BYRDONIS_PECK_HITS = 3
-BYRDONIS_SWOOP_DAMAGE_A9 = 18
+BYRDONIS_SWOOP_DAMAGE_A9 = 19
 BYRDONIS_TERRITORIAL = 1
 PHROG_PARASITE_LASH_DAMAGE_A9 = 5
 PHROG_PARASITE_LASH_HITS = 4
@@ -646,16 +657,17 @@ ENTOMANCER_INITIAL_PERSONAL_HIVE = 1
 ENTOMANCER_PHEROMONE_HIVE_GAIN = 1
 ENTOMANCER_PHEROMONE_STRENGTH_GAIN = 1
 ENTOMANCER_MAX_HIVE_STRENGTH_GAIN = 2
-INFESTED_PRISM_BASE_HP = 200
-INFESTED_PRISM_A8_HP = 215
-INFESTED_PRISM_JAB_DAMAGE_A9 = 24
-INFESTED_PRISM_RADIATE_DAMAGE_A9 = 18
-INFESTED_PRISM_RADIATE_BLOCK_A9 = 18
-INFESTED_PRISM_WHIRLWIND_DAMAGE_A9 = 10
+INFESTED_PRISM_BASE_HP = 161
+INFESTED_PRISM_A8_HP = 171
+INFESTED_PRISM_JAB_DAMAGE_A9 = 17
+INFESTED_PRISM_RADIATE_DAMAGE_A9 = 13
+INFESTED_PRISM_RADIATE_BLOCK_A9 = 13
+INFESTED_PRISM_WHIRLWIND_DAMAGE_A9 = 6
 INFESTED_PRISM_WHIRLWIND_HITS = 3
 INFESTED_PRISM_PULSATE_BLOCK_A8 = 22
-INFESTED_PRISM_PULSATE_STRENGTH_A9 = 5
-INFESTED_PRISM_VITAL_SPARK = 1
+INFESTED_PRISM_PULSATE_DAMAGE_A9 = 10
+INFESTED_PRISM_VITAL_SPARK = 2
+INFESTED_PRISM_VITAL_SPARK_A9 = 3
 THE_INSATIABLE_BASE_HP = 321
 THE_INSATIABLE_A8_HP = 341
 THE_INSATIABLE_THRASH_DAMAGE_A9 = 9
@@ -669,21 +681,21 @@ KNOWLEDGE_DEMON_OVERWHELMING_DAMAGE_A9 = 9
 KNOWLEDGE_DEMON_OVERWHELMING_HITS = 3
 KNOWLEDGE_DEMON_PONDER_DAMAGE_A9 = 13
 KNOWLEDGE_DEMON_PONDER_STRENGTH_A9 = 3
-CRUSHER_BASE_HP = 199
-CRUSHER_A8_HP = 209
+CRUSHER_BASE_HP = 209
+CRUSHER_A8_HP = 219
 CRUSHER_THRASH_DAMAGE_A9 = 14
 CRUSHER_BUG_STING_DAMAGE_A9 = 7
 CRUSHER_BUG_STING_HITS = 2
 CRUSHER_BUG_STING_DEBUFF = 2
-CRUSHER_ADAPT_STRENGTH = 2
+CRUSHER_ADAPT_STRENGTH_A9 = 3
 CRUSHER_GUARDED_STRIKE_DAMAGE_A9 = 14
 CRUSHER_GUARDED_STRIKE_BLOCK = 18
-ROCKET_BASE_HP = 189
-ROCKET_A8_HP = 199
+ROCKET_BASE_HP = 199
+ROCKET_A8_HP = 209
 ROCKET_TARGETING_RETICLE_DAMAGE_A9 = 4
 ROCKET_PRECISION_BEAM_DAMAGE_A9 = 20
 ROCKET_LASER_DAMAGE_A9 = 35
-ROCKET_CHARGE_UP_STRENGTH = 2
+ROCKET_CHARGE_UP_STRENGTH_A9 = 3
 DEVOTED_SCULPTOR_BASE_HP = 162
 DEVOTED_SCULPTOR_A8_HP = 172
 DEVOTED_SCULPTOR_SAVAGE_DAMAGE_A9 = 15
@@ -749,8 +761,9 @@ DOORMAKER_DOOR_HP_SCALE_A8 = 25
 DOORMAKER_DOOR_STRENGTH_SCALE_A9 = 4
 TORCH_HEAD_AMALGAM_BASE_HP = 199
 TORCH_HEAD_AMALGAM_A8_HP = 211
-TORCH_HEAD_AMALGAM_TACKLE_DAMAGE_A9 = 19
-TORCH_HEAD_AMALGAM_WEAK_TACKLE_DAMAGE_A9 = 15
+TORCH_HEAD_AMALGAM_STRONG_TACKLE_DAMAGE_A9 = 32
+TORCH_HEAD_AMALGAM_TACKLE_DAMAGE_A9 = 22
+TORCH_HEAD_AMALGAM_WEAK_TACKLE_DAMAGE_A9 = 16
 TORCH_HEAD_AMALGAM_SOUL_BEAM_DAMAGE = 8
 TORCH_HEAD_AMALGAM_SOUL_BEAM_HITS = 3
 QUEEN_BASE_HP = 400
@@ -795,7 +808,7 @@ TOADPOLE_SPIKE_SPIT_HITS = 3
 TOADPOLE_WHIRL_DAMAGE_A9 = 8
 TOADPOLE_SPIKEN_THORNS = 2
 SEAPUNK_A8_HP_RANGE = (47, 49)
-SEAPUNK_SEA_KICK_DAMAGE_A9 = 12
+SEAPUNK_SEA_KICK_DAMAGE_A9 = 13
 SEAPUNK_SPINNING_KICK_DAMAGE = 2
 SEAPUNK_SPINNING_KICK_HITS = 4
 SEAPUNK_BUBBLE_BLOCK_A8 = 8
@@ -844,7 +857,7 @@ LIVING_FOG_ADVANCED_GAS_DAMAGE_A9 = 9
 LIVING_FOG_ADVANCED_GAS_SMOGGY = 1
 LIVING_FOG_BLOAT_DAMAGE_A9 = 6
 LIVING_FOG_SUPER_GAS_BLAST_DAMAGE_A9 = 9
-GAS_BOMB_A8_HP = 12
+GAS_BOMB_A8_HP = 8
 GAS_BOMB_EXPLODE_DAMAGE_A9 = 9
 GAS_BOMB_MINION = 1
 SEWER_CLAM_A8_HP = 58
@@ -863,8 +876,8 @@ TWO_TAILED_RAT_SCRATCH_DAMAGE_A9 = 9
 TWO_TAILED_RAT_DISEASE_BITE_DAMAGE_A9 = 7
 TWO_TAILED_RAT_SCREECH_FRAIL = 1
 STUNNED_MOVE_ID = "STUNNED"
-PHANTASMAL_GARDENER_BASE_HP_RANGE = (28, 32)
-PHANTASMAL_GARDENER_A8_HP_RANGE = (29, 33)
+PHANTASMAL_GARDENER_BASE_HP_RANGE = (26, 31)
+PHANTASMAL_GARDENER_A8_HP_RANGE = (27, 32)
 PHANTASMAL_GARDENER_BITE_DAMAGE = 5
 PHANTASMAL_GARDENER_LASH_DAMAGE = 7
 PHANTASMAL_GARDENER_FLAIL_DAMAGE = 1
@@ -873,30 +886,28 @@ PHANTASMAL_GARDENER_BASE_ENLARGE_STRENGTH = 2
 PHANTASMAL_GARDENER_ENLARGE_STRENGTH_A9 = 3
 PHANTASMAL_GARDENER_BASE_SKITTISH = 6
 PHANTASMAL_GARDENER_SKITTISH_A8 = 7
-SKULKING_COLONY_BASE_HP = 79
-SKULKING_COLONY_A8_HP = 84
-SKULKING_COLONY_BASE_SUPER_CRAB_DAMAGE = 6
-SKULKING_COLONY_SUPER_CRAB_DAMAGE_A9 = 7
-SKULKING_COLONY_SUPER_CRAB_HITS = 2
-SKULKING_COLONY_BASE_ZOOM_DAMAGE = 16
-SKULKING_COLONY_ZOOM_DAMAGE_A9 = 17
-SKULKING_COLONY_BASE_SMASH_DAMAGE = 9
-SKULKING_COLONY_SMASH_DAMAGE_A9 = 11
-SKULKING_COLONY_SMASH_DAZED = 4
-SKULKING_COLONY_BASE_INERTIA_BLOCK = 10
-SKULKING_COLONY_INERTIA_BLOCK_A8 = 13
-SKULKING_COLONY_INERTIA_STRENGTH = 3
+SKULKING_COLONY_BASE_HP = 75
+SKULKING_COLONY_A8_HP = 80
+SKULKING_COLONY_BASE_PIERCING_STABS_DAMAGE = 7
+SKULKING_COLONY_PIERCING_STABS_DAMAGE_A9 = 8
+SKULKING_COLONY_PIERCING_STABS_HITS = 2
+SKULKING_COLONY_BASE_ZOOM_DAMAGE = 14
+SKULKING_COLONY_ZOOM_DAMAGE_A9 = 16
+SKULKING_COLONY_BASE_INERTIA_DAMAGE = 9
+SKULKING_COLONY_INERTIA_DAMAGE_A9 = 11
+SKULKING_COLONY_BASE_INERTIA_STRENGTH = 2
+SKULKING_COLONY_INERTIA_STRENGTH_A9 = 4
 SKULKING_COLONY_HARDENED_SHELL = 20
 TERROR_EEL_BASE_HP = 140
 TERROR_EEL_A8_HP = 150
 TERROR_EEL_BASE_SHRIEK = 70
 TERROR_EEL_SHRIEK_A8 = 75
-TERROR_EEL_BASE_CRASH_DAMAGE = 17
-TERROR_EEL_CRASH_DAMAGE_A9 = 19
+TERROR_EEL_BASE_CRASH_DAMAGE = 16
+TERROR_EEL_CRASH_DAMAGE_A9 = 18
 TERROR_EEL_BASE_THRASH_DAMAGE = 3
 TERROR_EEL_THRASH_DAMAGE_A9 = 4
 TERROR_EEL_THRASH_HITS = 3
-TERROR_EEL_THRASH_VIGOR = 7
+TERROR_EEL_THRASH_VIGOR = 6
 TERROR_EEL_TERROR_VULNERABLE = 99
 TERROR_EEL_SHRIEK_BREAK_DAMAGE = 80
 FABRICATOR_BASE_HP = 150
@@ -904,14 +915,14 @@ FABRICATOR_A8_HP = 155
 FABRICATOR_FABRICATING_STRIKE_DAMAGE_A9 = 21
 FABRICATOR_DISINTEGRATE_DAMAGE_A9 = 13
 FABRICATOR_MINION = 1
-ZAPBOT_A8_HP_RANGE = (24, 29)
+ZAPBOT_A8_HP_RANGE = (19, 24)
 ZAPBOT_ZAP_DAMAGE_A9 = 15
 ZAPBOT_HIGH_VOLTAGE = 2
-STABBOT_A8_HP_RANGE = (24, 29)
+STABBOT_A8_HP_RANGE = (19, 24)
 STABBOT_STAB_DAMAGE_A9 = 12
 STABBOT_STAB_FRAIL = 1
-GUARDBOT_A8_HP_RANGE = (22, 26)
-NOISEBOT_A8_HP_RANGE = (24, 29)
+GUARDBOT_A8_HP_RANGE = (17, 21)
+NOISEBOT_A8_HP_RANGE = (19, 24)
 FROG_KNIGHT_BASE_HP = 191
 FROG_KNIGHT_A8_HP = 199
 FROG_KNIGHT_BASE_PLATING = 15
@@ -929,16 +940,16 @@ GLOBE_HEAD_THUNDER_STRIKE_DAMAGE_A9 = 7
 GLOBE_HEAD_THUNDER_STRIKE_HITS = 3
 GLOBE_HEAD_GALVANIC_BURST_DAMAGE_A9 = 17
 GLOBE_HEAD_GALVANIC_BURST_STRENGTH = 2
-OWL_MAGISTRATE_BASE_HP = 234
-OWL_MAGISTRATE_A8_HP = 243
+OWL_MAGISTRATE_BASE_HP = 231
+OWL_MAGISTRATE_A8_HP = 247
 OWL_MAGISTRATE_SCRUTINY_DAMAGE_A9 = 17
 OWL_MAGISTRATE_PECK_ASSAULT_DAMAGE = 4
 OWL_MAGISTRATE_PECK_ASSAULT_HITS = 6
 OWL_MAGISTRATE_VERDICT_DAMAGE_A9 = 36
 OWL_MAGISTRATE_SOAR = 1
 OWL_MAGISTRATE_VERDICT_VULNERABLE = 4
-SLIMED_BERSERKER_BASE_HP = 266
-SLIMED_BERSERKER_A8_HP = 276
+SLIMED_BERSERKER_BASE_HP = 261
+SLIMED_BERSERKER_A8_HP = 281
 SLIMED_BERSERKER_PUMMELING_DAMAGE_A9 = 5
 SLIMED_BERSERKER_PUMMELING_HITS = 4
 SLIMED_BERSERKER_SLIMED = 10
@@ -956,7 +967,7 @@ THE_FORGOTTEN_A8_HP = 111
 THE_FORGOTTEN_STOLEN_DEXTERITY = 2
 THE_FORGOTTEN_MIASMA_BLOCK = 8
 THE_FORGOTTEN_POSSESS_SPEED = 1
-THE_FORGOTTEN_DREAD_DAMAGE_A9 = 17
+THE_FORGOTTEN_DREAD_DAMAGE_A9 = 15
 TOUGH_EGG_MULTIPLAYER_INITIAL_HP = 16
 TOUGH_EGG_MULTIPLAYER_HATCHLING_HP = 20
 TOUGH_EGG_BASE_INITIAL_HP_RANGE = (14, 18)
@@ -978,9 +989,9 @@ MULTIPLAYER_TEST_PLAYER_COUNT = 2
 DECIMILLIPEDE_STARTER_MOVE_IDX = 0
 DECIMILLIPEDE_ODD_SEGMENT_HP = DECIMILLIPEDE_SEGMENT_MIN_HP + 1
 DECIMILLIPEDE_NEAR_MAX_SEGMENT_HP = DECIMILLIPEDE_SEGMENT_MAX_HP - 1
-DECIMILLIPEDE_A8_HP_RANGE = (48, 56)
-DECIMILLIPEDE_A8_ODD_SEGMENT_HP = 49
-DECIMILLIPEDE_A8_DUPLICATE_SEGMENT_HP = 55
+DECIMILLIPEDE_A8_HP_RANGE = (46, 52)
+DECIMILLIPEDE_A8_ODD_SEGMENT_HP = 47
+DECIMILLIPEDE_A8_DUPLICATE_SEGMENT_HP = 51
 DECIMILLIPEDE_WRITHE_DAMAGE_A9 = 6
 DECIMILLIPEDE_WRITHE_HITS = 2
 DECIMILLIPEDE_CONSTRICT_DAMAGE_A9 = 9
@@ -1262,7 +1273,7 @@ class TestFixedRotation:
         assert ally.current_hp == ally_hp_before - 13
 
         slice_move = nibbit_ai.states["SLICE_MOVE"]
-        assert slice_move.intents[0].damage == 6
+        assert slice_move.intents[0].damage == 7
 
     def test_act1_slimes_deadly_ascension_damage_matches_csharp(self):
         cases = [
@@ -2503,7 +2514,8 @@ class TestFixedRotation:
         combat.add_enemy(creature, ai)
 
         assert creature.max_hp == _expected_starting_act_multiplayer_enemy_hp(combat, 173)
-        assert creature.get_power_amount(PowerId.SLIPPERY) == 27
+        # Base (non-ascension) SlipperyAmt is 8 (Tough raises it to 9); scaled x3 for 3 players.
+        assert creature.get_power_amount(PowerId.SLIPPERY) == 24
         assert _run_ai(ai, Rng(rng_seed), 5) == [
             "INK_BLOT_MOVE",
             "INKY_LANCE_MOVE",
@@ -2859,7 +2871,7 @@ class TestFixedRotation:
             (create_bowlbug_egg(Rng(2)), "BITE_MOVE", 7),
             (create_louse_progenitor(Rng(3)), "CURL_AND_GROW_MOVE", 14),
             (create_the_obscura(Rng(4)), "HARDENING_STRIKE_MOVE", 6),
-            (create_infested_prism(Rng(5)), INFESTED_PRISM_RADIATE_MOVE, 16),
+            (create_infested_prism(Rng(5)), INFESTED_PRISM_RADIATE_MOVE, 11),
             (create_infested_prism(Rng(6)), INFESTED_PRISM_PULSATE_MOVE, 20),
             (create_crusher(Rng(7)), "GUARDED_STRIKE_MOVE", 18),
         ]
@@ -3782,9 +3794,16 @@ class TestFixedRotation:
         )
 
         prism.block = 0
-        prism_ai.states[INFESTED_PRISM_PULSATE_MOVE].perform(prism_combat)
+        pulsate = prism_ai.states[INFESTED_PRISM_PULSATE_MOVE]
+        assert pulsate.intents[0].damage == INFESTED_PRISM_PULSATE_DAMAGE_A9
+        player_hp_before_pulsate = prism_combat.player.current_hp
+        vital_spark_before_pulsate = prism.get_power_amount(PowerId.VITAL_SPARK)
+        pulsate.perform(prism_combat)
+        assert prism_combat.player.current_hp == player_hp_before_pulsate - INFESTED_PRISM_PULSATE_DAMAGE_A9
         assert prism.block == INFESTED_PRISM_PULSATE_BLOCK_A8
-        assert prism.get_power_amount(PowerId.STRENGTH) == INFESTED_PRISM_PULSATE_STRENGTH_A9
+        assert prism.get_power_amount(PowerId.VITAL_SPARK) == (
+            vital_spark_before_pulsate + INFESTED_PRISM_VITAL_SPARK_A9
+        )
 
         prism_encounter_combat = _make_combat(rng_seed)
         prism_encounter_combat.ascension_level = 9
@@ -3967,13 +3986,13 @@ class TestFixedRotation:
         assert crusher_combat.player.get_power_amount(PowerId.FRAIL) == CRUSHER_BUG_STING_DEBUFF
 
         crusher_ai.states[CRUSHER_ADAPT_MOVE].perform(crusher_combat)
-        assert crusher.get_power_amount(PowerId.STRENGTH) == CRUSHER_ADAPT_STRENGTH
+        assert crusher.get_power_amount(PowerId.STRENGTH) == CRUSHER_ADAPT_STRENGTH_A9
 
         guarded_strike = crusher_ai.states[CRUSHER_GUARDED_STRIKE_MOVE]
         assert guarded_strike.intents[0].damage == CRUSHER_GUARDED_STRIKE_DAMAGE_A9
         player_hp_before_guarded_strike = crusher_combat.player.current_hp
         guarded_strike.perform(crusher_combat)
-        expected_guarded_strike_damage = CRUSHER_GUARDED_STRIKE_DAMAGE_A9 + CRUSHER_ADAPT_STRENGTH
+        expected_guarded_strike_damage = CRUSHER_GUARDED_STRIKE_DAMAGE_A9 + CRUSHER_ADAPT_STRENGTH_A9
         assert crusher_combat.player.current_hp == (
             player_hp_before_guarded_strike - expected_guarded_strike_damage
         )
@@ -4000,13 +4019,13 @@ class TestFixedRotation:
         assert rocket_combat.player.current_hp == player_hp_before_precision - ROCKET_PRECISION_BEAM_DAMAGE_A9
 
         rocket_ai.states[ROCKET_CHARGE_UP_MOVE].perform(rocket_combat)
-        assert rocket.get_power_amount(PowerId.STRENGTH) == ROCKET_CHARGE_UP_STRENGTH
+        assert rocket.get_power_amount(PowerId.STRENGTH) == ROCKET_CHARGE_UP_STRENGTH_A9
 
         laser = rocket_ai.states[ROCKET_LASER_MOVE]
         assert laser.intents[0].damage == ROCKET_LASER_DAMAGE_A9
         player_hp_before_laser = rocket_combat.player.current_hp
         laser.perform(rocket_combat)
-        expected_laser_damage = ROCKET_LASER_DAMAGE_A9 + ROCKET_CHARGE_UP_STRENGTH
+        expected_laser_damage = ROCKET_LASER_DAMAGE_A9 + ROCKET_CHARGE_UP_STRENGTH_A9
         assert rocket_combat.player.current_hp == player_hp_before_laser - expected_laser_damage
 
         crab_combat = _make_combat(rng_seed)
@@ -4127,8 +4146,8 @@ class TestFixedRotation:
             INFESTED_PRISM_WHIRLWIND_MOVE,
             INFESTED_PRISM_PULSATE_MOVE,
         ]
-        assert creature.block == 36
-        assert creature.get_power_amount(PowerId.STRENGTH) == 4
+        assert creature.block == 31
+        assert creature.get_power_amount(PowerId.VITAL_SPARK) == INFESTED_PRISM_VITAL_SPARK * 2
         assert all(card.card_id not in (CardId.INFECTION, CardId.PARASITE) for card in combat.discard_pile)
 
         encounter_combat = _make_combat(18)
@@ -5311,6 +5330,95 @@ class TestFixedRotation:
         assert encounter_door.max_hp == DOOR_A8_HP
         assert encounter_door_ai.states[DOOR_DRAMATIC_OPEN_MOVE].intents[0].damage == DOOR_DRAMATIC_OPEN_DAMAGE_A9
 
+    def test_aeonglass_replaces_doormaker_as_act3_boss(self):
+        combat = _make_combat(45)
+        setup_aeonglass_boss(combat, Rng(45))
+
+        assert [enemy.monster_id for enemy in combat.enemies] == [AEONGLASS_MONSTER_ID]
+        aeonglass = combat.enemies[0]
+        assert aeonglass.max_hp == AEONGLASS_BASE_HP
+        assert aeonglass.get_power_amount(PowerId.ARTIFACT) == 3
+        assert aeonglass.has_power(PowerId.WITHERING_PRESENCE)
+
+        ai = combat.enemy_ais[aeonglass.combat_id]
+        assert ai.current_move.state_id == AEONGLASS_EBB_MOVE
+
+    def test_aeonglass_ascension_scaling_matches_csharp(self):
+        rng_seed = 145
+        combat = _make_combat(rng_seed)
+        combat.ascension_level = 9
+        aeonglass, ai = create_aeonglass(Rng(rng_seed), ascension_level=9)
+        combat.add_enemy(aeonglass, ai)
+        assert aeonglass.max_hp == AEONGLASS_TOUGH_HP
+
+        ebb = ai.states[AEONGLASS_EBB_MOVE]
+        assert ebb.intents[0].damage == 26
+        player_hp_before_ebb = combat.player.current_hp
+        ebb.perform(combat)
+        assert combat.player.current_hp == player_hp_before_ebb - 26
+        assert aeonglass.block == AEONGLASS_EBB_BLOCK
+
+        eye_lasers = ai.states[AEONGLASS_EYE_LASERS_MOVE]
+        assert eye_lasers.intents[0].damage == 12
+        assert eye_lasers.intents[0].hits == AEONGLASS_EYE_LASERS_REPEAT
+        player_hp_before_lasers = combat.player.current_hp
+        eye_lasers.perform(combat)
+        assert combat.player.current_hp == player_hp_before_lasers - 12 * AEONGLASS_EYE_LASERS_REPEAT
+
+    def test_aeonglass_increasing_intensity_adds_and_escalates_wither(self):
+        combat = _make_combat(45)
+        setup_aeonglass_boss(combat, Rng(45))
+        aeonglass = combat.enemies[0]
+        ai = combat.enemy_ais[aeonglass.combat_id]
+
+        combat.discard_pile.clear()
+        ai.states[AEONGLASS_INCREASING_INTENSITY_MOVE].perform(combat)
+        withers = [card for card in combat.discard_pile if card.card_id == CardId.WITHER]
+        assert len(withers) == 1
+        # WitherUpgradeCount increments to 1 *before* the new card is generated
+        # and matched to it, so the very first Wither already carries +1 level.
+        assert withers[0].effect_vars["damage"] == 6
+        assert aeonglass.get_power_amount(PowerId.STRENGTH) == 3
+
+        ai.states[AEONGLASS_INCREASING_INTENSITY_MOVE].perform(combat)
+        all_withers = [card for card in combat.discard_pile if card.card_id == CardId.WITHER]
+        assert len(all_withers) == 2
+        assert all(card.effect_vars["damage"] == 9 for card in all_withers), (
+            "the first wither must be retroactively escalated to match the new one"
+        )
+        assert aeonglass.get_power_amount(PowerId.STRENGTH) == 3 + 4
+
+    def test_aeonglass_withering_presence_adds_wither_after_six_cards_played(self):
+        from sts2_env.cards.ironclad_basic import make_strike_ironclad
+
+        combat = _make_combat(45)
+        setup_aeonglass_boss(combat, Rng(45))
+        combat.start_combat()
+        combat.hand = [make_strike_ironclad() for _ in range(7)]
+        combat.energy = 7
+        combat.enemies[0].current_hp = combat.enemies[0].max_hp = 9999
+
+        for _ in range(6):
+            assert not any(card.card_id == CardId.WITHER for card in combat.hand)
+            combat.play_card(0, 0)
+
+        assert any(card.card_id == CardId.WITHER for card in combat.hand)
+
+    def test_wither_deals_escalating_damage_at_turn_end(self):
+        from sts2_env.cards.status import make_wither
+
+        combat = _make_combat(45)
+        setup_aeonglass_boss(combat, Rng(45))
+        combat.start_combat()
+        card = make_wither(fake_upgrade_level=1)
+        assert card.effect_vars["damage"] == 6
+        combat.hand = [card]
+        starting_hp = combat.player.current_hp
+
+        combat._resolve_end_of_turn_hand()  # noqa: SLF001
+
+        assert combat.player.current_hp == starting_hp - 6
+
     def test_axebot_stock_spawns_replacements_with_decremented_stock(self):
         combat = _make_combat(35)
         creature, ai = create_axebot(Rng(35))
@@ -5339,10 +5447,13 @@ class TestFixedRotation:
         combat.kill_creature(second_replacement)
         assert not [enemy for enemy in combat.enemies if enemy.monster_id == "AXEBOT" and enemy.is_alive]
 
-    def test_initial_random_branch_uses_monster_rng(self):
+    def test_axebot_fresh_spawn_always_starts_at_hammer_uppercut(self):
+        """Matches Axebot.cs: a fresh spawn (no stock override) always starts at
+        HAMMER_UPPERCUT_MOVE now; only a respawned Axebot (explicit stock override)
+        starts at BOOT_UP_MOVE. No more random branching or SHARPEN_MOVE."""
         moves = [create_axebot(Rng(seed))[1].current_move.state_id for seed in range(10)]
 
-        assert set(moves) == {"ONE_TWO_MOVE", "SHARPEN_MOVE", "HAMMER_UPPERCUT_MOVE"}
+        assert set(moves) == {"HAMMER_UPPERCUT_MOVE"}
 
     def test_axebot_moves_use_original_player_targets_with_osty_redirect(self):
         rng_seed = 136
@@ -5350,10 +5461,10 @@ class TestFixedRotation:
         ally_character_id = "Silent"
         ally_hp = 70
         osty_hp = 40
-        one_two_damage = 5
+        one_two_damage = 9
         one_two_hits = 2
-        hammer_uppercut_damage = 8
-        hammer_uppercut_debuff = 1
+        hammer_uppercut_damage = 12
+        hammer_uppercut_debuff = 2
         no_debuff = 0
         combat = _make_combat(rng_seed)
         ally = combat.add_ally_player(
@@ -5636,7 +5747,7 @@ class TestFixedRotation:
 
         assert amalgam.max_hp == TORCH_HEAD_AMALGAM_BASE_HP
         assert amalgam.get_power_amount(PowerId.MINION) == TORCH_HEAD_AMALGAM_MINION
-        assert amalgam_ai.current_move.state_id == TORCH_HEAD_AMALGAM_TACKLE_1_MOVE
+        assert amalgam_ai.current_move.state_id == TORCH_HEAD_AMALGAM_STRONG_TACKLE_MOVE
         assert queen.max_hp == QUEEN_BASE_HP
         assert queen_ai.current_move.state_id == QUEEN_PUPPET_STRINGS_MOVE
 
@@ -5702,7 +5813,13 @@ class TestFixedRotation:
         assert queen.monster_id == QUEEN_MONSTER_ID
         assert queen.max_hp == QUEEN_A8_HP
 
-        tackle = amalgam_ai.states[TORCH_HEAD_AMALGAM_TACKLE_1_MOVE]
+        strong_tackle = amalgam_ai.states[TORCH_HEAD_AMALGAM_STRONG_TACKLE_MOVE]
+        assert strong_tackle.intents[0].damage == TORCH_HEAD_AMALGAM_STRONG_TACKLE_DAMAGE_A9
+        player_hp_before_strong_tackle = combat.player.current_hp
+        strong_tackle.perform(combat)
+        assert combat.player.current_hp == player_hp_before_strong_tackle - TORCH_HEAD_AMALGAM_STRONG_TACKLE_DAMAGE_A9
+
+        tackle = amalgam_ai.states[TORCH_HEAD_AMALGAM_TACKLE_2_MOVE]
         assert tackle.intents[0].damage == TORCH_HEAD_AMALGAM_TACKLE_DAMAGE_A9
         player_hp_before_tackle = combat.player.current_hp
         tackle.perform(combat)
@@ -6523,15 +6640,13 @@ class TestFixedRotation:
             for enemy in toad_weak_combat.enemies
         ] == ["SPIKEN_MOVE", "WHIRL_MOVE"]
 
-        toad_normal_combat = _make_combat(60)
-        setup_toadpoles_normal(toad_normal_combat, Rng(60))
-        assert [enemy.monster_id for enemy in toad_normal_combat.enemies] == [
+        # ToadpolesNormal was removed in v0.109.0 and replaced by SeapunkNormal.
+        seapunk_normal_combat = _make_combat(60)
+        setup_seapunk_normal(seapunk_normal_combat, Rng(60))
+        assert [enemy.monster_id for enemy in seapunk_normal_combat.enemies] == [
             "CALCIFIED_CULTIST",
-            "TOADPOLE",
+            "SEAPUNK",
         ]
-        assert toad_normal_combat.enemy_ais[toad_normal_combat.enemies[1].combat_id].current_move.state_id == (
-            "WHIRL_MOVE"
-        )
 
     def test_act4_normal_cultist_fossil_and_gremlin_merc_match_original_moves(self):
         calcified, calcified_ai = create_calcified_cultist(Rng(61))
@@ -6743,7 +6858,7 @@ class TestFixedRotation:
         assert bomb.get_power_amount(PowerId.MINION) == 0
         bomb_combat = _make_combat(74)
         bomb_combat.add_enemy(bomb, bomb_ai)
-        assert bomb.max_hp == 10
+        assert bomb.max_hp == 7
         assert bomb.get_power_amount(PowerId.MINION) == 1
         assert bomb_ai.current_move.state_id == "EXPLODE_MOVE"
         bomb_ai.current_move.perform(bomb_combat)
@@ -6877,14 +6992,15 @@ class TestFixedRotation:
         assert osty.get_power_amount(PowerId.SMOGGY) == no_debuff
 
     def test_act4_status_moves_add_cards_to_original_player_targets_not_pets(self):
+        # SkulkingColony's SMASH_MOVE (which used to add Dazed cards) was
+        # removed in the v0.109.0 moveset rework, so this only exercises
+        # HauntedShip's RammingSpeed (Wound cards) now.
         rng_seed = 1245
         ally_hp = 100
         osty_hp = 100
         ramming_speed_damage = 10
-        smash_damage = 9
         ramming_speed_wounds = 2
-        smash_dazed = 4
-        expected_damage = ramming_speed_damage + smash_damage
+        expected_damage = ramming_speed_damage
         combat = _make_combat(rng_seed)
         ally = _add_test_ally(combat, hp=ally_hp)
         primary_state = combat.combat_player_state_for(combat.primary_player)
@@ -6896,25 +7012,18 @@ class TestFixedRotation:
         osty = combat.summon_osty(combat.primary_player, osty_hp)
         assert osty is not None
         ship, ship_ai = create_haunted_ship(Rng(rng_seed))
-        colony, colony_ai = create_skulking_colony(Rng(rng_seed))
         combat.add_enemy(ship, ship_ai)
-        combat.add_enemy(colony, colony_ai)
 
         primary_hp_before = combat.primary_player.current_hp
         ally_hp_before = ally.current_hp
         osty_hp_before = osty.current_hp
         ship_ai.states["RAMMING_SPEED_MOVE"].perform(combat)
-        colony_ai.states["SMASH_MOVE"].perform(combat)
 
         assert combat.primary_player.current_hp == primary_hp_before
         assert ally.current_hp == ally_hp_before - expected_damage
         assert osty.current_hp == osty_hp_before - expected_damage
-        assert [card.card_id for card in primary_state.discard] == (
-            [CardId.WOUND] * ramming_speed_wounds + [CardId.DAZED] * smash_dazed
-        )
-        assert [card.card_id for card in ally_state.discard] == (
-            [CardId.WOUND] * ramming_speed_wounds + [CardId.DAZED] * smash_dazed
-        )
+        assert [card.card_id for card in primary_state.discard] == [CardId.WOUND] * ramming_speed_wounds
+        assert [card.card_id for card in ally_state.discard] == [CardId.WOUND] * ramming_speed_wounds
         assert combat.combat_player_state_for(osty) is None
 
     def test_act4_elite_and_boss_debuffs_use_original_player_targets_not_pets(self):
@@ -7006,46 +7115,41 @@ class TestFixedRotation:
         assert colony.max_hp == SKULKING_COLONY_BASE_HP
         assert colony.get_power_amount(PowerId.HARDENED_SHELL) == SKULKING_COLONY_HARDENED_SHELL
         assert _run_ai(colony_ai, Rng(79), 5) == [
-            SKULKING_COLONY_SMASH_MOVE,
             SKULKING_COLONY_ZOOM_MOVE,
+            SKULKING_COLONY_ZOOM_MOVE_2,
             SKULKING_COLONY_INERTIA_MOVE,
-            SKULKING_COLONY_SUPER_CRAB_MOVE,
-            SKULKING_COLONY_SMASH_MOVE,
+            SKULKING_COLONY_PIERCING_STABS_MOVE,
+            SKULKING_COLONY_ZOOM_MOVE,
         ]
-        player_hp_before_smash = colony_combat.player.current_hp
-        colony_ai.states[SKULKING_COLONY_SMASH_MOVE].perform(colony_combat)
-        assert colony_combat.player.current_hp == player_hp_before_smash - SKULKING_COLONY_BASE_SMASH_DAMAGE
-        assert [card.card_id for card in colony_combat.discard_pile] == [CardId.DAZED] * SKULKING_COLONY_SMASH_DAZED
+        player_hp_before_zoom = colony_combat.player.current_hp
+        colony_ai.states[SKULKING_COLONY_ZOOM_MOVE].perform(colony_combat)
+        assert colony_combat.player.current_hp == player_hp_before_zoom - SKULKING_COLONY_BASE_ZOOM_DAMAGE
 
         lethal_colony, lethal_colony_ai = create_skulking_colony(Rng(80))
         lethal_colony_combat = _make_combat(80)
         lethal_colony_combat.add_enemy(lethal_colony, lethal_colony_ai)
         lethal_colony_combat.player.current_hp = 9
-        lethal_colony_ai.states[SKULKING_COLONY_SMASH_MOVE].perform(lethal_colony_combat)
+        lethal_colony_ai.states[SKULKING_COLONY_INERTIA_MOVE].perform(lethal_colony_combat)
         assert lethal_colony_combat.is_over
         assert lethal_colony_combat.player_won is False
-        assert lethal_colony_combat.discard_pile == []
+        assert lethal_colony.get_power_amount(PowerId.STRENGTH) == 0
 
+        player_hp_before_inertia = colony_combat.player.current_hp
         colony_ai.states[SKULKING_COLONY_INERTIA_MOVE].perform(colony_combat)
-        assert colony.block == SKULKING_COLONY_BASE_INERTIA_BLOCK
-        assert colony.get_power_amount(PowerId.STRENGTH) == SKULKING_COLONY_INERTIA_STRENGTH
-        counter = _BlockHookCounterPower()
-        colony.powers[PowerId.JUGGERNAUT] = counter
-        colony.block = 0
-        colony_ai.states[SKULKING_COLONY_INERTIA_MOVE].perform(colony_combat)
-        assert colony.block == SKULKING_COLONY_BASE_INERTIA_BLOCK
-        assert counter.calls == [SKULKING_COLONY_BASE_INERTIA_BLOCK]
+        assert colony_combat.player.current_hp == player_hp_before_inertia - SKULKING_COLONY_BASE_INERTIA_DAMAGE
+        assert colony.get_power_amount(PowerId.STRENGTH) == SKULKING_COLONY_BASE_INERTIA_STRENGTH
 
         colony_zoom, colony_zoom_ai = create_skulking_colony(Rng(80))
         colony_zoom_combat = _make_combat(80)
         colony_zoom_combat.add_enemy(colony_zoom, colony_zoom_ai)
-        player_hp_before_zoom = colony_zoom_combat.player.current_hp
+        player_hp_before_zoom2 = colony_zoom_combat.player.current_hp
         colony_zoom_ai.states[SKULKING_COLONY_ZOOM_MOVE].perform(colony_zoom_combat)
-        assert colony_zoom_combat.player.current_hp == player_hp_before_zoom - SKULKING_COLONY_BASE_ZOOM_DAMAGE
-        player_hp_before_super_crab = colony_zoom_combat.player.current_hp
-        colony_zoom_ai.states[SKULKING_COLONY_SUPER_CRAB_MOVE].perform(colony_zoom_combat)
+        assert colony_zoom_combat.player.current_hp == player_hp_before_zoom2 - SKULKING_COLONY_BASE_ZOOM_DAMAGE
+        player_hp_before_piercing_stabs = colony_zoom_combat.player.current_hp
+        colony_zoom_ai.states[SKULKING_COLONY_PIERCING_STABS_MOVE].perform(colony_zoom_combat)
         assert colony_zoom_combat.player.current_hp == (
-            player_hp_before_super_crab - SKULKING_COLONY_BASE_SUPER_CRAB_DAMAGE * SKULKING_COLONY_SUPER_CRAB_HITS
+            player_hp_before_piercing_stabs
+            - SKULKING_COLONY_BASE_PIERCING_STABS_DAMAGE * SKULKING_COLONY_PIERCING_STABS_HITS
         )
 
         eel, eel_ai = create_terror_eel(Rng(81))
@@ -7107,12 +7211,6 @@ class TestFixedRotation:
 
         assert colony.max_hp == SKULKING_COLONY_A8_HP
         assert colony.get_power_amount(PowerId.HARDENED_SHELL) == SKULKING_COLONY_HARDENED_SHELL
-        smash = colony_ai.states[SKULKING_COLONY_SMASH_MOVE]
-        assert smash.intents[0].damage == SKULKING_COLONY_SMASH_DAMAGE_A9
-        player_hp_before_smash = colony_combat.player.current_hp
-        smash.perform(colony_combat)
-        assert colony_combat.player.current_hp == player_hp_before_smash - SKULKING_COLONY_SMASH_DAMAGE_A9
-        assert [card.card_id for card in colony_combat.discard_pile] == [CardId.DAZED] * SKULKING_COLONY_SMASH_DAZED
 
         zoom = colony_ai.states[SKULKING_COLONY_ZOOM_MOVE]
         assert zoom.intents[0].damage == SKULKING_COLONY_ZOOM_DAMAGE_A9
@@ -7120,18 +7218,30 @@ class TestFixedRotation:
         zoom.perform(colony_combat)
         assert colony_combat.player.current_hp == player_hp_before_zoom - SKULKING_COLONY_ZOOM_DAMAGE_A9
 
-        super_crab = colony_ai.states[SKULKING_COLONY_SUPER_CRAB_MOVE]
-        assert super_crab.intents[0].damage == SKULKING_COLONY_SUPER_CRAB_DAMAGE_A9
-        assert super_crab.intents[0].hits == SKULKING_COLONY_SUPER_CRAB_HITS
-        player_hp_before_super_crab = colony_combat.player.current_hp
-        super_crab.perform(colony_combat)
-        assert colony_combat.player.current_hp == (
-            player_hp_before_super_crab - SKULKING_COLONY_SUPER_CRAB_DAMAGE_A9 * SKULKING_COLONY_SUPER_CRAB_HITS
-        )
+        zoom_2 = colony_ai.states[SKULKING_COLONY_ZOOM_MOVE_2]
+        assert zoom_2.intents[0].damage == SKULKING_COLONY_ZOOM_DAMAGE_A9
+        player_hp_before_zoom_2 = colony_combat.player.current_hp
+        zoom_2.perform(colony_combat)
+        assert colony_combat.player.current_hp == player_hp_before_zoom_2 - SKULKING_COLONY_ZOOM_DAMAGE_A9
 
-        colony_ai.states[SKULKING_COLONY_INERTIA_MOVE].perform(colony_combat)
-        assert colony.block == SKULKING_COLONY_INERTIA_BLOCK_A8
-        assert colony.get_power_amount(PowerId.STRENGTH) == SKULKING_COLONY_INERTIA_STRENGTH
+        inertia = colony_ai.states[SKULKING_COLONY_INERTIA_MOVE]
+        assert inertia.intents[0].damage == SKULKING_COLONY_INERTIA_DAMAGE_A9
+        player_hp_before_inertia = colony_combat.player.current_hp
+        inertia.perform(colony_combat)
+        assert colony_combat.player.current_hp == player_hp_before_inertia - SKULKING_COLONY_INERTIA_DAMAGE_A9
+        assert colony.get_power_amount(PowerId.STRENGTH) == SKULKING_COLONY_INERTIA_STRENGTH_A9
+
+        piercing_stabs = colony_ai.states[SKULKING_COLONY_PIERCING_STABS_MOVE]
+        assert piercing_stabs.intents[0].damage == SKULKING_COLONY_PIERCING_STABS_DAMAGE_A9
+        assert piercing_stabs.intents[0].hits == SKULKING_COLONY_PIERCING_STABS_HITS
+        player_hp_before_piercing_stabs = colony_combat.player.current_hp
+        piercing_stabs.perform(colony_combat)
+        # The preceding Inertia move already applied Strength, which boosts
+        # this attack's per-hit damage too.
+        expected_piercing_stabs_damage = (
+            SKULKING_COLONY_PIERCING_STABS_DAMAGE_A9 + SKULKING_COLONY_INERTIA_STRENGTH_A9
+        ) * SKULKING_COLONY_PIERCING_STABS_HITS
+        assert colony_combat.player.current_hp == player_hp_before_piercing_stabs - expected_piercing_stabs_damage
 
         eel_combat = _make_combat(rng_seed)
         eel_combat.ascension_level = 9

@@ -67,10 +67,10 @@ SOW_DAMAGE = 8
 SOW_UPGRADED_DAMAGE = 11
 STRIKE_NECROBINDER_DAMAGE = 6
 STRIKE_NECROBINDER_UPGRADED_DAMAGE = 9
-DEBILITATE_DAMAGE = 7
-DEBILITATE_POWER_AMOUNT = 3
-DEBILITATE_UPGRADED_DAMAGE = 9
-DEBILITATE_UPGRADED_POWER_AMOUNT = 4
+DEBILITATE_DAMAGE = 10
+DEBILITATE_POWER_AMOUNT = 2
+DEBILITATE_UPGRADED_DAMAGE = 12
+DEBILITATE_UPGRADED_POWER_AMOUNT = 3
 PARSE_DRAW_COUNT = 3
 PARSE_UPGRADED_DRAW_COUNT = 4
 DEATHS_DOOR_REPEAT = 2
@@ -219,8 +219,8 @@ class TestNecrobinderCardEffectsReferenceParity:
         combat.energy = 1
 
         assert combat.play_card(0, 0)
-        assert combat.player.block == 7
-        assert enemy.get_power_amount(PowerId.WEAK) == 2
+        assert combat.player.block == 9
+        assert enemy.get_power_amount(PowerId.WEAK) == 1
 
     def test_debilitate_deals_damage_then_applies_power(self):
         combat = _make_combat()
@@ -418,7 +418,7 @@ class TestNecrobinderCardEffectsReferenceParity:
         hittable.current_hp = hittable.max_hp = 100
         blocked.powers[PowerId.COVERED] = _CannotHitPower()
         combat.hand = [make_banshees_cry()]
-        combat.energy = 6
+        combat.energy = 9
 
         assert combat.play_card(0)
 
@@ -812,7 +812,7 @@ class TestNecrobinderCardEffectsReferenceParity:
         combat.energy = 1
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == starting_hp - 8
+        assert enemy.current_hp == starting_hp - 9
         assert combat.pending_choice is None
         assert target_card.is_ethereal
 
@@ -932,11 +932,13 @@ class TestNecrobinderCardEffectsReferenceParity:
         assert enemy.current_hp == 80
         assert enemy.get_power_amount(PowerId.HANG) == 4
 
-    def test_hang_stack_gain_caps_at_999(self):
+    def test_hang_stack_gain_caps_at_999_999_999(self):
         combat = _make_combat()
         enemy = combat.enemies[0]
-        enemy.current_hp = enemy.max_hp = 10000
-        combat.apply_power_to(enemy, PowerId.HANG, 998, applier=combat.player)
+        # Existing Hang stacks multiply Hang-card damage directly, so give the
+        # target enough HP to survive a hit scaled by ~HANG_STACK_CAP.
+        enemy.current_hp = enemy.max_hp = 10 ** 13
+        combat.apply_power_to(enemy, PowerId.HANG, HANG_STACK_CAP - 1, applier=combat.player)
         combat.hand = [make_hang()]
         combat.energy = 1
 
@@ -1007,7 +1009,7 @@ class TestNecrobinderCardEffectsReferenceParity:
         assert combat.play_card(0, 0)
         assert enemy.current_hp == starting_hp - 6
         assert combat.count_powered_hits_by_dealer_this_turn(osty) == 1
-        assert enemy.get_power_amount(PowerId.SIC_EM) == 3
+        assert enemy.get_power_amount(PowerId.SIC_EM) == 4
 
     def test_sic_em_summons_even_when_osty_damage_is_fully_blocked(self):
         combat = _make_combat()
@@ -1047,17 +1049,17 @@ class TestNecrobinderCardEffectsReferenceParity:
         combat.energy = 2
 
         assert combat.play_card(0, 0)
-        assert held.cost == 4
+        assert held.cost == 7
 
         assert combat.play_card(1, 0)
-        assert held.cost == 2
+        assert held.cost == 5
 
         combat.move_card_to_creature_hand(combat.player, later)
-        assert later.cost == 2
+        assert later.cost == 5
         held.end_of_turn_cleanup()
         later.end_of_turn_cleanup()
-        assert held.cost == 2
-        assert later.cost == 2
+        assert held.cost == 5
+        assert later.cost == 5
 
     def test_banshees_cry_cost_uses_ethereal_state_from_when_card_was_played(self):
         combat = _make_combat()

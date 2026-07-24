@@ -24,7 +24,7 @@ from sts2_env.core.enums import MapPointType, RoomType
 from sts2_env.characters.all import get_character
 from sts2_env.map.map_point import MapCoord, MapPoint
 from sts2_env.map.generator import ActMap, generate_act_map
-from sts2_env.map.acts import ActConfig, ALL_ACTS
+from sts2_env.map.acts import ActConfig, ACT_3, NUM_ACT_SLOTS, select_act_for_slot
 from sts2_env.potions.base import PotionInstance
 from sts2_env.relics.base import RelicId, RelicRarity
 from sts2_env.cards.base import (
@@ -670,10 +670,14 @@ class PlayerState:
         required = min(count, len(candidates))
 
         def apply_removal(selected: list[CardInstance]) -> int:
+            from sts2_env.cards.status import handle_cards_removed_from_deck
+
             selected_ids = {id(card) for card in selected}
             before = len(self.deck)
+            removed_cards = [card for card in self.deck if id(card) in selected_ids]
             self.deck = [card for card in self.deck if id(card) not in selected_ids]
             removed = before - len(self.deck)
+            handle_cards_removed_from_deck(self, removed_cards)
             if after_selected is not None:
                 after_selected()
             return removed
@@ -1387,6 +1391,10 @@ class RunRngSet:
         self.combat_orbs = Rng(self.seed, "combat_orbs")
         self.treasure_room = Rng(self.seed, "treasure_room_relics")
         self.combat_potion = self.combat_potion_generation
+        # Picks among registered candidates for each act slot (see
+        # map/acts.py:select_act_for_slot). Unused while every slot has a
+        # single candidate, so this is a no-op today.
+        self.act_selection = Rng(self.seed, "act_selection")
         self.rewards = Rng(player_seed, "rewards")
         self.shops = Rng(player_seed, "shops")
         self.transformations = Rng(player_seed, "transformations")
@@ -1417,7 +1425,13 @@ class RunState:
         self.players: list[PlayerState] = [self.player]
 
         # Act / map state
-        self.acts: list[ActConfig] = [act.to_mutable() for act in ALL_ACTS]
+        # Slots 0..NUM_ACT_SLOTS-1 are resolved through the act-slot-candidate
+        # extension point (map/acts.py); ACT_3 ("Underdocks"/Act4Heart) is
+        # always appended as a fixed 4th act, matching prior behavior.
+        self.acts: list[ActConfig] = [
+            select_act_for_slot(slot, self.rng.act_selection).to_mutable()
+            for slot in range(NUM_ACT_SLOTS)
+        ] + [ACT_3.to_mutable()]
         self.current_act_index: int = 0
         self.map: ActMap | None = None
         self.visited_map_coords: list[MapCoord] = []
@@ -1429,7 +1443,12 @@ class RunState:
         # Event tracking
         self.visited_event_ids: set[str] = set()
         self.extra_fields: dict[str, Any] = {}
-        self.modifiers: list[Any] = []
+        # The Act4Heart mod is always active for this simulator (confirmed
+        # via game logs -- never gated behind ascension or unlocks), so its
+        # modifier is unconditionally present from run start.
+        from sts2_env.run.modifiers import Act4HeartModifier
+
+        self.modifiers: list[Any] = [Act4HeartModifier()]
 
         # Primary-player compatibility aliases.
         self.relics = self.player.relics
@@ -1453,6 +1472,20 @@ class RunState:
     @property
     def current_act(self) -> ActConfig:
         return self.acts[self.current_act_index]
+
+    @property
+    def final_boss_act_index(self) -> int:
+        """The act index whose Boss counts as "the run's final boss" for
+        reward purposes (Amethyst Aubergine, etc). The Act4Heart mod appends
+        Act 4 as a bonus act, so "is this the final act" checks should still
+        resolve to Act 3's boss.
+
+        C# ref: decompiled_mods/Act4Heart/Act4Heart.Hooks/Act4Hooks.cs
+        :FixAct3Boss_IL_ (patches ``Acts.Count - 1`` to a hardcoded ``2``).
+        """
+        if len(self.acts) >= 4:
+            return 2
+        return len(self.acts) - 1
 
     def add_player(self, player: PlayerState) -> PlayerState:
         if any(existing.player_id == player.player_id for existing in self.players):

@@ -1,0 +1,130 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Automaton.AutomatonCode.Extensions;
+using Automaton.AutomatonCode.Piles;
+using Automaton.AutomatonCode.Vfx;
+using Downfall.DownfallCode.Commands;
+using MegaCrit.Sts2.Core.CardSelection;
+using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Context;
+using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Localization;
+using MegaCrit.Sts2.Core.Localization.DynamicVars;
+using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Nodes.CommonUi;
+
+namespace Automaton.AutomatonCode.Core;
+
+public class StashCmd
+{
+	public const int MaxStashSize = 5;
+
+	public static LocString StashSelectionPrompt => new LocString("card_selection", "AUTOMATON-TO_STASH");
+
+	public static LocString FULL_STASH => new LocString("combat_messages", "FULL_STASH");
+
+	private static int RemainingSpace(Player player)
+	{
+		return Math.Max(0, 5 - player.GetStash().Count);
+	}
+
+	public static async Task StashUpTo(PlayerChoiceContext ctx, Player player, int amount, AbstractModel source)
+	{
+		CardSelectorPrefs val = default(CardSelectorPrefs);
+		((CardSelectorPrefs)(ref val))._002Ector(StashSelectionPrompt, 0, amount);
+		await Stash(player, await CardSelectCmd.FromHand(ctx, player, val, (Func<CardModel, bool>)null, source));
+	}
+
+	public static async Task StashFromHand(CardModel source, PlayerChoiceContext ctx)
+	{
+		int intValue = source.DynamicVars["Stash"].IntValue;
+		CardSelectorPrefs val = default(CardSelectorPrefs);
+		((CardSelectorPrefs)(ref val))._002Ector(StashSelectionPrompt, intValue);
+		IEnumerable<CardModel> cards = await CardSelectCmd.FromHand(ctx, source.Owner, val, (Func<CardModel, bool>)null, (AbstractModel)(object)source);
+		await Stash(source.Owner, cards);
+	}
+
+	public static async Task StashFromDraw(CardModel source, PlayerChoiceContext ctx)
+	{
+		int intValue = source.DynamicVars["Stash"].IntValue;
+		CardSelectorPrefs val = default(CardSelectorPrefs);
+		((CardSelectorPrefs)(ref val))._002Ector(StashSelectionPrompt, intValue);
+		IEnumerable<CardModel> cards = await CardSelectCmd.FromCombatPile(ctx, PileTypeExtensions.GetPile((PileType)1, source.Owner), source.Owner, val);
+		await Stash(source.Owner, cards);
+	}
+
+	public static async Task Stash<TCard>(Player player, int amount = 1) where TCard : CardModel
+	{
+		NStashDisplay.EnsureFor(player);
+		int toStash = Math.Min(amount, RemainingSpace(player));
+		if (toStash > 0)
+		{
+			await DownfallCardCmd.GiveCards<TCard>(player, StashPile.Stash, toStash, (CardPilePosition)1, upgraded: false, 0.6f, (CardPreviewStyle)1);
+		}
+		int num = amount - toStash;
+		if (num > 0)
+		{
+			if (LocalContext.IsMe(player))
+			{
+				ThinkCmd.Play(FULL_STASH, player.Creature, -1.0);
+			}
+			await DownfallCardCmd.GiveCards<TCard>(player, (PileType)3, num, (CardPilePosition)1, upgraded: false, 0.6f, (CardPreviewStyle)1);
+		}
+	}
+
+	public static async Task Stash(CardModel card)
+	{
+		NStashDisplay.EnsureFor(card.Owner);
+		if (RemainingSpace(card.Owner) > 0)
+		{
+			await CardPileCmd.Add(card, StashPile.Stash, (CardPilePosition)1, (AbstractModel)null, false);
+			return;
+		}
+		if (LocalContext.IsMe(card.Owner))
+		{
+			ThinkCmd.Play(FULL_STASH, card.Owner.Creature, -1.0);
+		}
+		await CardPileCmd.Add(card, (PileType)3, (CardPilePosition)1, (AbstractModel)null, false);
+	}
+
+	public static async Task Stash(Player player, IEnumerable<CardModel> cards)
+	{
+		List<CardModel> list = cards.ToList();
+		if (list.Count == 0)
+		{
+			return;
+		}
+		NStashDisplay.EnsureFor(player);
+		int count = RemainingSpace(player);
+		List<CardModel> list2 = list.Take(count).ToList();
+		List<CardModel> overflow = list.Skip(count).ToList();
+		if (list2.Count > 0)
+		{
+			await CardPileCmd.Add((IEnumerable<CardModel>)list2, StashPile.Stash, (CardPilePosition)1, (AbstractModel)null, false);
+		}
+		if (overflow.Count > 0)
+		{
+			if (LocalContext.IsMe(player))
+			{
+				ThinkCmd.Play(FULL_STASH, player.Creature, -1.0);
+			}
+			await CardPileCmd.Add((IEnumerable<CardModel>)overflow, (PileType)3, (CardPilePosition)1, (AbstractModel)null, false);
+		}
+	}
+
+	public static async Task DrawFromStash(CardModel card)
+	{
+		IReadOnlyList<CardModel> stash = card.Owner.GetStash();
+		int intValue = ((DynamicVar)card.DynamicVars.Cards).IntValue;
+		await CardPileCmd.Add((IEnumerable<CardModel>)stash.Take(intValue).ToList(), (PileType)2, (CardPilePosition)1, (AbstractModel)null, false);
+	}
+
+	public static async Task<IReadOnlyList<CardPileAddResult>> DrawFromStash(Player player, int n = 1)
+	{
+		return await CardPileCmd.Add((IEnumerable<CardModel>)player.GetStash().Take(n).ToList(), (PileType)2, (CardPilePosition)1, (AbstractModel)null, false);
+	}
+}

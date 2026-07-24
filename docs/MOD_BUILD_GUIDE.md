@@ -76,10 +76,14 @@ cd bridge_mod
 dotnet build
 ```
 
+Note: on Windows the .NET 9 SDK may be installed per-user at `C:\Users\<you>\.dotnet\dotnet.exe` rather than on the system PATH; prepend that directory to `PATH` first if `dotnet` is not found.
+
 This:
 - Compiles all `.cs` files into `STS2BridgeMod.dll`
-- Copies the DLL and `STS2BridgeMod.json` to the game's mods folder
+- Copies the DLL, `STS2BridgeMod.json`, and `mod_manifest.json` to the game's mods folder
 - Copies BaseLib (dependency) to the mods folder
+- If `GodotPath` exists (see below), ALSO runs the Godot PCK export as part of `dotnet build` (the `GodotExport` target runs `AfterTargets="Build;Publish"`). The export step may report `exited with code -1` with many "no solution file" warnings while still writing a **valid** `.pck` -- the build treats this as a warning (`ContinueOnError`), not a failure. To sanity-check the exported PCK, verify it starts with the `GDPC` magic bytes and contains `mod_manifest.json`.
+- The `.pck` does not actually need regenerating for C#-only changes; the previously exported one keeps working.
 
 Output:
 ```
@@ -233,6 +237,18 @@ The mod includes three Harmony patches that accelerate the game for faster agent
 | `IsReleaseGamePatch` | `NGame.IsReleaseGame` | false | Unlocks AutoSlay and debug features |
 
 Combined, these patches achieve approximately 5-10x faster gameplay compared to normal speed.
+
+Maintenance note: Harmony binds injected prefix parameters **by name**, so these patches break silently (skipped with a log message) whenever the game renames a target method's parameter. This happened to `AnimationSpeedPatch` when `SetTimeScale`'s parameter changed from `timeScale` to `scale` (fixed for v0.109.0). When updating the mod for a new game version, re-check each target's exact signature in the freshly decompiled source.
+
+---
+
+## Bridge Protocol: Run-Level Fields
+
+Every state payload the mod sends (combat, map, rewards, card reward/select/bundle, rest, shop, event, treasure, boss relic, crystal sphere, game over, run complete) includes a common set of run-level fields added by `RunStateBridgeFields.Apply()` (in `bridge_mod/RlNonCombatRoomHandlers.cs`):
+
+`act` (1-based), `act_index` (0-based), `floor` (total), `act_floor`, `gold`, `deck_size`, `relic_count`, `relics` (relic id list), `num_potions`, `max_potion_slots`, `potions` (id list; combat payloads keep their richer per-slot list instead), `ascension_level`, `room_type` (e.g. `"Elite"`, `"Boss"`), `is_elite`, `is_boss`, `hp`, `max_hp`.
+
+These names intentionally match what `sts2_env/bridge/run_state_adapter.py` reads for the full-run observation. Do NOT add a top-level `player` dict to non-combat payloads: the Python combat `StateAdapter` treats any state with a `player` key as a combat observation, while full-run training zeroes the combat observation block at non-combat phases.
 
 ---
 

@@ -19,6 +19,18 @@ from sts2_env.core.enums import CardId
 
 RUNTIME_ONLY_CARD_IDS = frozenset({CardId.GENERIC})
 
+# Necrobinder cards whose factories were intentionally updated to match the
+# v0.109.0 patch (see decompiled_v0.109.0/), while decompiled/ (parsed by
+# reference_static_metadata) still reflects the pre-patch decompile. These
+# are deliberate deviations from the stale reference source, not bugs.
+PATCHED_NECROBINDER_CARD_IDS = frozenset({
+    CardId.BANSHEES_CRY,
+    CardId.BORROWED_TIME,
+    CardId.DIRGE,
+    CardId.EIDOLON,
+    CardId.SEANCE,
+})
+
 
 def collect_static_metadata_mismatches() -> list[str]:
     mismatches: list[str] = []
@@ -38,6 +50,8 @@ def _collect_mismatches_for_upgrade_state(
     mismatches: list[str] = []
     for reference in references.values():
         if reference.card_id in RUNTIME_ONLY_CARD_IDS:
+            continue
+        if reference.card_id in PATCHED_NECROBINDER_CARD_IDS:
             continue
         card = create_card(reference.card_id, upgraded=upgraded)
         expected = {

@@ -78,4 +78,7 @@ def load_all_relics() -> None:
     import sts2_env.relics.uncommon  # noqa: F401
     import sts2_env.relics.rare  # noqa: F401
     import sts2_env.relics.shop_event  # noqa: F401
+    import sts2_env.relics.act4_heart_keys  # noqa: F401
+    import sts2_env.relics.exordium  # noqa: F401
+    import sts2_env.relics.thecity  # noqa: F401
     _RELICS_LOADED = True

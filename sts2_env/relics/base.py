@@ -334,6 +334,25 @@ class RelicId(Enum):
     CIRCLET = auto()
     DEPRECATED_RELIC = auto()
 
+    # Acts from the Past (mod) -- foundational global relics
+    ODD_MUSHROOM = auto()
+    NECRONOMICON = auto()
+    NLOTHS_GIFT = auto()
+
+    # Acts from the Past (mod) -- Exordium event relics
+    GOLDEN_IDOL = auto()
+
+    # Acts from the Past (mod) -- TheCity event relics
+    MUTAGENIC_STRENGTH = auto()
+    BLOODY_IDOL = auto()
+    ENCHIRIDION = auto()
+    NILRYS_CODEX = auto()
+
+    # Act4Heart mod (the three keys)
+    EMERALD_KEY = auto()
+    RUBY_KEY = auto()
+    SAPPHIRE_KEY = auto()
+
 
 class RelicPool(Enum):
     """Which character pool a relic belongs to."""
@@ -865,6 +884,21 @@ class RelicInstance:
 
     def after_modifying_rewards(self, owner: Creature, run_state: RunState) -> None:
         pass
+
+    def modify_rare_card_odds_offset(
+        self,
+        owner: Creature,
+        offset: float,
+        base_rare_odds: float,
+        context: str,
+    ) -> float:
+        """Modify the pity-adjusted rare-odds offset used for a card rarity roll.
+
+        Called only for "regular" and "elite" reward contexts (see
+        `CardRarityOdds.roll` in run/odds.py) -- shop and boss rolls never
+        consult this hook. Default is a no-op (returns offset unchanged).
+        """
+        return offset
 
     def modify_card_reward_creation_options(
         self,

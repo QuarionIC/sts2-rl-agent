@@ -496,6 +496,10 @@ public class RlCombatHandler : IRoomHandler, IHandler
                 ["act"] = (runState?.CurrentActIndex ?? 0) + 1,
             };
 
+            // Run-level fields (gold, deck_size, relic_count, ...). Keeps the
+            // richer combat "potions" list already set above.
+            RunStateBridgeFields.Apply(state);
+
             return JsonSerializer.Serialize(state);
         }
         catch (Exception ex)

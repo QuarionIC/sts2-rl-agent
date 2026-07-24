@@ -267,6 +267,32 @@ class MendOption(RestSiteOption):
         return f"Mended {healed} HP"
 
 
+class RecallOption(RestSiteOption):
+    """Act4Heart mod: grants the Ruby Key if the player doesn't already
+    have it. Mutually exclusive with nothing -- it's an additional choice
+    alongside Rest/Smith/etc.
+
+    C# ref: decompiled_mods/Act4Heart/Act4Heart.Keys/RecallSiteOption.cs.
+    The C# version can redirect the key to a keyless teammate in
+    multiplayer; this simulator is single-player only so choosing Recall
+    simply grants the key to the (only) player if they don't already have
+    it, or does nothing useful if they do.
+    """
+
+    OPTION_ID = "RECALL"
+
+    def __init__(self) -> None:
+        super().__init__(option_id=self.OPTION_ID, label="Recall", description="Obtain the Ruby Key")
+
+    def execute(self, player: PlayerState, **kwargs: Any) -> str:
+        from sts2_env.relics.base import RelicId
+
+        if RelicId.RUBY_KEY.name in player.relics:
+            return "Already have the Ruby Key"
+        player.obtain_relic(RelicId.RUBY_KEY.name)
+        return "Obtained the Ruby Key"
+
+
 def generate_rest_site_options(
     player: PlayerState,
     relic_ids: list[str] | None = None,

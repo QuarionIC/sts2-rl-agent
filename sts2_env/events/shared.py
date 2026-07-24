@@ -415,15 +415,20 @@ def _transform_selected_cards(cards: list, run_state: RunState, rng=None) -> int
 
 
 def _remove_selected_cards(cards: list, run_state: RunState) -> int:
+    from sts2_env.cards.status import handle_cards_removed_from_deck
+
     removed = 0
+    removed_cards = []
     selected_ids = {id(card) for card in cards}
     new_deck = []
     for card in run_state.player.deck:
         if id(card) in selected_ids and card.is_removable:
             removed += 1
+            removed_cards.append(card)
             continue
         new_deck.append(card)
     run_state.player.deck = new_deck
+    handle_cards_removed_from_deck(run_state.player, removed_cards)
     return removed
 
 

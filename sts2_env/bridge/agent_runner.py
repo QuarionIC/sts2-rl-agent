@@ -8,10 +8,25 @@ Main loop:
 
 Usage:
   python -m sts2_env.bridge.agent_runner --model-path models/combat_ppo.zip
-  python -m sts2_env.bridge.agent_runner --model-path models/combat_ppo.zip --port 9002
+  python -m sts2_env.bridge.agent_runner --model-path models/full_run_ppo.zip --port 9002
 
-The agent uses the trained model for combat decisions and simple heuristics
-for non-combat decisions (map navigation, card rewards, etc.).
+Two kinds of models are supported, auto-detected from the loaded model's
+``action_space``/``observation_space`` shape (see :func:`detect_model_mode`):
+
+  * **Combat-only** models (``Discrete(115)`` / obs size 131, trained via
+    ``CombatEnv``): the trained policy drives combat only; every non-combat
+    phase (map navigation, card rewards, shop, rest, events, treasure, boss
+    relics) is handled by simple hardcoded heuristics.
+  * **Full-run** models (``Discrete(157)`` / obs size 151, trained via
+    :class:`sts2_env.gym_env.run_env.STS2RunEnv` with
+    ``scripts/train_full_run.py``): the trained policy drives *every*
+    decision, combat and non-combat alike, via
+    :class:`sts2_env.bridge.run_state_adapter.RunStateAdapter`. The
+    heuristic functions are not used at all in this mode. See that module's
+    docstring for known bridge-protocol gaps (multi-creature player
+    selection, card bundles, the Crystal Sphere minigame, and several
+    run-level observation fields are not fully representable with the
+    current bridge JSON).
 """
 
 from __future__ import annotations
@@ -31,7 +46,12 @@ from sts2_env.bridge.protocol import (
     MSG_TYPE_PONG,
     Phase,
 )
+from sts2_env.bridge.run_state_adapter import RunStateAdapter
 from sts2_env.bridge.state_adapter import StateAdapter
+from sts2_env.core.constants import ACTION_SPACE_SIZE as COMBAT_ONLY_ACTION_SPACE_SIZE
+from sts2_env.gym_env.observation import OBS_SIZE as COMBAT_ONLY_OBS_SIZE
+from sts2_env.gym_env.run_env import RUN_OBS_SIZE as FULL_RUN_OBS_SIZE
+from sts2_env.gym_env.run_env import TOTAL_ACTIONS as FULL_RUN_ACTION_SPACE_SIZE
 from sts2_env.parity.bridge_replay import BridgeReplayRecorder
 
 logger = logging.getLogger(__name__)
@@ -43,6 +63,9 @@ TERMINAL_PHASES = frozenset({
     BridgeStateType.GAME_OVER,
     BridgeStateType.RUN_COMPLETE,
 })
+
+MODEL_MODE_COMBAT_ONLY = "combat_only"
+MODEL_MODE_FULL_RUN = "full_run"
 
 ROOM_PRIORITY_HEALTHY = (
     "boss",
@@ -106,6 +129,42 @@ def load_model(model_path: str) -> Any:
     return model
 
 
+def detect_model_mode(model: Any) -> str:
+    """Detect whether *model* is a full-run or combat-only trained model.
+
+    The two model types were trained against different Gymnasium action /
+    observation spaces and cannot be told apart any other way:
+
+      * Combat-only (``CombatEnv``): ``action_space.n`` ==
+        :data:`COMBAT_ONLY_ACTION_SPACE_SIZE` (115), observation size ==
+        :data:`COMBAT_ONLY_OBS_SIZE` (131).
+      * Full-run (:class:`sts2_env.gym_env.run_env.STS2RunEnv`):
+        ``action_space.n`` == :data:`FULL_RUN_ACTION_SPACE_SIZE` (157),
+        observation size == :data:`FULL_RUN_OBS_SIZE` (151).
+
+    Returns:
+        ``MODEL_MODE_FULL_RUN`` or ``MODEL_MODE_COMBAT_ONLY``.
+
+    Raises:
+        ValueError: If the model's spaces match neither known layout.
+    """
+    action_n = int(model.action_space.n)
+    obs_n = int(model.observation_space.shape[0])
+
+    if action_n == FULL_RUN_ACTION_SPACE_SIZE and obs_n == FULL_RUN_OBS_SIZE:
+        return MODEL_MODE_FULL_RUN
+    if action_n == COMBAT_ONLY_ACTION_SPACE_SIZE and obs_n == COMBAT_ONLY_OBS_SIZE:
+        return MODEL_MODE_COMBAT_ONLY
+
+    raise ValueError(
+        f"Unrecognized model action/observation space: action_space.n={action_n}, "
+        f"observation_space.shape[0]={obs_n}. Expected a combat-only model "
+        f"({COMBAT_ONLY_ACTION_SPACE_SIZE} actions / {COMBAT_ONLY_OBS_SIZE} obs dims) "
+        f"or a full-run model ({FULL_RUN_ACTION_SPACE_SIZE} actions / "
+        f"{FULL_RUN_OBS_SIZE} obs dims)."
+    )
+
+
 def run_agent(
     model_path: str,
     host: str = "127.0.0.1",
@@ -132,7 +191,22 @@ def run_agent(
         combat_delay: Seconds to pause before each combat action (end turn is instant).
     """
     model = load_model(model_path)
+    model_mode = detect_model_mode(model)
     adapter = StateAdapter()
+    run_state_adapter: RunStateAdapter | None = None
+    if model_mode == MODEL_MODE_FULL_RUN:
+        run_state_adapter = RunStateAdapter()
+        logger.info(
+            "Loaded full-run model (action_space=%d, obs=%d) -- "
+            "driving all phases via the trained policy.",
+            FULL_RUN_ACTION_SPACE_SIZE, FULL_RUN_OBS_SIZE,
+        )
+    else:
+        logger.info(
+            "Loaded combat-only model (action_space=%d, obs=%d) -- "
+            "using heuristics for non-combat phases.",
+            COMBAT_ONLY_ACTION_SPACE_SIZE, COMBAT_ONLY_OBS_SIZE,
+        )
 
     logger.info("Connecting to STS2 at %s:%d...", host, port)
 
@@ -201,8 +275,42 @@ def run_agent(
                 ):
                     time.sleep(action_delay)
 
-                if phase in Phase.COMBAT_PHASES:
-                    # ---- Combat: use trained model ----
+                if run_state_adapter is not None:
+                    # ---- Full-run model: trained policy drives every phase ----
+                    if phase == Phase.COMBAT_WAITING:
+                        # Game is processing enemy turn / animations — just wait
+                        pass
+                    elif phase in Phase.ACTIONABLE:
+                        obs = run_state_adapter.encode_observation(state)
+                        mask = run_state_adapter.compute_action_mask(state)
+
+                        action, _states = model.predict(
+                            obs,
+                            action_masks=mask,
+                            deterministic=deterministic,
+                        )
+                        action_int = int(action)
+
+                        decoded = run_state_adapter.decode_action(action_int, state)
+
+                        if decoded["phase"] == "combat":
+                            combat_decoded = decoded["action"]
+                            if verbose:
+                                _log_combat_action(state, action_int, combat_decoded)
+                            _send_combat_action(client, combat_decoded, combat_delay)
+                        else:
+                            if verbose:
+                                logger.info(
+                                    "%s (%s): model action %d -> %s(%s)",
+                                    phase, msg_type, action_int,
+                                    decoded["method"], decoded.get("args"),
+                                )
+                            _send_noncombat_action(client, decoded)
+                    else:
+                        logger.debug("Unknown phase '%s', waiting...", phase)
+
+                elif phase in Phase.COMBAT_PHASES:
+                    # ---- Combat-only model: use trained model for combat ----
                     obs = adapter.encode_observation(state)
                     mask = adapter.compute_action_mask(state)
 
@@ -224,22 +332,7 @@ def run_agent(
                     if verbose:
                         _log_combat_action(state, action_int, decoded)
 
-                    # Small pause before combat actions; ending the turn is instant.
-                    if combat_delay > 0 and decoded["type"] != ActionType.END_TURN:
-                        time.sleep(combat_delay)
-
-                    if decoded["type"] == ActionType.END_TURN:
-                        client.end_turn()
-                    elif decoded.get("out_of_hand"):
-                        client.use_potion(
-                            decoded.get("slot", decoded.get("potion_slot", -1)),
-                            decoded.get("target_index", -1),
-                        )
-                    else:
-                        client.play_card(
-                            decoded["card_index"],
-                            decoded.get("target_index", -1),
-                        )
+                    _send_combat_action(client, decoded, combat_delay)
 
                 elif phase == Phase.MAP_SELECT:
                     choice = _pick_map_node(state)
@@ -321,6 +414,48 @@ def run_agent(
             if isinstance(client, BridgeReplayRecorder):
                 saved_path = client.save(record_replay_path)
                 logger.info("Saved bridge replay trace to %s", saved_path)
+
+
+# ----------------------------------------------------------------
+# Shared dispatch helpers (used by both the combat-only and full-run paths)
+# ----------------------------------------------------------------
+
+
+def _send_combat_action(client: Any, decoded: dict[str, Any], combat_delay: float) -> None:
+    """Send a StateAdapter/RunStateAdapter-decoded combat action to the client.
+
+    *decoded* has the shape produced by :meth:`StateAdapter.decode_action`
+    (``{"type": ActionType.END_TURN}``, or a ``PLAY`` dict with either
+    ``card_index``/``target_index`` or ``out_of_hand``/``slot``/
+    ``target_index`` for potions).
+    """
+    # Small pause before combat actions; ending the turn is instant.
+    if combat_delay > 0 and decoded["type"] != ActionType.END_TURN:
+        time.sleep(combat_delay)
+
+    if decoded["type"] == ActionType.END_TURN:
+        client.end_turn()
+    elif decoded.get("out_of_hand"):
+        client.use_potion(
+            decoded.get("slot", decoded.get("potion_slot", -1)),
+            decoded.get("target_index", -1),
+        )
+    else:
+        client.play_card(
+            decoded["card_index"],
+            decoded.get("target_index", -1),
+        )
+
+
+def _send_noncombat_action(client: Any, decoded: dict[str, Any]) -> None:
+    """Send a RunStateAdapter non-combat-decoded action to the client.
+
+    *decoded* has the shape ``{"phase": "noncombat", "method": <client
+    method name>, "args": [...]}`` as produced by
+    :meth:`RunStateAdapter.decode_action`.
+    """
+    method = getattr(client, decoded["method"])
+    method(*decoded.get("args", []))
 
 
 # ----------------------------------------------------------------

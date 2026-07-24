@@ -199,18 +199,35 @@ class CardRarityOdds:
             return self.uniform_odds
         return self.regular_odds
 
-    def roll(self, rng: Rng, context: str = "regular") -> CardRarity:
+    # Contexts whose rare-odds offset relic hooks (e.g. NlothsGift) may modify.
+    # Matches the mod's Harmony patch, which bypasses Boss and Shop rolls.
+    RELIC_MODIFIABLE_CONTEXTS = frozenset({"regular", "elite"})
+
+    def roll(self, rng: Rng, context: str = "regular", run_state: "RunState | None" = None) -> CardRarity:
         """Roll for a card rarity.
 
         Args:
             rng: RNG stream.
             context: "regular", "elite", "boss", or "shop".
+            run_state: When provided, lets relics (e.g. NlothsGift) adjust the
+                rare-odds offset for "regular"/"elite" rolls specifically --
+                mirrors how `UnknownMapPointOdds.roll` above consults
+                relic-level hooks. Shop and Boss rolls never consult this.
 
         Returns:
             CardRarity.COMMON, UNCOMMON, or RARE.
         """
         odds = self._get_odds(context)
         offset = 0.0 if context == "boss" else self.current_value
+
+        if run_state is not None and context in self.RELIC_MODIFIABLE_CONTEXTS:
+            base_rare_odds = odds["rare"]
+            for player in run_state.players:
+                for relic in player.get_relic_objects():
+                    modifier = getattr(relic, "modify_rare_card_odds_offset", None)
+                    if callable(modifier):
+                        offset = modifier(player, offset, base_rare_odds, context)
+
         roll_val = rng.next_float()
 
         rare_threshold = odds["rare"] + offset

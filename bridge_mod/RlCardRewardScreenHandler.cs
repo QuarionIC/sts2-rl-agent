@@ -69,12 +69,12 @@ public class RlCardRewardScreenHandler : IScreenHandler, IHandler
             cards.Add(cardData);
         }
 
-        var stateMsg = new Dictionary<string, object>
+        var stateMsg = RunStateBridgeFields.Apply(new Dictionary<string, object>
         {
             ["type"] = NonCombatBridgeProtocol.CardRewardState,
             ["cards"] = cards,
             ["can_skip"] = true,
-        };
+        });
 
         NCardHolder chosenHolder = null;
 

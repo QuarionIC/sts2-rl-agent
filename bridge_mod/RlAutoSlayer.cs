@@ -633,11 +633,11 @@ public class RlAutoSlayer
 
     private static string RunCompleteState(string result)
     {
-        return JsonSerializer.Serialize(new Dictionary<string, object>
+        return JsonSerializer.Serialize(RunStateBridgeFields.Apply(new Dictionary<string, object>
         {
             [NonCombatBridgeProtocol.TypeField] = NonCombatBridgeProtocol.RunCompleteState,
             [NonCombatBridgeProtocol.ResultField] = result,
-        });
+        }));
     }
 
     private static void SetSharedCurrentWatchdog(Watchdog? watchdog)
@@ -678,11 +678,11 @@ public class RlGameOverScreenHandler : IScreenHandler, IHandler
 
         // Notify Python that the game is over
         BridgeServer.Instance.SendState(JsonSerializer.Serialize(
-            new Dictionary<string, object>
+            RunStateBridgeFields.Apply(new Dictionary<string, object>
             {
                 [NonCombatBridgeProtocol.TypeField] = NonCombatBridgeProtocol.GameOverState,
                 [NonCombatBridgeProtocol.MessageField] = NonCombatBridgeProtocol.GameOverMessage,
-            }));
+            })));
 
         NGameOverContinueButton continueButton =
             UiHelper.FindFirst<NGameOverContinueButton>(screen);

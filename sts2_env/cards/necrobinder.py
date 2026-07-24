@@ -20,6 +20,7 @@ from sts2_env.cards.registry import (
 from sts2_env.core.enums import (
     CardId, CardTag, CardType, TargetType, CardRarity, ValueProp, PowerId, PowerType, PowerStackType,
 )
+from sts2_env.core.constants import MAX_HAND_SIZE
 from sts2_env.core.damage import calculate_damage, apply_damage, calculate_block
 from sts2_env.core.hooks import fire_after_block_gained
 from sts2_env.core.creature import Creature, get_power_class
@@ -27,7 +28,7 @@ from sts2_env.core.combat import CombatState
 
 
 DEATHS_DOOR_REPEAT = 2
-HANG_STACK_CAP = 999
+HANG_STACK_CAP = 999_999_999
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -375,10 +376,11 @@ def bone_shards(card: CardInstance, combat: CombatState, target: Creature | None
 
 @register_effect(CardId.BORROWED_TIME)
 def borrowed_time(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    doom = card.effect_vars.get("doom", 3)
-    combat.apply_power_to(_owner(card, combat), PowerId.DOOM, doom)
-    energy = card.effect_vars.get("energy", 1)
-    combat.gain_energy(_owner(card, combat), energy)
+    owner = _owner(card, combat)
+    energy = card.effect_vars.get("energy", 4)
+    combat.gain_energy(owner, energy)
+    extra_cost = card.effect_vars.get("extra_cost", 1)
+    combat.apply_power_to(owner, PowerId.BORROWED_TIME, extra_cost)
 
 
 @register_effect(CardId.BURY)
@@ -506,7 +508,7 @@ def dirge(card: CardInstance, combat: CombatState, target: Creature | None) -> N
 
 @register_effect(CardId.DREDGE)
 def dredge(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    max_cards = min(card.effect_vars.get("cards", 3), max(0, 10 - len(combat.hand)), len(combat.discard_pile))
+    max_cards = min(card.effect_vars.get("cards", 3), max(0, MAX_HAND_SIZE - len(combat.hand)), len(combat.discard_pile))
     if max_cards <= 0:
         return
     combat.request_multi_card_choice(
@@ -790,11 +792,22 @@ def devour_life_card(card: CardInstance, combat: CombatState, target: Creature |
 
 @register_effect(CardId.EIDOLON)
 def eidolon(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    exhausted_count = len(combat.hand)
-    for hand_card in list(combat.hand):
-        combat.exhaust_card(hand_card)
-    if exhausted_count >= 9:
-        combat.apply_power_to(_owner(card, combat), PowerId.INTANGIBLE, 1)
+    """Card itself Exhausts; auto-play every Ethereal card in the exhaust pile."""
+    for exhausted_card in list(combat.exhaust_pile):
+        if combat.is_over:
+            break
+        if not exhausted_card.is_ethereal or exhausted_card.is_unplayable:
+            continue
+        # auto_play_card() runs its own nested play/resolution cycle through
+        # combat._pending_play. Since Eidolon's own play is still in progress
+        # (mid-resolution in the outer _resume_pending_play loop), the nested
+        # cycle clobbers that shared single-slot state to None on completion,
+        # which would silently drop Eidolon's own pending exhaust move. Save
+        # and restore it around each nested auto-play so Eidolon still
+        # resolves (and exhausts itself) correctly afterward.
+        saved_pending_play = combat._pending_play  # noqa: SLF001
+        combat.auto_play_card(exhausted_card)
+        combat._pending_play = saved_pending_play  # noqa: SLF001
 
 
 @register_effect(CardId.END_OF_DAYS)
@@ -932,7 +945,7 @@ def seance(card: CardInstance, combat: CombatState, target: Creature | None) -> 
 
     def _resolver(selected_cards: list[CardInstance]) -> None:
         for selected in selected_cards:
-            transformed = make_soul(upgraded=card.upgraded)
+            transformed = make_soul()
             combat.transform_card(selected, transformed)
 
     combat.request_multi_card_choice(
@@ -1145,14 +1158,13 @@ def make_defile(upgraded: bool = False) -> CardInstance:
 
 
 def make_defy(upgraded: bool = False) -> CardInstance:
-    blk = 7 if upgraded else 6
-    weak = 2 if upgraded else 1
+    blk = 9 if upgraded else 6
     return CardInstance(
         card_id=CardId.DEFY, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
         base_block=blk, upgraded=upgraded,
         keywords=frozenset({"ethereal"}),
-        effect_vars={"weak": weak}, instance_id=_get_next_id(),
+        effect_vars={"weak": 1}, instance_id=_get_next_id(),
     )
 
 
@@ -1192,7 +1204,7 @@ def make_grave_warden(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.GRAVE_WARDEN, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.COMMON,
-        base_block=10 if upgraded else 8, upgraded=upgraded,
+        base_block=11 if upgraded else 8, upgraded=upgraded,
         effect_vars={"cards": 1}, instance_id=_get_next_id(),
     )
 
@@ -1260,7 +1272,7 @@ def make_reave(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.REAVE, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=11 if upgraded else 9, upgraded=upgraded,
+        base_damage=13 if upgraded else 10, upgraded=upgraded,
         effect_vars={"cards": 1}, instance_id=_get_next_id(),
     )
 
@@ -1279,7 +1291,7 @@ def make_sculpting_strike(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SCULPTING_STRIKE, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=11 if upgraded else 8, upgraded=upgraded,
+        base_damage=12 if upgraded else 9, upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
@@ -1316,7 +1328,7 @@ def make_wisp(upgraded: bool = False) -> CardInstance:
 def make_seance(upgraded: bool = False) -> CardInstance:
     kw = frozenset({"ethereal"})
     return CardInstance(
-        card_id=CardId.SEANCE, cost=0, card_type=CardType.SKILL,
+        card_id=CardId.SEANCE, cost=0 if upgraded else 1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
         upgraded=upgraded, keywords=kw,
         effect_vars={"cards": 1},
@@ -1360,6 +1372,7 @@ def make_dirge(upgraded: bool = False) -> CardInstance:
         card_id=CardId.DIRGE, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
         upgraded=upgraded, has_energy_cost_x=True,
+        keywords=frozenset({"exhaust"}),
         effect_vars={"summon": 4 if upgraded else 3},
         instance_id=_get_next_id(),
     )
@@ -1478,7 +1491,7 @@ def make_death_march(upgraded: bool = False) -> CardInstance:
     card = create_reference_card(CardId.DEATH_MARCH, upgraded=upgraded, allow_generation=True)
     card.base_damage = 9 if upgraded else 8
     card.effect_vars["calc_base"] = 9 if upgraded else 8
-    card.effect_vars["extra_damage"] = 4 if upgraded else 3
+    card.effect_vars["extra_damage"] = 6 if upgraded else 4
     return card
 
 
@@ -1532,7 +1545,7 @@ def make_sic_em(upgraded: bool = False) -> CardInstance:
 
     card = create_reference_card(CardId.SIC_EM, upgraded=upgraded, allow_generation=True)
     card.base_damage = 6 if upgraded else 5
-    card.effect_vars["sic_em"] = 3 if upgraded else 2
+    card.effect_vars["sic_em"] = 4 if upgraded else 3
     card.effect_vars["osty_damage"] = 6 if upgraded else 5
     return card
 
@@ -1540,7 +1553,9 @@ def make_sic_em(upgraded: bool = False) -> CardInstance:
 def make_eidolon(upgraded: bool = False) -> CardInstance:
     from sts2_env.cards.factory import create_reference_card
 
-    return create_reference_card(CardId.EIDOLON, upgraded=upgraded, allow_generation=True)
+    card = create_reference_card(CardId.EIDOLON, upgraded=upgraded, allow_generation=True)
+    card.keywords = frozenset(set(card.keywords) | {"exhaust"})
+    return card
 
 
 def make_eradicate(upgraded: bool = False) -> CardInstance:
@@ -1561,9 +1576,9 @@ def make_soul_storm(upgraded: bool = False) -> CardInstance:
     from sts2_env.cards.factory import create_reference_card
 
     card = create_reference_card(CardId.SOUL_STORM, upgraded=upgraded, allow_generation=True)
-    card.base_damage = 10 if upgraded else 9
+    card.base_damage = 9
     card.effect_vars["calc_base"] = 9
-    card.effect_vars["extra_damage"] = 3 if upgraded else 2
+    card.effect_vars["extra_damage"] = 6 if upgraded else 4
     return card
 
 
@@ -1582,7 +1597,7 @@ def make_the_scythe(upgraded: bool = False) -> CardInstance:
 
     card = create_reference_card(CardId.THE_SCYTHE, upgraded=upgraded, allow_generation=True)
     card.base_damage = 13
-    card.effect_vars["increase"] = 4 if upgraded else 3
+    card.effect_vars["increase"] = 5 if upgraded else 4
     return card
 
 
@@ -1612,6 +1627,54 @@ def make_protector(upgraded: bool = False) -> CardInstance:
     return card
 
 
+def make_borrowed_time(upgraded: bool = False) -> CardInstance:
+    from sts2_env.cards.factory import create_reference_card
+
+    card = create_reference_card(CardId.BORROWED_TIME, upgraded=upgraded, allow_generation=True)
+    card.cost = 1
+    card.original_cost = 1
+    card.effect_vars.pop("doom", None)
+    card.effect_vars["energy"] = 6 if upgraded else 4
+    card.effect_vars["extra_cost"] = 1
+    return card
+
+
+def make_banshees_cry(upgraded: bool = False) -> CardInstance:
+    from sts2_env.cards.factory import create_reference_card
+
+    card = create_reference_card(CardId.BANSHEES_CRY, upgraded=upgraded, allow_generation=True)
+    card.base_damage = 33
+    card.cost = 7 if upgraded else 9
+    card.original_cost = card.cost
+    card.effect_vars["energy"] = 2
+    return card
+
+
+def make_danse_macabre(upgraded: bool = False) -> CardInstance:
+    from sts2_env.cards.factory import create_reference_card
+
+    card = create_reference_card(CardId.DANSE_MACABRE, upgraded=upgraded, allow_generation=True)
+    card.effect_vars["danse_macabre"] = 6 if upgraded else 4
+    return card
+
+
+def make_debilitate_card(upgraded: bool = False) -> CardInstance:
+    from sts2_env.cards.factory import create_reference_card
+
+    card = create_reference_card(CardId.DEBILITATE_CARD, upgraded=upgraded, allow_generation=True)
+    card.base_damage = 12 if upgraded else 10
+    card.effect_vars["debilitate"] = 3 if upgraded else 2
+    return card
+
+
+def make_haunt(upgraded: bool = False) -> CardInstance:
+    from sts2_env.cards.factory import create_reference_card
+
+    card = create_reference_card(CardId.HAUNT, upgraded=upgraded, allow_generation=True)
+    card.effect_vars["hp_loss"] = 9 if upgraded else 7
+    return card
+
+
 def _make_reference_factory_card(card_id: CardId, upgraded: bool = False) -> CardInstance:
     from sts2_env.cards.factory import create_reference_card
 
@@ -1619,18 +1682,14 @@ def _make_reference_factory_card(card_id: CardId, upgraded: bool = False) -> Car
 
 
 _REFERENCE_FACTORY_CARD_IDS = (
-    CardId.BORROWED_TIME,
     CardId.BURY,
     CardId.CALCIFY_CARD,
     CardId.COUNTDOWN_CARD,
-    CardId.DANSE_MACABRE,
     CardId.DEATHBRINGER,
     CardId.DEATHS_DOOR,
-    CardId.DEBILITATE_CARD,
     CardId.DELAY,
     CardId.ENFEEBLING_TOUCH,
     CardId.FRIENDSHIP,
-    CardId.HAUNT,
     CardId.LETHALITY_CARD,
     CardId.MELANCHOLY,
     CardId.PAGESTORM,
@@ -1639,7 +1698,6 @@ _REFERENCE_FACTORY_CARD_IDS = (
     CardId.SHROUD,
     CardId.SLEIGHT_OF_FLESH,
     CardId.VEILPIERCER,
-    CardId.BANSHEES_CRY,
     CardId.CALL_OF_THE_VOID,
     CardId.DEMESNE,
     CardId.DEVOUR_LIFE_CARD,

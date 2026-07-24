@@ -75,14 +75,11 @@ public class RlCardBundleScreenHandler : IScreenHandler, IHandler
 
         try
         {
-            RunState runState = RunManager.Instance.DebugOnlyGetState();
-            string stateJson = JsonSerializer.Serialize(new Dictionary<string, object>
+            string stateJson = JsonSerializer.Serialize(RunStateBridgeFields.Apply(new Dictionary<string, object>
             {
                 ["type"] = NonCombatBridgeProtocol.CardBundleState,
                 ["bundles"] = bundles.Select((bundle, index) => BundleOption(bundle, index)).ToList(),
-                ["floor"] = runState.TotalFloor,
-                ["act"] = runState.CurrentActIndex + ActDisplayIndexOffset,
-            });
+            }));
             string? responseJson = await BridgeServer.Instance.SendStateAndWaitForActionAsync(
                 stateJson,
                 AgentTimeout,

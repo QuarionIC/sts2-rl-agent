@@ -370,6 +370,7 @@ class PowerId(Enum):
     SELF_FORMING_CLAY = auto()
     TORIC_TOUGHNESS = auto()
     # -- 9. Energy/Cost Modifiers --
+    BORROWED_TIME = auto()
     CLARITY = auto()
     CORRUPTION = auto()
     CURIOUS = auto()
@@ -478,15 +479,47 @@ class PowerId(Enum):
     THIEVERY = auto()
     THUNDER = auto()
     VICIOUS = auto()
+    WITHERING_PRESENCE = auto()
     ELECTRODYNAMICS = auto()
     METALLICIZE = auto()
     ENTANGLED = auto()
+    # -- Act4Heart mod (Corrupt Heart) --
+    BEAT_OF_DEATH = auto()
+    INVINCIBLE = auto()
+    REGENERATE_A4H = auto()
     # Legacy aliases
     GRAPPLE_POWER = auto()
     MANGLE_POWER = auto()
     FREE_POWER = auto()
     # Generic placeholder
     GENERIC = auto()
+    # -- Acts from the Past mod (Exordium legacy act) --
+    ANGRY = auto()
+    SPLIT = auto()
+    MODE_SHIFT = auto()
+    # -- Acts from the Past mod (TheCity legacy act) --
+    FLIGHT = auto()
+    HEX_ORIGINAL = auto()
+    PLATED_ARMOR = auto()
+    MALLEABLE = auto()
+    STASIS = auto()
+    MINION_MASTER = auto()
+    GREMLIN_LEADER_PRESENCE = auto()
+    # MutagenicStrength relic's temporary-strength power (mod
+    # MutagenicStrengthPower extends TemporaryStrengthPower; own id follows
+    # the ReptileTrinketPower convention in powers/remaining_c.py).
+    MUTAGENIC_STRENGTH = auto()
+    # -- Acts from the Past mod (TheBeyond legacy act) --
+    CURIOSITY = auto()
+    UNAWAKENED = auto()
+    LIFE_LINK = auto()
+    CONSTRICTED = auto()
+    REACTIVE = auto()
+    SHIFTING = auto()
+    SHIFTING_STRENGTH_DOWN = auto()
+    DRAW_REDUCTION = auto()
+    TIME_WARP = auto()
+    NEMESIS_FLICKER = auto()
 
 
 class CardId(Enum):
@@ -608,6 +641,7 @@ class CardId(Enum):
     SLIMED = auto()
     BURN = auto()
     VOID = auto()
+    WITHER = auto()
     # Curse cards
     ASCENDERS_BANE = auto()
     CLUMSY = auto()
@@ -1117,3 +1151,11 @@ class CardId(Enum):
     DEPRECATED_CARD = auto()
 
     GENERIC = auto()
+
+    # Acts from the Past (mod) -- foundational global cards
+    NECRONOMICURSE = auto()
+
+    # Acts from the Past (mod) -- TheCity legacy-act event cards
+    JAX = auto()
+    BITE = auto()
+    RITUAL_DAGGER = auto()

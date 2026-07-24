@@ -167,7 +167,7 @@ def generate_card_reward(
     result: list[CardRarity] = []
     for _ in range(num_cards):
         rarity = run_state.card_rarity_odds.roll(
-            run_state.rng.rewards, context=context
+            run_state.rng.rewards, context=context, run_state=run_state
         )
         result.append(rarity)
     return result

@@ -109,6 +109,12 @@ CURSE_CARD_POOL: tuple[CardId, ...] = (
     CardId.SPORE_MIND,
     CardId.WRITHE,
 )
+# NOTE: CardId.NECRONOMICURSE ("Acts from the Past" mod) is deliberately NOT
+# included here -- this pool is asserted byte-for-byte against the vanilla
+# base-game curse pool in tests/test_card_pool_parity.py and
+# tests/test_card_generation_filters.py. Necronomicurse is only ever created
+# directly by name (Necronomicon's after_obtained / create_card), which does
+# not depend on pool membership.
 
 DEFECT_CARD_POOL: tuple[CardId, ...] = (
     CardId.ADAPTIVE_STRIKE,

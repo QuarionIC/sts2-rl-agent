@@ -13,7 +13,7 @@ from sts2_env.cards.enchantments import can_enchant_card
 from sts2_env.cards.factory import reference_card_entry
 from sts2_env.characters.all import ALL_CHARACTERS
 from sts2_env.core.card_pools import CardPoolId
-from sts2_env.core.constants import PERCENT_DENOMINATOR
+from sts2_env.core.constants import PERCENT_DENOMINATOR, VULNERABLE_MULTIPLIER
 from sts2_env.core.enums import (
     CardId, CardRarity, RelicRarity, CombatSide, CardTag, CardType, MapPointType, PowerId, RoomType, TargetType,
     ValueProp,
@@ -2490,6 +2490,57 @@ class MusicBox(RelicInstance):
 
 
 @register_relic
+class Necronomicon(RelicInstance):
+    """"Acts from the Past" mod. Adds Necronomicurse to the deck on pickup.
+
+    While held: the first Attack card played each turn that costs 2 or more
+    energy is played a second time (decompiled reference:
+    ActsFromThePast.Relics.Necronomicon -- ModifyCardPlayCount /
+    AfterModifyingCardPlayCount, gated by a per-turn `_activated` flag reset
+    on AfterPlayerTurnStart / AfterCombatEnd).
+    """
+    relic_id = RelicId.NECRONOMICON
+    rarity = RelicRarity.EVENT
+    pool = RelicPool.EVENT
+    has_upon_pickup_effect = True
+    MIN_ENERGY_COST = 2
+
+    def __init__(self, relic_id: RelicId):
+        super().__init__(relic_id)
+        self._activated: bool = True
+
+    def after_obtained(self, owner: Creature) -> None:
+        owner.add_card_to_deck("Necronomicurse")
+
+    def after_player_turn_start(self, owner: Creature, combat: CombatState) -> None:
+        self._activated = True
+
+    def after_combat_end(self, owner: Creature, combat: CombatState) -> None:
+        self._activated = True
+
+    def modify_card_play_count(self, owner: Creature, count: int, card: object) -> int:
+        if not self._activated:
+            return count
+        if getattr(card, "owner", None) is not owner:
+            return count
+        if getattr(card, "card_type", None) != CardType.ATTACK:
+            return count
+        combat = getattr(owner, "combat_state", None)
+        if combat is not None:
+            cost = combat.modified_card_cost(owner, card)
+        else:
+            cost = getattr(card, "energy_spent", None)
+            if cost is None:
+                cost = getattr(card, "cost", 0)
+        if cost < self.MIN_ENERGY_COST:
+            return count
+        return count + 1
+
+    def after_modifying_card_play_count(self, owner: Creature, card: object, combat: CombatState) -> None:
+        self._activated = False
+
+
+@register_relic
 class NeowsTorment(RelicInstance):
     """Add NeowsFury card to deck."""
     relic_id = RelicId.NEOWS_TORMENT
@@ -2522,6 +2573,33 @@ class NewLeaf(RelicInstance):
 
 
 @register_relic
+class NlothsGift(RelicInstance):
+    """"Acts from the Past" mod. Triples the effective rare-card odds offset
+    for Regular and Elite card rewards (Shop and Boss rolls unaffected).
+
+    Decompiled reference: ActsFromThePast.Patches.Relics.RelicPatches ->
+    NlothsGiftRarityPatch.ModifyOdds. C# arithmetic (types Regular/Elite
+    only; Shop/Boss bypass the patch entirely):
+        originalThreshold = baseRareOdds + offset
+        offset = originalThreshold * 3f - baseRareOdds
+    """
+    relic_id = RelicId.NLOTHS_GIFT
+    rarity = RelicRarity.EVENT
+    pool = RelicPool.EVENT
+    RARITY_MULTIPLIER = 3.0
+
+    def modify_rare_card_odds_offset(
+        self,
+        owner: Creature,
+        offset: float,
+        base_rare_odds: float,
+        context: str,
+    ) -> float:
+        original_threshold = base_rare_odds + offset
+        return original_threshold * self.RARITY_MULTIPLIER - base_rare_odds
+
+
+@register_relic
 class NutritiousOyster(RelicInstance):
     """Gain 11 max HP."""
     relic_id = RelicId.NUTRITIOUS_OYSTER
@@ -2543,6 +2621,50 @@ class NutritiousSoup(RelicInstance):
 
     def after_obtained(self, owner: Creature) -> None:
         owner.enchant_basic_strikes("TezcatarasEmber")
+
+
+@register_relic
+class OddMushroom(RelicInstance):
+    """"Acts from the Past" mod. Reduces the Vulnerable damage multiplier by
+    a flat 0.25 while held, floored at x1.0 (vanilla x1.5 -> x1.25).
+
+    Decompiled reference: ActsFromThePast.Patches.Powers.PowerPatches ->
+    OddMushroomPatch, a Postfix on VulnerablePower.ModifyDamageMultiplicative
+    that subtracts 0.25 from the result whenever the damaged creature holds
+    this relic. Reproduced here at the same multiplicative-damage hook stage
+    Vulnerable itself uses (see VulnerablePower.modify_damage_multiplicative
+    in powers/common.py and PaperPhrog in relics/uncommon.py for the same
+    "ratio factor" pattern applied in the opposite direction).
+    """
+    relic_id = RelicId.ODD_MUSHROOM
+    rarity = RelicRarity.EVENT
+    pool = RelicPool.EVENT
+    VULNERABLE_REDUCTION = 0.25
+    MIN_MULTIPLIER = 1.0
+
+    def modify_damage_multiplicative(
+        self,
+        owner: Creature,
+        dealer: Creature | None,
+        target: Creature,
+        props: ValueProp,
+        card: object | None = None,
+    ) -> float:
+        if target is not owner or not props.is_powered_attack():
+            return 1.0
+        if target.get_power_amount(PowerId.VULNERABLE) <= 0:
+            return 1.0
+
+        vulnerable_multiplier = VULNERABLE_MULTIPLIER
+        if dealer is not None:
+            cruelty = dealer.powers.get(PowerId.CRUELTY)
+            if cruelty is not None:
+                vulnerable_multiplier += cruelty.amount / PERCENT_DENOMINATOR
+        if target.has_power(PowerId.DEBILITATE):
+            vulnerable_multiplier += vulnerable_multiplier - 1.0
+
+        reduced = max(self.MIN_MULTIPLIER, vulnerable_multiplier - self.VULNERABLE_REDUCTION)
+        return reduced / vulnerable_multiplier
 
 
 @register_relic
@@ -3533,19 +3655,29 @@ class TeaOfDiscourtesy(RelicInstance):
 
 @register_relic
 class TheBoot(RelicInstance):
-    """Owner's powered attacks deal min 5 damage."""
+    """Owner's powered attacks against other creatures deal min 5 damage.
+
+    C# ref: TheBoot.cs - ModifyHpLostAfterOstyLate. This runs in the
+    after-Osty stage, after IntangiblePower's ``modify_hp_lost`` cap, so it
+    independently raises Intangible's 1-damage floor back up to 5 rather
+    than relying on a hardcoded special case inside IntangiblePower.
+    """
     relic_id = RelicId.THE_BOOT
     rarity = RelicRarity.EVENT
     pool = RelicPool.EVENT
     DAMAGE_MINIMUM = 5
 
-    def modify_hp_lost_before_osty(
+    def modify_hp_lost_after_osty(
         self, owner: Creature, target: Creature, amount: float,
         dealer: Creature | None, props: ValueProp
     ) -> float:
-        if (dealer is owner
-                and props.is_powered_attack()
-                and 0 < amount < self.DAMAGE_MINIMUM):
+        if dealer is not owner and getattr(dealer, "pet_owner", None) is not owner:
+            return amount
+        if target is owner:
+            return amount
+        if not props.is_powered_attack():
+            return amount
+        if 0 < amount < self.DAMAGE_MINIMUM:
             return float(self.DAMAGE_MINIMUM)
         return amount
 

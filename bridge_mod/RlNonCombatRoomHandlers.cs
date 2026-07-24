@@ -10,7 +10,9 @@ using Godot;
 using MegaCrit.Sts2.Core.AutoSlay;
 using MegaCrit.Sts2.Core.AutoSlay.Handlers;
 using MegaCrit.Sts2.Core.AutoSlay.Helpers;
+using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Merchant;
+using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.Events;
@@ -66,6 +68,91 @@ internal static class NonCombatBridgeProtocol
     public const string VictoryResult = "victory";
     public const string TerminatedResult = "terminated";
     public const string GameOverMessage = "Game over";
+}
+
+/// <summary>
+/// Adds run-level fields to every bridge state payload. The Python side's
+/// full-run <c>RunStateAdapter</c> (sts2_env/bridge/run_state_adapter.py)
+/// reads these keys from any state dict, so they must be present (with
+/// exactly these names) on every phase's JSON message:
+///   act, act_index, floor, act_floor, gold, deck_size, relic_count,
+///   num_potions, max_potion_slots, ascension_level, room_type,
+///   is_elite, is_boss, potions (list; only added when not already present,
+///   e.g. combat payloads serialize their own richer potion list).
+/// </summary>
+internal static class RunStateBridgeFields
+{
+    /// <summary>
+    /// Merge run-level fields into <paramref name="payload"/> and return it.
+    /// Safe to call in any phase; missing run state is a no-op.
+    /// </summary>
+    public static Dictionary<string, object> Apply(Dictionary<string, object> payload)
+    {
+        try
+        {
+            RunState? runState = RunManager.Instance?.DebugOnlyGetState();
+            if (runState == null)
+                return payload;
+
+            payload["act"] = runState.CurrentActIndex + 1;
+            payload["act_index"] = runState.CurrentActIndex;
+            payload["floor"] = runState.TotalFloor;
+            payload["act_floor"] = runState.ActFloor;
+            payload["ascension_level"] = runState.AscensionLevel;
+
+            RoomType roomType = runState.CurrentRoom?.RoomType ?? RoomType.Unassigned;
+            payload["room_type"] = roomType.ToString();
+            payload["is_elite"] = roomType == RoomType.Elite;
+            payload["is_boss"] = roomType == RoomType.Boss;
+
+            Player? player = LocalContext.GetMe(runState);
+            if (player != null)
+            {
+                // NOTE: deliberately NOT a "player" dict -- the Python combat
+                // StateAdapter treats any state carrying a "player" key as a
+                // combat observation, and full-run training zeroes the combat
+                // block at non-combat phases. Top-level ints are inert today
+                // and available for a future _hp_ratio improvement.
+                payload["hp"] = player.Creature.CurrentHp;
+                payload["max_hp"] = player.Creature.MaxHp;
+                payload["gold"] = player.Gold;
+                payload["deck_size"] = player.Deck.Cards.Count;
+                payload["relic_count"] = player.Relics.Count;
+                payload["relics"] = player.Relics
+                    .Select(relic => relic.Id.Entry)
+                    .ToList();
+                payload["max_potion_slots"] = player.MaxPotionCount;
+                payload["num_potions"] = player.PotionSlots.Count(p => p != null);
+
+                // Combat payloads already carry a richer potion list
+                // (slot/usage/target info); don't clobber it.
+                if (!payload.ContainsKey("potions"))
+                {
+                    var potions = new List<Dictionary<string, object>>();
+                    int slot = 0;
+                    foreach (PotionModel? potion in player.PotionSlots)
+                    {
+                        if (potion != null)
+                        {
+                            potions.Add(new Dictionary<string, object>
+                            {
+                                ["slot"] = slot,
+                                ["id"] = potion.Id.Entry,
+                            });
+                        }
+                        slot++;
+                    }
+                    payload["potions"] = potions;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[RunStateBridgeFields] Error adding run-level fields: {ex.Message}");
+        }
+
+        return payload;
+    }
 }
 
 public class RlRestSiteRoomHandler : IRoomHandler, IHandler
@@ -132,7 +219,7 @@ public class RlRestSiteRoomHandler : IRoomHandler, IHandler
 
         try
         {
-            string stateJson = JsonSerializer.Serialize(new Dictionary<string, object>
+            string stateJson = JsonSerializer.Serialize(RunStateBridgeFields.Apply(new Dictionary<string, object>
             {
                 ["type"] = NonCombatBridgeProtocol.RestSiteState,
                 ["options"] = buttons.Select((button, index) => new Dictionary<string, object>
@@ -144,9 +231,7 @@ public class RlRestSiteRoomHandler : IRoomHandler, IHandler
                     ["description"] = button.Option.Description.GetFormattedText(),
                     ["enabled"] = button.Option.IsEnabled,
                 }).ToList(),
-                ["floor"] = RunManager.Instance.DebugOnlyGetState().TotalFloor,
-                ["act"] = RunManager.Instance.DebugOnlyGetState().CurrentActIndex + 1,
-            });
+            }));
             string? responseJson = await BridgeServer.Instance.SendStateAndWaitForActionAsync(
                 stateJson,
                 AgentTimeout,
@@ -240,16 +325,14 @@ public class RlTreasureRoomHandler : IRoomHandler, IHandler
 
         try
         {
-            string stateJson = JsonSerializer.Serialize(new Dictionary<string, object>
+            string stateJson = JsonSerializer.Serialize(RunStateBridgeFields.Apply(new Dictionary<string, object>
             {
                 ["type"] = NonCombatBridgeProtocol.TreasureState,
                 ["options"] = holders.Select((holder, index) => RelicOption(
                     index,
                     NonCombatBridgeProtocol.CollectTreasureAction,
                     holder.Relic.Model)).ToList(),
-                ["floor"] = RunManager.Instance.DebugOnlyGetState().TotalFloor,
-                ["act"] = RunManager.Instance.DebugOnlyGetState().CurrentActIndex + 1,
-            });
+            }));
             string? responseJson = await BridgeServer.Instance.SendStateAndWaitForActionAsync(
                 stateJson,
                 AgentTimeout,
@@ -339,16 +422,14 @@ public class RlChooseARelicScreenHandler : IScreenHandler, IHandler
 
         try
         {
-            string stateJson = JsonSerializer.Serialize(new Dictionary<string, object>
+            string stateJson = JsonSerializer.Serialize(RunStateBridgeFields.Apply(new Dictionary<string, object>
             {
                 ["type"] = NonCombatBridgeProtocol.BossRelicState,
                 ["options"] = holders.Select((holder, index) => RelicOption(
                     index,
                     NonCombatBridgeProtocol.PickRelicAction,
                     holder.Relic.Model)).ToList(),
-                ["floor"] = RunManager.Instance.DebugOnlyGetState().TotalFloor,
-                ["act"] = RunManager.Instance.DebugOnlyGetState().CurrentActIndex + 1,
-            });
+            }));
             string? responseJson = await BridgeServer.Instance.SendStateAndWaitForActionAsync(
                 stateJson,
                 AgentTimeout,
@@ -496,13 +577,11 @@ public class RlShopRoomHandler : IRoomHandler, IHandler
             };
             options.AddRange(purchasableSlots.Select((slot, slotIndex) => ShopOption(slot, slotIndex + 1)));
 
-            string stateJson = JsonSerializer.Serialize(new Dictionary<string, object>
+            string stateJson = JsonSerializer.Serialize(RunStateBridgeFields.Apply(new Dictionary<string, object>
             {
                 ["type"] = NonCombatBridgeProtocol.ShopState,
                 ["options"] = options,
-                ["floor"] = RunManager.Instance.DebugOnlyGetState().TotalFloor,
-                ["act"] = RunManager.Instance.DebugOnlyGetState().CurrentActIndex + 1,
-            });
+            }));
             string? responseJson = await BridgeServer.Instance.SendStateAndWaitForActionAsync(
                 stateJson,
                 AgentTimeout,
@@ -702,7 +781,7 @@ public class RlEventRoomHandler : IRoomHandler, IHandler
 
         try
         {
-            string stateJson = JsonSerializer.Serialize(new Dictionary<string, object>
+            string stateJson = JsonSerializer.Serialize(RunStateBridgeFields.Apply(new Dictionary<string, object>
             {
                 ["type"] = NonCombatBridgeProtocol.EventState,
                 ["options"] = options.Select((option, index) => new Dictionary<string, object>
@@ -715,9 +794,7 @@ public class RlEventRoomHandler : IRoomHandler, IHandler
                     ["enabled"] = !option.Option.IsLocked,
                     ["event_id"] = option.Event.Id.Entry,
                 }).ToList(),
-                ["floor"] = RunManager.Instance.DebugOnlyGetState().TotalFloor,
-                ["act"] = RunManager.Instance.DebugOnlyGetState().CurrentActIndex + 1,
-            });
+            }));
             string? responseJson = await BridgeServer.Instance.SendStateAndWaitForActionAsync(
                 stateJson,
                 AgentTimeout,

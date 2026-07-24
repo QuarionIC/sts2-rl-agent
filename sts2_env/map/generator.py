@@ -92,6 +92,39 @@ def generate_golden_path_map(player_count: int = 1) -> ActMap:
     return act_map
 
 
+def generate_act4_heart_map() -> ActMap:
+    """Hand-authored Act4Heart ("TheEnding") map.
+
+    Exactly 4 nodes in a straight line: a virtual start anchor (never
+    entered, matching the ``start_point`` convention used by
+    ``generate_golden_path_map``), a Rest Site, the Spire Shield + Spire
+    Spear Elite, and the Corrupt Heart Boss. No shop, no treasure, no
+    unknown/event nodes, no procedural generation.
+
+    C# ref: decompiled_mods/Act4Heart/Act4Heart/TheEndingMap.cs.
+    """
+    act_map = ActMap(num_rooms=2)  # 2 real rooms: Rest Site + Elite (+ Boss)
+
+    start = act_map.get_or_create(3, 0)
+    start.point_type = MapPointType.UNASSIGNED
+    act_map.start_point = start
+
+    rest_site = act_map.get_or_create(3, 1)
+    rest_site.point_type = MapPointType.REST_SITE
+    start.add_child(rest_site)
+
+    elite = act_map.get_or_create(3, 2)
+    elite.point_type = MapPointType.ELITE
+    rest_site.add_child(elite)
+
+    boss = act_map.get_or_create(3, 3)
+    boss.point_type = MapPointType.BOSS
+    act_map.boss_point = boss
+    elite.add_child(boss)
+
+    return act_map
+
+
 def _has_invalid_crossover(act_map: ActMap, current: MapPoint, target_col: int) -> bool:
     """Check if moving from current to target_col would create a crossing edge.
 

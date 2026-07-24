@@ -41,3 +41,11 @@ POTION_TARGET_OPTIONS = 1 + MAX_ENEMIES
 POTION_ACTION_SIZE = MAX_POTION_SLOTS * POTION_TARGET_OPTIONS
 POTION_ACTION_START = 1 + CARD_ACTION_SIZE
 ACTION_SPACE_SIZE = 1 + CARD_ACTION_SIZE + POTION_ACTION_SIZE
+
+# "Acts from the Past" mod config (ActsFromThePastConfig.cs) -- governs which
+# SharedEvents pool an act's event list may draw from. Only SharedEvents are
+# affected (act-exclusive events are untouched either way). The mod's own
+# SharedEvents (BonfireSpirits, Duplicator, etc.) are legacy-act-exclusive by
+# default; base-game SharedEvents are allowed in legacy acts by default.
+ALLOW_NON_LEGACY_SHARED_EVENTS_IN_LEGACY_ACTS = True
+ALLOW_LEGACY_SHARED_EVENTS_IN_NON_LEGACY_ACTS = False

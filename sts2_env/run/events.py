@@ -9,6 +9,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable
 
+from sts2_env.core.constants import (
+    ALLOW_LEGACY_SHARED_EVENTS_IN_NON_LEGACY_ACTS,
+    ALLOW_NON_LEGACY_SHARED_EVENTS_IN_LEGACY_ACTS,
+)
 from sts2_env.core.selection import CardChoiceOption, PendingCardChoice
 from sts2_env.core.rng import Rng, deterministic_hash_code
 
@@ -39,6 +43,10 @@ class EventModel:
 
     event_id: str = ""
     is_shared: bool = False
+    # "Acts from the Past" mod: True for the mod's own SharedEvents (e.g.
+    # BonfireSpirits, Duplicator). Only meaningful when is_shared is True --
+    # see `event_allowed_in_act` below. Always False for base-game events.
+    is_legacy_exclusive: bool = False
 
     @property
     def pending_choice(self) -> PendingCardChoice | None:
@@ -227,6 +235,28 @@ def all_events() -> list[EventModel]:
     return list(_EVENT_REGISTRY.values())
 
 
+def event_allowed_in_act(event: EventModel, act: object) -> bool:
+    """"Acts from the Past" mod SharedEvents pool filter.
+
+    Only SharedEvents are gated (act-exclusive event pools are untouched
+    either way -- non-shared events return True unconditionally). Decompiled
+    reference: ActsFromThePast.Patches.Events.ShrinePatches (Postfix on
+    ActModel's room-set patch), which removes base-game SharedEvents from
+    legacy acts unless AllowNonLegacySharedEventsInLegacyActs, and removes
+    the mod's own SharedEvents from non-legacy acts unless
+    AllowLegacySharedEventsInNonLegacyActs.
+    """
+    if not getattr(event, "is_shared", False):
+        return True
+    is_legacy_act = getattr(act, "is_legacy", False)
+    is_legacy_event = getattr(event, "is_legacy_exclusive", False)
+    if is_legacy_act and not is_legacy_event and not ALLOW_NON_LEGACY_SHARED_EVENTS_IN_LEGACY_ACTS:
+        return False
+    if not is_legacy_act and is_legacy_event and not ALLOW_LEGACY_SHARED_EVENTS_IN_NON_LEGACY_ACTS:
+        return False
+    return True
+
+
 def get_allowed_events(run_state: RunState, pool: list[str] | None = None) -> list[EventModel]:
     """Return events from pool that pass is_allowed and haven't been visited."""
     candidates = all_events() if pool is None else [
@@ -234,7 +264,9 @@ def get_allowed_events(run_state: RunState, pool: list[str] | None = None) -> li
     ]
     return [
         e for e in candidates
-        if e.event_id not in run_state.visited_event_ids and e.is_allowed(run_state)
+        if e.event_id not in run_state.visited_event_ids
+        and e.is_allowed(run_state)
+        and event_allowed_in_act(e, run_state.current_act)
     ]
 
 
@@ -256,6 +288,7 @@ def pick_event(run_state: RunState, pool: list[str] | None = None) -> EventModel
             candidate is not None
             and candidate.event_id not in run_state.visited_event_ids
             and candidate.is_allowed(run_state)
+            and event_allowed_in_act(candidate, act)
         ):
             event = candidate
             break

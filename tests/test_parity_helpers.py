@@ -52,9 +52,11 @@ from sts2_env.cards.necrobinder import (
     make_bodyguard,
     make_capture_spirit,
     make_cleanse,
+    make_defy,
     make_drain_power,
     make_dredge,
     make_dirge,
+    make_eidolon,
     make_end_of_days,
     make_grave_warden,
     make_graveblast,
@@ -1163,7 +1165,7 @@ class TestUntargetableReviveStates:
         combat.add_enemy(giant, giant_ai)
         combat.start_combat()
 
-        assert giant.max_hp == 250
+        assert giant.max_hp == 240
         giant_ai.current_move.perform(combat)
         giant_ai.on_move_performed()
         giant_ai.roll_move(combat.rng)
@@ -3332,22 +3334,22 @@ class TestStatusParity:
         assert combat.pending_choice is None
         assert target_card.is_ethereal
 
-    def test_eidolon_exhausts_hand_and_grants_intangible_when_threshold_met(self):
+    def test_eidolon_exhausts_itself_and_auto_plays_ethereal_exhaust_cards(self):
         combat = _make_combat(create_necrobinder_starter_deck(), "Necrobinder")
-        card = CardInstance(
-            card_id=CardId.EIDOLON,
-            cost=2,
-            card_type=CardType.SKILL,
-            target_type=TargetType.SELF,
-            rarity=CardRarity.RARE,
-        )
-        combat.hand = [card] + [make_strike_ironclad() for _ in range(9)]
+        card = make_eidolon()
+        ethereal_card = make_defy()
+        non_ethereal_card = make_strike_ironclad()
+        combat.exhaust_pile = [ethereal_card, non_ethereal_card]
+        combat.hand = [card]
         combat.energy = 2
 
         assert combat.play_card(0)
+        assert combat.player.block == 6
         assert len(combat.hand) == 0
-        assert len(combat.exhaust_pile) >= 9
-        assert combat.player.has_power(PowerId.INTANGIBLE)
+        assert card.exhausts
+        assert card in combat.exhaust_pile
+        assert ethereal_card not in combat.exhaust_pile
+        assert non_ethereal_card in combat.exhaust_pile
 
     def test_transfigure_grants_replay_and_increases_cost(self):
         combat = _make_combat(create_necrobinder_starter_deck(), "Necrobinder")

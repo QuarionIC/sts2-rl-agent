@@ -156,9 +156,14 @@ class Neow(EventModel):
         return False
 
     def generate_initial_options(self, run_state: RunState) -> list[EventOption]:
-        if getattr(run_state, "modifiers", []):
+        neow_modifiers = [
+            modifier
+            for modifier in getattr(run_state, "modifiers", []) or []
+            if modifier.affects_neow_choice()
+        ]
+        if neow_modifiers:
             self._modifier_options = []
-            for modifier in run_state.modifiers:
+            for modifier in neow_modifiers:
                 if not modifier.has_neow_event_option():
                     continue
                 option_id = f"modifier_{len(self._modifier_options)}"

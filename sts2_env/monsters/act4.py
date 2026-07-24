@@ -11,7 +11,7 @@ from sts2_env.core.creature import Creature
 from sts2_env.core.enums import CombatSide, MoveRepeatType, PowerId, ValueProp
 from sts2_env.core.damage import calculate_damage, apply_damage
 from sts2_env.core.rng import Rng
-from sts2_env.cards.status import make_dazed, make_wound
+from sts2_env.cards.status import make_wound
 from sts2_env.monsters.intents import (
     Intent, IntentType, attack_intent, multi_attack_intent,
     buff_intent, debuff_intent, strong_debuff_intent, status_intent,
@@ -176,7 +176,7 @@ SEAPUNK_BASE_MAX_HP = 46
 SEAPUNK_TOUGH_MIN_HP = 47
 SEAPUNK_TOUGH_MAX_HP = 49
 SEAPUNK_BASE_SEA_KICK_DAMAGE = 11
-SEAPUNK_DEADLY_SEA_KICK_DAMAGE = 12
+SEAPUNK_DEADLY_SEA_KICK_DAMAGE = 13
 SEAPUNK_SPINNING_KICK_DAMAGE = 2
 SEAPUNK_SPINNING_KICK_REPEAT = 4
 SEAPUNK_BASE_BUBBLE_BLOCK = 7
@@ -1120,8 +1120,8 @@ def create_haunted_ship(rng: Rng, ascension_level: int = 0) -> tuple[Creature, M
 
 GAS_BOMB_MONSTER_ID = "GAS_BOMB"
 GAS_BOMB_MINION_AMOUNT = 1
-GAS_BOMB_BASE_HP = 10
-GAS_BOMB_TOUGH_HP = 12
+GAS_BOMB_BASE_HP = 7
+GAS_BOMB_TOUGH_HP = 8
 GAS_BOMB_BASE_EXPLODE_DAMAGE = 8
 GAS_BOMB_DEADLY_EXPLODE_DAMAGE = 9
 GAS_BOMB_EXPLODE_MOVE = "EXPLODE_MOVE"
@@ -1647,10 +1647,10 @@ def create_two_tailed_rat(
 # ---- PhantasmalGardener (HP 28-32 / 29-33 asc) ----
 
 PHANTASMAL_GARDENER_MONSTER_ID = "PHANTASMAL_GARDENER"
-PHANTASMAL_GARDENER_BASE_MIN_HP = 28
-PHANTASMAL_GARDENER_BASE_MAX_HP = 32
-PHANTASMAL_GARDENER_TOUGH_MIN_HP = 29
-PHANTASMAL_GARDENER_TOUGH_MAX_HP = 33
+PHANTASMAL_GARDENER_BASE_MIN_HP = 26
+PHANTASMAL_GARDENER_BASE_MAX_HP = 31
+PHANTASMAL_GARDENER_TOUGH_MIN_HP = 27
+PHANTASMAL_GARDENER_TOUGH_MAX_HP = 32
 PHANTASMAL_GARDENER_BITE_DAMAGE = 5
 PHANTASMAL_GARDENER_LASH_DAMAGE = 7
 PHANTASMAL_GARDENER_FLAIL_DAMAGE = 1
@@ -1755,27 +1755,29 @@ def create_phantasmal_gardener(
 # ---- SkulkingColony (HP 79 / 84 asc) ----
 
 SKULKING_COLONY_MONSTER_ID = "SKULKING_COLONY"
-SKULKING_COLONY_BASE_HP = 79
-SKULKING_COLONY_TOUGH_HP = 84
-SKULKING_COLONY_BASE_SUPER_CRAB_DAMAGE = 6
-SKULKING_COLONY_DEADLY_SUPER_CRAB_DAMAGE = 7
-SKULKING_COLONY_SUPER_CRAB_REPEAT = 2
-SKULKING_COLONY_BASE_ZOOM_DAMAGE = 16
-SKULKING_COLONY_DEADLY_ZOOM_DAMAGE = 17
-SKULKING_COLONY_BASE_SMASH_DAMAGE = 9
-SKULKING_COLONY_DEADLY_SMASH_DAMAGE = 11
-SKULKING_COLONY_SMASH_DAZED = 4
-SKULKING_COLONY_BASE_INERTIA_BLOCK = 10
-SKULKING_COLONY_TOUGH_INERTIA_BLOCK = 13
+SKULKING_COLONY_BASE_HP = 75
+SKULKING_COLONY_TOUGH_HP = 80
+SKULKING_COLONY_BASE_INERTIA_DAMAGE = 9
+SKULKING_COLONY_DEADLY_INERTIA_DAMAGE = 11
+SKULKING_COLONY_BASE_ZOOM_DAMAGE = 14
+SKULKING_COLONY_DEADLY_ZOOM_DAMAGE = 16
+SKULKING_COLONY_BASE_PIERCING_STABS_DAMAGE = 7
+SKULKING_COLONY_DEADLY_PIERCING_STABS_DAMAGE = 8
+SKULKING_COLONY_PIERCING_STABS_REPEAT = 2
+SKULKING_COLONY_BASE_INERTIA_STRENGTH = 2
+SKULKING_COLONY_DEADLY_INERTIA_STRENGTH = 4
 SKULKING_COLONY_HARDENED_SHELL = 20
-SKULKING_COLONY_INERTIA_STRENGTH = 3
 SKULKING_COLONY_INERTIA_MOVE = "INERTIA_MOVE"
 SKULKING_COLONY_ZOOM_MOVE = "ZOOM_MOVE"
-SKULKING_COLONY_SUPER_CRAB_MOVE = "SUPER_CRAB_MOVE"
-SKULKING_COLONY_SMASH_MOVE = "SMASH_MOVE"
+SKULKING_COLONY_ZOOM_MOVE_2 = "ZOOM_MOVE_2"
+SKULKING_COLONY_PIERCING_STABS_MOVE = "PIERCING_STABS_MOVE"
 
 
 def create_skulking_colony(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterAI]:
+    """Moveset reworked in v0.109.0: ZOOM_MOVE -> ZOOM_MOVE_2 -> INERTIA_MOVE
+    (now an attack + Strength buff, no more Block) -> PIERCING_STABS_MOVE
+    (new) -> loop. SUPER_CRAB_MOVE/SMASH_MOVE (and the Dazed-on-Smash
+    effect) were removed."""
     hp = _ascension_value(
         ascension_level,
         TOUGH_ENEMIES_ASCENSION_LEVEL,
@@ -1785,14 +1787,22 @@ def create_skulking_colony(rng: Rng, ascension_level: int = 0) -> tuple[Creature
     creature = Creature(max_hp=hp, monster_id=SKULKING_COLONY_MONSTER_ID)
 
     def inertia(combat: CombatState) -> None:
-        inertia_block = _ascension_value(
+        inertia_dmg = _ascension_value(
             _combat_ascension_level(combat),
-            TOUGH_ENEMIES_ASCENSION_LEVEL,
-            SKULKING_COLONY_TOUGH_INERTIA_BLOCK,
-            SKULKING_COLONY_BASE_INERTIA_BLOCK,
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SKULKING_COLONY_DEADLY_INERTIA_DAMAGE,
+            SKULKING_COLONY_BASE_INERTIA_DAMAGE,
         )
-        _gain_block(creature, inertia_block, combat)
-        creature.apply_power(PowerId.STRENGTH, SKULKING_COLONY_INERTIA_STRENGTH, applier=creature)
+        inertia_strength = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            SKULKING_COLONY_DEADLY_INERTIA_STRENGTH,
+            SKULKING_COLONY_BASE_INERTIA_STRENGTH,
+        )
+        _deal_damage_to_player(combat, creature, inertia_dmg)
+        if combat.is_over:
+            return
+        creature.apply_power(PowerId.STRENGTH, inertia_strength, applier=creature)
 
     def zoom(combat: CombatState) -> None:
         zoom_dmg = _ascension_value(
@@ -1803,32 +1813,20 @@ def create_skulking_colony(rng: Rng, ascension_level: int = 0) -> tuple[Creature
         )
         _deal_damage_to_player(combat, creature, zoom_dmg)
 
-    def super_crab(combat: CombatState) -> None:
-        super_crab_dmg = _ascension_value(
+    def piercing_stabs(combat: CombatState) -> None:
+        piercing_stabs_dmg = _ascension_value(
             _combat_ascension_level(combat),
             DEADLY_ENEMIES_ASCENSION_LEVEL,
-            SKULKING_COLONY_DEADLY_SUPER_CRAB_DAMAGE,
-            SKULKING_COLONY_BASE_SUPER_CRAB_DAMAGE,
+            SKULKING_COLONY_DEADLY_PIERCING_STABS_DAMAGE,
+            SKULKING_COLONY_BASE_PIERCING_STABS_DAMAGE,
         )
-        _deal_damage_to_player(combat, creature, super_crab_dmg, hits=SKULKING_COLONY_SUPER_CRAB_REPEAT)
+        _deal_damage_to_player(combat, creature, piercing_stabs_dmg, hits=SKULKING_COLONY_PIERCING_STABS_REPEAT)
 
-    def smash(combat: CombatState) -> None:
-        smash_dmg = _ascension_value(
-            _combat_ascension_level(combat),
-            DEADLY_ENEMIES_ASCENSION_LEVEL,
-            SKULKING_COLONY_DEADLY_SMASH_DAMAGE,
-            SKULKING_COLONY_BASE_SMASH_DAMAGE,
-        )
-        _deal_damage_to_player(combat, creature, smash_dmg)
-        if combat.is_over:
-            return
-        add_generated_cards_to_living_player_discards(combat, make_dazed, SKULKING_COLONY_SMASH_DAZED)
-
-    super_crab_intent_damage = _ascension_value(
+    inertia_intent_damage = _ascension_value(
         ascension_level,
         DEADLY_ENEMIES_ASCENSION_LEVEL,
-        SKULKING_COLONY_DEADLY_SUPER_CRAB_DAMAGE,
-        SKULKING_COLONY_BASE_SUPER_CRAB_DAMAGE,
+        SKULKING_COLONY_DEADLY_INERTIA_DAMAGE,
+        SKULKING_COLONY_BASE_INERTIA_DAMAGE,
     )
     zoom_intent_damage = _ascension_value(
         ascension_level,
@@ -1836,41 +1834,41 @@ def create_skulking_colony(rng: Rng, ascension_level: int = 0) -> tuple[Creature
         SKULKING_COLONY_DEADLY_ZOOM_DAMAGE,
         SKULKING_COLONY_BASE_ZOOM_DAMAGE,
     )
-    smash_intent_damage = _ascension_value(
+    piercing_stabs_intent_damage = _ascension_value(
         ascension_level,
         DEADLY_ENEMIES_ASCENSION_LEVEL,
-        SKULKING_COLONY_DEADLY_SMASH_DAMAGE,
-        SKULKING_COLONY_BASE_SMASH_DAMAGE,
+        SKULKING_COLONY_DEADLY_PIERCING_STABS_DAMAGE,
+        SKULKING_COLONY_BASE_PIERCING_STABS_DAMAGE,
     )
 
     states: dict[str, MonsterState] = {
-        SKULKING_COLONY_INERTIA_MOVE: MoveState(
-            SKULKING_COLONY_INERTIA_MOVE,
-            inertia,
-            [defend_intent(), buff_intent()],
-            follow_up_id=SKULKING_COLONY_SUPER_CRAB_MOVE,
-        ),
         SKULKING_COLONY_ZOOM_MOVE: MoveState(
             SKULKING_COLONY_ZOOM_MOVE,
             zoom,
             [attack_intent(zoom_intent_damage)],
+            follow_up_id=SKULKING_COLONY_ZOOM_MOVE_2,
+        ),
+        SKULKING_COLONY_ZOOM_MOVE_2: MoveState(
+            SKULKING_COLONY_ZOOM_MOVE_2,
+            zoom,
+            [attack_intent(zoom_intent_damage)],
             follow_up_id=SKULKING_COLONY_INERTIA_MOVE,
         ),
-        SKULKING_COLONY_SUPER_CRAB_MOVE: MoveState(
-            SKULKING_COLONY_SUPER_CRAB_MOVE,
-            super_crab,
-            [multi_attack_intent(super_crab_intent_damage, SKULKING_COLONY_SUPER_CRAB_REPEAT)],
-            follow_up_id=SKULKING_COLONY_SMASH_MOVE,
+        SKULKING_COLONY_INERTIA_MOVE: MoveState(
+            SKULKING_COLONY_INERTIA_MOVE,
+            inertia,
+            [attack_intent(inertia_intent_damage), buff_intent()],
+            follow_up_id=SKULKING_COLONY_PIERCING_STABS_MOVE,
         ),
-        SKULKING_COLONY_SMASH_MOVE: MoveState(
-            SKULKING_COLONY_SMASH_MOVE,
-            smash,
-            [attack_intent(smash_intent_damage), status_intent()],
+        SKULKING_COLONY_PIERCING_STABS_MOVE: MoveState(
+            SKULKING_COLONY_PIERCING_STABS_MOVE,
+            piercing_stabs,
+            [multi_attack_intent(piercing_stabs_intent_damage, SKULKING_COLONY_PIERCING_STABS_REPEAT)],
             follow_up_id=SKULKING_COLONY_ZOOM_MOVE,
         ),
     }
     creature.apply_power(PowerId.HARDENED_SHELL, SKULKING_COLONY_HARDENED_SHELL)
-    return creature, MonsterAI(states, SKULKING_COLONY_SMASH_MOVE)
+    return creature, MonsterAI(states, SKULKING_COLONY_ZOOM_MOVE)
 
 
 # ---- TerrorEel (HP 140 / 150 asc) ----
@@ -1880,13 +1878,13 @@ TERROR_EEL_BASE_HP = 140
 TERROR_EEL_TOUGH_HP = 150
 TERROR_EEL_BASE_SHRIEK = 70
 TERROR_EEL_TOUGH_SHRIEK = 75
-TERROR_EEL_BASE_CRASH_DAMAGE = 17
-TERROR_EEL_DEADLY_CRASH_DAMAGE = 19
+TERROR_EEL_BASE_CRASH_DAMAGE = 16
+TERROR_EEL_DEADLY_CRASH_DAMAGE = 18
 TERROR_EEL_BASE_THRASH_DAMAGE = 3
 TERROR_EEL_DEADLY_THRASH_DAMAGE = 4
 TERROR_EEL_THRASH_REPEAT = 3
 TERROR_EEL_TERROR_VULNERABLE = 99
-TERROR_EEL_THRASH_VIGOR = 7
+TERROR_EEL_THRASH_VIGOR = 6
 TERROR_EEL_CRASH_MOVE = "CRASH_MOVE"
 TERROR_EEL_THRASH_MOVE = "ThrashMove"
 TERROR_EEL_STUN_MOVE = "STUN_MOVE"
@@ -1988,8 +1986,8 @@ def create_terror_eel(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Mon
 # ---- WaterfallGiant ----
 
 WATERFALL_GIANT_MONSTER_ID = "WATERFALL_GIANT"
-WATERFALL_GIANT_BASE_HP = 250
-WATERFALL_GIANT_TOUGH_HP = 260
+WATERFALL_GIANT_BASE_HP = 240
+WATERFALL_GIANT_TOUGH_HP = 250
 WATERFALL_GIANT_BASE_PRESSURIZE = 15
 WATERFALL_GIANT_DEADLY_PRESSURIZE = 20
 WATERFALL_GIANT_BASE_STOMP_DAMAGE = 15
@@ -2003,7 +2001,8 @@ WATERFALL_GIANT_BASE_PRESSURE_GUN_DAMAGE = 20
 WATERFALL_GIANT_DEADLY_PRESSURE_GUN_DAMAGE = 23
 WATERFALL_GIANT_PRESSURE_GUN_INCREASE = 5
 WATERFALL_GIANT_PRESSURE_BUILDUP = 3
-WATERFALL_GIANT_SIPHON_HEAL = 15
+WATERFALL_GIANT_BASE_SIPHON_HEAL = 10
+WATERFALL_GIANT_TOUGH_SIPHON_HEAL = 15
 WATERFALL_GIANT_CURRENT_PRESSURE_GUN_DAMAGE_KEY = "current_pressure_gun_damage"
 WATERFALL_GIANT_STEAM_ERUPTION_DAMAGE_KEY = "steam_eruption_damage"
 WATERFALL_GIANT_ABOUT_TO_BLOW_HP = 999_999_999
@@ -2071,7 +2070,13 @@ def create_waterfall_giant(rng: Rng, ascension_level: int = 0) -> tuple[Creature
         _gain_pressure(combat, WATERFALL_GIANT_PRESSURE_BUILDUP)
 
     def siphon(combat: CombatState) -> None:
-        creature.heal(WATERFALL_GIANT_SIPHON_HEAL * len(combat.combat_player_states))
+        siphon_heal = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            WATERFALL_GIANT_TOUGH_SIPHON_HEAL,
+            WATERFALL_GIANT_BASE_SIPHON_HEAL,
+        )
+        creature.heal(siphon_heal * len(combat.combat_player_states))
         _gain_pressure(combat, WATERFALL_GIANT_PRESSURE_BUILDUP)
 
     def pressure_gun(combat: CombatState) -> None:
@@ -2177,8 +2182,8 @@ SOUL_FYSH_BASE_HP = 211
 SOUL_FYSH_TOUGH_HP = 221
 SOUL_FYSH_BASE_DE_GAS_DAMAGE = 16
 SOUL_FYSH_DEADLY_DE_GAS_DAMAGE = 17
-SOUL_FYSH_BASE_SCREAM_DAMAGE = 11
-SOUL_FYSH_DEADLY_SCREAM_DAMAGE = 12
+SOUL_FYSH_BASE_SCREAM_DAMAGE = 13
+SOUL_FYSH_DEADLY_SCREAM_DAMAGE = 15
 SOUL_FYSH_BASE_GAZE_DAMAGE = 7
 SOUL_FYSH_DEADLY_GAZE_DAMAGE = 8
 SOUL_FYSH_BECKON_STATUS_COUNT = 2

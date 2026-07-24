@@ -131,14 +131,11 @@ public class RlCrystalSphereScreenHandler : IScreenHandler, IHandler
                 return CrystalSphereChoice.Wait();
             }
 
-            RunState runState = RunManager.Instance.DebugOnlyGetState();
-            string stateJson = JsonSerializer.Serialize(new Dictionary<string, object>
+            string stateJson = JsonSerializer.Serialize(RunStateBridgeFields.Apply(new Dictionary<string, object>
             {
                 ["type"] = NonCombatBridgeProtocol.CrystalSphereState,
                 ["options"] = options,
-                ["floor"] = runState.TotalFloor,
-                ["act"] = runState.CurrentActIndex + ActDisplayIndexOffset,
-            });
+            }));
             string? responseJson = await BridgeServer.Instance.SendStateAndWaitForActionAsync(
                 stateJson,
                 AgentTimeout,

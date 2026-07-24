@@ -38,6 +38,8 @@ from sts2_env.core.combat import CombatState
 
 BURN_DAMAGE = 2
 DECAY_DAMAGE = 2
+WITHER_DAMAGE = 3
+WITHER_UPGRADE_STEP = 3
 BRIGHTEST_FLAME_MAX_HP = 1
 GUILTY_MAX_COMBATS = 5
 SOVEREIGN_BLADE_BASE_DAMAGE = 10
@@ -187,6 +189,21 @@ def make_void() -> CardInstance:
         keywords=frozenset({"unplayable", "ethereal"}),
         effect_vars={"energy": 1}, instance_id=_get_next_id(),
     )
+
+
+def make_wither(fake_upgrade_level: int = 0) -> CardInstance:
+    """Matches Wither.cs. ``fake_upgrade_level`` mirrors Aeonglass's
+    ``WitherUpgradeCount`` — each level adds WITHER_UPGRADE_STEP damage,
+    matching card.FakeUpgrade()."""
+    card = CardInstance(
+        card_id=CardId.WITHER, cost=-1, card_type=CardType.STATUS,
+        target_type=TargetType.NONE, rarity=CardRarity.STATUS,
+        keywords=frozenset({"unplayable"}),
+        effect_vars={"damage": WITHER_DAMAGE + WITHER_UPGRADE_STEP * fake_upgrade_level},
+        instance_id=_get_next_id(),
+    )
+    card.has_turn_end_in_hand_effect = True
+    return card
 
 
 @register_effect(CardId.BECKON)
@@ -424,6 +441,24 @@ def make_writhe() -> CardInstance:
         card_id=CardId.WRITHE, cost=-1, card_type=CardType.CURSE,
         target_type=TargetType.NONE, rarity=CardRarity.CURSE,
         keywords=frozenset({"innate", "unplayable"}),
+        instance_id=_get_next_id(),
+    )
+
+
+# ── "Acts from the Past" mod: Necronomicurse ──────────────────────────────
+# Decompiled reference: ActsFromThePast.Cards.Necronomicurse.
+# CanonicalKeywords = [Unplayable, Eternal]; MaxUpgradeLevel = 0 (no upgraded
+# arg, matching other non-upgradeable curses like make_ascenders_bane()).
+# AfterCardExhausted redirects itself into Hand (PileType.Hand, not Draw --
+# verified against the mod's decompiled IL) instead of staying in Exhaust;
+# see the `returns_to_hand_on_exhaust` keyword handling in core/combat.py.
+# Transform-immunity (always transforms back into itself) is handled in
+# cards/factory.py:create_transform_card.
+def make_necronomicurse() -> CardInstance:
+    return CardInstance(
+        card_id=CardId.NECRONOMICURSE, cost=-1, card_type=CardType.CURSE,
+        target_type=TargetType.NONE, rarity=CardRarity.CURSE,
+        keywords=frozenset({"eternal", "unplayable", "returns_to_hand_on_exhaust"}),
         instance_id=_get_next_id(),
     )
 
@@ -1382,6 +1417,20 @@ def burn_turn_end_in_hand(card: CardInstance, combat: CombatState, cards_in_hand
     _deal_self_damage(card, combat, card.effect_vars.get("damage", BURN_DAMAGE))
 
 
+@register_effect(CardId.WITHER)
+def wither_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
+    """Unplayable. End-of-turn: deals damage to the player (unpowered).
+    Damage escalates via Aeonglass's WitheringPresence/IncreasingIntensity
+    fake-upgrade mechanic (see effect_vars["damage"]).
+    Triggered by combat end-of-turn hook, not this function."""
+    pass
+
+
+@register_turn_end_in_hand_hook(CardId.WITHER)
+def wither_turn_end_in_hand(card: CardInstance, combat: CombatState, cards_in_hand_at_turn_end: int) -> None:
+    _deal_self_damage(card, combat, card.effect_vars.get("damage", WITHER_DAMAGE))
+
+
 @register_effect(CardId.DAZED)
 def dazed_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     """Unplayable, Ethereal. Pure dead-weight status card."""
@@ -1551,6 +1600,19 @@ def waste_away_chosen(card: CardInstance, combat: CombatState) -> None:
 #   NORMALITY, PAIN, PARASITE, POOR_SLEEP, REGRET, SHAME, SPORE_MIND,
 #   WRITHE
 # ---------------------------------------------------------------------------
+
+# "Acts from the Past" mod Parasite (ActsFromThePast.Cards/Parasite.cs):
+# BeforeCardRemoved -- when this exact card is removed from the deck, its
+# owner loses 3 Max HP. Fired from the deck-removal paths
+# (RunState.remove_cards_from_deck and events/shared._remove_selected_cards).
+PARASITE_REMOVAL_MAX_HP_LOSS = 3
+
+
+def handle_cards_removed_from_deck(player, removed_cards) -> None:
+    """Before-card-removed hooks for cards leaving the deck permanently."""
+    for card in removed_cards:
+        if card.card_id == CardId.PARASITE:
+            player.lose_max_hp(PARASITE_REMOVAL_MAX_HP_LOSS)
 
 @register_effect(CardId.ASCENDERS_BANE)
 def ascenders_bane_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
@@ -1865,3 +1927,111 @@ def spoils_map_quest_complete(card: CardInstance, run_state) -> int:
             if point is not None:
                 point.remove_quest(card)
     return gold
+
+
+# ===========================================================================
+# "Acts from the Past" mod -- TheCity legacy-act event cards
+# ===========================================================================
+# Decompiled references: decompiled_mods/ActsFromThePast/ActsFromThePast.Cards/
+# {Jax,Bite,RitualDagger}.cs. All three are [Pool(EventCardPool)] cards
+# (C# CardRarity 6 == Event) granted only by TheCity events (Augmenter,
+# Vampires, TheNest) -- never generated in combat or by modifiers.
+
+JAX_HP_LOSS = 3
+JAX_BASE_STRENGTH = 2
+BITE_BASE_DAMAGE = 7
+BITE_BASE_HEAL = 2
+RITUAL_DAGGER_BASE_DAMAGE = 15
+RITUAL_DAGGER_BASE_INCREASE = 3
+RITUAL_DAGGER_UPGRADE_INCREASE_STEP = 2
+
+
+# --- Jax ---
+# 0-cost Skill: lose 3 HP, gain 2 Strength (upgrade: +1 Strength).
+@register_effect(CardId.JAX)
+def jax_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
+    owner = _owner(card, combat)
+    hp_loss = card.effect_vars.get("hp_loss", JAX_HP_LOSS)
+    apply_damage(
+        owner, hp_loss,
+        ValueProp.UNBLOCKABLE | ValueProp.UNPOWERED | ValueProp.MOVE,
+        combat, owner,
+    )
+    combat._check_combat_end()  # noqa: SLF001
+    if combat.is_over:
+        return
+    combat.apply_power_to(owner, PowerId.STRENGTH, card.effect_vars.get("strength", JAX_BASE_STRENGTH))
+
+
+def make_jax(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.JAX, cost=0, card_type=CardType.SKILL,
+        target_type=TargetType.SELF, rarity=CardRarity.EVENT,
+        upgraded=upgraded,
+        effect_vars={
+            "hp_loss": JAX_HP_LOSS,
+            "strength": JAX_BASE_STRENGTH + (1 if upgraded else 0),
+        },
+        instance_id=_get_next_id(),
+    )
+
+
+# --- Bite ---
+# 1-cost Attack: deal 7 damage, heal 2 HP (upgrade: +1 damage, +1 heal).
+# C# CanBeGeneratedInCombat => false.
+@register_effect(CardId.BITE)
+def bite_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
+    assert target is not None
+    owner = _owner(card, combat)
+    _deal_damage_single(card, combat, target)
+    owner.heal(card.effect_vars.get("heal", BITE_BASE_HEAL))
+
+
+def make_bite(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.BITE, cost=1, card_type=CardType.ATTACK,
+        target_type=TargetType.ANY_ENEMY, rarity=CardRarity.EVENT,
+        base_damage=BITE_BASE_DAMAGE + (1 if upgraded else 0),
+        upgraded=upgraded,
+        can_be_generated_in_combat=False,
+        effect_vars={
+            "damage": BITE_BASE_DAMAGE + (1 if upgraded else 0),
+            "heal": BITE_BASE_HEAL + (1 if upgraded else 0),
+        },
+        instance_id=_get_next_id(),
+    )
+
+
+# --- RitualDagger ---
+# 1-cost Attack, Exhaust: deal 15 damage. If this kills a (fatal-eligible)
+# enemy, permanently increase this card's damage by 3 (upgrade: by 5 --
+# OnUpgrade does Increase.UpgradeValueBy(2)). The C# buffs both the in-combat
+# copy and its DeckVersion; this simulator plays the deck instance directly
+# in combat, so buffing the played card IS the permanent deck buff.
+# register_self_mutating_damage keeps the accumulated bonus across upgrades
+# (combat.upgrade_card / PlayerState.upgrade_card_instance capture+restore).
+@register_effect(CardId.RITUAL_DAGGER)
+def ritual_dagger_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
+    assert target is not None
+    should_trigger_fatal = combat.should_owner_death_trigger_fatal(target)
+    _deal_damage_single(card, combat, target)
+    if should_trigger_fatal and target.is_dead:
+        increase_base_damage(card, card.effect_vars.get("increase", RITUAL_DAGGER_BASE_INCREASE))
+
+
+register_self_mutating_damage(CardId.RITUAL_DAGGER)
+
+
+def make_ritual_dagger(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.RITUAL_DAGGER, cost=1, card_type=CardType.ATTACK,
+        target_type=TargetType.ANY_ENEMY, rarity=CardRarity.EVENT,
+        base_damage=RITUAL_DAGGER_BASE_DAMAGE,
+        upgraded=upgraded,
+        keywords=frozenset({"exhaust"}),
+        effect_vars={
+            "damage": RITUAL_DAGGER_BASE_DAMAGE,
+            "increase": RITUAL_DAGGER_BASE_INCREASE + (RITUAL_DAGGER_UPGRADE_INCREASE_STEP if upgraded else 0),
+        },
+        instance_id=_get_next_id(),
+    )

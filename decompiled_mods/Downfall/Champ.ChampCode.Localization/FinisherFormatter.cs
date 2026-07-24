@@ -1,0 +1,27 @@
+using System;
+using SmartFormat.Core.Extensions;
+
+namespace Champ.ChampCode.Localization;
+
+public class FinisherFormatter : IFormatter
+{
+	public string Name
+	{
+		get
+		{
+			return "finisher";
+		}
+		set
+		{
+			throw new Exception();
+		}
+	}
+
+	public bool CanAutoDetect { get; set; }
+
+	public bool TryEvaluateFormat(IFormattingInfo formattingInfo)
+	{
+		formattingInfo.Write("[img]res://Champ/images/ui/finisher.png[/img]");
+		return true;
+	}
+}

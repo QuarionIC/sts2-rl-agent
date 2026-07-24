@@ -155,6 +155,12 @@ public static class WaitSpeedPatch
 }
 
 /// <summary>Patch MegaAnimationState.SetTimeScale to speed up Spine animations.</summary>
+/// <remarks>
+/// v0.109.0 signature: <c>public void SetTimeScale(float scale)</c>. Harmony binds
+/// injected prefix parameters by NAME, so the parameter here must be named
+/// <c>scale</c> (it was <c>timeScale</c> in an older game version, which made
+/// the patch fail to apply).
+/// </remarks>
 [HarmonyPatch(typeof(MegaCrit.Sts2.Core.Bindings.MegaSpine.MegaAnimationState),
     nameof(MegaCrit.Sts2.Core.Bindings.MegaSpine.MegaAnimationState.SetTimeScale))]
 public static class AnimationSpeedPatch
@@ -162,9 +168,9 @@ public static class AnimationSpeedPatch
     public static float AnimMultiplier = 5.0f;
 
     [HarmonyPrefix]
-    static void Prefix(ref float timeScale)
+    static void Prefix(ref float scale)
     {
-        timeScale *= AnimMultiplier;
+        scale *= AnimMultiplier;
     }
 }
 

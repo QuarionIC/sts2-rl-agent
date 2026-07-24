@@ -124,14 +124,11 @@ public class RlRewardsScreenHandler : IScreenHandler, IHandler
                 });
             }
 
-            RunState runState = RunManager.Instance.DebugOnlyGetState();
-            string stateJson = JsonSerializer.Serialize(new Dictionary<string, object>
+            string stateJson = JsonSerializer.Serialize(RunStateBridgeFields.Apply(new Dictionary<string, object>
             {
                 ["type"] = NonCombatBridgeProtocol.RewardScreenState,
                 ["options"] = options,
-                ["floor"] = runState.TotalFloor,
-                ["act"] = runState.CurrentActIndex + ActDisplayIndexOffset,
-            });
+            }));
             string? responseJson = await BridgeServer.Instance.SendStateAndWaitForActionAsync(
                 stateJson,
                 AgentTimeout,

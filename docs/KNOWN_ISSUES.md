@@ -54,35 +54,45 @@ _UNTARGETED_TYPES = {TargetTypeName.SELF, TargetTypeName.NONE, TargetTypeName.AL
 
 **Location:** `sts2_env/bridge/state_adapter.py` lines 69-71
 
+### 5. Full-run models only used the trained policy for combat
+
+**Status:** Fixed
+
+**Problem:** `agent_runner.py`'s docstring and `AGENT_USAGE_GUIDE.md` claimed that loading a full-run model would "handle all phases via the trained policy," but `run_agent()` unconditionally used hardcoded heuristics (`_pick_map_node`, `_pick_card_reward_index`, `_pick_rest_option`, `_pick_shop_option`, `_pick_event_option`, `_pick_treasure_option`, `_pick_boss_relic_option`) for every non-combat phase regardless of which model was loaded. A full-run `MaskablePPO` model's policy for map routing, card rewards, shop, rest, events, treasure, and boss relics was never actually consulted.
+
+**Fix:** Added `sts2_env/bridge/run_state_adapter.py`'s `RunStateAdapter`, which encodes/decodes to and from exactly the same unified `Discrete(157)` action space and 151-dim observation space `STS2RunEnv` (`gym_env/run_env.py`) trains against — reusing `StateAdapter` for the combat slice rather than duplicating it. `agent_runner.py` now calls `detect_model_mode()` at load time (comparing `action_space.n`/`observation_space.shape[0]` against the full-run vs. combat-only sizes) and routes every phase through `RunStateAdapter` + `model.predict()` when a full-run model is loaded, logging which mode was detected. The heuristic functions are unchanged and still used for combat-only models.
+
+Also fixed a real bridge-JSON ordering bug found while auditing this: `RlMapHandler.cs`'s non-first-move branch re-derived the reachable-node list by rescanning `allPoints` filtered by coordinate membership, which reflects scene/visual (row, col) order rather than `MapPoint.Children`'s own insertion order (path generation can add children out of column order). Since `run_env.py`'s `_step_map_choice` indexes into `RunManager.get_available_actions()` — which iterates `MapPoint.Children` directly — this could feed a full-run policy a differently-ordered node list than it was trained against. Fixed to build the list from `lastNode.Point.Children` directly.
+
+Several other bridge-protocol gaps were found but deliberately left unfixed / flagged rather than papered over — see issue #16 below.
+
+**Location:** `sts2_env/bridge/run_state_adapter.py` (new), `sts2_env/bridge/agent_runner.py` (`detect_model_mode`, full-run dispatch branch in `run_agent()`), `bridge_mod/RlMapHandler.cs` (children-order fix)
+
+### 6. AnimationSpeedPatch fails to apply
+
+**Status:** Fixed (verified against decompiled v0.109.0)
+
+**Problem:** The Harmony patch targeting `MegaAnimationState.SetTimeScale` failed to apply because the game renamed the method's parameter from `timeScale` to `scale` (v0.109.0 signature: `public void SetTimeScale(float scale)`). Harmony binds injected prefix parameters **by name**, so the prefix's `ref float timeScale` no longer matched and the patch was skipped at apply time.
+
+**Fix:** Renamed the prefix parameter to `ref float scale` to match the current game signature (`decompiled_v0.109.0/MegaCrit.Sts2.Core.Bindings.MegaSpine/MegaAnimationState.cs` line 105).
+
+**Location:** `bridge_mod/MainFile.cs` `AnimationSpeedPatch` class
+
+### 7. Mod abandon-run popup path may not match all versions
+
+**Status:** Verified correct for v0.109.0
+
+**Problem:** The Godot scene tree paths used to find the abandon-run confirmation popup (`VerticalPopup/YesButton`) were unverified and might not have matched all game versions.
+
+**Verification (v0.109.0):** Confirmed against decompiled source: the main menu's `AbandonRunButton` (at `MainMenuTextButtons/AbandonRunButton`) opens `NAbandonRunConfirmPopup` via `NModalContainer.Instance.Add(...)` (tracked by `NModalContainer.OpenModal`), and that popup gets its `NVerticalPopup` child via `GetNode("VerticalPopup")`, which in turn gets its yes button via `GetNode<NPopupYesNoButton>("YesButton")` (`NPopupYesNoButton : NButton`). So the mod's `VerticalPopup/YesButton` lookup is exactly right for this version. Runtime behavior still unverified (no live game in the dev environment); re-check on future game updates.
+
+**Location:** `bridge_mod/RlAutoSlayer.cs` `PlayMainMenuAsync()`; ground truth in `decompiled_v0.109.0/MegaCrit.Sts2.Core.Nodes.CommonUi/NAbandonRunConfirmPopup.cs` and `NVerticalPopup.cs`
+
 ---
 
 ## Open Issues
 
-### 5. AnimationSpeedPatch fails to apply
-
-**Severity:** Low (affects real-game speed only)
-
-**Problem:** The Harmony patch targeting `MegaAnimationState.SetTimeScale` fails on some game versions because the method signature changed between updates. The patch is skipped with a log message.
-
-**Impact:** The game runs at normal animation speed instead of 5x. The `WaitSpeedPatch` (which reduces timed delays by 10x) still applies successfully, providing some speedup.
-
-**Workaround:** None currently. The animation patch needs to be updated when the game's `MegaAnimationState` API changes.
-
-**Location:** `bridge_mod/MainFile.cs` `AnimationSpeedPatch` class
-
-### 6. Mod abandon-run popup path may not match all versions
-
-**Severity:** Low
-
-**Problem:** The Godot scene tree paths used to find the abandon-run confirmation popup (`VerticalPopup/YesButton`) may not match all game versions. If the path is wrong, the mod cannot automatically abandon an existing run before starting a new one.
-
-**Impact:** If there is already a run in progress when the mod starts, it may fail to abandon it cleanly.
-
-**Workaround:** Manually abandon the run from the main menu before starting the agent.
-
-**Location:** `bridge_mod/RlAutoSlayer.cs` `PlayMainMenuAsync()` lines 455-472
-
-### 7. Full-run training needs significantly more steps and better reward shaping
+### 8. Full-run training needs significantly more steps and better reward shaping
 
 **Severity:** High (fundamental training challenge)
 
@@ -96,7 +106,7 @@ _UNTARGETED_TYPES = {TargetTypeName.SELF, TargetTypeName.NONE, TargetTypeName.AL
 
 **Mitigation:** Reward shaping is available (`--reward-shaping` flag) but only provides small floor-progression bonuses. A fundamental redesign of the reward function or training approach (hierarchical RL, curriculum learning) is needed.
 
-### 8. Only Ironclad combat model trained
+### 9. Only Ironclad combat model trained
 
 **Severity:** Medium
 
@@ -109,7 +119,7 @@ _UNTARGETED_TYPES = {TargetTypeName.SELF, TargetTypeName.NONE, TargetTypeName.AL
 
 **Workaround:** The simulator supports all 5 characters (cards, powers, monsters are all implemented). Training scripts need to be extended to support character selection.
 
-### 9. Combat potion actions were missing from the RL action space
+### 10. Combat potion actions were missing from the RL action space
 
 **Status:** Fixed
 
@@ -119,7 +129,7 @@ _UNTARGETED_TYPES = {TargetTypeName.SELF, TargetTypeName.NONE, TargetTypeName.AL
 
 **Location:** `sts2_env/core/constants.py`, `sts2_env/core/combat.py`, `sts2_env/gym_env/action_space.py`, `sts2_env/gym_env/combat_env.py`, `sts2_env/bridge/state_adapter.py`, `bridge_mod/RlCombatHandler.cs`
 
-### 10. Some card effects may not match the real game exactly
+### 11. Some card effects may not match the real game exactly
 
 **Severity:** Medium (simulator fidelity)
 
@@ -132,7 +142,7 @@ _UNTARGETED_TYPES = {TargetTypeName.SELF, TargetTypeName.NONE, TargetTypeName.AL
 
 **Impact:** The trained model may develop strategies that exploit simulator inaccuracies and fail to transfer to the real game. The bridge mod's real-game evaluation is the ground truth.
 
-### 11. Reconnection timing issues
+### 12. Reconnection timing issues
 
 **Severity:** Low
 
@@ -142,7 +152,7 @@ _UNTARGETED_TYPES = {TargetTypeName.SELF, TargetTypeName.NONE, TargetTypeName.AL
 
 **Location:** `sts2_env/bridge/agent_runner.py` lines 288-309
 
-### 12. `inspect.signature` on hot path
+### 13. `inspect.signature` on hot path
 
 **Status:** Fixed
 
@@ -154,7 +164,7 @@ _UNTARGETED_TYPES = {TargetTypeName.SELF, TargetTypeName.NONE, TargetTypeName.AL
 
 **Location:** `sts2_env/core/hooks.py`
 
-### 13. `run_env` exception handling used to hide simulation bugs
+### 14. `run_env` exception handling used to hide simulation bugs
 
 **Status:** Fixed
 
@@ -174,7 +184,7 @@ except Exception:
 
 **Location:** `sts2_env/gym_env/run_env.py`
 
-### 14. Pile-summary distribution shift between simulator and bridge
+### 15. Pile-summary distribution shift between simulator and bridge
 
 **Status:** Fixed
 
@@ -183,3 +193,20 @@ except Exception:
 **Fix:** The simulator now keeps those three pile-composition slots zeroed as well, so simulator and bridge observations match on that segment without changing observation size.
 
 **Location:** `sts2_env/gym_env/observation.py`, `sts2_env/bridge/state_adapter.py`
+
+### 16. Full-run bridge adapter: unresolved ordering/coverage gaps vs. `RunManager`
+
+**Severity:** Medium — affects full-run model quality against the real game only (no live game available to verify against in this environment)
+
+**Problem:** `RunStateAdapter` (see issue #5) assumes the bridge JSON's option lists are positionally aligned with what `RunManager.get_available_actions()` would produce for the same phase. This was verified where possible by reading the C# handlers in `bridge_mod/`, but several gaps remain that could not be fixed or fully verified without a live game to test against:
+
+- **Run-level observation fields are mostly unavailable on the wire.** *Fixed on the C# side (2026-07-23):* every bridge payload (combat, map, rewards, card reward/select/bundle, rest, shop, event, treasure, boss relic, crystal sphere, game over, run complete) now carries `act`, `act_index`, `floor`, `act_floor`, `gold`, `deck_size`, `relic_count`, `relics` (id list), `num_potions`, `max_potion_slots`, `potions` (id list, non-combat only -- combat keeps its richer list), `ascension_level`, `room_type`, `is_elite`, `is_boss`, plus top-level `hp`/`max_hp` ints, via the shared `RunStateBridgeFields.Apply()` helper in `bridge_mod/RlNonCombatRoomHandlers.cs`. The field names match exactly what `RunStateAdapter` already reads, so no Python change is needed for gold/deck/relic/potion/ascension/act-floor/elite/boss dims. **Remaining gap:** the run-level HP-ratio dim still falls back to 1.0 at non-combat phases because `_hp_ratio()` in `run_state_adapter.py` only reads a `player` dict -- and the bridge deliberately must NOT add a top-level `player` key to non-combat payloads (the combat `StateAdapter` treats any state with a `player` key as a combat observation, while full-run training zeroes the combat block at non-combat phases). A small Python-side change to make `_hp_ratio()` also read the now-present top-level `hp`/`max_hp` ints would close this without another mod rebuild.
+- **Shop ordering is unverified.** `RunManager._actions_shop()` orders buyable items as colored cards, then colorless cards, then relics, then potions, then a "sell Foul Potion" action, then card removal. `RlShopRoomHandler.cs` instead orders by `NMerchantSlot` type via `room.Inventory.GetAllSlots()`, whose internal ordering is defined in the compiled game (not available in this repo) and could not be confirmed to match. The "sell Foul Potion" action in particular has **no bridge-JSON representation at all** in `RlShopRoomHandler.cs` — a full-run policy can never actually take that action against the real game.
+- **Card bundles, `card_select` prompts, and the Crystal Sphere minigame have no representation in `run_env.py`'s action space** (its own mask/step logic never looks for `pick_card_bundle` or per-cell actions), so the trained policy never learned meaningful behavior for them. `RunStateAdapter` always takes a fixed, deterministic fallback action in these cases rather than inventing policy-driven behavior.
+- **The aggregate post-combat "reward screen"** (`reward_screen`, `RlRewardsScreenHandler.cs`) offers card/potion/relic/gold rewards together with a proceed button, which does not correspond 1:1 to `run_env.py`'s single-reward-at-a-time `CARD_REWARD` semantics. It is mapped heuristically (first pickable reward vs. proceed).
+- **Combat pending-choice prompts and multi-creature `select_player` are not exposed by `RlCombatHandler.cs` at all** — it only ever reports a single controllable creature and has no JSON representation of mid-combat card-selection choices (e.g. Exhume/Warcry). `run_env.py`'s `player_select` action slice (150-156) is therefore always left fully masked out by the bridge adapter. **Resolved as a non-issue for solo play (2026-07-23, verified against decompiled v0.109.0):** the Python simulator only emits `select_player` actions when more than one *player* creature is controllable (`run_manager.py` filters on `is_player`), which only happens in multiplayer co-op. Necrobinder's Osty pet is not a player creature in the real game either — it is summoned as an ally via `OstyCmd.Summon`/`PlayerCmd.AddPet<Osty>` into `combatState.Allies` with the `Osty` *monster* model, whose move state machine is a single self-looping `"NOTHING_MOVE"` that does nothing (`decompiled_v0.109.0/MegaCrit.Sts2.Core.Models.Monsters/Osty.cs`). Osty only ever acts through the owner's card/relic effects; the player never selects an acting creature in solo play, so the bridge never needs to expose this slice for the solo Necrobinder use case.
+- **Boss relic ordering** is assumed to match via shared RNG-algorithm parity (this repo's RNG is built to match the decompiled game bit-for-bit) but was not independently re-verified here.
+
+**Fix:** One concrete, provable ordering bug was fixed (see issue #5, the `RlMapHandler.cs` children-order fix). The rest are documented here rather than silently shipped as "probably fine," per design — see `sts2_env/bridge/run_state_adapter.py`'s module docstring for the same list inline with the code.
+
+**Location:** `sts2_env/bridge/run_state_adapter.py`, `bridge_mod/RlShopRoomHandler` (in `RlNonCombatRoomHandlers.cs`), `bridge_mod/RlCombatHandler.cs`, `bridge_mod/RlRewardsScreenHandler.cs`

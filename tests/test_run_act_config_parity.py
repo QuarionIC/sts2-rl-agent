@@ -22,7 +22,10 @@ def test_initialize_run_generates_shuffled_act_event_rooms_like_csharp_runmanage
     generated_event_ids = [event_id for act in run_state.acts for event_id in act.event_ids]
     assert sorted(generated_event_ids) == sorted(static_event_ids)
     assert generated_event_ids != static_event_ids
-    assert run_state.rng.up_front.counter == len(static_event_ids) - len(run_state.acts)
+    # Fisher-Yates shuffle of N elements consumes N-1 RNG draws (0 for N<=1,
+    # e.g. the Act4Heart mod's Act 4 which has no events at all).
+    expected_counter = sum(max(0, len(act.event_ids) - 1) for act in ALL_ACTS)
+    assert run_state.rng.up_front.counter == expected_counter
 
 
 def test_initialize_run_does_not_regenerate_event_rooms_after_first_initialization():

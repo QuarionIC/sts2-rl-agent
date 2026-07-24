@@ -205,17 +205,48 @@ python -m sts2_env.bridge.agent_runner \
 
 ### How the Agent Handles Different Phases
 
+`agent_runner.py` auto-detects which kind of model was loaded from its
+`action_space`/`observation_space` shape (see `detect_model_mode()`) and logs
+the detected mode at startup. The two modes behave very differently:
+
+**Combat-only model** (`Discrete(115)`, obs size 131 — e.g.
+`output/combat_ppo/best_model/best_model.zip`):
+
 | Phase | Strategy | Source |
 |-------|----------|--------|
 | Combat | Trained MaskablePPO model | Model prediction |
-| Map navigation | Prefer elites when healthy; prefer rest/shop/treasure when low on HP | Heuristic (TODO: train) |
-| Card rewards | Prefer powers, then attacks, then skills; skip if deck > 30 | Heuristic (TODO: train) |
-| Rest sites | Rest if HP < 50%, otherwise upgrade | Heuristic (TODO: train) |
-| Shop | Buy enabled relic/card/potion options before leaving | Heuristic (TODO: train) |
-| Events | Pick the first enabled event option | Heuristic (TODO: train) |
-| Treasure / Boss relics | Pick the bridge option matching collect / pick relic | Heuristic (TODO: train) |
+| Map navigation | Prefer elites when healthy; prefer rest/shop/treasure when low on HP | Heuristic |
+| Card rewards | Prefer powers, then attacks, then skills; skip if deck > 30 | Heuristic |
+| Rest sites | Rest if HP < 50%, otherwise upgrade | Heuristic |
+| Shop | Buy enabled relic/card/potion options before leaving | Heuristic |
+| Events | Pick the first enabled event option | Heuristic |
+| Treasure / Boss relics | Pick the bridge option matching collect / pick relic | Heuristic |
 
-For a fully trained agent, use the full-run model instead of the combat-only model. The full-run model handles all phases via the trained policy.
+**Full-run model** (`Discrete(157)`, obs size 151 — trained via
+`scripts/train_full_run.py` against `STS2RunEnv`):
+
+| Phase | Strategy | Source |
+|-------|----------|--------|
+| Combat | Trained MaskablePPO policy | Model prediction |
+| Map navigation | Trained MaskablePPO policy | Model prediction |
+| Card rewards | Trained MaskablePPO policy | Model prediction |
+| Rest sites | Trained MaskablePPO policy | Model prediction |
+| Shop | Trained MaskablePPO policy | Model prediction |
+| Events | Trained MaskablePPO policy | Model prediction |
+| Treasure / Boss relics | Trained MaskablePPO policy | Model prediction |
+
+Every decision — combat, map routing, card pickups, shop, rest, events,
+treasure, and boss relics — is routed through
+`sts2_env.bridge.run_state_adapter.RunStateAdapter`, which encodes/decodes
+to and from exactly the same unified `Discrete(157)` action space and
+151-dim observation space that `STS2RunEnv` trains against. The heuristic
+functions above are not used at all when a full-run model is loaded.
+
+A few bridge-protocol corners have no clean equivalent in `STS2RunEnv`'s
+action space (card bundles, the Crystal Sphere minigame, and multi-creature
+player selection) and fall back to a small, fixed, model-independent
+default rather than invented behavior — see the module docstring in
+`run_state_adapter.py` for the full list of known gaps.
 
 ---
 
@@ -279,7 +310,16 @@ The headless simulator closely mirrors the decompiled game logic, but some edge 
 
 ### Non-Combat Phases
 
-The combat model only handles combat. Non-combat decisions (map, rewards, etc.) use simple heuristics. For better non-combat play, train a full-run agent.
+A combat-only model only handles combat; non-combat decisions (map, rewards,
+etc.) use simple heuristics in that mode. Loading a full-run model instead
+routes every phase through the trained policy (see
+[Section 4](#how-the-agent-handles-different-phases)) — some bridge-protocol
+corners (card bundles, the Crystal Sphere minigame, multi-creature player
+selection, and several run-level observation fields such as gold, deck size,
+relic count, and ascension level) are not yet fully exposed by the current
+bridge JSON, so those specific decisions still fall back to a small, fixed
+default. See `sts2_env/bridge/run_state_adapter.py`'s module docstring for
+the exact list.
 
 ### Characters
 

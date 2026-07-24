@@ -52,15 +52,15 @@ def _make_combat() -> CombatState:
 
 
 class TestNecrobinderParity:
-    def test_borrowed_time_applies_doom_and_gains_energy(self):
-        """Matches BorrowedTime.cs: apply Doom to the owner, then gain energy immediately."""
+    def test_borrowed_time_gains_energy_and_applies_borrowed_time_power(self):
+        """Matches BorrowedTime.cs: gain energy, then apply BorrowedTimePower to the owner."""
         combat = _make_combat()
         combat.hand = [create_card(CardId.BORROWED_TIME)]
-        combat.energy = 0
+        combat.energy = 1
 
         assert combat.play_card(0)
-        assert combat.player.get_power_amount(PowerId.DOOM) == 3
-        assert combat.energy == 1
+        assert combat.energy == 4
+        assert combat.player.get_power_amount(PowerId.BORROWED_TIME) == 1
 
     def test_countdown_card_applies_countdown_power(self):
         """Matches Countdown.cs: apply CountdownPower to the owner."""
@@ -78,7 +78,7 @@ class TestNecrobinderParity:
         combat.energy = 1
 
         assert combat.play_card(0)
-        assert combat.player.get_power_amount(PowerId.DANSE_MACABRE) == 3
+        assert combat.player.get_power_amount(PowerId.DANSE_MACABRE) == 4
 
     def test_death_march_scales_with_non_opening_draws_this_turn(self):
         """Matches DeathMarch.cs: damage = base + extra * non-opening draws this turn."""
@@ -91,7 +91,7 @@ class TestNecrobinderParity:
         combat.draw_cards(combat.player, 2)
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == starting_hp - 14
+        assert enemy.current_hp == starting_hp - 16
 
     def test_capture_spirit_deals_unblockable_damage_and_adds_souls_to_draw(self):
         """Matches CaptureSpirit.cs: unblockable damage plus generated Souls to draw pile."""
@@ -374,16 +374,25 @@ class TestNecrobinderParity:
         souls = [card for card in combat.draw_pile if card.card_id == CardId.SOUL]
         assert len(souls) == 2
 
-    def test_eidolon_exhausts_hand_and_grants_intangible_at_threshold(self):
-        """Matches Eidolon.cs: exhaust the hand, then grant Intangible if 9+ cards were exhausted."""
+    def test_eidolon_exhausts_itself_and_auto_plays_ethereal_exhaust_cards(self):
+        """Matches Eidolon.cs: card Exhausts itself, then auto-plays Ethereal cards in exhaust."""
+        from sts2_env.cards.necrobinder import make_defy
+
         combat = _make_combat()
-        combat.hand = [make_eidolon()] + [make_strike_ironclad() for _ in range(9)]
+        eidolon_card = make_eidolon()
+        ethereal_card = make_defy()
+        non_ethereal_card = make_strike_ironclad()
+        combat.exhaust_pile = [ethereal_card, non_ethereal_card]
+        combat.hand = [eidolon_card]
         combat.energy = 2
 
         assert combat.play_card(0)
-        assert len(combat.hand) == 0
-        assert len(combat.exhaust_pile) >= 9
-        assert combat.player.get_power_amount(PowerId.INTANGIBLE) == 1
+        assert combat.player.block == 6
+        assert combat.hand == []
+        assert eidolon_card.exhausts
+        assert eidolon_card in combat.exhaust_pile
+        assert ethereal_card not in combat.exhaust_pile
+        assert non_ethereal_card in combat.exhaust_pile
 
     def test_protector_scales_damage_with_owner_osty_max_hp(self):
         """Matches Protector.cs: damage is based on the owner's live Osty max HP."""
@@ -453,12 +462,13 @@ class TestNecrobinderParity:
         assert enemy.current_hp == starting_hp - 11
         assert enemy.get_power_amount(PowerId.VULNERABLE) == 2
 
-    def test_seance_sorts_draw_pile_and_transforms_selected_card_into_upgraded_soul(self):
-        """Matches Seance.cs: sorted simple-grid selection, then transform chosen card into Soul."""
+    def test_seance_sorts_draw_pile_and_transforms_selected_card_into_soul(self):
+        """Matches Seance.cs: sorted simple-grid selection, transform into a (never upgraded) Soul."""
         combat = _make_combat()
         source = make_strike_ironclad()
         other = make_undeath()
         seance = make_seance(upgraded=True)
+        assert seance.cost == 0
         combat.hand = [seance]
         combat.draw_pile = [other, source]
         combat.energy = 0
@@ -472,18 +482,20 @@ class TestNecrobinderParity:
         assert combat.pending_choice is None
         transformed = expected[0]
         assert transformed not in combat.draw_pile
-        assert any(card.card_id == make_soul(upgraded=True).card_id and card.upgraded for card in combat.draw_pile)
+        assert any(
+            card.card_id == make_soul().card_id and not card.upgraded for card in combat.draw_pile
+        )
 
-    def test_borrowed_time_applies_doom_and_gains_energy(self):
-        """Matches BorrowedTime.cs: apply Doom to self, then gain energy."""
+    def test_borrowed_time_gains_energy_and_applies_borrowed_time_power_via_factory(self):
+        """Matches BorrowedTime.cs: gain energy, then apply BorrowedTimePower to self."""
         combat = _make_combat()
         card = create_card(CardId.BORROWED_TIME)
         combat.hand = [card]
-        combat.energy = 0
+        combat.energy = 1
 
         assert combat.play_card(0)
-        assert combat.player.get_power_amount(PowerId.DOOM) == card.effect_vars.get("doom", 3)
-        assert combat.energy == card.effect_vars.get("energy", 1)
+        assert combat.player.get_power_amount(PowerId.BORROWED_TIME) == card.effect_vars.get("extra_cost", 1)
+        assert combat.energy == card.effect_vars.get("energy", 4)
 
     def test_countdown_applies_countdown_power(self):
         """Matches Countdown.cs: apply CountdownPower with the configured amount."""

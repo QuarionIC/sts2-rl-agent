@@ -1,0 +1,27 @@
+using System.Threading.Tasks;
+using Downfall.DownfallCode.Utils;
+using HarmonyLib;
+using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Entities.Creatures;
+
+namespace Downfall.DownfallCode.Patches;
+
+[HarmonyPatch(typeof(CreatureCmd), "KillWithoutCheckingWinCondition")]
+internal static class DeathInterceptPatch
+{
+	[HarmonyPrefix]
+	private static bool Prefix(Creature creature, bool force, ref Task __result)
+	{
+		if (force)
+		{
+			return true;
+		}
+		Task task = DeathHooks.TryIntercept(creature);
+		if (task == null)
+		{
+			return true;
+		}
+		__result = task;
+		return false;
+	}
+}

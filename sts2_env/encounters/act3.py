@@ -9,6 +9,7 @@ from sts2_env.core.rng import Rng
 if TYPE_CHECKING:
     from sts2_env.core.combat import CombatState
 from sts2_env.monsters.act3 import (
+    create_aeonglass,
     create_devoted_sculptor,
     create_living_shield,
     create_scroll_of_biting,
@@ -69,7 +70,7 @@ WEAK_ENCOUNTERS: list[EncounterSetup] = [
 
 def setup_axebots_normal(combat: CombatState, rng: Rng) -> None:
     for _ in range(2):
-        creature, ai = create_axebot(rng)
+        creature, ai = create_axebot(rng, ascension_level=getattr(combat, "ascension_level", 0))
         combat.add_enemy(creature, ai)
 
 
@@ -168,8 +169,16 @@ ELITE_ENCOUNTERS: list[EncounterSetup] = [
 # ---- Boss Encounters ----
 
 def setup_doormaker_boss(combat: CombatState, rng: Rng) -> None:
+    """Kept for direct testing/back-compat; no longer wired into BOSS_ENCOUNTERS.
+    Doormaker/Door were removed from the game and replaced by Aeonglass in
+    v0.109.0 (see setup_aeonglass_boss)."""
     door, door_ai = create_door(rng, ascension_level=getattr(combat, "ascension_level", 0))
     combat.add_enemy(door, door_ai)
+
+
+def setup_aeonglass_boss(combat: CombatState, rng: Rng) -> None:
+    aeonglass, aeonglass_ai = create_aeonglass(rng, ascension_level=getattr(combat, "ascension_level", 0))
+    combat.add_enemy(aeonglass, aeonglass_ai)
 
 
 def setup_queen_boss(combat: CombatState, rng: Rng) -> None:
@@ -188,15 +197,15 @@ def setup_test_subject_boss(combat: CombatState, rng: Rng) -> None:
 BOSS_ENCOUNTERS: list[EncounterSetup] = [
     setup_queen_boss,
     setup_test_subject_boss,
-    setup_doormaker_boss,
+    setup_aeonglass_boss,
 ]
 
 
 ALL_ACT3_ENCOUNTERS: list[EncounterSetup] = [
+    setup_aeonglass_boss,
     setup_axebots_normal,
     setup_construct_menagerie_normal,
     setup_devoted_sculptor_weak,
-    setup_doormaker_boss,
     setup_fabricator_normal,
     setup_frog_knight_normal,
     setup_globe_head_normal,

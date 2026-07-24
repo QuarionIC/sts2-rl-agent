@@ -1,0 +1,25 @@
+using System.Threading.Tasks;
+using BaseLib.Abstracts;
+using BaseLib.Utils;
+using Guardian.GuardianCode.Core;
+using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Models;
+
+namespace Guardian.GuardianCode.Cards.Basic;
+
+[Pool(typeof(GuardianCardPool))]
+public class DefendGuardian : GuardianCardModel
+{
+	public DefendGuardian()
+		: base(1, (CardType)2, (CardRarity)1, (TargetType)1)
+	{
+		((ConstructedCardModel)this).WithTags((CardTag[])(object)new CardTag[1] { (CardTag)2 });
+		((ConstructedCardModel)this).WithBlock(5, 3);
+	}
+
+	protected override async Task OnPlayInternal(PlayerChoiceContext ctx, CardPlay cardPlay)
+	{
+		await CommonActions.CardBlock((CardModel)(object)this, cardPlay);
+	}
+}

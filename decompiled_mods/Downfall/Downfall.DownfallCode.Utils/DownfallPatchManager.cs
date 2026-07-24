@@ -1,0 +1,69 @@
+using Downfall.DownfallCode.Compatibility;
+using Downfall.DownfallCode.Patches;
+
+namespace Downfall.DownfallCode.Utils;
+
+public class DownfallPatchManager
+{
+	public static void HarmonyPatches()
+	{
+		ModPatcher modPatcher = ModPatcher.Create("Downfall", DownfallMainFile.Logger).Add(typeof(ModelDbInitPatch)).Add(typeof(CombatUiActivatePatch))
+			.Add(typeof(ModifyDamageInternalPatch))
+			.Add(typeof(AfflictionModelOverlayPathPatch))
+			.Add(typeof(CardDescriptionPatch))
+			.Add(typeof(GetCardTextPatch))
+			.Add(typeof(SetCardContextPatch))
+			.Add(typeof(PatchCardTitle))
+			.Add(typeof(ReplayCountPatch))
+			.Add(typeof(VigorRetainPatch))
+			.Add(typeof(KeywordColorPatch))
+			.Add(typeof(AddArtistHoverTipPatch))
+			.Add(typeof(RichTextEffectRegistryPatch))
+			.Add(typeof(MaxUpgradeLevelPatch))
+			.Add(typeof(AddExtraHpBarPatch))
+			.Add(typeof(CustomIntentLabelPatch))
+			.Add(typeof(CardOverlayPatch))
+			.Add(typeof(CardColorPatch))
+			.Add(typeof(ColorfulPhilosophersPatch))
+			.Add(typeof(FindOnTablePatch))
+			.Add(typeof(FromChooseACardScreenPatch))
+			.Add(typeof(GetModdedLocTablesPatch))
+			.Add(typeof(LocManagerPatch))
+			.Add(typeof(ModifyCardDescriptionPatch))
+			.Add(typeof(PowerShouldRemoveDueToZeroPatch))
+			.Add(typeof(SfxOverridePatch))
+			.Add(typeof(PlayOneShotPatch))
+			.Add(typeof(PlayOneShotDictPatch))
+			.Add(typeof(NCardUpdateTypePlaquePatch))
+			.Add(typeof(NCreatureAnimationPatch))
+			.Add(typeof(NCreatureDeathAnimationPatch))
+			.Add(typeof(FakeMerchantAnimationPatch))
+			.Add(typeof(PluralRulesPatch))
+			.Add(typeof(TranscendenceTransformationPatch))
+			.Add(typeof(CardModifierGlowGoldPatch))
+			.Add(typeof(ForceVisitIndexConsolePatch))
+			.Add(typeof(TopBarInitializePatch))
+			.Add(typeof(CombatPilesContainerPatch))
+			.Add(typeof(GenericSpendResourcesPatch))
+			.Add(typeof(GenericHasEnoughResourcesPatch))
+			.Add(typeof(GenericResourceUiPatch))
+			.Add(typeof(OnClearBlockPatch))
+			.Add(typeof(NewRunPatch))
+			.Add(typeof(DeathInterceptPatch))
+			.Add(typeof(CustomPowerIconPatch))
+			.Add(typeof(CardOverlayPatches))
+			.Add(typeof(AncientSeaGlassConsolePatch))
+			.Add(typeof(CreatureNavigationLinkPatch))
+			.Add(typeof(FindExistingInstanceForStackingPatch));
+		modPatcher.Add(GameVersion.HasNCardUpdatePortrait ? typeof(NCardUpdatePortraitPatch) : typeof(NCardReloadPortraitPatch));
+		if (GameVersion.HasCardLocation)
+		{
+			modPatcher.Add(typeof(ModifyCardPlayResultLocationNewPatch)).Add(typeof(AfterModifyingLocationNewPatch));
+		}
+		else
+		{
+			modPatcher.Add(typeof(ModifyCardPlayResultLocationOldPatch)).Add(typeof(AfterModifyingLocationOldPatch));
+		}
+		modPatcher.PatchAll();
+	}
+}

@@ -239,13 +239,21 @@ def test_the_boot_raises_intangible_damage_cap_to_five():
     assert enemy.current_hp == 195
 
 
-def test_the_boot_runs_before_tungsten_rod_regardless_of_relic_order():
+def test_the_boot_does_not_boost_self_inflicted_damage_regardless_of_relic_order():
+    """TheBoot's new ModifyHpLostAfterOstyLate hook skips when target is the owner,
+    so self-inflicted damage is governed purely by TungstenRod's reduction,
+    regardless of relic registration order."""
     from sts2_env.core.hooks import modify_hp_lost
 
     combat = _make_combat(character_id="Ironclad", relics=["TungstenRod", "TheBoot"], seed=1112)
     player = combat.player
 
-    assert modify_hp_lost(1, player, player, ValueProp.MOVE, combat) == 4
+    assert modify_hp_lost(1, player, player, ValueProp.MOVE, combat) == 0
+
+    reversed_combat = _make_combat(character_id="Ironclad", relics=["TheBoot", "TungstenRod"], seed=1112)
+    reversed_player = reversed_combat.player
+
+    assert modify_hp_lost(1, reversed_player, reversed_player, ValueProp.MOVE, reversed_combat) == 0
 
 
 def test_touch_of_orobas_upgrades_existing_starter_relic():

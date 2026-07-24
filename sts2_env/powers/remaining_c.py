@@ -491,6 +491,58 @@ class SandpitPower(PowerInstance):
 
 
 # ---------------------------------------------------------------------------
+# WitheringPresencePower
+# ---------------------------------------------------------------------------
+class WitheringPresencePower(PowerInstance):
+    """Counts down cards played by each tracked opponent; when a tracked
+    opponent's counter reaches 0, adds a Wither card straight to their hand
+    and resets the counter to 6. (Aeonglass boss mechanic.)
+
+    C# ref: WitheringPresencePower.cs / Aeonglass.cs (WitherUpgradeCount)
+    - AfterCardPlayed: if the played card's owner is a tracked target,
+      decrement that target's CardsLeft; at 0, add a Wither to their hand
+      and reset CardsLeft to 6.
+    StackType.Counter. Instanced — the power lives on Aeonglass and tracks
+    one CardsLeft counter per opponent via ``add_target``.
+
+    ``wither_upgrade_count`` mirrors Aeonglass's ``WitherUpgradeCount``: it
+    is bumped by the IncreasingIntensityMove closure each time that move is
+    played, and used here so any newly generated Wither starts at the same
+    escalated damage as previously generated ones.
+    """
+
+    power_type = PowerType.BUFF
+    stack_type = PowerStackType.COUNTER
+    CARDS_LEFT_DEFAULT = 6
+
+    def __init__(self, amount: int):
+        super().__init__(PowerId.WITHERING_PRESENCE, amount)
+        self.target: Creature | None = None
+        self.wither_upgrade_count: int = 0
+        self._cards_left: dict[int, int] = {}
+
+    def add_target(self, target: Creature | None) -> None:
+        if target is None:
+            return
+        self.target = target
+        self._cards_left.setdefault(id(target), self.CARDS_LEFT_DEFAULT)
+
+    def after_card_played(self, owner: Creature, card: object, combat: CombatState) -> None:
+        card_owner = getattr(card, "owner", None)
+        if card_owner is None or id(card_owner) not in self._cards_left:
+            return
+        remaining = self._cards_left[id(card_owner)] - 1
+        if remaining <= 0:
+            from sts2_env.cards.status import make_wither
+
+            combat.add_generated_card_to_creature_hand(
+                card_owner, make_wither(fake_upgrade_level=self.wither_upgrade_count)
+            )
+            remaining = self.CARDS_LEFT_DEFAULT
+        self._cards_left[id(card_owner)] = remaining
+
+
+# ---------------------------------------------------------------------------
 # SeekingEdgePower
 # ---------------------------------------------------------------------------
 class SeekingEdgePower(PowerInstance):
@@ -1477,17 +1529,20 @@ class TangledPower(PowerInstance):
 # TankPower
 # ---------------------------------------------------------------------------
 class TankPower(PowerInstance):
-    """Owner takes 2x damage from powered attacks but applies Guarded to
-    all teammates (Amount block absorption).
+    """Owner takes DAMAGE_INCREASE-x damage from powered attacks but applies
+    Guarded to all teammates (Amount block absorption).
 
     C# ref: TankPower.cs
     - AfterApplied: apply GuardedPower(Amount) to all player teammates.
-    - ModifyDamageMultiplicative: 2x for powered attacks targeting owner.
+    - ModifyDamageMultiplicative: DamageIncrease (DynamicVar, 1.5x) for
+      powered attacks targeting owner.
     StackType.Single.
     """
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.SINGLE
+
+    DAMAGE_INCREASE = 1.5
 
     def __init__(self, amount: int = 1):
         super().__init__(PowerId.TANK, amount)
@@ -1517,7 +1572,7 @@ class TankPower(PowerInstance):
             return 1.0
         if not props.is_powered_attack():
             return 1.0
-        return 2.0
+        return self.DAMAGE_INCREASE
 
 
 # ---------------------------------------------------------------------------
@@ -2106,6 +2161,7 @@ _ALL_POWERS: dict[PowerId, type[PowerInstance]] = {
     PowerId.WASTE_AWAY: WasteAwayPower,
     PowerId.ENTANGLED: EntangledPower,
     PowerId.METALLICIZE: MetallicizePower,
+    PowerId.WITHERING_PRESENCE: WitheringPresencePower,
 }
 
 for _pid, _cls in _ALL_POWERS.items():

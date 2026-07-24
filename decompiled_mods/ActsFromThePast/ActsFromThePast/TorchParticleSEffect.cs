@@ -1,0 +1,125 @@
+using System;
+using Godot;
+
+namespace ActsFromThePast;
+
+public class TorchParticleSEffect : NSts1Effect
+{
+	private const string AtlasPath = "res://ActsFromThePast/vfx/vfx.atlas";
+
+	private static readonly string[] FireRegions = new string[3] { "env/fire1", "env/fire2", "env/fire3" };
+
+	private Sprite2D _sprite;
+
+	private float _vY;
+
+	private float _rotation;
+
+	private float _scale;
+
+	private Color _color;
+
+	private bool _renderGreen;
+
+	public static TorchParticleSEffect Create(float x, float y, bool renderGreen)
+	{
+		TorchParticleSEffect torchParticleSEffect = new TorchParticleSEffect();
+		torchParticleSEffect._renderGreen = renderGreen;
+		torchParticleSEffect.SetupAt(x, y);
+		return torchParticleSEffect;
+	}
+
+	private void SetupAt(float x, float y)
+	{
+		//IL_0074: Unknown result type (might be due to invalid IL or missing references)
+		//IL_007e: Expected O, but got Unknown
+		//IL_00b0: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00c8: Unknown result type (might be due to invalid IL or missing references)
+		//IL_00ce: Expected O, but got Unknown
+		//IL_0104: Unknown result type (might be due to invalid IL or missing references)
+		//IL_011f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0169: Unknown result type (might be due to invalid IL or missing references)
+		//IL_029b: Unknown result type (might be due to invalid IL or missing references)
+		//IL_02a0: Unknown result type (might be due to invalid IL or missing references)
+		//IL_023f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0244: Unknown result type (might be due to invalid IL or missing references)
+		Setup();
+		StartingDuration = (float)GD.RandRange(1.5, 3.0);
+		Duration = StartingDuration;
+		string regionName = FireRegions[Random.Shared.Next(FireRegions.Length)];
+		LibGdxAtlas.TextureRegion? region = LibGdxAtlas.GetRegion("res://ActsFromThePast/vfx/vfx.atlas", regionName);
+		if (!region.HasValue)
+		{
+			IsDone = true;
+			return;
+		}
+		_sprite = new Sprite2D();
+		_sprite.Texture = region.Value.Texture;
+		_sprite.RegionEnabled = true;
+		_sprite.RegionRect = region.Value.Region;
+		_sprite.Centered = true;
+		CanvasItemMaterial val = new CanvasItemMaterial();
+		val.BlendMode = (BlendModeEnum)1;
+		((CanvasItem)_sprite).Material = (Material)(object)val;
+		((Node)this).AddChild((Node)(object)_sprite, false, (InternalMode)0);
+		LibGdxAtlas.TextureRegion value = region.Value;
+		float x2 = ((Rect2)(ref value.Region)).Size.X;
+		value = region.Value;
+		float y2 = ((Rect2)(ref value.Region)).Size.Y;
+		float num = 960f;
+		float num2 = 568f;
+		float num3 = x + (float)GD.RandRange(-3.0, 3.0) - num - 23f;
+		float num4 = num2 - y;
+		((Node2D)this).Position = new Vector2(num3, num4);
+		_scale = (float)GD.RandRange(0.5, 1.0);
+		_vY = (float)GD.RandRange(1.0, 10.0);
+		_vY *= _vY;
+		_rotation = (float)GD.RandRange(-20.0, 20.0);
+		if (!_renderGreen)
+		{
+			_color = new Color((float)GD.RandRange(0.6, 1.0), (float)GD.RandRange(0.3, 0.6), (float)GD.RandRange(0.0, 0.3), 0.01f);
+		}
+		else
+		{
+			_color = new Color((float)GD.RandRange(0.1, 0.3), (float)GD.RandRange(0.5, 0.9), (float)GD.RandRange(0.1, 0.3), 0.01f);
+		}
+		UpdateSprite();
+	}
+
+	protected override void Initialize()
+	{
+	}
+
+	protected override void Update(float delta)
+	{
+		//IL_004f: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0062: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0067: Unknown result type (might be due to invalid IL or missing references)
+		Duration -= delta;
+		if (Duration < 0f)
+		{
+			IsDone = true;
+			return;
+		}
+		_color.A = Fade(Duration / StartingDuration) * 0.75f;
+		((Node2D)this).Position = ((Node2D)this).Position + new Vector2(0f, (0f - _vY) * delta);
+		UpdateSprite();
+	}
+
+	private void UpdateSprite()
+	{
+		//IL_0034: Unknown result type (might be due to invalid IL or missing references)
+		//IL_0046: Unknown result type (might be due to invalid IL or missing references)
+		if (_sprite != null)
+		{
+			((Node2D)_sprite).RotationDegrees = _rotation;
+			((Node2D)_sprite).Scale = new Vector2(_scale, _scale);
+			((CanvasItem)_sprite).Modulate = _color;
+		}
+	}
+
+	private static float Fade(float t)
+	{
+		return Mathf.Clamp(t * t * t * (t * (t * 6f - 15f) + 10f), 0f, 1f);
+	}
+}

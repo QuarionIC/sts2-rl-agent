@@ -12,6 +12,15 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Sequence
 
+# Import the powers package (not just sts2_env.powers.base) so every Power
+# subclass's registration decorator runs before any Creature.apply_power /
+# get_power_class lookup. Production entry points (RunManager, gym_env)
+# construct CombatState without otherwise ever importing sts2_env.powers as
+# a package, so without this eager import spawn-time powers (e.g. monster
+# AfterAddedToRoom powers) would silently no-op outside of the test suite
+# (whose conftest.py happens to import sts2_env.powers directly).
+import sts2_env.powers  # noqa: F401,E402
+
 from sts2_env.cards.base import (
     CardInstance,
     capture_self_mutating_card_progress,
@@ -703,13 +712,30 @@ class CombatState:
             )
         self.enemies.append(creature)
         self.enemy_ais[creature.combat_id] = ai
-        from sts2_env.monsters.act3 import ZAPBOT_HIGH_VOLTAGE_AMOUNT, ZAPBOT_MONSTER_ID
+        from sts2_env.monsters.act3 import (
+            AEONGLASS_ARTIFACT_AMOUNT,
+            AEONGLASS_MONSTER_ID,
+            AEONGLASS_WITHERING_PRESENCE_AMOUNT,
+            ZAPBOT_HIGH_VOLTAGE_AMOUNT,
+            ZAPBOT_MONSTER_ID,
+        )
         from sts2_env.monsters.act4 import GAS_BOMB_MINION_AMOUNT, GAS_BOMB_MONSTER_ID
 
         if creature.monster_id == GAS_BOMB_MONSTER_ID:
             self.apply_power_to(creature, PowerId.MINION, GAS_BOMB_MINION_AMOUNT, applier=creature)
         if creature.monster_id == ZAPBOT_MONSTER_ID:
             self.apply_power_to(creature, PowerId.HIGH_VOLTAGE, ZAPBOT_HIGH_VOLTAGE_AMOUNT, applier=creature)
+        if creature.monster_id == AEONGLASS_MONSTER_ID:
+            from sts2_env.monsters.targets import living_player_targets
+
+            self.apply_power_to(creature, PowerId.ARTIFACT, AEONGLASS_ARTIFACT_AMOUNT, applier=creature)
+            for target in living_player_targets(self):
+                self.apply_power_to(
+                    creature, PowerId.WITHERING_PRESENCE, AEONGLASS_WITHERING_PRESENCE_AMOUNT, applier=creature
+                )
+                withering_presence = creature.powers.get(PowerId.WITHERING_PRESENCE)
+                if withering_presence is not None:
+                    withering_presence.add_target(target)
         if self._combat_started:
             fire_after_creature_added_to_combat(creature, self)
 
@@ -827,6 +853,14 @@ class CombatState:
         for enemy in self.alive_enemies:
             ai = self.enemy_ais[enemy.combat_id]
             ai.roll_move(self.monster_ai_rng)
+
+        # Defensive: an encounter with zero possible monsters (e.g. the
+        # Act4Heart mod's EmptyFightAct4Weak) should resolve as an instant
+        # win rather than proceeding into a turn with no enemies.
+        if not self.enemies:
+            self._check_combat_end()
+            if self.is_over:
+                return
 
         self._start_player_turn()
 
@@ -1268,6 +1302,21 @@ class CombatState:
         )
         return CardPlayResult(pile_type, position)
 
+    def _redirect_returns_to_hand_after_exhaust(
+        self,
+        card: CardInstance,
+        hand: list[CardInstance],
+        exhaust: list[CardInstance],
+    ) -> None:
+        """Cards tagged `returns_to_hand_on_exhaust` (e.g. Necronomicurse) go
+        to Hand instead of staying in the Exhaust pile once exhausted."""
+        if not getattr(card, "returns_to_hand_on_exhaust", False):
+            return
+        if card in exhaust:
+            exhaust.remove(card)
+        if card not in hand:
+            hand.append(card)
+
     def _move_card_to_play_result(
         self,
         owner: Creature,
@@ -1282,6 +1331,7 @@ class CombatState:
             from sts2_env.core.hooks import fire_after_card_exhausted
 
             fire_after_card_exhausted(card, self)
+            self._redirect_returns_to_hand_after_exhaust(card, owner_state.hand, owner_state.exhaust)
             return
         if result.pile_type == PileType.HAND:
             target_pile = owner_state.hand
@@ -1577,6 +1627,7 @@ class CombatState:
                         fire_after_card_exhausted(card, self)
                     finally:
                         card.combat_vars.pop("_exhausted_by_ethereal", None)
+                    self._redirect_returns_to_hand_after_exhaust(card, self.hand, self.exhaust_pile)
 
                 for card in turn_end_cards:
                     if card not in self.hand:
@@ -1593,6 +1644,7 @@ class CombatState:
                             fire_after_card_exhausted(card, self)
                         finally:
                             card.combat_vars.pop("_exhausted_by_ethereal", None)
+                        self._redirect_returns_to_hand_after_exhaust(card, self.hand, self.exhaust_pile)
                     else:
                         self.discard_pile.append(card)
                         fire_after_card_discarded(card, self)
@@ -1969,6 +2021,7 @@ class CombatState:
             card = zones["draw"].pop(0)
             zones["exhaust"].append(card)
             fire_after_card_exhausted(card, self)
+            self._redirect_returns_to_hand_after_exhaust(card, zones["hand"], zones["exhaust"])
 
     # ---- Target resolution ----
 
@@ -2620,10 +2673,12 @@ class CombatState:
         self._remove_card_from_piles(card)
         owner = getattr(card, "owner", None) or self.player
         card.owner = owner
-        self._zones_for_creature(owner)["exhaust"].append(card)
+        zones = self._zones_for_creature(owner)
+        zones["exhaust"].append(card)
         if not was_in_combat:
             self._apply_card_after_card_entered_combat(card, owner)
         fire_after_card_exhausted(card, self)
+        self._redirect_returns_to_hand_after_exhaust(card, zones["hand"], zones["exhaust"])
 
     def clone_card_to_hand(self, owner: Creature, card: CardInstance | None) -> None:
         if self.combat_player_state_for(owner) is None or card is None:

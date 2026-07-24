@@ -235,9 +235,12 @@ NIBBIT_TOUGH_MIN_HP = 44
 NIBBIT_TOUGH_MAX_HP = 48
 NIBBIT_BASE_BUTT_DAMAGE = 12
 NIBBIT_DEADLY_BUTT_DAMAGE = 13
-NIBBIT_SLICE_DAMAGE = 6
-NIBBIT_SLICE_BLOCK = 5
-NIBBIT_HISS_STRENGTH = 2
+NIBBIT_BASE_SLICE_DAMAGE = 6
+NIBBIT_DEADLY_SLICE_DAMAGE = 7
+NIBBIT_BASE_SLICE_BLOCK = 5
+NIBBIT_TOUGH_SLICE_BLOCK = 6
+NIBBIT_BASE_HISS_STRENGTH = 2
+NIBBIT_DEADLY_HISS_STRENGTH = 3
 NIBBIT_BUTT_MOVE = "BUTT_MOVE"
 NIBBIT_SLICE_MOVE = "SLICE_MOVE"
 NIBBIT_HISS_MOVE = "HISS_MOVE"
@@ -275,17 +278,41 @@ def create_nibbit(
         _deal_damage_to_player(combat, creature, butt_damage)
 
     def slice_move(combat: CombatState) -> None:
-        _deal_damage_to_player(combat, creature, NIBBIT_SLICE_DAMAGE)
-        _gain_block(creature, NIBBIT_SLICE_BLOCK, combat)
+        slice_damage = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            NIBBIT_DEADLY_SLICE_DAMAGE,
+            NIBBIT_BASE_SLICE_DAMAGE,
+        )
+        slice_block = _ascension_value(
+            _combat_ascension_level(combat),
+            TOUGH_ENEMIES_ASCENSION_LEVEL,
+            NIBBIT_TOUGH_SLICE_BLOCK,
+            NIBBIT_BASE_SLICE_BLOCK,
+        )
+        _deal_damage_to_player(combat, creature, slice_damage)
+        _gain_block(creature, slice_block, combat)
 
     def hiss(combat: CombatState) -> None:
-        creature.apply_power(PowerId.STRENGTH, NIBBIT_HISS_STRENGTH)
+        hiss_strength = _ascension_value(
+            _combat_ascension_level(combat),
+            DEADLY_ENEMIES_ASCENSION_LEVEL,
+            NIBBIT_DEADLY_HISS_STRENGTH,
+            NIBBIT_BASE_HISS_STRENGTH,
+        )
+        creature.apply_power(PowerId.STRENGTH, hiss_strength)
 
     butt_intent_damage = _ascension_value(
         ascension_level,
         DEADLY_ENEMIES_ASCENSION_LEVEL,
         NIBBIT_DEADLY_BUTT_DAMAGE,
         NIBBIT_BASE_BUTT_DAMAGE,
+    )
+    slice_intent_damage = _ascension_value(
+        ascension_level,
+        DEADLY_ENEMIES_ASCENSION_LEVEL,
+        NIBBIT_DEADLY_SLICE_DAMAGE,
+        NIBBIT_BASE_SLICE_DAMAGE,
     )
 
     states: dict[str, MonsterState] = {
@@ -298,7 +325,7 @@ def create_nibbit(
         NIBBIT_SLICE_MOVE: MoveState(
             NIBBIT_SLICE_MOVE,
             slice_move,
-            [attack_intent(NIBBIT_SLICE_DAMAGE)],
+            [attack_intent(slice_intent_damage)],
             follow_up_id=NIBBIT_HISS_MOVE,
         ),
         NIBBIT_HISS_MOVE: MoveState(

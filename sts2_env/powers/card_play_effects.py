@@ -211,6 +211,38 @@ class RagePower(PowerInstance):
 
 
 # ---------------------------------------------------------------------------
+# BorrowedTimePower
+# ---------------------------------------------------------------------------
+class BorrowedTimePower(PowerInstance):
+    """Cards owned by this creature cost Amount more energy this turn.
+    Removed at end of the owner's turn.
+
+    C# ref: BorrowedTimePower.cs
+    - TryModifyEnergyCostInCombat: owner's card cost += Amount.
+    - AfterSideTurnEnd (owner's side): remove self.
+    StackType.Counter, Debuff.
+    """
+
+    power_type = PowerType.DEBUFF
+    stack_type = PowerStackType.COUNTER
+
+    def __init__(self, amount: int):
+        super().__init__(PowerId.BORROWED_TIME, amount)
+
+    def modify_card_cost(self, owner: Creature, card: object) -> int | None:
+        if getattr(card, "owner", None) is not owner:
+            return None
+        base_cost = getattr(card, "cost", 0)
+        return base_cost + self.amount
+
+    def after_turn_end(
+        self, owner: Creature, side: CombatSide, combat: CombatState
+    ) -> None:
+        if side == owner.side:
+            owner.powers.pop(self.power_id, None)
+
+
+# ---------------------------------------------------------------------------
 # AfterimagePower
 # ---------------------------------------------------------------------------
 class AfterimagePower(PowerInstance):
@@ -916,6 +948,7 @@ _ALL_POWERS: dict[PowerId, type[PowerInstance]] = {
     PowerId.DARK_EMBRACE: DarkEmbracePower,
     PowerId.FEEL_NO_PAIN: FeelNoPainPower,
     PowerId.RAGE: RagePower,
+    PowerId.BORROWED_TIME: BorrowedTimePower,
     PowerId.AFTERIMAGE: AfterimagePower,
     PowerId.RUPTURE: RupturePower,
     PowerId.JUGGERNAUT: JuggernautPower,

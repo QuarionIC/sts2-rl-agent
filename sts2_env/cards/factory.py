@@ -79,6 +79,8 @@ _MODIFIER_GENERATION_EXCLUDED = frozenset({
     CardId.GREED,
     CardId.POOR_SLEEP,
     CardId.SPORE_MIND,
+    # Acts from the Past mod: CanBeGeneratedByModifiers => false
+    CardId.NECRONOMICURSE,
 })
 
 _REGISTERED_POOL_EXCLUDED_CARD_IDS = frozenset({
@@ -818,6 +820,14 @@ def create_transform_card(
     is_multiplayer: bool | None = None,
 ) -> CardInstance:
     """Create a run-level transform result using the original-card-specific pool."""
+    # Acts from the Past mod: Necronomicurse.cs is immune to all card-transform
+    # effects and always transforms back into itself (see the Harmony patch on
+    # CardCmd.Transform / CardCmd.TransformToRandom in
+    # decompiled_mods/ActsFromThePast/ActsFromThePast.Patches.Cards/
+    # NecronomicurseTransformPatch.cs). This is the single choke point all
+    # random-transform call sites in this simulator route through.
+    if original.card_id == CardId.NECRONOMICURSE:
+        return create_card(CardId.NECRONOMICURSE)
     candidates = eligible_transform_cards(
         original,
         character_id=character_id,

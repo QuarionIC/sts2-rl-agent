@@ -117,7 +117,7 @@ class TestNecrobinderScytheXCostAndDebuffParity:
 
         assert combat.play_card(0, 0)
         assert enemy.current_hp == 94
-        assert enemy.get_power_amount(PowerId.SIC_EM) == 3
+        assert enemy.get_power_amount(PowerId.SIC_EM) == 4
 
     def test_the_scythe_damage_increases_after_each_play(self):
         """Matches TheScythe.cs: card permanently gains damage each time it is played."""
@@ -131,15 +131,15 @@ class TestNecrobinderScytheXCostAndDebuffParity:
 
         assert combat.play_card(0, 0)
         assert enemy.current_hp == 187
-        assert card.base_damage == 16
+        assert card.base_damage == 17
         assert card in combat.exhaust_pile
 
         combat.exhaust_pile.remove(card)
         combat.hand = [card]
         combat.energy = 2
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == 171
-        assert card.base_damage == 19
+        assert enemy.current_hp == 170
+        assert card.base_damage == 21
 
     def test_the_scythe_upgrade_preserves_grown_damage(self):
         combat = _make_combat()
@@ -148,10 +148,10 @@ class TestNecrobinderScytheXCostAndDebuffParity:
         combat.energy = 2
 
         assert combat.play_card(0, 0)
-        assert card.base_damage == 16
+        assert card.base_damage == 17
 
         combat.upgrade_card(card)
 
         assert card.upgraded is True
-        assert card.base_damage == 16
-        assert card.effect_vars["increase"] == 4
+        assert card.base_damage == 17
+        assert card.effect_vars["increase"] == 5

@@ -115,7 +115,7 @@ _CHARACTER_CONFIG: dict[str, dict[str, Any]] = {
         "heal_after_combat": 0,
     },
     "Necrobinder": {
-        "hp": 75,
+        "hp": 66,
         "gold": 99,
         "starter_relic": "BoundPhylactery",
         "heal_after_combat": 0,
@@ -170,6 +170,13 @@ def _get_encounter_pools(act_index: int) -> dict[str, list]:
         )
     elif act_index == 2:
         from sts2_env.encounters.act3 import (
+            WEAK_ENCOUNTERS, NORMAL_ENCOUNTERS, ELITE_ENCOUNTERS, BOSS_ENCOUNTERS,
+        )
+    elif act_index == 3:
+        # Act4Heart mod ("TheEnding"): Corrupt Heart boss, Spire Shield +
+        # Spire Spear elite, and the (unreachable via the hand-authored
+        # map) empty weak encounter. Not the vanilla "Underdocks" pools.
+        from sts2_env.encounters.act4_heart import (
             WEAK_ENCOUNTERS, NORMAL_ENCOUNTERS, ELITE_ENCOUNTERS, BOSS_ENCOUNTERS,
         )
     else:
@@ -437,6 +444,8 @@ class RunManager:
             return self._do_event_confirm_choice()
         if self._phase == self.PHASE_TREASURE and action_type == "collect":
             return self._do_treasure_collect()
+        if self._phase == self.PHASE_TREASURE and action_type == "skip":
+            return self._do_treasure_skip()
 
         return {
             "phase": self.phase,
@@ -1204,7 +1213,10 @@ class RunManager:
         action: dict[str, Any] = {"action": "collect"}
         if isinstance(self._current_reward, RelicReward):
             action["relic_id"] = self._current_reward.relic_id
-        return [action]
+        actions = [action]
+        if isinstance(self._current_reward, RelicReward) and self._current_reward.skippable:
+            actions.append({"action": "skip"})
+        return actions
 
     # ------------------------------------------------------------------
     # Action executors
@@ -2076,6 +2088,35 @@ class RunManager:
         if spoils_gold:
             info["spoils_gold"] = spoils_gold
         return info
+
+    def _do_treasure_skip(self) -> dict:
+        """Skip the Treasure Room's relic reward.
+
+        Act4Heart mod: skipping grants the Sapphire Key (if not already
+        held). C# ref: decompiled_mods/Act4Heart/Act4Heart.Keys
+        /BlueKeyHooks.cs.
+        """
+        from sts2_env.relics.base import RelicId
+
+        reward = self._current_reward
+        if not isinstance(reward, RelicReward) or not reward.skippable:
+            return {
+                "phase": self.phase,
+                "description": "Nothing to skip.",
+            }
+        player = self._run_state.player
+        if RelicId.SAPPHIRE_KEY.name in player.relics:
+            description = "Skipped the treasure relic."
+        else:
+            player.obtain_relic(RelicId.SAPPHIRE_KEY.name)
+            description = "Skipped the treasure relic; obtained the Sapphire Key."
+        self._current_reward = None
+        if self._run_state.pending_rewards:
+            self._resume_after_reward_chain = self._enter_map_choice
+            self._consume_run_pending_rewards()
+            return {"phase": self.phase, "description": description}
+        self._enter_map_choice()
+        return {"phase": self.phase, "description": description}
 
     def _complete_spoils_map_quest(self) -> int:
         run_state = self._run_state

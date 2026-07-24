@@ -57,13 +57,13 @@ public class RlCardSelector : ICardSelector
             cards.Add(cardData);
         }
 
-        var stateMsg = new Dictionary<string, object>
+        var stateMsg = RunStateBridgeFields.Apply(new Dictionary<string, object>
         {
             ["type"] = NonCombatBridgeProtocol.CardSelectState,
             ["cards"] = cards,
             ["min_select"] = minSelect,
             ["max_select"] = maxSelect,
-        };
+        });
 
         // Try to get decision from Python agent
         if (BridgeServer.Instance.IsClientConnected)
@@ -119,12 +119,12 @@ public class RlCardSelector : ICardSelector
             cards.Add(cardData);
         }
 
-        var stateMsg = new Dictionary<string, object>
+        var stateMsg = RunStateBridgeFields.Apply(new Dictionary<string, object>
         {
             ["type"] = NonCombatBridgeProtocol.CardRewardState,
             ["cards"] = cards,
             ["can_skip"] = true,
-        };
+        });
 
         // This method is synchronous, so we use a blocking wait
         if (BridgeServer.Instance.IsClientConnected)

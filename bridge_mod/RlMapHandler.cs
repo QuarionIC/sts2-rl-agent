@@ -61,15 +61,25 @@ public class RlMapHandler : IScreenHandler, IHandler
         }
         else
         {
-            // Get the children of the last visited node
+            // Get the children of the last visited node.
+            //
+            // IMPORTANT: order these by MapPoint.Children (the same order
+            // RunManager._actions_map_choice()/get_available_next_coords()
+            // uses on the Python simulation side) rather than by re-scanning
+            // allPoints, whose iteration order reflects scene-tree/visual
+            // (row, col) layout and can diverge from Children's insertion
+            // order (path generation can add children out of column order).
+            // A trained full-run model indexes into this list positionally,
+            // so the two orderings must match exactly.
             IReadOnlyList<MapCoord> visited = runState.VisitedMapCoords;
             MapCoord lastCoord = visited[visited.Count - 1];
             NMapPoint lastNode = allPoints.First(
                 mp => mp.Point.coord.Equals(lastCoord));
-            HashSet<MapCoord> childCoords = new HashSet<MapCoord>(
-                lastNode.Point.Children.Select(c => c.coord));
-            availableNodes = allPoints
-                .Where(mp => childCoords.Contains(mp.Point.coord))
+            Dictionary<MapCoord, NMapPoint> pointsByCoord = allPoints
+                .ToDictionary(mp => mp.Point.coord);
+            availableNodes = lastNode.Point.Children
+                .Select(child => pointsByCoord.TryGetValue(child.coord, out NMapPoint mp) ? mp : null)
+                .OfType<NMapPoint>()
                 .ToList();
         }
 
@@ -93,13 +103,11 @@ public class RlMapHandler : IScreenHandler, IHandler
             });
         }
 
-        var stateMsg = new Dictionary<string, object>
+        var stateMsg = RunStateBridgeFields.Apply(new Dictionary<string, object>
         {
             ["type"] = "map_select",
             ["nodes"] = nodes,
-            ["floor"] = runState.TotalFloor,
-            ["act"] = runState.CurrentActIndex + 1,
-        };
+        });
 
         NMapPoint chosenNode;
 
