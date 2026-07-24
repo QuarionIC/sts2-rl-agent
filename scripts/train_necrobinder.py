@@ -295,6 +295,35 @@ def build_model(train_env, tensorboard_dir: str | None):
     )
 
 
+def load_init_weights(model, path: str) -> list[str]:
+    """Load policy tensors from a MaskablePPO zip (e.g. a BC init) into a
+    fresh model, name+shape matched (exact_match=False semantics), and
+    report exactly which tensors transferred."""
+    import torch
+
+    from stable_baselines3.common.save_util import load_from_zip_file
+
+    _, params, _ = load_from_zip_file(path, device=model.device)
+    src = params.get("policy", {})
+    own = model.policy.state_dict()
+    matched: list[str] = []
+    skipped: list[str] = []
+    for name, tensor in src.items():
+        if name in own and own[name].shape == tensor.shape:
+            own[name] = tensor.to(model.device)
+            matched.append(name)
+        else:
+            skipped.append(name)
+    model.policy.load_state_dict(own)
+    print(f"[init] loaded {len(matched)}/{len(own)} policy tensors from {path}")
+    if skipped:
+        print(f"[init] skipped (name/shape mismatch): {skipped}")
+    missing = [k for k in own if k not in src]
+    if missing:
+        print(f"[init] left at fresh init (absent in source): {missing}")
+    return matched
+
+
 def find_latest_checkpoint(stage_dir: Path) -> tuple[Path, dict] | None:
     """Latest (model_path_without_ext, sidecar) in a stage dir, or None."""
     candidates = sorted(stage_dir.glob("ckpt_*.zip"))
@@ -364,6 +393,8 @@ def train_stage(
             src = MaskablePPO.load(str(warm_start_from), device="cuda")
             transfer_weights(src, model)
             del src
+        elif getattr(args, "init_model", None):
+            load_init_weights(model, args.init_model)
 
     CurriculumCallback = build_callback_class()
     callback = CurriculumCallback(
@@ -412,6 +443,11 @@ def main():
     parser.add_argument("--checkpoint-freq", type=int, default=CHECKPOINT_FREQ)
     parser.add_argument("--resume", action="store_true",
                         help="Resume from the latest checkpoint of the stage")
+    parser.add_argument("--init-model", type=str, default=None,
+                        help="MaskablePPO zip (e.g. output/bc_init/bc_init.zip) whose "
+                             "policy tensors are loaded into the FRESH model before "
+                             "learn (name+shape matched; heads that differ are left "
+                             "at fresh init). Ignored on --resume/warm-start.")
     parser.add_argument("--tensorboard", action="store_true")
     parser.add_argument("--progress", action="store_true", help="Show progress bar")
     parser.add_argument("--output-dir", type=str, default=DEFAULT_OUTPUT_ROOT)
