@@ -82,6 +82,10 @@ EVAL_SEED_BLOCK = 10_000_000
 ENT_COEF = 0.01
 LEARNING_RATE = 2.0e-4
 TARGET_KL = 0.03
+# Runtime-overridable copies (set from CLI in main; single-element lists so
+# build_model sees the override without global rebinding order issues).
+_RUNTIME_LR = [LEARNING_RATE]
+_RUNTIME_KL = [TARGET_KL]
 RUN_MAX_STEPS = 3_000
 
 
@@ -278,7 +282,7 @@ def build_model(train_env, tensorboard_dir: str | None):
     return MaskablePPO(
         "MlpPolicy",
         train_env,
-        learning_rate=LEARNING_RATE,   # constant; target_kl regulates step size
+        learning_rate=_RUNTIME_LR[0],   # constant; target_kl regulates step size
         n_steps=1024,
         batch_size=4096,
         n_epochs=3,
@@ -287,7 +291,7 @@ def build_model(train_env, tensorboard_dir: str | None):
         clip_range=0.2,
         ent_coef=ENT_COEF,             # constant floor; no anneal
         vf_coef=0.5,
-        target_kl=TARGET_KL,
+        target_kl=_RUNTIME_KL[0],
         policy_kwargs=rich_policy_kwargs(),
         device="cuda",
         verbose=1,
@@ -443,6 +447,10 @@ def main():
     parser.add_argument("--checkpoint-freq", type=int, default=CHECKPOINT_FREQ)
     parser.add_argument("--resume", action="store_true",
                         help="Resume from the latest checkpoint of the stage")
+    parser.add_argument("--lr", type=float, default=LEARNING_RATE,
+                        help="Constant learning rate (default 2e-4; use ~5e-5 to fine-tune a BC init without eroding it).")
+    parser.add_argument("--target-kl", type=float, default=TARGET_KL,
+                        help="PPO target KL (default 0.03; lower = more conservative updates).")
     parser.add_argument("--init-model", type=str, default=None,
                         help="MaskablePPO zip (e.g. output/bc_init/bc_init.zip) whose "
                              "policy tensors are loaded into the FRESH model before "
@@ -452,6 +460,8 @@ def main():
     parser.add_argument("--progress", action="store_true", help="Show progress bar")
     parser.add_argument("--output-dir", type=str, default=DEFAULT_OUTPUT_ROOT)
     args = parser.parse_args()
+    _RUNTIME_LR[0] = args.lr
+    _RUNTIME_KL[0] = args.target_kl
 
     if args.stage:
         train_stage(args.stage, args)
