@@ -56,25 +56,83 @@ class TestLayout:
 
 
 # ---------------------------------------------------------------------------
-# Reward config
+# Reward config (PBRS)
 # ---------------------------------------------------------------------------
+
+class _StubPlayer:
+    def __init__(self, hp: int, max_hp: int):
+        self.current_hp = hp
+        self.max_hp = max_hp
+
+
+class _StubRunState:
+    def __init__(self, act: int, act_floor: int, hp: int, max_hp: int):
+        self.current_act_index = act
+        self.act_floor = act_floor
+        self.player = _StubPlayer(hp, max_hp)
+
+
+class _StubMgr:
+    """Hand-built out-of-combat state for potential() unit tests."""
+
+    def __init__(self, act: int, act_floor: int, hp: int, max_hp: int):
+        self.run_state = _StubRunState(act, act_floor, hp, max_hp)
+
+    def get_combat_state(self):
+        return None
+
 
 class TestRewardConfig:
     def test_terminal_never_annealed(self):
         cfg = RewardConfig(shaping_scale=0.0)
         assert cfg.terminal_reward(True) == 1.0
         assert cfg.terminal_reward(False) == -1.0
+        assert cfg.truncation == -1.0  # stalling is not safer than fighting
 
-    def test_shaping_scales(self):
-        cfg = RewardConfig(shaping_scale=0.5)
-        assert cfg.act_completion_reward() == pytest.approx(0.5 * 0.25)
-        assert cfg.floor_reward(2) == pytest.approx(0.5 * 0.004 * 2)
-        assert cfg.combat_win_reward(100, 80) == pytest.approx(0.5 * 0.05 * 0.8)
+    def test_gamma_matches_training(self):
+        assert RewardConfig().gamma_shape == pytest.approx(0.997)
 
-    def test_combat_win_reward_clamped(self):
+    def test_potential_hand_built_states(self):
+        cfg = RewardConfig()
+        # Act 0, floor 0, full HP: Phi = 0.30 (effective_hp only).
+        phi0 = cfg.potential(_StubMgr(0, 0, 80, 80))
+        assert phi0 == pytest.approx(0.30)
+        # Act 0, floor 8, full HP.
+        phi8 = cfg.potential(_StubMgr(0, 8, 80, 80))
+        assert phi8 == pytest.approx(0.45 * (8 / 17) / 4 + 0.30)
+        # An act-1 death at floor 9 vs floor 8 differs by a visible amount.
+        phi9 = cfg.potential(_StubMgr(0, 9, 80, 80))
+        assert phi9 - phi8 == pytest.approx(0.45 / 17 / 4)
+        assert phi9 - phi8 > 0.005
+        # Act 2, floor 5, half HP, enemies half down.
+        phi = cfg.potential(_StubMgr(2, 5, 40, 80), enemy_down=0.5)
+        expected = 0.45 * (2 + 5 / 17) / 4 + 0.30 * 0.5 + 0.20 * 0.5
+        assert phi == pytest.approx(expected)
+        # act_floor clips at 17; enemy_down clips at 1.
+        phi_cap = cfg.potential(_StubMgr(3, 99, 80, 80), enemy_down=7.0)
+        assert phi_cap == pytest.approx(0.45 * (3 + 1) / 4 + 0.30 + 0.20)
+        # Phi is bounded in [0, 1].
+        assert 0.0 <= phi_cap <= 1.0
+
+    def test_pbrs_telescoping_synthetic_trajectory(self):
+        """sum_t gamma^t F_t == gamma^T Phi_T - Phi_0 (policy invariance)."""
         cfg = RewardConfig(shaping_scale=1.0)
-        assert cfg.combat_win_reward(50, 80) == pytest.approx(0.05)  # ratio capped at 1
-        assert cfg.combat_win_reward(0, 10) == 0.0
+        gamma = cfg.gamma_shape
+        # Synthetic potential trajectory ending at a terminal state (Phi=0).
+        phis = [0.31, 0.34, 0.33, 0.40, 0.52, 0.47, 0.61, 0.0]
+        fs = [cfg.shaping_reward(phis[t], phis[t + 1]) for t in range(len(phis) - 1)]
+        telescoped = sum(gamma ** t * f for t, f in enumerate(fs))
+        T = len(fs)
+        assert telescoped == pytest.approx(gamma ** T * phis[-1] - phis[0])
+        assert telescoped == pytest.approx(-phis[0])
+
+    def test_shaping_scale_multiplies_f(self):
+        cfg = RewardConfig(shaping_scale=0.5)
+        full = RewardConfig(shaping_scale=1.0)
+        assert cfg.shaping_reward(0.3, 0.4) == pytest.approx(
+            0.5 * full.shaping_reward(0.3, 0.4))
+        off = RewardConfig(shaping_scale=0.0)
+        assert off.shaping_reward(0.3, 0.4) == 0.0
 
     def test_clamp(self):
         cfg = RewardConfig(shaping_scale=3.0)
@@ -233,7 +291,6 @@ class TestRichRunEnv:
         env = RichSTS2RunEnv(max_act_count=1, reward_config=RewardConfig(shaping_scale=1.0))
         obs, info = env.reset(seed=11)
         rng = np.random.default_rng(11)
-        total_shaping = 0.0
         done = False
         steps = 0
         while not done and steps < 3000:
@@ -243,13 +300,43 @@ class TestRichRunEnv:
                 int(rng.choice(np.flatnonzero(mask))))
             done = terminated or truncated
             if not done:
-                total_shaping += reward
+                # PBRS per-step term is bounded: |F| <= gamma*1 + 1 < 2.
+                assert abs(reward) < 2.0
             steps += 1
         assert done
         assert "won" in info
-        # a dead-at-floor-N run must still have accumulated floor shaping
-        if info.get("floor", 0) > 0:
-            assert total_shaping > 0.0
+
+    def test_pbrs_telescoping_real_episode(self):
+        """Discounted sum of per-step F over a real episode == -Phi_0."""
+        cfg = RewardConfig(shaping_scale=1.0)
+        env = RichSTS2RunEnv(max_act_count=1, reward_config=cfg)
+        obs, info = env.reset(seed=11)
+        phi_0 = env._phi_prev
+        assert 0.0 < phi_0 <= 1.0
+        gamma = cfg.gamma_shape
+        rng = np.random.default_rng(11)
+        telescoped = 0.0
+        t = 0
+        done = False
+        while not done and t < 3000:
+            mask = env.action_masks()
+            obs, reward, terminated, truncated, info = env.step(
+                int(rng.choice(np.flatnonzero(mask))))
+            done = terminated or truncated
+            f = reward
+            if done:
+                # Subtract the terminal contribution to isolate F.
+                if info.get("sim_error"):
+                    f -= 0.0
+                elif terminated:
+                    f -= cfg.terminal_reward(bool(info.get("won", False)))
+                else:
+                    f -= cfg.truncation
+            telescoped += gamma ** t * f
+            t += 1
+        assert done
+        # Phi_T := 0 at terminal, so sum_t gamma^t F_t == -Phi_0.
+        assert telescoped == pytest.approx(-phi_0, abs=1e-5)
 
     def test_pure_sparse_when_shaping_zero(self):
         env = RichSTS2RunEnv(max_act_count=1, reward_config=RewardConfig(shaping_scale=0.0))

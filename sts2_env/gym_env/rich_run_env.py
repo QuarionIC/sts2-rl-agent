@@ -3,9 +3,11 @@
 Subclasses :class:`~sts2_env.gym_env.run_env.STS2RunEnv` (same ``Discrete(157)``
 action space, masks, and step dispatch -- those are bridge-aligned and
 unchanged) but replaces the observation with the rich vector and the sparse
-reward with the shaped reward from
-:class:`~sts2_env.gym_env.reward_config.RewardConfig` (constant
-``shaping_scale``; set to 0 for pure-sparse eval).
+reward with terminal win/death/truncation plus the potential-based shaping
+term (PBRS) from :class:`~sts2_env.gym_env.reward_config.RewardConfig`:
+every step emits ``F = gamma_shape * Phi(s') - Phi(s)`` (times the constant
+``shaping_scale``; set to 0 for pure-sparse eval), with ``Phi := 0`` at
+terminal states.
 
 Adds ``max_act_count``: the episode terminates with a WIN as soon as the
 player advances past act ``max_act_count - 1`` (i.e. that act's boss died
@@ -100,7 +102,10 @@ class RichSTS2RunEnv(STS2RunEnv):
         self.max_act_count = max_act_count
         self.reward_config = reward_config or RewardConfig()
         self._encoder = RichObservationEncoder()
-        self._combat_hp_start: int | None = None
+        # PBRS bookkeeping: previous potential Phi(s) and the enemy-HP
+        # depletion value carried between combats (see RewardConfig).
+        self._phi_prev: float = 0.0
+        self._enemy_down: float = 0.0
 
     # ------------------------------------------------------------------
 
@@ -120,7 +125,12 @@ class RichSTS2RunEnv(STS2RunEnv):
         # The parent calls the (overridden) ``_encode_obs``, so the returned
         # obs is already the rich vector.
         obs, info = super().reset(seed=seed, options=options)
-        self._combat_hp_start = None
+        assert self._mgr is not None
+        combat = self._mgr.get_combat_state()
+        self._enemy_down = (
+            self.reward_config.enemy_down(combat) if combat is not None else 0.0
+        )
+        self._phi_prev = self.reward_config.potential(self._mgr, self._enemy_down)
         return obs, info
 
     def step(
@@ -131,13 +141,7 @@ class RichSTS2RunEnv(STS2RunEnv):
         rs = mgr.run_state
         cfg = self.reward_config
 
-        prev_act = rs.current_act_index
-        prev_floor = rs.total_floor
         was_in_combat = mgr.phase == RunManager.PHASE_COMBAT
-        if was_in_combat and self._combat_hp_start is None:
-            combat = mgr.get_combat_state()
-            if combat is not None:
-                self._combat_hp_start = combat.primary_player.current_hp
 
         # Parent handles dispatch, terminal detection, and the sparse
         # terminal reward (recomputed below). It calls the overridden
@@ -146,35 +150,29 @@ class RichSTS2RunEnv(STS2RunEnv):
 
         reward = 0.0
 
-        # --- shaping: floor progression ---
-        floors = rs.total_floor - prev_floor
-        if floors > 0:
-            reward += cfg.floor_reward(floors)
-
-        # --- shaping: act completion ---
-        acts_done = rs.current_act_index - prev_act
-        if terminated and mgr.player_won:
-            acts_done = max(acts_done, 1)  # final act completion on a won run
-        if acts_done > 0:
-            reward += cfg.act_completion_reward(acts_done)
-
-        # --- shaping: combat win HP retention ---
-        in_combat = mgr.phase == RunManager.PHASE_COMBAT
-        if was_in_combat and not in_combat:
-            if not rs.player.is_dead and not (terminated and not mgr.player_won):
-                hp_start = self._combat_hp_start or rs.player.current_hp
-                reward += cfg.combat_win_reward(hp_start, rs.player.current_hp)
-            self._combat_hp_start = None
-        elif in_combat and self._combat_hp_start is None:
-            combat = mgr.get_combat_state()
-            if combat is not None:
-                self._combat_hp_start = combat.primary_player.current_hp
+        # --- PBRS bookkeeping: enemy-HP depletion, carried between combats ---
+        combat_now = mgr.get_combat_state()
+        if combat_now is not None:
+            self._enemy_down = cfg.enemy_down(combat_now)
+        elif was_in_combat and not rs.player.is_dead:
+            # Combat just ended with the player alive: all enemies down.
+            # (get_combat_state() is None once the phase advances, so the
+            # final kill's depletion is credited here.)
+            self._enemy_down = 1.0
 
         # --- act cap: win early when max_act_count acts are cleared ---
         won = terminated and mgr.player_won
         if not terminated and not truncated and rs.current_act_index >= self.max_act_count:
             terminated = True
             won = True
+
+        # --- PBRS shaping: F = gamma_shape * Phi(s') - Phi(s), Phi=0 at terminal ---
+        phi_next = (
+            0.0 if (terminated or truncated)
+            else cfg.potential(mgr, self._enemy_down)
+        )
+        reward += cfg.shaping_reward(self._phi_prev, phi_next)
+        self._phi_prev = phi_next
 
         # --- terminal rewards (never annealed) ---
         if terminated:

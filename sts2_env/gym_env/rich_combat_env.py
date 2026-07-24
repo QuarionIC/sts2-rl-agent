@@ -11,7 +11,8 @@ Same ``Discrete(115)`` combat action space and masking as
 * the deck can be sampled per-reset ("starter" or "progressive" mid-run
   decks) for curriculum stage B;
 * reward follows :class:`~sts2_env.gym_env.reward_config.RewardConfig`
-  (terminal win/death + annealable combat HP-retention shaping).
+  (terminal win/death only -- the PBRS shaping term lives in the full-run
+  env; this combat-only env is retained for smoke tests and tooling).
 """
 
 from __future__ import annotations
@@ -339,10 +340,6 @@ class RichSTS2CombatEnv(gymnasium.Env):
         if terminated:
             won = combat.player_won
             reward = cfg.terminal_reward(won)
-            if won:
-                reward += cfg.combat_win_reward(
-                    self._hp_start, combat.primary_player.current_hp
-                )
         elif truncated:
             reward = cfg.death
 

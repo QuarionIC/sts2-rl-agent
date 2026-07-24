@@ -1,14 +1,47 @@
 """Reward configuration for the rich envs (docs/TRAINING_REVAMP_SPEC.json).
 
 Terminal rewards (win / death / truncation) are fixed and never annealed.
-All shaping terms are multiplied by a single ``shaping_scale`` in [0, 1].
-It is a constant knob (1.0 during training, 0.0 for pure-sparse eval); the
-old trainer-side win-rate anneal has been removed.
+All per-step shaping is a single potential-based term (PBRS):
+
+    F(s, s') = shaping_scale * (gamma_shape * Phi(s') - Phi(s))
+
+with ``Phi := 0`` at terminal states. PBRS telescopes to a policy-independent
+constant per episode (Ng, Harada & Russell 1999), so it provably cannot
+change the optimal policy and no reward-farming loop exists.
+
+The potential is
+
+    Phi(s) = w_progress * progress + w_effective_hp * effective_hp
+             + w_enemy_down * enemy_down
+
+with every component in [0, 1]:
+
+* ``progress = (current_act_index + clip(act_floor / 17, 0, 1)) / 4`` --
+  monotone run progress; path-independent, so no take-more-rooms bias.
+* ``effective_hp = clip((hp + 0.5*block + 0.3*osty_hp) / max_hp, 0, 1)`` --
+  run-long HP economy (combat values while in combat, run values outside;
+  spending HP/Osty for tempo is a transient dip refunded when it resolves).
+* ``enemy_down = 1 - sum(enemy_hp) / sum(enemy_max_hp)`` while in combat,
+  carried at its last value between combats (1.0 after a cleared combat) --
+  densifies long fights; only gained by actually reducing real enemy HP.
+
+``shaping_scale`` is a constant multiplier knob on F (1.0 during training,
+0.0 for pure-sparse eval). It is never annealed.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sts2_env.core.combat import CombatState
+    from sts2_env.run.run_manager import RunManager
+
+#: act_floor normalization inside ``progress`` (a full act is ~17 floors).
+ACT_FLOOR_SCALE = 17.0
+#: number of acts a full run spans (progress denominator).
+NUM_ACTS = 4.0
 
 
 @dataclass
@@ -20,29 +53,27 @@ class RewardConfig:
     win : terminal reward for winning the episode (never annealed).
     death : terminal reward for dying (never annealed).
     truncation : terminal reward when the episode is truncated (step-limit
-        timeout). 0.0 so a slow-but-alive run is NOT scored as a death;
-        the value function bootstraps instead.
-    act_completion : shaping bonus per act boss killed (x shaping_scale).
-    floor : shaping bonus per floor climbed (x shaping_scale).
-    combat_hp_retention : shaping bonus per combat win, multiplied by
-        ``hp_end / hp_start`` for that combat (x shaping_scale).
-    shaping_scale : global multiplier in [0, 1] applied to every shaping
-        term. 1.0 = full shaping, 0.0 = pure sparse reward. Constant
-        during training (no anneal).
+        timeout). With the 30-turn combat cap scoring in-combat stalls as
+        deaths, the only way to hit the episode step cap is a non-combat
+        stall; stalling must not be "safer" than fighting, so it scores
+        like a death (-1). (0.0 previously let the value function learn
+        truncation(0) > death(-1), biasing eval-time argmax toward
+        absorbing dither loops.)
+    gamma_shape : discount used inside the PBRS term; MUST match the
+        training gamma so the shaping stays policy-invariant.
+    w_progress / w_effective_hp / w_enemy_down : Phi component weights.
+    shaping_scale : global multiplier in [0, 1] applied to the PBRS term F.
+        1.0 = full shaping, 0.0 = pure sparse reward. Constant during
+        training (no anneal -- PBRS is invariant and needs none).
     """
 
     win: float = 1.0
     death: float = -1.0
-    # With the 30-turn combat cap scoring in-combat stalls as deaths, the only
-    # way to hit the episode step cap is a non-combat stall (e.g. a
-    # deterministic-argmax toggle 2-cycle on a selection screen). Stalling must
-    # not be "safer" than fighting -- score it like a death. (0.0 here
-    # previously let the value function learn truncation(0) > death(-1),
-    # biasing eval-time argmax toward absorbing dither loops.)
     truncation: float = -1.0
-    act_completion: float = 0.25
-    floor: float = 0.004
-    combat_hp_retention: float = 0.05
+    gamma_shape: float = 0.997
+    w_progress: float = 0.45
+    w_effective_hp: float = 0.30
+    w_enemy_down: float = 0.20
     shaping_scale: float = 1.0
 
     # ------------------------------------------------------------------
@@ -54,15 +85,68 @@ class RewardConfig:
     def terminal_reward(self, won: bool) -> float:
         return self.win if won else self.death
 
-    def act_completion_reward(self, acts_completed: int = 1) -> float:
-        return self.shaping_scale * self.act_completion * acts_completed
+    # ------------------------------------------------------------------
+    # Potential Phi and its components
+    # ------------------------------------------------------------------
 
-    def floor_reward(self, floors_climbed: int = 1) -> float:
-        return self.shaping_scale * self.floor * floors_climbed
+    @staticmethod
+    def progress(mgr: RunManager) -> float:
+        """Monotone run progress in [0, 1]."""
+        rs = mgr.run_state
+        act_frac = min(1.0, max(0.0, rs.act_floor / ACT_FLOOR_SCALE))
+        return min(1.0, max(0.0, (rs.current_act_index + act_frac) / NUM_ACTS))
 
-    def combat_win_reward(self, hp_start: int, hp_end: int) -> float:
-        """HP-retention bonus for a combat win."""
-        if hp_start <= 0:
+    @staticmethod
+    def effective_hp(mgr: RunManager) -> float:
+        """clip((hp + 0.5*block + 0.3*osty_hp) / max_hp, 0, 1).
+
+        Uses live combat values (block, Osty) while in combat; outside
+        combat block/osty contribute 0 and run-state HP is used.
+        """
+        combat = mgr.get_combat_state()
+        if combat is not None:
+            player = combat.primary_player
+            hp = player.current_hp
+            max_hp = player.max_hp
+            block = player.block
+            osty = combat.get_osty(player)
+            osty_hp = osty.current_hp if (osty is not None and osty.is_alive) else 0
+        else:
+            player = mgr.run_state.player
+            hp = player.current_hp
+            max_hp = player.max_hp
+            block = 0
+            osty_hp = 0
+        if max_hp <= 0:
             return 0.0
-        ratio = max(0.0, min(1.0, hp_end / hp_start))
-        return self.shaping_scale * self.combat_hp_retention * ratio
+        return min(1.0, max(0.0, (hp + 0.5 * block + 0.3 * osty_hp) / max_hp))
+
+    @staticmethod
+    def enemy_down(combat: CombatState) -> float:
+        """In-combat enemy-HP depletion in [0, 1] (1 = all enemies dead)."""
+        total_max = 0
+        total_cur = 0
+        for enemy in combat.enemies:
+            total_max += max(0, enemy.max_hp)
+            if enemy.is_alive:
+                total_cur += max(0, enemy.current_hp)
+        if total_max <= 0:
+            return 0.0
+        return min(1.0, max(0.0, 1.0 - total_cur / total_max))
+
+    def potential(self, mgr: RunManager, enemy_down: float = 0.0) -> float:
+        """Phi(s) for a live (non-terminal) state.
+
+        ``enemy_down`` is the carried enemy-depletion value tracked by the
+        env (recomputed while in combat, held between combats). Callers must
+        use Phi = 0 at terminal states.
+        """
+        return (
+            self.w_progress * self.progress(mgr)
+            + self.w_effective_hp * self.effective_hp(mgr)
+            + self.w_enemy_down * min(1.0, max(0.0, enemy_down))
+        )
+
+    def shaping_reward(self, phi_prev: float, phi_next: float) -> float:
+        """F = shaping_scale * (gamma_shape * Phi(s') - Phi(s))."""
+        return self.shaping_scale * (self.gamma_shape * phi_next - phi_prev)
