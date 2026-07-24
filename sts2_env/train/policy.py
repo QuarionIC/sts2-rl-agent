@@ -1,14 +1,20 @@
 """Custom SB3 feature extractor for the rich observation (v1).
 
-Architecture (docs/TRAINING_REDESIGN.md "Policy network"):
+Architecture (docs/TRAINING_REVAMP_SPEC.json, architecture_spec):
 
 * A learned card-embedding table ``(NUM_CARD_IDS + 1) x card_embed_dim``
   (index 0 = empty) applied to the 10 hand-slot ID dims. Each hand slot's
   embedding is concatenated with its 12 scalar features and pushed through a
-  small shared per-slot MLP, then mean-pooled.
-* The 3 pile bag-of-cards count vectors are projected through the SAME
-  embedding table (``bag @ E[1:]``), sharing card representations between
-  hand and piles.
+  small shared per-slot MLP. The per-slot outputs are CONCATENATED in fixed
+  slot order -- ``(B, 10, H) -> (B, 10*H)`` -- aligned with the per-slot
+  combat action indices (action i = "play hand slot i"), so the action head
+  can finally tell WHICH card is in WHICH slot. A mean-pool over the slots
+  is appended as a permutation-invariant global context vector.
+* The 3 combat pile bag-of-cards count vectors AND the run-level deck bag
+  are projected through the SAME embedding table (``bag @ E[1:]``), sharing
+  card representations between hand, piles, and the owned deck.
+* The 8 Necrobinder archetype scalars pass through unchanged (they are
+  appended after the flat block).
 * Potion-slot ids and the boss id get their own small embedding tables
   (separate id spaces -- reusing the card table would alias card ids with
   potion/boss ids).
@@ -16,8 +22,9 @@ Architecture (docs/TRAINING_REDESIGN.md "Policy network"):
   [1024, 1024, 512] torso is supplied via ``net_arch`` in ``policy_kwargs``
   (see :func:`rich_policy_kwargs`).
 
-Weight transfer between curriculum stages (combat env Discrete(115) ->
-run env Discrete(157)) is handled by :func:`transfer_weights`.
+Weight transfer between models with matching layouts is handled by
+:func:`transfer_weights` (name+shape match, with action-head prefix copy
+for the combat Discrete(115) -> run Discrete(157) case).
 """
 
 from __future__ import annotations
@@ -28,7 +35,11 @@ from gymnasium import spaces
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
 from sts2_env.gym_env.rich_observation import (
+    ARCH_SCALARS_OFF,
+    ARCH_SCALARS_SIZE,
     BOSS_VOCAB_SIZE,
+    DECK_BAG_OFF,
+    DECK_BAG_SIZE,
     HAND_FEATURES,
     HAND_SCALARS_OFF,
     HAND_SCALARS_SIZE,
@@ -53,23 +64,28 @@ class RichFeaturesExtractor(BaseFeaturesExtractor):
     def __init__(
         self,
         observation_space: spaces.Box,
-        card_embed_dim: int = 64,
+        card_embed_dim: int = 96,
         small_embed_dim: int = 16,
-        hand_hidden: int = 64,
+        hand_hidden: int = 96,
     ):
         obs_size = int(observation_space.shape[0])
         assert obs_size == RICH_OBS_SIZE, (
             f"RichFeaturesExtractor expects obs size {RICH_OBS_SIZE}, got {obs_size}"
         )
-        # Flat passthrough: everything from PILE_SIZES_OFF to the end
-        # (pile sizes, player, powers, necro, enemies, relics, flags, run).
-        flat_size = RICH_OBS_SIZE - PILE_SIZES_OFF
+        # Flat passthrough: everything from PILE_SIZES_OFF up to the deck bag
+        # (pile sizes, player, powers, necro, enemies, relics, flags, run
+        # scalars). The deck bag itself is embedded, not passed raw; the
+        # archetype scalars after it are appended explicitly.
+        flat_size = DECK_BAG_OFF - PILE_SIZES_OFF
         features_dim = (
-            hand_hidden                    # pooled hand
-            + NUM_PILES * card_embed_dim   # pile bag projections
+            NUM_HAND_SLOTS * hand_hidden   # per-slot hand concat (slot-aligned)
+            + hand_hidden                  # mean-pooled global hand context
+            + NUM_PILES * card_embed_dim   # combat pile bag projections
+            + card_embed_dim               # run-level deck bag projection
             + small_embed_dim              # pooled potion embeddings
             + small_embed_dim              # boss embedding
             + flat_size
+            + ARCH_SCALARS_SIZE            # Necrobinder archetype scalars
         )
         super().__init__(observation_space, features_dim)
 
@@ -86,19 +102,26 @@ class RichFeaturesExtractor(BaseFeaturesExtractor):
         obs = observations
         batch = obs.shape[0]
 
-        # --- hand: embeddings + scalar features -> shared slot MLP -> mean ---
+        # --- hand: embeddings + scalar features -> shared slot MLP ---
         hand_ids = obs[:, IDS_HAND_OFF:IDS_HAND_OFF + NUM_HAND_SLOTS].long().clamp_(0, NUM_CARD_IDS)
         hand_emb = self.card_embedding(hand_ids)  # (B, 10, E)
         hand_scalars = obs[:, HAND_SCALARS_OFF:HAND_SCALARS_OFF + HAND_SCALARS_SIZE]
         hand_scalars = hand_scalars.view(batch, NUM_HAND_SLOTS, HAND_FEATURES)
         hand_x = self.hand_mlp(torch.cat([hand_emb, hand_scalars], dim=-1))  # (B, 10, H)
+        # Per-slot CONCAT in fixed slot order (aligned with combat action
+        # indices) + a mean-pool as permutation-invariant global context.
+        hand_slots = hand_x.reshape(batch, NUM_HAND_SLOTS * hand_x.shape[-1])  # (B, 10*H)
         hand_pooled = hand_x.mean(dim=1)  # (B, H)
 
-        # --- pile bags projected through the SAME card embedding table ---
+        # --- combat pile bags projected through the SAME card embedding ---
         bags = obs[:, PILE_BAGS_OFF:PILE_BAGS_OFF + PILE_BAGS_SIZE]
         bags = bags.view(batch, NUM_PILES, NUM_CARD_IDS)
         bag_feats = torch.matmul(bags, self.card_embedding.weight[1:])  # (B, 3, E)
         bag_feats = bag_feats.reshape(batch, NUM_PILES * self.card_embed_dim)
+
+        # --- run-level deck bag through the same shared embedding ---
+        deck_bag = obs[:, DECK_BAG_OFF:DECK_BAG_OFF + DECK_BAG_SIZE]  # (B, 582)
+        deck_feats = torch.matmul(deck_bag, self.card_embedding.weight[1:])  # (B, E)
 
         # --- potion / boss ids ---
         potion_ids = obs[:, IDS_POTION_OFF:IDS_POTION_OFF + NUM_POTION_SLOTS].long()
@@ -107,16 +130,21 @@ class RichFeaturesExtractor(BaseFeaturesExtractor):
         boss_ids = obs[:, IDS_BOSS_OFF].long().clamp_(0, BOSS_VOCAB_SIZE - 1)
         boss_emb = self.boss_embedding(boss_ids)  # (B, S)
 
-        # --- flat passthrough ---
-        flat = obs[:, PILE_SIZES_OFF:]
+        # --- flat passthrough (excludes the raw deck bag) + archetype ---
+        flat = obs[:, PILE_SIZES_OFF:DECK_BAG_OFF]
+        arch = obs[:, ARCH_SCALARS_OFF:ARCH_SCALARS_OFF + ARCH_SCALARS_SIZE]
 
-        return torch.cat([hand_pooled, bag_feats, potion_pooled, boss_emb, flat], dim=1)
+        return torch.cat(
+            [hand_slots, hand_pooled, bag_feats, deck_feats,
+             potion_pooled, boss_emb, flat, arch],
+            dim=1,
+        )
 
 
 def rich_policy_kwargs(
-    card_embed_dim: int = 64,
+    card_embed_dim: int = 96,
     small_embed_dim: int = 16,
-    hand_hidden: int = 64,
+    hand_hidden: int = 96,
     torso: tuple[int, ...] = (1024, 1024, 512),
 ) -> dict:
     """policy_kwargs for MaskablePPO("MlpPolicy", ...) with the rich extractor."""
