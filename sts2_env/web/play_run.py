@@ -300,6 +300,12 @@ def _combat_screen(combat: CombatState, actions: list[dict[str, Any]]) -> dict:
             "draw": len(combat.draw_pile),
             "discard": len(combat.discard_pile),
             "exhaust": len(combat.exhaust_pile),
+            # Contents so the player can inspect what remains. The draw pile
+            # order is hidden in-game, so its cards are sorted by name (like
+            # the real game's draw-pile view); discard/exhaust keep pile order.
+            "draw_cards": sorted(describe_card(card) for card in combat.draw_pile),
+            "discard_cards": [describe_card(card) for card in combat.discard_pile],
+            "exhaust_cards": [describe_card(card) for card in combat.exhaust_pile],
         },
     }
 

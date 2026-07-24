@@ -152,6 +152,10 @@
     }
     .enemy-row.dead { opacity: .55; }
     .intent { color: var(--danger); font-weight: 700; }
+    .powers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .powers .pill { background: rgba(120,120,255,0.18); font-size: 0.85em; }
+    .pile-cards { padding: 4px 0 4px 12px; }
+    details summary { cursor: pointer; user-select: none; }
     .muted { color: var(--muted); }
     .hand, .items, .sections, .paths {
       display: grid;
@@ -393,6 +397,7 @@
           <strong>[${enemy.index}] ${escapeHtml(enemy.name)}</strong>
           <span>HP ${escapeHtml(enemy.hp)} · Block ${escapeHtml(enemy.block)}</span>
           <span class="intent">${escapeHtml(enemy.intent)}</span>
+          ${enemy.powers && enemy.powers.length ? `<span class="powers">${enemy.powers.map((p) => `<span class="pill">${escapeHtml(p)}</span>`).join("")}</span>` : ""}
         </div>
       `).join("");
       const allies = (screen.allies || []).map((ally) => `
@@ -417,14 +422,27 @@
       const endTurn = screen.end_turn_action_index === null || screen.end_turn_action_index === undefined
         ? ""
         : `<button data-action="${screen.end_turn_action_index}">End turn</button>`;
+      const playerPowers = (screen.player.powers && screen.player.powers.length)
+        ? `<div class="powers">${screen.player.powers.map((p) => `<span class="pill">${escapeHtml(p)}</span>`).join("")}</div>`
+        : `<div class="muted">No powers</div>`;
+      const pileList = (title, cards, count) => {
+        const body = (cards && cards.length)
+          ? `<details><summary>${title} (${count})</summary><div class="pile-cards">${cards.map((c) => `<div class="card-row">${escapeHtml(c)}</div>`).join("")}</div></details>`
+          : `<div class="muted">${title} (0)</div>`;
+        return body;
+      };
       return `
         <div class="combat-grid">
-          <div class="section"><h3>Player</h3><div>HP ${escapeHtml(screen.player.hp)} · Block ${escapeHtml(screen.player.block)} · Energy ${escapeHtml(screen.energy)}</div>${endTurn}</div>
+          <div class="section"><h3>Player</h3><div>HP ${escapeHtml(screen.player.hp)} · Block ${escapeHtml(screen.player.block)} · Energy ${escapeHtml(screen.energy)}</div>${playerPowers}${endTurn}</div>
           <div class="section"><h3>Enemies</h3><div class="items">${enemies}</div></div>
           ${allies ? `<div class="section"><h3>Allies</h3><div class="items">${allies}</div></div>` : ""}
           <div class="section"><h3>Hand</h3><div class="hand">${hand}</div></div>
           ${potions ? `<div class="section"><h3>Potions</h3><div class="items">${potions}</div></div>` : ""}
-          <div class="section"><h3>Piles</h3><div>Draw ${screen.piles.draw} · Discard ${screen.piles.discard} · Exhaust ${screen.piles.exhaust}</div></div>
+          <div class="section"><h3>Piles</h3>
+            ${pileList("Draw", screen.piles.draw_cards, screen.piles.draw)}
+            ${pileList("Discard", screen.piles.discard_cards, screen.piles.discard)}
+            ${pileList("Exhaust", screen.piles.exhaust_cards, screen.piles.exhaust)}
+          </div>
         </div>
       `;
     }

@@ -375,3 +375,45 @@ def test_web_session_can_continue_to_second_map_node_after_rewards() -> None:
     assert state["phase"] == RunManager.PHASE_COMBAT
     assert state["screen"]["title"] == "Combat"
     assert state["floor"] == 2
+
+
+def test_web_combat_screen_exposes_powers_and_pile_contents() -> None:
+    """The combat screen must surface player/enemy powers and the contents of
+    the draw, discard, and exhaust piles (not just their counts) so the human
+    player can see buffs/debuffs and inspect their piles."""
+    from sts2_env.core.enums import PowerId
+
+    mgr = RunManager(seed=7, character_id="Necrobinder", ascension_level=10)
+    for _ in range(200):
+        if mgr.phase == RunManager.PHASE_COMBAT:
+            break
+        actions = mgr.get_available_actions()
+        if not actions:
+            break
+        mgr.take_action(actions[0])
+    assert mgr.phase == RunManager.PHASE_COMBAT
+    combat = mgr.get_combat_state()
+    combat.apply_power_to(combat.primary_player, PowerId.VULNERABLE, 2)
+    if combat.enemies:
+        combat.apply_power_to(combat.enemies[0], PowerId.STRENGTH, 3)
+    if combat.hand:
+        combat.exhaust_pile.append(combat.hand[0])
+
+    screen = serialize_run(
+        mgr,
+        mgr.get_available_actions(),
+        seed=7,
+        character="Necrobinder",
+        ascension=10,
+        last_description="",
+    )["screen"]
+
+    assert "VULNERABLE(2)" in screen["player"]["powers"]
+    assert any("STRENGTH(3)" in e["powers"] for e in screen["enemies"])
+    piles = screen["piles"]
+    # Contents, not just counts.
+    assert len(piles["draw_cards"]) == piles["draw"]
+    assert len(piles["exhaust_cards"]) == piles["exhaust"] >= 1
+    assert "discard_cards" in piles
+    # Draw pile is presented sorted (order hidden in-game).
+    assert piles["draw_cards"] == sorted(piles["draw_cards"])

@@ -296,6 +296,16 @@ def display_combat(combat: CombatState) -> None:
         f"\n  Draw {len(combat.draw_pile)}  Discard {len(combat.discard_pile)}  "
         f"Exhaust {len(combat.exhaust_pile)}"
     )
+    # Pile contents. Draw-pile order is hidden in-game, so its cards are
+    # listed sorted by name (like the real game's draw-pile view); the
+    # discard and exhaust piles keep their actual order.
+    if combat.draw_pile:
+        names = sorted(describe_card(card) for card in combat.draw_pile)
+        print(f"    Draw pile: {', '.join(names)}")
+    if combat.discard_pile:
+        print(f"    Discard pile: {', '.join(describe_card(card) for card in combat.discard_pile)}")
+    if combat.exhaust_pile:
+        print(f"    Exhaust pile: {', '.join(describe_card(card) for card in combat.exhaust_pile)}")
 
 
 def display_reward(mgr: RunManager) -> None:
