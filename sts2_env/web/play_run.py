@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, urlparse
 import sts2_env.events  # noqa: F401
 import sts2_env.potions.effects  # noqa: F401
 
-from sts2_env.content import card_description, potion_description, power_description
+from sts2_env.content import card_description, card_preview, potion_description, power_description
 from sts2_env.cli.play_run import (
     CHARACTERS,
     DEFAULT_CHARACTER_INDEX,
@@ -295,17 +295,8 @@ def _combat_screen(combat: CombatState, actions: list[dict[str, Any]]) -> dict:
         },
         "enemies": enemies,
         "allies": allies,
-        "hand": [
-            {
-                "index": index,
-                "name": describe_card(card),
-                "desc": card_description(card),
-                "playable": combat.can_play_card(card),
-                "targeted": card.target_type_for(player) in {TargetType.ANY_ENEMY, TargetType.ANY_ALLY},
-                "actions": _combat_card_actions(actions, index),
-            }
-            for index, card in enumerate(combat.hand)
-        ],
+        "hand": [_hand_card_entry(combat, player, actions, index, card)
+                 for index, card in enumerate(combat.hand)],
         "potions": [
             {
                 "index": index,
@@ -331,15 +322,161 @@ def _combat_screen(combat: CombatState, actions: list[dict[str, Any]]) -> dict:
     }
 
 
-def _combat_card_actions(actions: list[dict[str, Any]], hand_index: int) -> list[dict[str, Any]]:
+def _hand_card_entry(
+    combat: CombatState,
+    player: Any,
+    actions: list[dict[str, Any]],
+    index: int,
+    card: Any,
+) -> dict[str, Any]:
+    """Serialize one hand card with live effective values (damage/block/cost)."""
+    preview = card_preview(card, combat, player)
+    enemy_names = {
+        enemy_index: display_name(enemy.monster_id)
+        for enemy_index, enemy in enumerate(combat.enemies)
+    }
+    return {
+        "index": index,
+        "name": _hand_card_name(card, preview),
+        "label": _hand_card_label(card, preview),
+        "preview": preview,
+        "desc": _hand_card_desc(card, preview, enemy_names),
+        "playable": combat.can_play_card(card),
+        "targeted": card.target_type_for(player) in {TargetType.ANY_ENEMY, TargetType.ANY_ALLY},
+        "actions": _combat_card_actions(actions, index, preview),
+    }
+
+
+def _damage_display(preview: dict[str, Any]) -> str | None:
+    """Effective damage as a compact string: "9", or "9-13" when it differs
+    per enemy; falls back to the base value when no preview exists."""
+    values = sorted({entry["value"] for entry in preview["eff_damage_by_target"]})
+    if values:
+        return str(values[0]) if len(values) == 1 else f"{values[0]}-{values[-1]}"
+    if preview["base_damage"] is not None:
+        return str(preview["base_damage"])
+    return None
+
+
+def _mod_direction(up: bool, down: bool) -> str | None:
+    if up and down:
+        return "mixed"
+    if up:
+        return "up"
+    if down:
+        return "down"
+    return None
+
+
+def _hand_card_label(card: Any, preview: dict[str, Any]) -> dict[str, Any]:
+    """Structured label pieces so the frontend can color modified values."""
+    flags = preview["flags"]
+    if card.has_energy_cost_x:
+        cost = "X"
+    elif preview["eff_cost"] is not None:
+        cost = str(preview["eff_cost"])
+    else:
+        cost = str(card.cost)
+    block = preview["eff_block"] if preview["eff_block"] is not None else card.base_block
+    return {
+        "title": display_name(card.card_id.name),
+        "upgraded": card.upgraded,
+        "cost": cost,
+        "cost_mod": _mod_direction(flags.get("cost_up", False), flags.get("cost_down", False)),
+        "damage": _damage_display(preview),
+        "damage_mod": _mod_direction(flags.get("damage_up", False), flags.get("damage_down", False)),
+        "block": str(block) if block is not None else None,
+        "block_mod": _mod_direction(flags.get("block_up", False), flags.get("block_down", False)),
+    }
+
+
+def _hand_card_name(card: Any, preview: dict[str, Any]) -> str:
+    """Flat hand-card label in the classic ``Name(1E 9dmg 3blk+)`` shape,
+    but showing the values the card would produce *right now*."""
+    label = _hand_card_label(card, preview)
+    parts = [f"{label['title']}({label['cost']}E"]
+    if label["damage"] is not None:
+        parts.append(f" {label['damage']}dmg")
+    if label["block"] is not None:
+        parts.append(f" {label['block']}blk")
+    if label["upgraded"]:
+        parts.append("+")
+    return "".join(parts) + ")"
+
+
+def _hand_card_desc(card: Any, preview: dict[str, Any], enemy_names: dict[int, str]) -> str:
+    """Tooltip text with live numbers woven in, e.g. "Deal 9 (base 6) damage."
+
+    Unmodified cards keep the clean base description."""
+    desc = card_description(card)
+    flags = preview["flags"]
+
+    def swap(text: str, old: str, new: str, fallback_line: str) -> str:
+        if old in text:
+            return text.replace(old, new, 1)
+        return f"{text}\n{fallback_line}"
+
+    if flags.get("cost_up") or flags.get("cost_down"):
+        base_cost, eff_cost = preview["base_cost"], preview["eff_cost"]
+        desc = swap(
+            desc,
+            f"{base_cost} energy",
+            f"{eff_cost} energy (base {base_cost})",
+            f"Costs {eff_cost} energy right now (base {base_cost}).",
+        )
+    if flags.get("damage_up") or flags.get("damage_down"):
+        base_damage = preview["base_damage"]
+        eff_text = _damage_display(preview)
+        desc = swap(
+            desc,
+            f"Deal {base_damage} damage",
+            f"Deal {eff_text} (base {base_damage}) damage",
+            f"Deals {eff_text} damage right now (base {base_damage}).",
+        )
+        per_target = {entry["value"] for entry in preview["eff_damage_by_target"]}
+        if len(per_target) > 1:
+            names = [
+                enemy_names.get(entry["enemy_index"], "Enemy " + str(entry["enemy_index"]))
+                for entry in preview["eff_damage_by_target"]
+            ]
+            desc += "\nBy target: " + ", ".join(
+                f"{name} {entry['value']}"
+                for name, entry in zip(names, preview["eff_damage_by_target"])
+            )
+    if flags.get("block_up") or flags.get("block_down"):
+        base_block, eff_block = preview["base_block"], preview["eff_block"]
+        desc = swap(
+            desc,
+            f"Gain {base_block} Block",
+            f"Gain {eff_block} (base {base_block}) Block",
+            f"Gains {eff_block} Block right now (base {base_block}).",
+        )
+    return desc
+
+
+def _combat_card_actions(
+    actions: list[dict[str, Any]],
+    hand_index: int,
+    preview: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    damage_by_enemy = {}
+    if preview is not None and preview["targeted"]:
+        damage_by_enemy = {
+            entry["enemy_index"]: entry["value"]
+            for entry in preview["eff_damage_by_target"]
+        }
     card_actions = []
     for index, action in enumerate(actions):
         if action.get("action") != "play_card" or action.get("hand_index") != hand_index:
             continue
         target_name = action.get("target_name")
+        target = display_name(target_name) if target_name else "Play"
+        target_index = action.get("target_index")
+        if target_index in damage_by_enemy:
+            target += f" ({damage_by_enemy[target_index]})"
         card_actions.append({
             "action_index": index,
-            "target": display_name(target_name) if target_name else "Play",
+            "target": target,
         })
     return card_actions
 

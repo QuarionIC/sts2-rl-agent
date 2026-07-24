@@ -257,6 +257,10 @@
       margin: 0 6px 6px 0;
       font-size: 13px;
     }
+    /* Live card values: green = better than printed, red = worse (game convention). */
+    .val-up { color: var(--ok); font-weight: 700; }
+    .val-down { color: var(--danger); font-weight: 700; }
+    .val-mixed { color: var(--accent); font-weight: 700; }
     [data-tip] { cursor: help; }
     .card-row[data-tip], .item-row[data-tip] { cursor: default; }
     .tip-pop {
@@ -458,6 +462,22 @@
       return "";
     }
 
+    // A hand card's label with live values: modified numbers are colored
+    // (green = better than the printed value, red = worse, gold = mixed
+    // per-target). Falls back to the flat name for older payloads.
+    function renderHandCardName(card) {
+      const label = card.label;
+      if (!label) return escapeHtml(card.name);
+      const cls = (mod) => (mod === "up" ? "val-up" : mod === "down" ? "val-down" : mod === "mixed" ? "val-mixed" : "");
+      const piece = (text, mod) => (mod ? `<span class="${cls(mod)}">${escapeHtml(text)}</span>` : escapeHtml(text));
+      // Cheaper is better: flip the cost direction for coloring.
+      const costMod = label.cost_mod === "up" ? "down" : label.cost_mod === "down" ? "up" : null;
+      let inner = piece(`${label.cost}E`, costMod);
+      if (label.damage !== null && label.damage !== undefined) inner += " " + piece(`${label.damage}dmg`, label.damage_mod);
+      if (label.block !== null && label.block !== undefined) inner += " " + piece(`${label.block}blk`, label.block_mod);
+      return `${escapeHtml(label.title)}(${inner}${label.upgraded ? "+" : ""})`;
+    }
+
     function renderPowers(powers) {
       if (!powers || !powers.length) return "";
       return `<span class="powers">${powers.map((p) => `<span class="pill"${tipAttr(p.desc)}>${escapeHtml(p.text)}</span>`).join("")}</span>`;
@@ -481,7 +501,7 @@
       `).join("");
       const hand = screen.hand.map((card) => `
         <div class="card-row">
-          <span${tipAttr(card.desc)}>${card.playable ? "●" : "○"} [${card.index}] ${escapeHtml(card.name)}</span>
+          <span${tipAttr(card.desc)}>${card.playable ? "●" : "○"} [${card.index}] ${renderHandCardName(card)}</span>
           <span>${card.actions.map((action) => `<button data-action="${action.action_index}">${escapeHtml(action.target)}</button>`).join(" ") || `<span class="muted">${card.targeted ? "target" : ""}</span>`}</span>
         </div>
       `).join("");

@@ -252,6 +252,28 @@ def display_map(mgr: RunManager, actions: list[dict[str, Any]]) -> None:
             )
 
 
+def _live_values_hint(card: object, combat: CombatState, owner: object) -> str:
+    """Compact ``[now 13dmg]`` suffix when powers/relics change a hand card's
+    numbers right now (Strength, Vulnerable, Frail, cost modifiers, ...)."""
+    try:
+        from sts2_env.content import card_preview
+
+        preview = card_preview(card, combat, owner)
+        flags = preview["flags"]
+        parts = []
+        if flags.get("cost_up") or flags.get("cost_down"):
+            parts.append(f"{preview['eff_cost']}E")
+        if flags.get("damage_up") or flags.get("damage_down"):
+            values = sorted({entry["value"] for entry in preview["eff_damage_by_target"]})
+            text = str(values[0]) if len(values) == 1 else f"{values[0]}-{values[-1]}"
+            parts.append(f"{text}dmg")
+        if flags.get("block_up") or flags.get("block_down"):
+            parts.append(f"{preview['eff_block']}blk")
+        return f"  [now {' '.join(parts)}]" if parts else ""
+    except Exception:
+        return ""
+
+
 def display_combat(combat: CombatState) -> None:
     player = combat.primary_player
     print()
@@ -282,7 +304,7 @@ def display_combat(combat: CombatState) -> None:
     for i, card in enumerate(combat.hand):
         playable = "*" if combat.can_play_card(card) else " "
         target_hint = " -> pick target" if card.target_type_for(player) in {TargetType.ANY_ENEMY, TargetType.ANY_ALLY} else ""
-        print(f"    {playable} [{i}] {describe_card(card)}{target_hint}")
+        print(f"    {playable} [{i}] {describe_card(card)}{_live_values_hint(card, combat, player)}{target_hint}")
 
     if any(potion is not None for potion in combat.potions):
         print("\n  POTIONS:")

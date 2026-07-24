@@ -449,6 +449,177 @@ def test_web_combat_hand_cards_and_potions_carry_descriptions() -> None:
         assert potion["desc"] and potion["desc"].strip()
 
 
+def test_web_combat_hand_carries_live_preview_fields() -> None:
+    """Every hand entry must expose the live-value ``preview`` and structured
+    ``label`` used by the frontend to render effective numbers."""
+    mgr = RunManager(seed=COMBAT_TEST_SEED, character_id="Ironclad")
+    mgr._enter_combat(RoomType.MONSTER)
+
+    screen = serialize_run(
+        mgr,
+        mgr.get_available_actions(),
+        seed=COMBAT_TEST_SEED,
+        character="Ironclad",
+        ascension=0,
+        last_description="",
+    )["screen"]
+
+    assert screen["hand"]
+    for card in screen["hand"]:
+        assert "preview" in card
+        assert "eff_damage_by_target" in card["preview"]
+        assert "flags" in card["preview"]
+        label = card["label"]
+        assert label["title"]
+        assert label["cost"]
+
+
+def test_web_combat_hand_shows_effective_damage_when_strengthened() -> None:
+    """With Strength on the player, a Strike's label, tooltip, and per-target
+    buttons must show the value the sim would actually deal (6 + 3 = 9)."""
+    from sts2_env.cards.ironclad_basic import create_ironclad_starter_deck
+    from sts2_env.core.combat import CombatState
+    from sts2_env.core.enums import PowerId
+    from sts2_env.core.rng import Rng
+    from sts2_env.monsters.act1_weak import create_shrinker_beetle
+    from sts2_env.web.play_run import _combat_screen
+
+    combat = CombatState(
+        player_hp=80, player_max_hp=80,
+        deck=create_ironclad_starter_deck(), rng_seed=42,
+    )
+    creature, ai = create_shrinker_beetle(Rng(42))
+    combat.add_enemy(creature, ai)
+    combat.start_combat()
+    combat.apply_power_to(combat.primary_player, PowerId.STRENGTH, 3)
+    strike_index = next(
+        index for index, card in enumerate(combat.hand) if card.base_damage == 6
+    )
+    actions = [{
+        "action": "play_card",
+        "hand_index": strike_index,
+        "target_index": 0,
+        "target_name": "SHRINKER_BEETLE",
+    }]
+
+    entry = _combat_screen(combat, actions)["hand"][strike_index]
+
+    assert "9dmg" in entry["name"]
+    assert entry["label"]["damage"] == "9"
+    assert entry["label"]["damage_mod"] == "up"
+    assert "Deal 9 (base 6) damage" in entry["desc"]
+    assert entry["preview"]["eff_damage_by_target"] == [
+        {"enemy_index": 0, "value": 9, "hits": 1},
+    ]
+    assert entry["actions"][0]["target"] == "Shrinker Beetle (9)"
+
+
+def test_web_combat_hand_shows_effective_block_when_frail() -> None:
+    """With Frail on the player, a Defend previews the reduced Block through
+    the sim's own block pipeline (floor(5 * 0.75) = 3)."""
+    from sts2_env.cards.ironclad_basic import create_ironclad_starter_deck
+    from sts2_env.core.combat import CombatState
+    from sts2_env.core.enums import PowerId
+    from sts2_env.core.rng import Rng
+    from sts2_env.monsters.act1_weak import create_shrinker_beetle
+    from sts2_env.web.play_run import _combat_screen
+
+    combat = CombatState(
+        player_hp=80, player_max_hp=80,
+        deck=create_ironclad_starter_deck(), rng_seed=42,
+    )
+    creature, ai = create_shrinker_beetle(Rng(42))
+    combat.add_enemy(creature, ai)
+    combat.start_combat()
+    combat.apply_power_to(combat.primary_player, PowerId.FRAIL, 2)
+    defend_index = next(
+        index for index, card in enumerate(combat.hand) if card.base_block == 5
+    )
+
+    entry = _combat_screen(combat, [])["hand"][defend_index]
+
+    assert "3blk" in entry["name"]
+    assert entry["label"]["block"] == "3"
+    assert entry["label"]["block_mod"] == "down"
+    assert "Gain 3 (base 5) Block" in entry["desc"]
+    assert entry["preview"]["eff_block"] == 3
+
+
+def test_web_combat_hand_unmodified_cards_keep_classic_labels() -> None:
+    """Without any modifiers, labels and tooltips must match the pre-preview
+    output exactly (no visual regression, no modified flags)."""
+    from sts2_env.cards.ironclad_basic import create_ironclad_starter_deck
+    from sts2_env.content import card_description
+    from sts2_env.core.combat import CombatState
+    from sts2_env.core.rng import Rng
+    from sts2_env.monsters.act1_weak import create_shrinker_beetle
+    from sts2_env.web.play_run import _combat_screen, describe_card
+
+    combat = CombatState(
+        player_hp=80, player_max_hp=80,
+        deck=create_ironclad_starter_deck(), rng_seed=42,
+    )
+    creature, ai = create_shrinker_beetle(Rng(42))
+    combat.add_enemy(creature, ai)
+    combat.start_combat()
+
+    screen = _combat_screen(combat, [])
+
+    for index, card in enumerate(combat.hand):
+        entry = screen["hand"][index]
+        assert entry["name"] == describe_card(card)
+        assert entry["desc"] == card_description(card)
+        assert entry["preview"]["flags"] == {}
+
+
+def test_web_combat_hand_shows_per_target_damage_in_tooltip() -> None:
+    """When one enemy is Vulnerable and another is not, the tooltip lists the
+    per-target values and each target button carries its own number."""
+    from sts2_env.cards.ironclad_basic import create_ironclad_starter_deck
+    from sts2_env.core.combat import CombatState
+    from sts2_env.core.enums import PowerId
+    from sts2_env.core.rng import Rng
+    from sts2_env.monsters.act1_weak import create_shrinker_beetle
+    from sts2_env.web.play_run import _combat_screen
+
+    rng = Rng(42)
+    combat = CombatState(
+        player_hp=80, player_max_hp=80,
+        deck=create_ironclad_starter_deck(), rng_seed=42,
+    )
+    for _ in range(2):
+        creature, ai = create_shrinker_beetle(rng)
+        combat.add_enemy(creature, ai)
+    combat.start_combat()
+    combat.apply_power_to(combat.enemies[1], PowerId.VULNERABLE, 2)
+    strike_index = next(
+        index for index, card in enumerate(combat.hand) if card.base_damage == 6
+    )
+    actions = [
+        {
+            "action": "play_card",
+            "hand_index": strike_index,
+            "target_index": target_index,
+            "target_name": "SHRINKER_BEETLE",
+        }
+        for target_index in range(2)
+    ]
+
+    entry = _combat_screen(combat, actions)["hand"][strike_index]
+
+    values = {
+        item["enemy_index"]: item["value"]
+        for item in entry["preview"]["eff_damage_by_target"]
+    }
+    assert values[0] == 6
+    assert values[1] == 9  # floor(6 * 1.5) via the sim pipeline
+    assert "6-9dmg" in entry["name"]
+    assert entry["label"]["damage"] == "6-9"
+    assert "By target:" in entry["desc"]
+    assert entry["actions"][0]["target"] == "Shrinker Beetle (6)"
+    assert entry["actions"][1]["target"] == "Shrinker Beetle (9)"
+
+
 def test_web_inventory_deck_and_potions_carry_descriptions() -> None:
     mgr = RunManager(seed=COMBAT_TEST_SEED, character_id="Necrobinder")
     assert mgr.run_state.player.add_potion(create_potion("BlockPotion"))

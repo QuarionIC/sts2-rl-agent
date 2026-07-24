@@ -543,6 +543,48 @@ def _derive_body(card) -> str:
     return "\n".join(lines)
 
 
+def card_damage_clause(card) -> dict | None:
+    """Static metadata about a card's main damage clause, shared by the
+    description text and the live preview so both stay in sync.
+
+    Returns ``{"hits": int | None, "all_enemies": bool, "non_attack": bool}``:
+
+    * ``hits`` is the fixed hit count from the reference effect text
+      (``"... 2 times"``), ``1`` for a plain damage clause, or ``None`` when
+      the count is variable (``"X times"`` / ``"multiple times"``).
+    * ``all_enemies`` mirrors the reference "to ALL enemies" scope.
+    * ``non_attack`` marks clauses that bypass Strength/Weak (unpowered).
+
+    Returns ``None`` when the card has no damage clause at all. Never raises.
+    """
+    try:
+        effect = _reference_effect(card.card_id)
+        if effect:
+            for clause in effect.split(";"):
+                low = clause.strip().lower()
+                if not (low.startswith("deal damage") or low.startswith("deal non-attack damage")):
+                    continue
+                if "x times" in low or "multiple times" in low:
+                    hits: int | None = None
+                else:
+                    match = re.search(r"\b(\d+) times", low)
+                    hits = int(match.group(1)) if match else 1
+                return {
+                    "hits": hits,
+                    "all_enemies": "all enemies" in low,
+                    "non_attack": "non-attack" in low,
+                }
+        if card.base_damage is not None:
+            return {
+                "hits": 1,
+                "all_enemies": card.target_type == TargetType.ALL_ENEMIES,
+                "non_attack": False,
+            }
+        return None
+    except Exception:
+        return None
+
+
 def _card_description(card) -> str:
     header = _card_header(card)
     name = getattr(card.card_id, "name", str(card.card_id))
