@@ -12,7 +12,9 @@ player advances past act ``max_act_count - 1`` (i.e. that act's boss died
 and the boss-relic screen resolved), enabling the act-count curriculum axis.
 
 Truncation (step-limit timeout) is NOT scored as a death: it adds
-``cfg.truncation`` (0.0 by default) and tags ``info["truncated"]``.
+``cfg.truncation`` (-1.0 by default: with combats capped at 30 turns, a
+step-limit truncation is a non-combat stall and must score as a loss) and
+tags ``info["truncated"]``.
 A forced loss from a simulator bug (``info["sim_error"]``) is also not
 scored as a death (terminal reward 0.0).
 """

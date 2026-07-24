@@ -33,7 +33,13 @@ class RewardConfig:
 
     win: float = 1.0
     death: float = -1.0
-    truncation: float = 0.0
+    # With the 30-turn combat cap scoring in-combat stalls as deaths, the only
+    # way to hit the episode step cap is a non-combat stall (e.g. a
+    # deterministic-argmax toggle 2-cycle on a selection screen). Stalling must
+    # not be "safer" than fighting -- score it like a death. (0.0 here
+    # previously let the value function learn truncation(0) > death(-1),
+    # biasing eval-time argmax toward absorbing dither loops.)
+    truncation: float = -1.0
     act_completion: float = 0.25
     floor: float = 0.004
     combat_hp_retention: float = 0.05
