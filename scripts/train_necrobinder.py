@@ -29,6 +29,10 @@ Eval: every 100k steps, deterministic, shaping_scale=0, seed block
 10_000_000+. History in ``eval_history.jsonl``.
 Optimizer stays alive: constant lr=2e-4 with target_kl=0.03, constant
 ent_coef=0.01. Reward shaping is a fixed scale (1.0) -- no win-rate anneal.
+--anchor-model <bc_init.zip> trains with AnchoredMaskablePPO instead: an
+auxiliary KL(pi_theta || pi_BC) term (coef 0.5 -> 0.02 over 10M steps by
+default) anchors the policy to the frozen BC reference so the prior is
+refined, not eroded (attempts 7/8 failure mode).
 """
 
 from __future__ import annotations
@@ -274,12 +278,28 @@ def build_callback_class():
 # Model construction / resume / warm-start
 # ---------------------------------------------------------------------------
 
-def build_model(train_env, tensorboard_dir: str | None):
+def build_model(train_env, tensorboard_dir: str | None, args=None):
     from sb3_contrib import MaskablePPO
 
     from sts2_env.train.policy import rich_policy_kwargs
 
-    return MaskablePPO(
+    algo_cls = MaskablePPO
+    extra: dict = {}
+    if args is not None and getattr(args, "anchor_model", None):
+        # BC-anchored PPO: auxiliary anchor_coef * KL(pi_theta || pi_BC) in
+        # the loss against a FROZEN copy of the BC policy (attached after
+        # construction via set_anchor). Fix for attempts 7/8 where the BC
+        # prior eroded under plain (even conservative) PPO fine-tuning.
+        from sts2_env.train.anchored_ppo import AnchoredMaskablePPO
+
+        algo_cls = AnchoredMaskablePPO
+        extra = dict(
+            anchor_coef=args.anchor_coef,
+            anchor_coef_final=args.anchor_coef_final,
+            anchor_decay_steps=args.anchor_decay_steps,
+        )
+
+    return algo_cls(
         "MlpPolicy",
         train_env,
         learning_rate=_RUNTIME_LR[0],   # constant; target_kl regulates step size
@@ -296,6 +316,7 @@ def build_model(train_env, tensorboard_dir: str | None):
         device="cuda",
         verbose=1,
         tensorboard_log=tensorboard_dir,
+        **extra,
     )
 
 
@@ -383,12 +404,18 @@ def train_stage(
     train_env = make_vec_env(stage_name, args.n_envs)
 
     if resume_from is not None:
-        model = MaskablePPO.load(
+        if getattr(args, "anchor_model", None):
+            from sts2_env.train.anchored_ppo import AnchoredMaskablePPO
+
+            load_cls = AnchoredMaskablePPO
+        else:
+            load_cls = MaskablePPO
+        model = load_cls.load(
             str(resume_from), env=train_env, device="cuda", tensorboard_log=tb_dir,
         )
         reset_num_timesteps = False
     else:
-        model = build_model(train_env, tb_dir)
+        model = build_model(train_env, tb_dir, args)
         reset_num_timesteps = True
         if warm_start_from is not None:
             from sts2_env.train.policy import transfer_weights
@@ -399,6 +426,14 @@ def train_stage(
             del src
         elif getattr(args, "init_model", None):
             load_init_weights(model, args.init_model)
+
+    if getattr(args, "anchor_model", None):
+        # Attach (or re-attach, on resume) the frozen BC reference. The CLI
+        # schedule is authoritative on every launch.
+        model.anchor_coef = args.anchor_coef
+        model.anchor_coef_final = args.anchor_coef_final
+        model.anchor_decay_steps = args.anchor_decay_steps
+        model.set_anchor(args.anchor_model)
 
     CurriculumCallback = build_callback_class()
     callback = CurriculumCallback(
@@ -456,6 +491,19 @@ def main():
                              "policy tensors are loaded into the FRESH model before "
                              "learn (name+shape matched; heads that differ are left "
                              "at fresh init). Ignored on --resume/warm-start.")
+    parser.add_argument("--anchor-model", type=str, default=None,
+                        help="MaskablePPO zip (e.g. output/bc_init/bc_init.zip) used as "
+                             "a FROZEN KL anchor: trains with AnchoredMaskablePPO, which "
+                             "adds anchor_coef * KL(pi_theta || pi_anchor) to the PPO "
+                             "loss so the BC prior cannot silently erode. Works "
+                             "alongside --init-model and is re-attached on --resume.")
+    parser.add_argument("--anchor-coef", type=float, default=0.5,
+                        help="Initial anchor KL coefficient (default 0.5).")
+    parser.add_argument("--anchor-coef-final", type=float, default=0.02,
+                        help="Final anchor KL coefficient (default 0.02).")
+    parser.add_argument("--anchor-decay-steps", type=int, default=10_000_000,
+                        help="Timesteps over which the anchor coefficient decays "
+                             "linearly, on ABSOLUTE steps (default 10M; resume-safe).")
     parser.add_argument("--tensorboard", action="store_true")
     parser.add_argument("--progress", action="store_true", help="Show progress bar")
     parser.add_argument("--output-dir", type=str, default=DEFAULT_OUTPUT_ROOT)
