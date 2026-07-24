@@ -30,7 +30,7 @@ to root-cause layer fast, then to the specific known failure mode.
 
 Diagnosis ends where landing a fix begins: any code change you make as a
 result of debugging is gated by **sts2-change-control** (sim behavior changes
-require the FULL 5,276-test suite plus the four parity audit scripts green —
+require the FULL ~5,300-test suite plus the four parity audit scripts green —
 no spot-check sign-offs). Do not re-litigate incidents already settled in
 **sts2-failure-archaeology**; this file carries only the compressed versions
 you need while triaging.
@@ -55,20 +55,20 @@ Get-Content output\necrobinder_g1_campaign.log -Tail 5
 
 State observed 2026-07-24 (re-verify — it WILL drift):
 
-- HEAD = `fe25668` "Phase 0 training revamp: full-run-only ladder (G1-G5),
-  never-halt curriculum, live optimizer". The pre-revamp stage A–F combat
+- HEAD = `c38fba3` "30-turn combat cap = death; fix AlchemicalCoffer
+  stale-combat crash chain" (2026-07-24 12:22); working tree clean. The
+  phase-0 revamp landed at `fe25668`: the pre-revamp stage A–F combat
   curriculum is GONE from `scripts/train_necrobinder.py`; anything describing
   stages "A"–"F", win-rate-annealed shaping, or linear LR decay is historical.
-- A **G1 training run appears live** (`output/necrobinder_g1_campaign.log`
-  ended mid-eval at 100k steps when checked). Never launch a second training
+- A **G1 training run appears live** (relaunched around `034a8d3`,
+  `output/necrobinder_g1_campaign.log`). Never launch a second training
   run while one is running — the RTX 4060 Laptop GPU has 8 GB and one run
   saturates it. Check the log tail and GPU before launching anything.
-- Uncommitted working-tree changes existed in `sts2_env/content/__init__.py`,
-  `sts2_env/content/descriptions.py`, `sts2_env/web/play_run.py`, plus
-  untracked `sts2_env/content/preview.py` — a concurrent session's
-  work-in-progress. Do not describe, "fix", or commit someone else's diff;
-  if uncommitted changes touch the file you're debugging, `git stash list` /
-  ask before concluding anything about committed behavior.
+- HEAD moved four times on 2026-07-24 alone, and the tree repeatedly carried
+  a concurrent session's work-in-progress (the tooltip/preview stream, since
+  committed as `7af0a42`). Do not describe, "fix", or commit someone else's
+  diff; if uncommitted changes touch the file you're debugging,
+  `git stash list` / ask before concluding anything about committed behavior.
 
 ---
 
@@ -104,7 +104,7 @@ Run these in order before forming any hypothesis:
    ```powershell
    .venv\Scripts\python.exe -m pytest tests --collect-only -q
    ```
-   Expected: `5276 tests collected` (count as of 2026-07-24; it grows).
+   Expected: `5293 tests collected` (count as of 2026-07-24; it grows).
    A collection ERROR here = import-time failure; go to §4 row "ImportError".
 3. **Confirm which code generation you are in.** Two generations coexist:
 
@@ -155,7 +155,7 @@ sts2-parity-discipline for the audit recipe.
 |---|---|---|
 | `pytest --collect-only` errors with ImportError / circular import | A registry or module builds content eagerly at import time, re-forming the cycle `map.acts → events.* → run → map → map.acts` | The guard is lazy registration behind a re-entrancy guard (`sts2_env/map/acts.py`) plus the fresh-interpreter regression test `tests/test_import_order_no_cycle.py`. Reproduce: `.venv\Scripts\python.exe -c "import sts2_env.events; import sts2_env.map.acts"`. Never add module-level registry construction. |
 | Training win rate depressed; runs "die" with no obvious combat cause | Simulator exception force-ended episodes as losses | `STS2RunEnv.step()` catches all dispatch exceptions, logs them, tags `info["sim_error"]=True`, scores 0.0 (`run_env.py:315-365`). Grep every training log: `Select-String -Path output\*.log -Pattern "STS2RunEnv.step failed during phase"`. Any hit = a real sim bug to reproduce and fix; the episodes are already excluded from death scoring (since fe25668), but the bug itself remains. |
-| A combat never ends in the run env; episode scored as a death | `max_combat_turns` (default 200) exceeded → the env sets player HP to 0 and calls `lose_run()` (`run_env.py:531-537`) | This IS scored as a real death. If an agent shows a spike of deaths with very long combats, suspect a degenerate loop the sim allows (see the Dazed trap, §7.3, for the live-game analogue). Reproduce interactively (§4.2). |
+| A combat never ends in the run env; episode scored as a death | `max_combat_turns` exceeded (base `STS2RunEnv` default 200, `run_env.py:209`; `RichSTS2RunEnv` default 30 since `c38fba3`, `rich_run_env.py:52`) → the env sets player HP to 0 and calls `lose_run()` (`run_env.py:531-537`) | This IS scored as a real death. If an agent shows a spike of deaths with very long combats, suspect a degenerate loop the sim allows (see the Dazed trap, §7.3, for the live-game analogue). Reproduce interactively (§4.2). |
 | A card/relic/power does the wrong thing | Parity gap vs decompiled C# | Reproduce with a seeded test, then follow the parity-test recipe in sts2-parity-discipline (cite the `decompiled_v0.109.0/` file in the test docstring). Check `docs/KNOWN_ISSUES.md` #11 first — some effects are "audited-not-proven-exact" (e.g. Alchemize, BeatDown, HandOfGreed, Compact, WhiteNoise, TheHunt). |
 | Two runs from the same seed diverge | RNG stream misrouting or iteration-order nondeterminism | The sim mirrors the game's per-named-stream seeded RNG (`sts2_env/core/rng.py`: `next_int` is INCLUSIVE on both ends; `next_int_exclusive` exists separately). Divergence usually means something consumed from the wrong stream or iterated an unordered collection. Ownership: sts2-parity-discipline (porting rules), sts2-architecture-contract (two RNG roots + named-streams contract). |
 | Agent's chosen action seems ignored in a gym env | Invalid actions are ignored SILENTLY at debug level (`rich_combat_env.py:324-328`); in the run env an unsuccessful `play_card` falls back to `end_turn` (`run_env.py:513-526`) | This is by design — masking is what keeps the agent honest. If you see it during a manual rollout, your loop isn't passing `action_masks` to `model.predict()` (§5.1). |
@@ -170,12 +170,11 @@ Interactive CLIs (best first move for "the sim did something weird"):
 .venv\Scripts\python.exe scripts\play_interactive.py
 # Full run, interactive CLI:
 .venv\Scripts\python.exe scripts\play_run_interactive.py
-# Full run, local web UI (NOTE 2026-07-24: sts2_env/web/play_run.py had
-# uncommitted local edits - prefer the CLI for committed-behavior repro):
+# Full run, local web UI:
 .venv\Scripts\python.exe scripts\play_run_web.py
 ```
 
-Targeted tests (131 test files; name-match your subject):
+Targeted tests (132 test files; name-match your subject):
 
 ```powershell
 .venv\Scripts\python.exe -m pytest tests -q -k "necrobinder"
@@ -192,7 +191,7 @@ of correctness. All four must be green before any sim-behavior fix lands
 .venv\Scripts\python.exe scripts\audit_card_static_metadata.py    # prints "card static metadata audit passed"
 .venv\Scripts\python.exe scripts\audit_card_dynamic_vars.py       # prints "card dynamic var audit passed"
 .venv\Scripts\python.exe scripts\audit_card_effect_vars.py        # prints "card effect var audit passed"
-.venv\Scripts\python.exe scripts\parity_reference_audit.py --show-missing   # decompiled-class coverage scan; flags: --surface cards|powers|relics|... --json
+.venv\Scripts\python.exe scripts\parity_reference_audit.py --direct-test-references --include-deprecated --code-implementation-references --show-missing   # decompiled-class coverage scan; the strict trio of flags IS the doctrine gate (sts2-parity-discipline) — without them the audit measures a laxer coverage notion; extra flags: --surface cards|powers|relics|... --json. NOTE: always exits 0; read the output (known open gap: encounters/ToadpolesNormal)
 ```
 
 Deliberate deviations from the game belong in the PATCHED allowlists inside
@@ -376,8 +375,8 @@ there are no real TODO markers to mine for hints.
 ## 8. After diagnosis: reporting and landing
 
 - **Landing any fix**: sts2-change-control. Minimum for sim-behavior changes:
-  full suite green (`.venv\Scripts\python.exe -m pytest tests -q`, 5,276
-  tests), all four audit scripts (§4.3), and
+  full suite green (`.venv\Scripts\python.exe -m pytest tests -q`, 5,293
+  tests as of 2026-07-24), all four audit scripts (§4.3), and
   `.venv\Scripts\python.exe scripts\benchmark.py` if performance-relevant.
 - **New incident or open bug**: add it to `docs/KNOWN_ISSUES.md` using its
   status vocabulary (Fixed / Open / verified-from-source-only /
@@ -398,12 +397,12 @@ there are no real TODO markers to mine for hints.
 ## 9. Provenance and maintenance
 
 Every fact below was verified directly against the repo on **2026-07-24**
-(HEAD `fe25668`). Re-verify before relying on anything date-sensitive.
+(HEAD `c38fba3`). Re-verify before relying on anything date-sensitive.
 
 | Fact (as of 2026-07-24) | Re-verify with |
 |---|---|
-| HEAD = fe25668 (Phase 0 revamp, G1–G5 ladder); uncommitted content/web edits present | `git log -1 --oneline; git status --short` |
-| 5,276 tests collected, ~1.5 s | `.venv\Scripts\python.exe -m pytest tests --collect-only -q` |
+| HEAD = c38fba3 (revamp landed at fe25668, G1–G5 ladder); working tree clean | `git log -1 --oneline; git status --short` |
+| 5,293 tests collected, ~1.5 s | `.venv\Scripts\python.exe -m pytest tests --collect-only -q` |
 | Obs/action sizes 131 / 151 / 157 / 4184 / 115 | the one-liner in §2 step 3 |
 | Trainer: constant lr 2e-4, target_kl 0.03, ent 0.01, n_steps 1024, γ 0.997, never-halt ladder, output `output/necrobinder_run` | `Get-Content scripts\train_necrobinder.py -TotalCount 80` |
 | Reward: win +1 / death −1 / truncation 0.0 / act 0.25 / floor 0.004 / HP-ret 0.05; eval shaping=0 | `Get-Content sts2_env\gym_env\reward_config.py` |

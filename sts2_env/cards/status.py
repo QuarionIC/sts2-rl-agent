@@ -1270,8 +1270,11 @@ def sovereign_blade_target_type(card: CardInstance, owner: Creature, target_type
     return target_type
 
 
-def is_sovereign_blade(card: CardInstance) -> bool:
-    return card.card_id == CardId.SOVEREIGN_BLADE
+def is_sovereign_blade(card: CardInstance | None) -> bool:
+    # card is None whenever damage has no card source (enemy attacks, thorns,
+    # potions...) -- C# `cardSource is SovereignBlade` is likewise false for
+    # null. ConquerorPower reaches here on EVERY incoming hit to its owner.
+    return card is not None and card.card_id == CardId.SOVEREIGN_BLADE
 
 
 def is_forgeable_sovereign_blade(card: CardInstance) -> bool:

@@ -31,8 +31,8 @@ sts2-change-control.**
 
 | Fact | Value | Where |
 |---|---|---|
-| HEAD | `fe25668` (2026-07-24 11:52 -0400), 640 commits | `git log -1` |
-| Test suite | 5,276 tests collected (130 files, 88 of them `*parity*`) | `pytest tests --collect-only -q` |
+| HEAD | `c38fba3` (2026-07-24 12:22 -0400), 643 commits | `git log -1` |
+| Test suite | 5,293 tests collected (132 files, 88 of them `*parity*`) | `pytest tests --collect-only -q` |
 | Simulator | From-scratch Python headless STS2 (beta v0.109.0 + ActsFromThePast + Act4Heart mods), verified against decompiled C# | `sts2_env/`, `decompiled_v0.109.0/` |
 | Envs | Rich obs 4184-dim (`RICH_OBS_SIZE`), combat `Discrete(115)`, full-run `Discrete(157)`; legacy 131/151-dim obs still present | `sts2_env/gym_env/` |
 | Campaign | Combat-only Stage A plateaued at 63.5% (postmortem in `docs/TRAINING_REVAMP_SPEC.json`); full-run G1–G5 ladder committed at HEAD; a **G1 run is live right now** (first eval at 100k steps in `output/necrobinder_g1_campaign.log`) — do not describe its outcome, check it | `scripts/train_necrobinder.py:58-63` |
@@ -70,7 +70,7 @@ win-rate claims need >=1000 eval episodes with a Wilson 95% CI.
     442452829]` and named streams (`up_front`, `shuffle`,
     `combat_card_generation`, ...) derive the exact game seeds
     (`tests/test_rng_parity.py`).
-  - 88 parity test files (of 130 test files, 5,276 collected tests), each
+  - 88 parity test files (of 132 test files, 5,293 collected tests), each
     citing decompiled C# in docstrings, plus four audit scripts
     (`scripts/parity_reference_audit.py`, `audit_card_static_metadata.py`,
     `audit_card_dynamic_vars.py`, `audit_card_effect_vars.py`) —
@@ -80,12 +80,14 @@ win-rate claims need >=1000 eval episodes with a Wilson 95% CI.
   approximate reimplementations or simplifications), and none targets STS2.
 - **What you may claim today:** "decompiled-source-verified simulator with
   seed-compatible RNG and an N-test parity suite." Quantify: "88 parity test
-  files / 5,276 tests" (re-count at claim time).
+  files / 5,293 tests" (re-count at claim time).
 - **What you may NOT claim yet:** "exact" or "bit-exact game replica".
   `docs/KNOWN_ISSUES.md` #11 explicitly labels several card effects
   "audited-not-proven-exact" (e.g. Alchemize, BeatDown, HandOfGreed, Compact,
-  WhiteNoise, TheHunt), and 14 Necrobinder card entries deliberately deviate
-  from the stale reference doc (PATCHED allowlists). **Proof obligation:**
+  WhiteNoise, TheHunt), and 16 distinct Necrobinder cards deliberately deviate
+  from the stale reference source (the two audit-script PATCHED allowlists:
+  5 static + 12 dynamic ids, 1 overlap — counts owned by
+  sts2-parity-discipline section 6). **Proof obligation:**
   golden-replay traces recorded from the live game replaying mismatch-free in
   the simulator (see Open Problem 3) — that is the only end-to-end fidelity
   evidence money can't argue with. Absent that, scope the parity claim to
@@ -330,7 +332,7 @@ sts2-analysis-toolkit and sts2-testing-and-qa):
   for a reportable number.
 - [ ] **Game identity**: STS2 beta v0.109.0 + ActsFromThePast + Act4Heart
   (both ACTIVE in the campaign config); decompile tree
-  `decompiled_v0.109.0/` (241 entries). A game patch invalidates parity —
+  `decompiled_v0.109.0/` (222 namespace dirs, ~3,495 tracked files). A game patch invalidates parity —
   re-run the four audit scripts after any re-decompile.
 - [ ] **Environment identity** (verified 2026-07-24): Python 3.13.14,
   torch 2.11.0+cu128, stable-baselines3 2.9.0, sb3-contrib 2.9.0, CUDA
@@ -340,7 +342,7 @@ sts2-analysis-toolkit and sts2-testing-and-qa):
 - [ ] **Artifacts**: checkpoint zip (~103MB each for rich policies) + its
   sidecar JSON with `eval_history`; the campaign log; TensorBoard dir.
   Storage/layout in sts2-run-and-operate.
-- [ ] **Test gate**: full suite green at the claimed commit (5,276 tests as of
+- [ ] **Test gate**: full suite green at the claimed commit (5,293 tests as of
   2026-07-24) + four parity audits — house doctrine, enforced by
   sts2-change-control.
 - [ ] **Labels**: aspirational targets labeled aspirational (95% especially);
@@ -430,8 +432,8 @@ Every volatile fact above, with a one-line re-verification command (run from
 
 | Fact | Re-verify with |
 |---|---|
-| HEAD `fe25668`, 640 commits, 12 ahead of upstream | `git log -1 --oneline; git log --oneline \| wc -l; git log upstream/main..main --oneline \| wc -l` |
-| 5,276 tests / 130 test files / 88 parity files | `.venv\Scripts\python.exe -m pytest tests --collect-only -q \| tail -1` and `ls tests/*parity*.py \| wc -l` |
+| HEAD `c38fba3`, 643 commits, 15 ahead of upstream | `git log -1 --oneline; git log --oneline \| wc -l; git log upstream/main..main --oneline \| wc -l` |
+| 5,293 tests / 132 test files / 88 parity files | `.venv\Scripts\python.exe -m pytest tests --collect-only -q \| tail -1` and `ls tests/*parity*.py \| wc -l` |
 | Obs/action constants (4184 / 115 / 157 / 151 / 131, RICH_OBS_VERSION=1, NUM_CARD_IDS=586) | `.venv\Scripts\python.exe -c "from sts2_env.gym_env.rich_observation import RICH_OBS_SIZE,RICH_OBS_VERSION,NUM_CARD_IDS; from sts2_env.gym_env.action_space import ACTION_SPACE_SIZE; from sts2_env.gym_env.run_env import RUN_OBS_SIZE,_LAYOUT; print(RICH_OBS_SIZE,RICH_OBS_VERSION,NUM_CARD_IDS,ACTION_SPACE_SIZE,RUN_OBS_SIZE,_LAYOUT.total_actions)"` |
 | RNG pinned sequences + named streams | `.venv\Scripts\python.exe -m pytest tests/test_rng_parity.py -q` |
 | G1–G5 stage table (A0/2→A10/4, 20M→60M) | `grep -n "StageConfig(" scripts/train_necrobinder.py` |

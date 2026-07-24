@@ -50,11 +50,11 @@ when this skill was written:
 
 | Fact | Value (2026-07-24) | Re-check with |
 |---|---|---|
-| HEAD | `fe25668` "Phase 0 training revamp: full-run-only ladder (G1-G5), never-halt curriculum, live optimizer" (11:52 EDT) | `git log --oneline -1` |
-| Working tree | dirty: modified `sts2_env/content/__init__.py`, `sts2_env/content/descriptions.py`, `sts2_env/web/play_run.py`; untracked `sts2_env/content/preview.py` (a concurrent session's web-tooltip work) | `git status --short` |
-| **A G1 training run was LIVE** | launched 11:55 EDT, log `output/necrobinder_g1_campaign.log`, TensorBoard dir `output/necrobinder_g1/G1/tb/`, GPU ~33% util | see "Is a training run live?" below |
+| HEAD | `c38fba3` "30-turn combat cap = death; fix AlchemicalCoffer stale-combat crash chain" (12:22 EDT; the Phase-0 revamp landed at `fe25668`, 11:52) | `git log --oneline -1` |
+| Working tree | clean — the concurrent session's web-tooltip work was committed as `7af0a42` (12:04) | `git status --short` |
+| **A G1 training run was LIVE** | first launched 11:55 EDT, relaunched with retuned eval cadence (`034a8d3`); log `output/necrobinder_g1_campaign.log`, TensorBoard dir `output/necrobinder_g1/G1/tb/` | see "Is a training run live?" below |
 | Old stage-A artifacts | `output/necrobinder_a10/` (2.2 GB, 21 combat-only ckpts, **incompatible** with the new trainer — see traps) | `ls output/necrobinder_a10/A` |
-| Test collection | 5,290 tests collected (grew from 5,276 at `18a8059` with the dirty tree) | `.venv\Scripts\python.exe -m pytest --collect-only -q tests` |
+| Test collection | 5,293 tests collected (grew from 5,276 at `18a8059`; drifts) | `.venv\Scripts\python.exe -m pytest --collect-only -q tests` |
 
 **Before launching ANY training, check whether one is already live.** Two
 trainers contend for the single GPU and the CPU workers and will slow each
@@ -92,7 +92,8 @@ only — this is a debugging toy, not the campaign env.
 .venv\Scripts\python.exe scripts\play_run_interactive.py --character Necrobinder --ascension 10 --seed 42
 ```
 
-Flags (verified in `sts2_env/cli/play_run.py:567-576`):
+Flags (verified in `sts2_env/cli/play_run.py` — line anchors drift with the
+in-flight UI work; locate with `Select-String add_argument sts2_env\cli\play_run.py`):
 `--character {Ironclad,Silent,Defect,Necrobinder,Regent}`, `--ascension N`
 (default 0), `--seed N` (default random), `--skip-neow` (start directly on the
 map, skipping the Neow-style run-start bonus choice). Plays the entire run:
@@ -105,14 +106,16 @@ map, combats, shops, events, rest sites, the Act 4 Heart. Type `h` for help,
 .venv\Scripts\python.exe scripts\play_run_web.py --open
 ```
 
-Flags (verified in `sts2_env/web/play_run.py:875-884`): `--host` (default
+Flags (verified in `sts2_env/web/play_run.py`; locate with
+`Select-String add_argument sts2_env\web\play_run.py`): `--host` (default
 127.0.0.1), `--port` (default 8765), `--open` (launch browser),
 `--ascension N` (default 0, per-run overridable). Serves a single-page UI at
 `http://127.0.0.1:8765/`; JSON API: `GET /api/state`, `POST
 /api/new?character=Necrobinder&ascension=10&seed=42`, `POST /api/action`.
-Character is picked per run in the UI. Note (2026-07-24): `web/play_run.py`
-has uncommitted edits in the working tree from a concurrent session — if the
-UI misbehaves, `git stash list`/`git diff` before assuming a regression.
+Character is picked per run in the UI. Note (2026-07-24): the concurrent
+session's `web/play_run.py` edits (live card previews) were committed as
+`7af0a42`; still run `git status` before assuming a regression is committed
+behavior.
 
 Jargon: **Necrobinder** is the STS2 character the campaign trains — summons
 **Osty** (an ally modeled as a monster that never acts on its own) and spends
@@ -424,12 +427,12 @@ non-zero, the sim threw during those episodes (forced loss scored 0, tagged
 
 ## Provenance and maintenance
 
-Every fact below can drift. Stamp: verified 2026-07-24 (~12:00 EDT), HEAD
-`fe25668`, dirty working tree (content/web edits by a concurrent session).
+Every fact below can drift. Stamp: verified 2026-07-24 (latest re-check at
+HEAD `c38fba3`, ~12:30 EDT, clean working tree).
 
 | Fact (2026-07-24) | Re-verify with |
 |---|---|
-| HEAD fe25668; G1–G5 ladder; combat stages deleted | `git log --oneline -3` |
+| HEAD c38fba3; G1–G5 ladder (landed `fe25668`); combat stages deleted | `git log --oneline -3` |
 | Trainer flags & defaults (n-envs 24, output `output/necrobinder_run`) | `.venv\Scripts\python.exe scripts\train_necrobinder.py --help` |
 | Stage table & hyperparams (lr 2e-4 const, target_kl 0.03, n_steps 1024, gamma 0.997) | `Read scripts/train_necrobinder.py:49-76, 260-277` |
 | Reward terms (win +1, death −1, truncation 0, shaping ×1.0) | `Read sts2_env/gym_env/reward_config.py:34-40` |
@@ -440,6 +443,6 @@ Every fact below can drift. Stamp: verified 2026-07-24 (~12:00 EDT), HEAD
 | `train_full_run.py` still broken (drifted kwargs) | `grep -n "act_count=" scripts/train_full_run.py` then compare `sts2_env/gym_env/run_env.py:255-262` init signature |
 | Play CLI/web flags; characters (Ironclad, Silent, Defect, Necrobinder, Regent) | `.venv\Scripts\python.exe -c "from sts2_env.run.run_manager import SUPPORTED_CHARACTER_IDS; print(SUPPORTED_CHARACTER_IDS)"`; `grep -n add_argument sts2_env/cli/play_run.py sts2_env/web/play_run.py` |
 | tensorboard 2.21.0 installed; torch 2.11.0+cu128 CUDA OK | `.venv\Scripts\python.exe -m pip list \| findstr /i "tensorboard torch"`; `.venv\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())"` |
-| Test collection 5,290 (dirty tree) | `.venv\Scripts\python.exe -m pytest --collect-only -q tests` |
+| Test collection 5,293 | `.venv\Scripts\python.exe -m pytest --collect-only -q tests` |
 | Spec doctrine (PBRS etc. pending, phases 1–9) | `Read docs/TRAINING_REVAMP_SPEC.json` (`concrete_implementation_plan`) |
 | eval_checkpoint.py stage presets match trainer STAGES | diff `STAGE_PRESETS` in `.claude/skills/sts2-run-and-operate/scripts/eval_checkpoint.py` against `scripts/train_necrobinder.py:58-64` — **update the presets if the stage table changes** |

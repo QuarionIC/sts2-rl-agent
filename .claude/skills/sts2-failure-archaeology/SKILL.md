@@ -49,20 +49,23 @@ ever disagree, re-check the code and fix whichever is stale via sts2-change-cont
 
 ## Timeline: three eras, three failure generations
 
-640 commits as of 2026-07-24 (verify: `git log --oneline | Measure-Object -Line`).
+643 commits as of 2026-07-24 (verify: `git log --oneline | Measure-Object -Line`).
 
 | Era | Dates | Commits | Character | Failure generation |
 |---|---|---|---|---|
 | 1. Bootstrap | 2026-03-16..18 | 8 | Monolithic initial drop `81f6d6b` (156 files): sim + agent + bridge at once | Gen 1: bridge-mod bring-up traps (energy, threading, mod loading, protocol drift) |
 | 2. Parity blitz | 2026-05-18..22 | 620 | Micro-commit parity sweeps (peak 184/day on 05-21), inherited from upstream `zhiyue/sts2-rl-agent` | Gen 2: RNG-stream routing and hook-order regressions (owned by sts2-parity-discipline) |
-| 3. Necrobinder A10 campaign | 2026-07-23..24 | 12 | Local-authored: v0.109.0 + mods re-sync, curriculum trainer, revamp | Gen 3: training-pipeline and adapter failures (this skill's core) |
+| 3. Necrobinder A10 campaign | 2026-07-23..24 | 15 | Local-authored: v0.109.0 + mods re-sync, curriculum trainer, revamp | Gen 3: training-pipeline and adapter failures (this skill's core) |
 
 Zero reverts in the entire history (`git log -i --grep=revert --oneline` is empty);
 mistakes were always fixed forward. Only branch: `main`.
 
 Jargon used below, defined once:
 
-- **Souls** — Necrobinder's core class resource (a counter spent by class cards).
+- **Souls** — status-rarity CARDS (`CardId.SOUL`, cost 0, exhaust, "draw 2"),
+  not a spendable counter: Necrobinder effects generate them into piles and
+  count them per pile (`sts2_env/cards/status.py:1227-1244`); mechanics owned
+  by sts2-game-and-mods-reference.
 - **Osty** — Necrobinder's pet. In the real game an *ally monster* with a single
   self-looping `NOTHING_MOVE`, not a player creature (`decompiled_v0.109.0/MegaCrit.Sts2.Core.Models.Monsters/Osty.cs`).
 - **AFTP** — the ActsFromThePast mod (legacy act slots); active in the campaign config.
@@ -460,14 +463,15 @@ Re-verify against code if in doubt, but the burden of proof is on reopening:
 
 ## Provenance and maintenance
 
-All facts in this file were re-verified against the repo on **2026-07-24**, at
-HEAD `fe25668` (note: HEAD advanced during authoring day — earlier same-day
-documents cite `18a8059`; the working tree also carried uncommitted
-`sts2_env/content/` and `web/play_run.py` edits from a concurrent session, none
-of which this skill depends on). One-line re-verification commands:
+All facts in this file were re-verified against the repo on **2026-07-24**
+(originally at HEAD `fe25668`, re-checked at `c38fba3`; HEAD advanced four
+times during authoring day — earlier same-day documents cite `18a8059`, and
+the once-uncommitted `sts2_env/content/` + `web/play_run.py` edits landed as
+`7af0a42`; none of this skill depends on them). One-line re-verification
+commands:
 
 ```powershell
-# HEAD, era structure, no-reverts claim, commit count (640 @ 2026-07-24)
+# HEAD, era structure, no-reverts claim, commit count (643 @ 2026-07-24)
 git -C C:\Users\motqu\GitHub\sts2-rl-agent log -1 --oneline
 git -C C:\Users\motqu\GitHub\sts2-rl-agent log --oneline | Measure-Object -Line
 git -C C:\Users\motqu\GitHub\sts2-rl-agent log -i --grep=revert --oneline

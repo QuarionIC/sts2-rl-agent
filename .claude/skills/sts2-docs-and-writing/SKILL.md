@@ -49,14 +49,15 @@ Jargon used below, defined once:
 - **Osty**: Necrobinder's summonable ally pet (implemented as an ally monster,
   not a player creature).
 
-## 0. Live-state warning (as of 2026-07-24, HEAD = fe25668)
+## 0. Live-state warning (as of 2026-07-24, HEAD = c38fba3)
 
-The repo is under ACTIVE concurrent development. During the writing of this
-skill (2026-07-24 midday), the working tree changed under us twice: commit
-`fe25668` (2026-07-24 11:52, "Phase 0 training revamp") landed the G1-G5
-full-run-only trainer and committed `docs/TRAINING_REVAMP_SPEC.json`, and a
-separate session is currently modifying `sts2_env/content/descriptions.py`,
-`sts2_env/web/play_run.py`, and CLI/web preview files (uncommitted).
+The repo is under ACTIVE concurrent development. On 2026-07-24 alone HEAD
+moved four times: `fe25668` (11:52, "Phase 0 training revamp") landed the
+G1-G5 full-run-only trainer and committed `docs/TRAINING_REVAMP_SPEC.json`;
+the preview/tooltip work that was then in flight landed as `7af0a42` (12:04);
+`034a8d3` retuned the G1 eval cadence; `c38fba3` (12:22) added the 30-turn
+combat cap. The tree is clean at the latest check, but assume a concurrent
+session may be mid-edit at any time.
 
 Before repeating ANY volatile fact from this skill or from any doc, run:
 
@@ -167,7 +168,7 @@ the verified debt; if you are reading it, this is the correction table.
 | 131-dim observation (README:15, 306) | Legacy combat obs is still 131 (`observation.py`, `OBS_SIZE=131`) but the campaign trains the rich stack: `RICH_OBS_SIZE=4184` (`rich_observation.py`) |
 | Discrete(61) combat / Discrete(100) run (README:13-17, 302-307) | `ACTION_SPACE_SIZE=115` (combat), run env Discrete(157) with 151-dim legacy obs (`run_env.py`, `_LAYOUT.total_actions=157`, `RUN_OBS_SIZE=151`) |
 | Training via `train_combat.py` + `train_full_run.py` (README:27-28, 149) | Entrypoint of record is `scripts/train_necrobinder.py` (G1-G5). **`scripts/train_full_run.py` is BROKEN**: it passes `act_count=`/`reward_shaping=` kwargs (train_full_run.py:25-27) that `STS2RunEnv.__init__` does not accept (signature verified by import: `character_id, ascension_level, max_steps, max_combat_turns, render_mode`) - TypeError at env construction. `train_combat.py` still runs and has `--character`/`--ascension` but trains the legacy 131-dim env |
-| 408 test functions, 14 test files (README:38, 264) | 5,276 collected tests, ~131 `tests/test_*.py` files (`pytest tests --collect-only -q`) |
+| 408 test functions, 14 test files (README:38, 264) | 5,293 collected tests, 132 `tests/test_*.py` files (`pytest tests --collect-only -q`) |
 | 577 cards / 260 powers / 290 relics (README:39-42) | `len(CardId)=586`, `len(PowerId)=293`, `len(RelicId)=308` (verified by import). README's 121 monsters / 63 potions are pre-mod counts (not re-verified; mod acts added monsters) |
 | 133 source files, ~50,000 LOC (README:36-37) | ~287 `.py` files (sts2_env+scripts+tests, incl. in-flight untracked), 11 hand-written `.cs` files in `bridge_mod/`; ~132k Python LOC per the July audit |
 | ~1,200 combats/sec, ~92% Act 1 Ironclad win rate (README:45-46) | UNVERIFIED legacy claims - do not repeat without rerunning `scripts/benchmark.py` and a fresh eval with protocol (see sts2-analysis-toolkit) |
@@ -205,7 +206,7 @@ Verified split (2026-07-24):
 
 **Stale (do not repeat):**
 - "16 test files, 408 test functions" (CONTRIBUTING.md:45) and the 14-file
-  test list at :72-87 - reality is ~131 files / 5,276 collected.
+  test list at :72-87 - reality is 132 files / 5,293 collected (2026-07-24).
 - Content counts in the layout tree (:35-39): 577/260/121/290/63 - see
   section 4.
 - Every `decompiled/` path in the recipes (:109, :151, :184, :229, :241):
@@ -230,7 +231,7 @@ simulator and asserted against by the test suite.
 | Consumer | What it does with the file |
 |---|---|
 | `sts2_env/cards/factory.py:202` (`_reference_cards()`, lru_cached) | Parses `### ` card entries and `- **Field:** value` lines into card metadata used by the card factory |
-| `sts2_env/content/descriptions.py:341-344` (line nos. shifting - file is being modified by a concurrent session; anchor on the parse function's docstring "Parse ``docs/CARDS_REFERENCE.md``") | Derives web-UI tooltip effect text for all 586 cards; combines reference parsing with a `_CARD_OVERRIDES` table of curated overrides (~35 at commit 18a8059) |
+| `sts2_env/content/descriptions.py:341-344` (verified at `c38fba3`; if line nos. shift, anchor on the parse function's docstring "Parse ``docs/CARDS_REFERENCE.md``") | Derives web-UI tooltip effect text for all 586 cards; combines reference parsing with a `_CARD_OVERRIDES` table of curated overrides (~35 at commit 18a8059) |
 | `tests/test_all_cards_unit_coverage.py:87` | Structural coverage gate: asserts implemented cards against reference entries |
 
 **Known-wrong-by-design entries:** the file was generated from the
@@ -240,7 +241,9 @@ to match v0.109.0 while the doc still shows pre-patch text. They are
 whitelisted as `_PATCHED_NECROBINDER_CARD_IDS` in
 `tests/test_all_cards_unit_coverage.py:63-78`: BANSHEES_CRY, BORROWED_TIME,
 DANSE_MACABRE, DEATH_MARCH, DEBILITATE_CARD, DIRGE, EIDOLON, HAUNT, REAVE,
-SCULPTING_STRIKE, SEANCE, SIC_EM, SOUL_STORM, THE_SCYTHE. Only the
+SCULPTING_STRIKE, SEANCE, SIC_EM, SOUL_STORM, THE_SCYTHE. (The audit-script
+allowlists against the decompiled reference cover 16 distinct cards — a
+separate mechanism; counts owner: sts2-parity-discipline section 6.) Only the
 BorrowedTime ENTRY in the doc was corrected (commit 18a8059, 2026-07-24)
 because the tooltip generator surfaced the divergence.
 
@@ -403,7 +406,7 @@ external write-ups alike.
 6. **Commit messages are part of the record.** July-era practice (read
    `git show 18a8059 -s` for the model): bulleted what-and-why, decompiled
    citations for parity changes, and the suite result line
-   ("Suite: 5276 passed, 0 failed"). Follow it; the gate itself is
+   ("Suite: 5293 passed, 0 failed" — use the count your run printed). Follow it; the gate itself is
    sts2-change-control's.
 7. **One home per fact.** Before writing, check whether a doc-of-record
    already owns the topic (section 2 map); update the owner and link it,
@@ -430,16 +433,17 @@ Ground truth: <decompiled_v0.109.0/ paths, code paths, or experiment logs>.
 
 ## Provenance and maintenance
 
-All facts verified directly against the repo on 2026-07-24 (HEAD = fe25668,
-working tree carrying uncommitted web/CLI preview work). Re-verify with the
+All facts verified directly against the repo on 2026-07-24 (originally at
+HEAD = fe25668, re-checked at c38fba3 — the formerly uncommitted web/CLI
+preview work is now committed as 7af0a42). Re-verify with the
 commands below; run everything from `C:\Users\motqu\GitHub\sts2-rl-agent`.
 
 | Fact (as of 2026-07-24) | Re-verification one-liner |
 |---|---|
-| HEAD = fe25668; revamp spec committed; tree has uncommitted preview work | `git log --oneline -3 ; git status --short` |
+| HEAD = c38fba3; revamp spec committed; tree clean | `git log --oneline -3 ; git status --short` |
 | Per-doc last-commit dates in the staleness map | `git log -1 --format="%h %ci" -- <file>` |
 | Era boundaries (Mar 16-18, May 18-22, Jul 23-24 activity) | `git log --format="%ad" --date=short \| sort \| uniq -c` (Git Bash) |
-| 5,276 tests collected, ~131 test files | `.venv\Scripts\python.exe -m pytest tests --collect-only -q` |
+| 5,293 tests collected, 132 test files | `.venv\Scripts\python.exe -m pytest tests --collect-only -q` |
 | OBS_SIZE=131, RICH_OBS_SIZE=4184, combat Discrete(115), run Discrete(157)/151 | `.venv\Scripts\python.exe -c "from sts2_env.gym_env.observation import OBS_SIZE; from sts2_env.gym_env.rich_observation import RICH_OBS_SIZE; from sts2_env.gym_env.action_space import ACTION_SPACE_SIZE; from sts2_env.gym_env.run_env import RUN_OBS_SIZE, _LAYOUT; print(OBS_SIZE, RICH_OBS_SIZE, ACTION_SPACE_SIZE, RUN_OBS_SIZE, _LAYOUT.total_actions)"` |
 | 586 cards / 293 powers / 308 relics | `.venv\Scripts\python.exe -c "from sts2_env.core.enums import CardId, PowerId; from sts2_env.relics import RelicId; print(len(CardId), len(PowerId), len(RelicId))"` (note: RelicId imports from `sts2_env.relics`, not `core.enums`) |
 | `train_full_run.py` still broken (kwarg drift) | `.venv\Scripts\python.exe -c "import inspect; from sts2_env.gym_env.run_env import STS2RunEnv; print(inspect.signature(STS2RunEnv.__init__))"` then compare with `scripts/train_full_run.py:25-27` |

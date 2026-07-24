@@ -475,8 +475,8 @@ sts2-testing-and-qa / sts2-analysis-toolkit.
 
 - Classify changes per sts2-change-control: C# mod changes and Python adapter
   changes are separate classes; adapter changes also require the FULL test
-  suite (`.venv\Scripts\python.exe -m pytest tests/ -q`, 5,276 tests at
-  HEAD), not just the 73 bridge tests.
+  suite (`.venv\Scripts\python.exe -m pytest tests/ -q`, 5,293 tests as of
+  2026-07-24; drifts), not just the 73 bridge tests.
 - Bridge test files: `test_bridge_state_adapter.py`,
   `test_bridge_run_state_adapter.py`, `test_bridge_replay_harness.py`,
   `test_bridge_autoslay_coverage.py`, `test_bridge_client_protocol.py`
@@ -502,7 +502,7 @@ from the repo root; PowerShell):
 
 | Fact (as of 2026-07-24) | Re-verify with |
 |---|---|
-| HEAD is `fe25668`; bridge files last touched by `0078f70` | `git log --oneline -1; git log --oneline -1 -- sts2_env/bridge bridge_mod` |
+| HEAD is `c38fba3` (2026-07-24); bridge files last touched by `0078f70` | `git log --oneline -1; git log --oneline -1 -- sts2_env/bridge bridge_mod` |
 | 73 bridge tests collect | `.venv\Scripts\python.exe -m pytest --collect-only -q tests/test_bridge_state_adapter.py tests/test_bridge_run_state_adapter.py tests/test_bridge_replay_harness.py tests/test_bridge_autoslay_coverage.py tests/test_bridge_client_protocol.py` |
 | Space sizes 115/131, 157/151, rich 4184 | `.venv\Scripts\python.exe -c "from sts2_env.core.constants import ACTION_SPACE_SIZE; from sts2_env.gym_env.observation import OBS_SIZE; from sts2_env.gym_env.run_env import RUN_OBS_SIZE, TOTAL_ACTIONS; from sts2_env.gym_env.rich_observation import RICH_OBS_SIZE; print(ACTION_SPACE_SIZE, OBS_SIZE, TOTAL_ACTIONS, RUN_OBS_SIZE, RICH_OBS_SIZE)"` |
 | No rich adapter in the bridge yet | `Select-String -Path sts2_env\bridge\*.py -Pattern "rich" -SimpleMatch` (expect no output) |

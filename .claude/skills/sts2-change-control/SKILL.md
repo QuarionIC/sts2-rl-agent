@@ -45,7 +45,8 @@ gate is not done; it is a liability.
 ## The two all-repo user rules (stated 2026-07-24, apply to every change)
 
 1. **Comprehensive test regime after every change.** Sim-behavior changes
-   require the FULL suite green (5,276 tests — it runs in ~25 s, there is no
+   require the FULL suite green (5,293 tests as of 2026-07-24 — the count
+   drifts as tests are added; it runs in ~25 s, there is no
    excuse to spot-check), plus all four parity audit scripts, plus
    `scripts/benchmark.py` if the change could affect performance. No
    spot-check sign-offs, ever. "The three tests I touched pass" is not done.
@@ -97,11 +98,18 @@ cd C:\Users\motqu\GitHub\sts2-rl-agent
 .venv\Scripts\python.exe scripts\parity_reference_audit.py --direct-test-references --include-deprecated --code-implementation-references --show-missing
 ```
 
-Expected (all verified green at HEAD `fe25668` + working tree, 2026-07-24):
-`5276 passed` in ~25 s; "card static metadata audit passed"; "card dynamic var
-audit passed"; "card effect var audit passed"; the reference audit printing
-"Missing ... none" for all 8 surfaces (cards, encounters, events, modifiers,
-monsters, potions, powers, relics) and exiting 0.
+Expected (verified at HEAD `c38fba3`, 2026-07-24): the full suite passes in
+~20-25 s (`5293 passed` at that HEAD — the count drifts as tests are added;
+trust the run, not this number); "card static metadata audit passed"; "card
+dynamic var audit passed"; "card effect var audit passed" — those three exit 0
+on success, 1 on any mismatch. The reference audit **always exits 0** — you
+must read its table (or use the exit-code-safe `--json` one-liner in
+sts2-parity-discipline). Its current known-good state is 0 missing across all
+8 surfaces (cards, encounters, events, modifiers, monsters, potions, powers,
+relics) EXCEPT one known open gap: `encounters` shows 1 missing direct-test
+mention, `ToadpolesNormal` (open as of 2026-07-24; documented in
+sts2-parity-discipline and sts2-testing-and-qa — your pre-change baseline will
+show it too). Any OTHER missing row is a regression your change introduced.
 
 If the change is performance-relevant (hot combat/run paths, hooks, RNG):
 
@@ -147,8 +155,8 @@ policy transfer), plus:
   but "validated" only after a training relaunch shows the expected
   telemetry. State which one it is in the commit body. As of 2026-07-24 the
   phase-0 revamp commit `fe25668` is exactly in this state: landed, suite
-  green, NOT yet validated by a relaunch. Which run to launch and what to
-  expect: sts2-training-campaign.
+  green, G1 relaunch in flight (`034a8d3`) but NOT yet validated by its
+  telemetry. Which run to launch and what to expect: sts2-training-campaign.
 - `.venv` is untouchable: never `uv sync` or reinstall over it — the lock is
   stale and CPU-only; the working env is Store Python 3.13.14 + pip editable
   + uv-installed torch 2.11.0+cu128. Env changes route through
@@ -157,9 +165,16 @@ policy transfer), plus:
 ### Class C — bridge / C#
 
 Python side (`sts2_env/bridge/`): class A pytest gate applies (bridge adapter
-tests are in the suite). C# side (`bridge_mod/`): build with
-`dotnet build bridge_mod/ -c Release` (DLL only) or `dotnet publish` (PCK) —
-full build/deploy/verify procedure and its many traps live in
+tests are in the suite). C# side (`bridge_mod/`): build from `bridge_mod/`
+with the per-user SDK — `& "$env:USERPROFILE\.dotnet\dotnet.exe" build`
+(plain Debug config; no `-c Release` is documented or used anywhere, and bare
+`dotnet` on PATH resolves to `C:\Program Files\dotnet`, which has NO SDKs).
+Know that a build is never a no-op: every build auto-deploys the DLL and
+manifests into the live game's mods folder (`CopyToModsFolderOnBuild`,
+`bridge_mod/STS2BridgeMod.csproj:117-127`) and also runs the Godot PCK export
+when `GodotPath` exists (`GodotExport` runs `AfterTargets="Build;Publish"`,
+csproj:129-134 — after plain builds too, not just `dotnet publish`). Full
+build/deploy/verify procedure and its many traps live in
 sts2-bridge-and-realgame; do not improvise from memory. Additional gates:
 
 - Any Harmony patch or patch-adjacent change: diff the target method signature
@@ -218,12 +233,12 @@ code review. Fuller archaeology of each: sts2-failure-archaeology.
 |---|---|---|
 | N1 | **Never gate a campaign on an unreachable threshold; never hard-halt a ladder; aspirational targets are never pass/fail.** | Stage A (combat-only, bare starter deck vs the full Act-1 pool) plateaued at 63.5% against an unreachable 85% promotion gate, and `if not promoted: break` silently killed the entire campaign after 5M steps / 63.8 min (`output/necrobinder_a10_campaign.log`, 2026-07-24 10:51). The fix (`fe25668`) made promotion telemetry-only; the ladder never halts. |
 | N2 | **Never conclude "capability plateau" without checking the optimizer.** Any resume/extend decision must confirm the LR schedule is alive. | The same stage-A run ended with approx_kl 8e-9, clip_fraction 0, lr 1.44e-7 — the linear anneal froze the optimizer long before budget end, and `--resume` would have trained at ~zero LR. Doctrine is now constant lr 2e-4 + target_kl 0.03. Log forensics: sts2-analysis-toolkit. |
-| N3 | **Never score truncation or a simulator error as a death.** Truncation rewards 0.0 and tags `info['truncated']`; sim errors tag `info['sim_error']=True`, reward 0.0, and are logged. | Pre-revamp, truncation==death polluted the terminal signal, and `run_env.step()` once swallowed simulator exceptions as silent losses (`docs/KNOWN_ISSUES.md` #14) — simulator bugs masqueraded as agent deaths in training curves. Both closed in `fe25668` / earlier fixes; `sts2_env/gym_env/reward_config.py:36` (`truncation: float = 0.0`) is the current contract. |
+| N3 | **Never score truncation or a simulator error as a death.** Truncation rewards 0.0 and tags `info['truncated']`; sim errors tag `info['sim_error']=True`, reward 0.0, and are logged. | Pre-revamp, truncation==death polluted the terminal signal, and `run_env.step()` once swallowed simulator exceptions as silent losses (`docs/KNOWN_ISSUES.md` #14) — simulator bugs masqueraded as agent deaths in training curves. Both closed in `fe25668` / earlier fixes; `sts2_env/gym_env/reward_config.py:36` (`truncation: float = 0.0`) is the current contract. **Caveat:** that contract holds for `RichSTS2RunEnv` (the campaign env) and `run_eval`; the base `STS2RunEnv` STILL scores truncation as `REWARD_DEATH` (`sts2_env/gym_env/run_env.py:358-359`) — and the legacy 157/151 full-run models (the only ones the bridge can run) evaluate on that env. Never build an eval on the base env expecting the new semantics. |
 | N4 | **Never evaluate on the shaped training env, with stochastic actions, or on tiny samples; never present a 200-episode number as a result.** | The stage-A promotion machinery ran on 200-episode evals (stderr ~3.4%) noisy enough to whipsaw both the streak-of-2 promotion test and the (since-deleted) shaping anneal; the old combat-env eval was also diagnostically blind (mean_floors always 0.0). run_eval semantics: shaping_scale=0, deterministic, seed block 10,000,000+. Note (2026-07-24): `run_eval` still *defaults* to 200 episodes (`scripts/train_necrobinder.py:70`) — that default is for in-training telemetry only; claims use `--eval-episodes 1000`+ and a Wilson CI, which is doctrine (spec Phase 9) but not yet automated in the script. |
 | N5 | **After any game update, re-verify every Harmony patch target signature against the fresh decompile.** | v0.109.0 renamed `SetTimeScale(float timeScale)` → `(float scale)`; Harmony binds prefix params by name, so `AnimationSpeedPatch` silently stopped applying with zero errors (`docs/KNOWN_ISSUES.md` #6). |
 | N6 | **Bridge option-list ordering IS the action encoding; never derive it from anything but the game's own iteration order.** | `RlMapHandler.cs` ordered reachable map nodes by coordinate scan instead of `MapPoint.Children` insertion order, silently feeding the policy scrambled indices (`docs/KNOWN_ISSUES.md` #5). Shop ordering remains unverified (#16) — leave it flagged, do not "fix" it blind. |
 | N7 | **A doc that recommends a command is wrong until the command has been run.** | `train_full_run.py` kwarg drift: three docs recommended a script that TypeErrors at env construction, contributing to the 0%-win-rate era's confusion (`docs/TRAINING_REDESIGN.md` "Why the previous attempt got 0%", item 5). |
-| N8 | **Deviations from decompiled behavior are allowlisted, never silent.** | The v0.109.0 Necrobinder reworks vs the pre-patch reference source: 14 cards deviate deliberately and every one is named in a PATCHED allowlist with a comment. The audits stay strict; the allowlist carries the burden of proof. |
+| N8 | **Deviations from decompiled behavior are allowlisted, never silent.** | The v0.109.0 Necrobinder reworks vs the pre-patch reference source: 16 distinct cards deviate deliberately across the two audit-script allowlists (5 in `audit_card_static_metadata.py:26-32`, 12 in `audit_card_dynamic_vars.py:25-38`, BORROWED_TIME in both), every one named with a comment; `tests/test_all_cards_unit_coverage.py:63-78` carries its own separate 14-id whitelist against `docs/CARDS_REFERENCE.md`. Counts owner: sts2-parity-discipline section 6. The audits stay strict; the allowlist carries the burden of proof. |
 | N9 | **Registries are lazy; no content construction at module import time.** | Eager legacy-act registration created the import cycle map.acts → events → run → map, breaking web/CLI play (`b3e97b1`). Guarded by `tests/test_import_order_no_cycle.py`. Design rationale: sts2-architecture-contract. |
 
 ## What requires explicit user approval
@@ -257,7 +272,7 @@ Verified against `git log` at HEAD (2026-07-24):
 - **Body:** bulleted, one bullet per concern, citing files and the decompiled
   C# source for parity changes (e.g. "per Champ.cs"). For sim-behavior
   commits, include the suite result line, exactly in the house style:
-  `Suite: 5276 passed, 0 failed.` (update the number if the count changed —
+  `Suite: 5293 passed, 0 failed.` (update the number if the count changed —
   and if you ADDED behavior, the count should have changed; a class-A commit
   that adds behavior with zero new tests is suspect).
 - **Trailer:** campaign-era commits end with
@@ -267,12 +282,11 @@ Verified against `git log` at HEAD (2026-07-24):
   "Pull Request Guidelines"); in practice era-3 commits are cohesive
   multi-concern checkpoints with exhaustive bodies. Either is acceptable; an
   exhaustive body is not optional.
-- **Scope hygiene:** `git status` before committing. As of 2026-07-24 the
-  working tree carries unrelated in-flight work (tooltip/preview changes in
-  `sts2_env/content/` and `sts2_env/web/play_run.py`, plus untracked
-  `sts2_env/content/preview.py`) — stage only your files; never `git add -A`
-  into someone else's in-flight change. A concurrent session may be advancing
-  work while you operate.
+- **Scope hygiene:** `git status` before committing. A concurrent session may
+  be advancing work while you operate — during 2026-07-24 alone the tree
+  repeatedly carried someone else's in-flight work that was later committed
+  (tooltip/preview stream → `7af0a42`; combat-cap/AlchemicalCoffer fixes →
+  `c38fba3`). Stage only your files; never `git add -A` blind.
 
 ## Definition of done — checklist
 
@@ -296,28 +310,31 @@ Before you may say a change is done:
 
 ## Live state snapshot (2026-07-24, re-verify before relying on it)
 
-- HEAD = `fe25668` "Phase 0 training revamp: full-run-only ladder (G1-G5),
-  never-halt curriculum, live optimizer" (2026-07-24 11:52). This SUPERSEDES
-  older notes describing the revamp as uncommitted: the phase-0/phase-1
-  minimal changes and `docs/TRAINING_REVAMP_SPEC.json` are committed and
-  tracked. The revamp is landed but NOT validated by a training relaunch.
-- Working tree: uncommitted tooltip/preview work (see Scope hygiene above).
-- Full suite: `5276 passed in 24.48s` with that tree; all four audit scripts
-  green; benchmark ~115 eps/s / 29.4% random win rate.
-- `main` == `origin/main` (fully pushed); `upstream/main` is behind by the
-  entire campaign era.
+- HEAD = `c38fba3` "30-turn combat cap = death; fix AlchemicalCoffer
+  stale-combat crash chain" (2026-07-24 12:22). The phase-0 revamp
+  (`fe25668`, 11:52) and `docs/TRAINING_REVAMP_SPEC.json` are committed and
+  tracked; the formerly in-flight tooltip/preview work landed as `7af0a42`;
+  a G1 relaunch is in flight (`034a8d3` retuned its eval cadence) but the
+  revamp is NOT yet validated by relaunch telemetry.
+- Working tree: clean (only run artifacts under gitignored `output/`).
+- Full suite: `5293 passed in 19.60s` at that HEAD; the three card audits
+  green; the reference audit shows only the known encounters/ToadpolesNormal
+  gap (see the Class A gate above); benchmark ~115 eps/s / 29.4% random win
+  rate.
+- `main` == `origin/main` (fully pushed); `upstream/main` is 15 commits
+  behind — the entire campaign era.
 
 ## Provenance and maintenance
 
 Every load-bearing fact above, with a one-line re-verification command (run
-from the repo root). Facts verified 2026-07-24 against HEAD `fe25668`.
+from the repo root). Facts verified 2026-07-24 against HEAD `c38fba3`.
 
 | Fact | Re-verify with |
 |---|---|
 | HEAD, era, revamp committed | `git log --oneline -3` |
 | Working-tree in-flight files | `git status --short` |
 | Suite size and green run (~25 s) | `.venv\Scripts\python.exe -m pytest tests/ -q` |
-| Four audit scripts green | run the four commands in the Class A gate block; each prints "passed"/"none" and exits 0 |
+| Three card audits green; reference audit shows only the known ToadpolesNormal gap | run the four commands in the Class A gate block; the card audits print "passed" and exit 0 on success — the reference audit ALWAYS exits 0, so read its table (or the `--json` gate in sts2-parity-discipline) |
 | PATCHED allowlists exist | `.venv\Scripts\python.exe -c "import re;print(open('scripts/audit_card_static_metadata.py').read().count('PATCHED'))"` (>=2) |
 | CARDS_REFERENCE is runtime data | `grep -n "CARDS_REFERENCE" sts2_env/cards/factory.py sts2_env/content/descriptions.py` |
 | Benchmark baseline (115 eps/s, 29.4% random) | `.venv\Scripts\python.exe scripts\benchmark.py` |

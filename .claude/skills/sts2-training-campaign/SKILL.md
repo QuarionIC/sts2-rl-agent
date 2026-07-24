@@ -50,7 +50,7 @@ gated on an unreachable threshold (see §3).
 | Warm-start | `transfer_weights(src, dst)` (`sts2_env/train/policy.py:134`) copies every name+shape-matching tensor; `action_net` rows are prefix-copied when the source action space is smaller. |
 | Sidecar | The JSON written next to every checkpoint zip carrying `stage, steps, best_win_rate, promotion_streak, promoted, eval_history` — resume state beyond the weights. |
 | Wilson CI | Score-interval confidence bound for a binomial win rate; the house-required error bar on every win-rate claim (details: sts2-analysis-toolkit). |
-| Truncation | Episode ended by step cap, not death. Since `fe25668` it scores **0.0**, not −1. |
+| Truncation | Episode ended by step cap, not death. Since `fe25668` it scores **0.0**, not −1 — in `RichSTS2RunEnv` (the campaign env) and `run_eval`. The base `STS2RunEnv` still scores truncation as −1 (`run_env.py:358-359`); never eval legacy full-run models on the base env expecting the new semantics. |
 | sim_error | `info["sim_error"]=True`: the env force-ended the run because the simulator raised. Scores 0.0, never −1 (`run_env.py:353-359`). |
 
 ## 2. Where the campaign stands (as of 2026-07-24 ~12:00 EDT)
@@ -132,7 +132,7 @@ specific mechanism. Full incident detail: sts2-failure-archaeology.
 | Frozen optimizer: linear LR anneal → ~0; resume re-pinned the decayed schedule | `learning_rate 1.44e-07, approx_kl 8e-9, clip_fraction 0` at 5M | Constant `learning_rate=2e-4` + `target_kl=0.03`; `linear_lr` deleted | closed (`fe25668`) |
 | Entropy collapse: progress-tied ent anneal 0.01→0.003 | `entropy_loss -0.383` at end of Stage A vs −1.13 fresh | Constant `ent_coef=0.01` | closed (`fe25668`) |
 | Hackable/jittery shaping: win-rate-driven `shaping_scale` anneal repriced the reward ~40% per noisy 200-ep eval and zeroed shaping above 80% | old `train_necrobinder.py` anneal (deleted); spec `reward_spec` | Constant shaping now; full PBRS replacement is Phase 1 (pending) | half-closed |
-| Truncation and sim bugs scored as death | old `rich_run_env.py`; spec postmortem | `truncation: 0.0` field; `info["sim_error"]` tagged, 0.0 reward (`run_env.py:337-364`, `rich_run_env.py:168-178`) | closed (`fe25668`) |
+| Truncation and sim bugs scored as death | old `rich_run_env.py`; spec postmortem | `truncation: 0.0` field; `info["sim_error"]` tagged, 0.0 reward (`run_env.py:337-364`, `rich_run_env.py:178-191` at `c38fba3`) — rich env only; base env still death-scores truncation (see §1 glossary) | closed (`fe25668`) |
 | Blind policy/obs: mean-pooled hand destroys slot identity while action *i* = "play slot *i*"; deck invisible outside combat (7 aggregate scalars) | `policy.py:95` (still present); spec `architecture_spec` | Phases 2–3 | **open** |
 
 Also settled: an LLM policy was considered and rejected (RTX 4060 Laptop 8GB,
@@ -385,7 +385,7 @@ Before ANY relaunch after code changes (classification and full gate:
 sts2-change-control):
 
 1. Full suite green: `.venv\Scripts\python.exe -m pytest tests\ -q`
-   (5,290 collected in the 2026-07-24 working tree; the count drifts — trust
+   (5,293 collected at `c38fba3`, 2026-07-24; the count drifts — trust
    the collect command, not this number).
 2. If obs/feature code moved (P2/P3): run the rich-observation segment tests
    and a shape/logit smoke test (build the model, one forward pass, assert
@@ -424,16 +424,17 @@ number.
 
 ## Provenance and maintenance
 
-Author basis: repo at commit `fe25668` (2026-07-24 11:52 EDT), working tree
-carrying unrelated uncommitted web/content changes; a G1 training run was live
-during authoring (started ~11:55 EDT, first eval unfinished at 12:02). Facts
+Author basis: repo at commit `fe25668` (2026-07-24 11:52 EDT), re-checked at
+`c38fba3` (12:22; the once-uncommitted web/content changes landed as
+`7af0a42`, and `034a8d3` relaunched G1 with a saner eval cadence); a G1
+training run was live during authoring. Facts
 most likely to drift: the live-run state (§2 item 5), the phase-status table
 (§2), eval history numbers, and disk usage. One-line re-verification for each
 load-bearing fact:
 
 | Fact (as of 2026-07-24) | Re-verify with |
 |---|---|
-| HEAD is `fe25668`, Phase-0 revamp committed | `git -C C:\Users\motqu\GitHub\sts2-rl-agent log --oneline -3` |
+| HEAD is `c38fba3`, Phase-0 revamp committed (`fe25668`) | `git -C C:\Users\motqu\GitHub\sts2-rl-agent log --oneline -3` |
 | G1 run live / finished / superseded, exact flags | `Get-CimInstance Win32_Process -Filter "Name='python.exe'" \| Select-Object CommandLine` and `Get-Content output\necrobinder_g1_campaign.log -Tail 20` |
 | Stage table G1–G5, gates, budgets, hyperparams | `Get-Content scripts\train_necrobinder.py -TotalCount 80` and lines 255–277 |
 | Gates never halt; promotion is telemetry | `Select-String -Path scripts\train_necrobinder.py -Pattern "NEVER|never halts|promotion"` |
@@ -443,7 +444,7 @@ load-bearing fact:
 | Stage-A postmortem numbers (60.5→63.5→62.0, 50×200-ep evals) | run the §4 one-liner against `output/necrobinder_a10/A/eval_history.jsonl` |
 | Stage-A optimizer freeze (lr 1.44e-07, kl 8e-9) | `Get-Content output\necrobinder_a10_campaign.log -Tail 30` |
 | Checkpoint size ~103 MB / disk free | `Get-ChildItem output\necrobinder_a10\A\best_model.zip \| Select-Object Length` ; `Get-PSDrive C` |
-| Test count (5,290 collected 2026-07-24, drifts) | `.venv\Scripts\python.exe -m pytest tests --collect-only -q \| Select-Object -Last 1` |
+| Test count (5,293 collected 2026-07-24, drifts) | `.venv\Scripts\python.exe -m pytest tests --collect-only -q \| Select-Object -Last 1` |
 | Spec is the adopted doctrine and tracked | `git -C C:\Users\motqu\GitHub\sts2-rl-agent log --oneline -- docs/TRAINING_REVAMP_SPEC.json` |
 | `train_full_run.py` still broken/legacy | `Select-String -Path scripts\train_full_run.py -Pattern "act_count=|reward_shaping="` vs `STS2RunEnv.__init__` signature (`sts2_env\gym_env\run_env.py:255`) |
 

@@ -39,7 +39,7 @@ is `sts2-change-control`.
 | G-ladder (G1–G5) | The current full-run-only curriculum (`scripts/train_necrobinder.py:58-65`): difficulty moves on two axes (ascension 0→10, act count 2→4); promotion thresholds are telemetry, never halts. |
 | PBRS | Potential-based reward shaping, `F(s,s') = γ·Φ(s') − Φ(s)`; provably policy-invariant (Ng–Harada–Russell 1999), so it cannot be reward-hacked. Planned Phase 1 of the revamp (not yet implemented as of 2026-07-24). |
 | BC / SIL / ExIt | Behavior cloning from a scripted heuristic; Self-Imitation Learning (advantage-weighted BC on the agent's own won episodes); Expert Iteration (periodically relabel visited states with MCTS targets). All *planned accelerators* in the revamp spec, none implemented as of 2026-07-24. |
-| Wilson CI | Wilson score 95% confidence interval on a win rate. At p≈0.5: ±~3.5% for 200 episodes, ±~1.6% for 1000. House rule: final claims need ≥1000 episodes. |
+| Wilson CI | Wilson score 95% confidence interval on a win rate. 95% CI half-width at p≈0.5: ±~6.9% for 200 episodes, ±~3.1% for 1000 (1-sigma standard errors are half that: ±~3.5% / ±~1.6%). Sizing table: sts2-analysis-toolkit. House rule: final claims need ≥1000 episodes. |
 | shaping_scale | Single scalar multiplying all shaping reward terms (`sts2_env/gym_env/reward_config.py:40`). 1.0 in training, **0.0 in every eval** — eval reward must equal the true objective. |
 | Souls / Osty | Necrobinder's core resource / her skeleton-pet ally. Mentioned only as diagnosis context here; mechanics live in `sts2-game-and-mods-reference`. |
 | Parity | Bit-exact agreement with the decompiled C# (`decompiled_v0.109.0/`). Operational meaning and audit tooling live in `sts2-parity-discipline`. |
@@ -95,7 +95,7 @@ Every win-rate or performance number stated anywhere (docs, commit messages,
 conversation) carries: episode count, seed block, deterministic flag,
 shaping_scale=0, and — for final claims — ≥1000 episodes with a Wilson 95% CI.
 Aspirational targets (the 95%) are always labeled aspirational, never used as
-pass/fail gates. Wording matters: "63.5% best of 25 noisy 200-episode evals"
+pass/fail gates. Wording matters: "63.5% best of 50 noisy 200-episode evals"
 and "63.5% win rate" are different claims; the first is what Stage A actually
 had.
 
@@ -336,7 +336,7 @@ resume flags, which env to eval on) live in `sts2-training-campaign`.
 |---|---|---|
 | Concluding "capability ceiling" from a plateau without checking optimizer vitals | Stage A's tail was a *frozen optimizer*, not a ceiling; approx_kl ~1e-8 + clip_fraction 0 means no learning is being attempted | campaign log final SB3 block; `sts2-analysis-toolkit` for how to read them |
 | Adopting the first mechanism that fits | M1 fit the logs and missed the primary cause | section 3 |
-| Claiming improvement from one 200-episode eval | ±~3.5% CI at 200 eps; two evals of the same policy differ by up to ~7 points | section 1, Test 5 |
+| Claiming improvement from one 200-episode eval | ±~6.9% 95% CI at 200 eps (stderr ±~3.5%); two evals of the same policy differ by up to ~7 points | section 1, Test 5 |
 | Evaluating with shaping on, or on a different task than the claim | Shaped reward ≠ objective; Stage-A combat win % was silently compared against full-run ambitions | `run_eval` builds shaping_scale=0 envs (`train_necrobinder.py:111`) |
 | Gating on an aspirational number | 95% is above top-human; the old 85% gate was a guess that halted everything | sections 3-5 |
 | Trusting doc/docstring numbers without re-deriving | TRAINING_REDESIGN.md says "~2.5k dims"; actual RICH_OBS_SIZE is 4184. TRAINING_GUIDE.md describes abandoned pipelines | verify: import and print (Provenance) |
@@ -392,8 +392,9 @@ resume flags, which env to eval on) live in `sts2-training-campaign`.
 ## 9. Provenance and maintenance
 
 All facts in this skill verified directly against the repo on **2026-07-24**
-at HEAD `fe25668` (working tree additionally carried uncommitted
-content-description/web changes not relevant here). The G1 training run was
+(originally at HEAD `fe25668`; re-checked at `c38fba3` the same day — the
+formerly uncommitted content-description/web changes are now committed as
+`7af0a42`, not relevant here). The G1 training run was
 live while this was written — every "as of 2026-07-24" number about it will
 drift within hours. Re-verify before relying:
 
@@ -409,7 +410,7 @@ drift within hours. Re-verify before relying:
 | Random baseline 63.4% (Act-1 Ironclad; measure fresh for Necrobinder) | `docs/TRAINING_GUIDE.md:88` (doc otherwise stale — trust only this number's provenance, or re-measure) |
 | Truncation/sim_error handling | `reward_config.py:36`, `rich_run_env.py:164-182`, `run_env.py:315-364` |
 | RICH_OBS_SIZE (4184 as of 2026-07-24; grows with revamp Phase 2) | `.venv\Scripts\python.exe -c "from sts2_env.gym_env.rich_observation import RICH_OBS_SIZE; print(RICH_OBS_SIZE)"` |
-| Test count (5,276 collected as of 2026-07-24) | `.venv\Scripts\python.exe -m pytest tests --collect-only -q` (tail line) |
+| Test count (5,293 collected as of 2026-07-24; drifts) | `.venv\Scripts\python.exe -m pytest tests --collect-only -q` (tail line) |
 | Wilson CI arithmetic | the one-liner in section 1 (smoke-tested 2026-07-24) |
 | KNOWN_ISSUES status vocabulary / open items | `Get-Content docs\KNOWN_ISSUES.md` |
 

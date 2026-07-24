@@ -23,10 +23,10 @@ This is the domain pack for the game itself: Slay the Spire 2 beta
 **v0.109.0** plus the two ACTIVE gameplay mods (**ActsFromThePast** and
 **Act4Heart**), as reimplemented by the Python simulator in `sts2_env/`.
 Everything below was re-verified against the repo on **2026-07-24**
-(HEAD `fe25668`; note the working tree carried uncommitted `sts2_env/content/`
-and `sts2_env/web/` tooltip-preview edits at that time — none affect game
-rules, but run `git -C C:\Users\motqu\GitHub\sts2-rl-agent status` yourself
-before trusting line numbers).
+(originally at HEAD `fe25668`; the then-uncommitted `sts2_env/content/`
+and `sts2_env/web/` tooltip-preview edits landed as `7af0a42` — none affect
+game rules, but run `git -C C:\Users\motqu\GitHub\sts2-rl-agent status`
+yourself before trusting line numbers).
 
 You already know Slay the Spire 1 and RL. This file teaches only what is
 STS2-specific, v0.109.0-specific, mod-specific, or simulator-specific.
@@ -62,7 +62,7 @@ Get-ChildItem -Recurse -Filter "CorruptHeart*.cs" decompiled,decompiled_v0.109.0
 Select-String -Path "decompiled_v0.109.0\MegaCrit.Sts2.Core.Models.Monsters\Osty.cs" -Pattern "NOTHING_MOVE|MoveState"
 
 # Grep the mod trees for a Harmony patch class
-Select-String -Path "decompiled_mods\Act4Heart\**\*.cs" -Pattern "FixAct3Boss" -List
+Get-ChildItem -Recurse -Filter *.cs decompiled_mods\Act4Heart | Select-String -Pattern "FixAct3Boss" -List
 ```
 
 Useful mod anchor files (all verified to exist):
@@ -489,14 +489,15 @@ C:\Users\motqu\GitHub\sts2-rl-agent\.venv\Scripts\python.exe -m pytest -q `
 
 ## Provenance and maintenance
 
-Every fact above was verified 2026-07-24 at HEAD `fe25668` on the live repo.
+Every fact above was verified 2026-07-24 (at HEAD `fe25668`, since advanced
+to `c38fba3` the same day) on the live repo.
 Things drift; re-verify with these before trusting a stale copy of this
 skill (run from `C:\Users\motqu\GitHub\sts2-rl-agent`; `py` =
 `.venv\Scripts\python.exe`):
 
 | Fact (date-stamped 2026-07-24) | Re-verify with |
 |---|---|
-| HEAD `fe25668`; tree state | `git log --oneline -3; git status --short` |
+| HEAD `c38fba3`; tree state | `git log --oneline -3; git status --short` |
 | Necrobinder HP 66 / BoundPhylactery / starter deck | `py -c "from sts2_env.characters.all import NECROBINDER as n; print(n.starting_hp, n.starting_relic, n.starting_deck)"` |
 | 88-card Necrobinder pool | `py -c "from sts2_env.core.card_pools import NECROBINDER_CARD_POOL as p; print(len(p))"` |
 | PATCHED allowlists (5 static / 12 dynamic) | `Select-String -Path scripts\audit_card_*.py -Pattern "PATCHED_NECROBINDER" -Context 0,14` |

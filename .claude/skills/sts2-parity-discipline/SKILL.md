@@ -83,7 +83,7 @@ is currently NOT met — see section 9.
 ## 2. The four audit scripts
 
 House doctrine (user rule, all repos): any simulator behavior change requires
-the full test suite green (5,276 tests as of 2026-07-24) **plus** these four
+the full test suite green (5,293 tests as of 2026-07-24; drifts) **plus** these four
 scripts, before the change counts as done. `sts2-change-control` owns the full
 gate; the four commands themselves are:
 
@@ -117,7 +117,8 @@ with a UTF-8 BOM, which plain `json.load` rejects. Smoke-tested 2026-07-24:
 prints `[('encounters', [], ['ToadpolesNormal'])]`, exit 1 — correct, because
 that gap is real.)
 
-Verified state as of 2026-07-24 (commit `fe25668`): the three card audits all
+Verified state as of 2026-07-24 (originally at `fe25668`, re-confirmed at
+`c38fba3`): the three card audits all
 pass with exit 0. The coverage gate reports **one open regression**:
 `encounters` has 1 missing direct test mention, `ToadpolesNormal`
 (reproduce with `--surface encounters --show-missing`). The tables in
@@ -519,14 +520,14 @@ not just method names, because Harmony binds prefix params by name.
 ## 10. Provenance and maintenance
 
 Every fact below can drift. Date stamps refer to verification on **2026-07-24**
-at commit `fe25668` (working tree had unrelated uncommitted `sts2_env/content/`
-+ web-play changes; a concurrent session may be advancing the training revamp).
+(originally at commit `fe25668`, re-confirmed at `c38fba3` the same day; a
+concurrent session may be advancing work — HEAD moved four times that day).
 Re-verify before relying on any of these:
 
 | Fact (as of 2026-07-24) | Re-verify with |
 | --- | --- |
-| HEAD `fe25668`, campaign revamp phase committed | `git -C C:\Users\motqu\GitHub\sts2-rl-agent log --oneline -3` |
-| 5,276 tests collected | `.venv\Scripts\python.exe -m pytest tests/ --collect-only -q` |
+| HEAD `c38fba3`, campaign revamp phase committed (`fe25668`) | `git -C C:\Users\motqu\GitHub\sts2-rl-agent log --oneline -3` |
+| 5,293 tests collected | `.venv\Scripts\python.exe -m pytest tests/ --collect-only -q` |
 | Three card audits pass, exit 0 | run the three `audit_card_*.py` commands in section 2 |
 | Coverage gate: all surfaces 0-missing except encounters 1 missing test (`ToadpolesNormal`) | `.venv\Scripts\python.exe scripts\parity_reference_audit.py --direct-test-references --include-deprecated --code-implementation-references --show-missing` |
 | Coverage gate always exits 0 (must read output) | `Get-Content scripts\parity_reference_audit.py \| Select-String -Pattern "return 0"` (main at lines 478-492) |

@@ -2,7 +2,7 @@
 name: sts2-testing-and-qa
 description: >
   Test-suite anatomy and QA discipline for the sts2-rl-agent repo: how to run
-  the 5,276-test pytest suite, what the conftest fixtures and registration
+  the ~5,300-test pytest suite, what the conftest fixtures and registration
   side effects do, the structural coverage gates (all-cards smoke harness,
   parity_reference_audit name-mention gate, content-description coverage),
   how to add tests for each content type, the seed-pinned "golden" inventory
@@ -55,12 +55,12 @@ Jargon used below, defined once:
 
 ## State snapshot (2026-07-24)
 
-- HEAD = `fe25668` ("Phase 0 training revamp: full-run-only ladder (G1-G5)").
-  The working tree additionally carries uncommitted edits in
-  `sts2_env/content/` and `sts2_env/web/play_run.py` — a concurrent session
-  may be advancing them. Run `git status` before trusting any line number in
-  those files.
-- Full suite: **5,276 passed in 25.4s** on this tree (verified 2026-07-24).
+- HEAD = `c38fba3` ("30-turn combat cap = death; fix AlchemicalCoffer
+  stale-combat crash chain", 2026-07-24 12:22); working tree clean. The
+  tooltip/preview edits formerly in flight landed as `7af0a42`. HEAD moved
+  four times on 2026-07-24 alone — a concurrent session may still be
+  advancing work; run `git status`/`git log -1` before trusting line numbers.
+- Full suite: **5,293 passed in 19.6s** at that HEAD (verified 2026-07-24).
 - Known open coverage regression: `parity_reference_audit.py` reports
   encounters **1 missing test mention: `ToadpolesNormal`** (verified
   2026-07-24). The summary table in `docs/PARITY_COVERAGE_BACKLOG.md` still
@@ -72,10 +72,10 @@ Jargon used below, defined once:
 
 | Fact | Value (2026-07-24) | How verified |
 |---|---|---|
-| Tracked files under `tests/` | 132 (130 `test_*.py` + `conftest.py` + empty `__init__.py`) | `git ls-files tests/` |
-| `def test_` functions | 3,345 | grep count |
-| Collected tests | 5,276 (in ~1.5s) | `pytest tests/ --collect-only -q` |
-| Full-suite runtime | ~25s, single process | full run |
+| Tracked files under `tests/` | 134 (132 `test_*.py` + `conftest.py` + empty `__init__.py`) | `git ls-files tests/` |
+| `def test_` functions | 3,362 | grep count |
+| Collected tests | 5,293 (in ~1.5s) | `pytest tests/ --collect-only -q` |
+| Full-suite runtime | ~20-25s, single process | full run |
 | pytest config | `pyproject.toml` `[tool.pytest.ini_options]` = `testpaths = ["tests"]` only | read file |
 | pytest version in `.venv` | 9.1.1; **no pytest-cov, no pytest-xdist** | `pip list` |
 
@@ -91,9 +91,11 @@ Consequences you must internalize:
 - Coverage is enforced **structurally** (see coverage gates below), not by
   line coverage. Do not add line-coverage tooling to "fix" this; the repo's
   model is exhaustive per-content-ID parametrization instead.
-- The 3,345 → 5,276 gap is parametrization, chiefly
+- The 3,362 → 5,293 gap is parametrization, chiefly
   `tests/test_all_cards_unit_coverage.py:282` (`@pytest.mark.parametrize`
-  over all 577 `CardId`s) and table-driven monster tests.
+  over `list(CardId)` — all 586 enum members as of 2026-07-24; the 577 you
+  may see elsewhere is the audit's decompiled-reference surface count, a
+  different number) and table-driven monster tests.
 
 Standard invocations:
 
@@ -218,7 +220,8 @@ content proves behavior.
 ### Gate 1 — the all-cards harness (`tests/test_all_cards_unit_coverage.py`)
 
 `test_every_card_has_direct_unit_case` (line 283) parametrizes over every
-`CardId` (577) and requires each to be:
+`CardId` (586 enum members as of 2026-07-24 — not 577, which is the
+parity-audit "cards" surface total) and requires each to be:
 
 1. constructible (`_card_for_test`),
 2. effect-registered in `_CARD_EFFECTS` unless it is a status/curse/quest or
@@ -282,8 +285,8 @@ Generated effect-text descriptions (used by the web UI and observation
 tooling) have their own coverage tests, including
 `test_power_description_covers_every_power_id` (line 103) which iterates
 every `PowerId` (293 members). If you add a `PowerId`, this test forces you
-to add a description. Note (2026-07-24): `sts2_env/content/` currently has
-uncommitted working-tree edits — the suite passes with them, but re-check
+to add a description. Note (2026-07-24): the once-uncommitted
+`sts2_env/content/` edits were committed as `7af0a42`; still re-check
 `git status` before citing line numbers there.
 
 ## Adding tests per content type
@@ -531,7 +534,7 @@ need one, `run_eval` semantics with a random policy is the pattern to copy.
 | Shop ordering / Foul-Potion sell action on the wire | Unverified / missing | `docs/KNOWN_ISSUES.md` issue 16 |
 | Behavior beyond name mentions | Gate 2 counts mentions, not assertions | `docs/PARITY_COVERAGE_BACKLOG.md:27` |
 | Encounters surface | 1 missing test mention (`ToadpolesNormal`) | audit run 2026-07-24 |
-| The uncommitted revamp validation | The G1-G5 trainer committed at `fe25668` has NOT yet passed a training relaunch; unit tests green ≠ training validated | `git log`; campaign status: sts2-training-campaign |
+| Revamp training validation | The G1-G5 trainer committed at `fe25668` has a G1 relaunch in flight (2026-07-24) but no validated relaunch telemetry yet; unit tests green ≠ training validated | `git log`; campaign status: sts2-training-campaign |
 
 ## Symptom → cause → fix (test-suite failures)
 
@@ -556,14 +559,14 @@ update this file.
 
 | Fact (as of 2026-07-24) | Re-verify with |
 |---|---|
-| HEAD `fe25668`, dirty `sts2_env/content/` + `web/play_run.py` | `git log -1 --oneline; git status --short` |
-| 132 tracked files under `tests/` | `git ls-files tests/ | find /c /v ""` (PowerShell: `(git ls-files tests/).Count`) |
-| 5,276 tests collected (~1.5s) | `.venv\Scripts\python.exe -m pytest tests/ --collect-only -q` |
-| 5,276 passed (~25s) | `.venv\Scripts\python.exe -m pytest tests/ -q` |
+| HEAD `c38fba3`, working tree clean | `git log -1 --oneline; git status --short` |
+| 134 tracked files under `tests/` | `git ls-files tests/ | find /c /v ""` (PowerShell: `(git ls-files tests/).Count`) |
+| 5,293 tests collected (~1.5s) | `.venv\Scripts\python.exe -m pytest tests/ --collect-only -q` |
+| 5,293 passed (~20s) | `.venv\Scripts\python.exe -m pytest tests/ -q` |
 | pytest 9.1.1; no pytest-cov/xdist | `.venv\Scripts\python.exe -m pip list \| findstr pytest` |
 | pytest config = `testpaths` only | `findstr /c:"[tool.pytest.ini_options]" /c:"testpaths" pyproject.toml` |
 | `reset_instance_counter` at `sts2_env/cards/base.py:544` | `findstr /n "def reset_instance_counter" sts2_env\cards\base.py` |
-| All-cards gate parametrizes 577 CardIds at line 282-283 | `findstr /n "parametrize" tests\test_all_cards_unit_coverage.py` |
+| All-cards gate parametrizes `list(CardId)` (586 members) at line 282-283 | `findstr /n "parametrize" tests\test_all_cards_unit_coverage.py` and `.venv\Scripts\python.exe -c "from sts2_env.core.enums import CardId; print(len(CardId))"` |
 | `parity_reference_audit.py` always exits 0 | `.venv\Scripts\python.exe scripts\parity_reference_audit.py --direct-test-references --include-deprecated --code-implementation-references; $LASTEXITCODE` (PowerShell) |
 | ToadpolesNormal is the only missing test mention | `.venv\Scripts\python.exe scripts\parity_reference_audit.py --surface encounters --direct-test-references --include-deprecated --code-implementation-references --show-missing` |
 | Three card audits pass, exit 1 on mismatch | run each; `findstr /n "return 1" scripts\audit_card_static_metadata.py` |

@@ -62,7 +62,7 @@ run any time; it imports torch, so it takes a few seconds.
 
 ## 1. The Python environment: what it is and why
 
-### 1.1 Verified state (2026-07-24, HEAD fe25668)
+### 1.1 Verified state (2026-07-24)
 
 | Component | Value | Evidence |
 |---|---|---|
@@ -138,7 +138,7 @@ python -m venv .venv
 # 4. Verify GPU torch (must print: 2.11.0+cu128 True NVIDIA GeForce RTX 4060 Laptop GPU)
 .venv\Scripts\python.exe -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 
-# 5. Verify collection (must report 5,276 tests as of HEAD fe25668, 2026-07-24)
+# 5. Verify collection (must report 5,293 tests as of HEAD c38fba3, 2026-07-24)
 .venv\Scripts\python.exe -m pytest --collect-only -q tests
 
 # 6. Full suite green before using the env for real work (house rule; see
@@ -147,8 +147,8 @@ python -m venv .venv
 ```
 
 - [ ] Step 4 prints `+cu128` and `True` — if not, stop; you have a CPU env.
-- [ ] Step 5 count matches the current HEAD's expected count (5,276 at
-      fe25668; re-check with the provenance command if HEAD moved).
+- [ ] Step 5 count matches the current HEAD's expected count (5,293 at
+      c38fba3; re-check with the provenance command if HEAD moved).
 - [ ] Doctor script (section 0) is all-PASS on the Python rows.
 
 Never install torch (or anything) into the global/Store Python — everything
@@ -422,10 +422,11 @@ working bridge.
 ## 7. Live-state caution (2026-07-24)
 
 A concurrent session is actively advancing the training revamp. Observed
-drift during the authoring of this skill alone: HEAD moved TWICE — 18a8059 →
+drift on 2026-07-24 alone: HEAD moved FOUR times — 18a8059 →
 fe25668 (committed the Phase 0 revamp and promoted
 `docs/TRAINING_REVAMP_SPEC.json` from untracked to tracked) → 7af0a42 (web
-play card previews) — and working-tree contents changed between every check.
+play card previews) → 034a8d3 (eval cadence) → c38fba3 (30-turn combat cap,
+AlchemicalCoffer fix) — and working-tree contents changed between checks.
 **Run `git log --oneline -1` and
 `git status --short` yourself before trusting any state claim in any doc,
 including this one.** The environment facts in sections 1-5 (interpreter,
@@ -435,7 +436,7 @@ repo state, but the provenance commands below re-verify each in seconds.
 ## 8. Provenance and maintenance
 
 Every load-bearing fact above, with its one-line re-verification command.
-All were run and confirmed on 2026-07-24 at HEAD fe25668. Run from
+All were run and confirmed on 2026-07-24 (latest re-check at HEAD c38fba3). Run from
 `C:\Users\motqu\GitHub\sts2-rl-agent` in PowerShell.
 
 | Fact (as of 2026-07-24) | Re-verify with |
@@ -448,7 +449,7 @@ All were run and confirmed on 2026-07-24 at HEAD fe25668. Run from
 | uv.lock pins CPU torch 2.10.0, sb3 2.7.1, gymnasium 1.2.3, numpy 2.4.3 | `Select-String -Path uv.lock -Pattern 'name = "(torch\|stable-baselines3\|gymnasium\|numpy)"' -Context 0,2` |
 | No repo doc mentions the cu128 index | `Get-ChildItem -Recurse -Filter *.md \| Select-String -Pattern "cu128\|download.pytorch"` (expect no gameplay-doc hits) |
 | pyproject deps/extras/testpaths | `Get-Content pyproject.toml` |
-| 5,276 tests collected in ~1 s | `.venv\Scripts\python.exe -m pytest --collect-only -q tests \| Select-Object -Last 1` |
+| 5,293 tests collected in ~1 s | `.venv\Scripts\python.exe -m pytest --collect-only -q tests \| Select-Object -Last 1` |
 | Tracked file counts 3300/3495/2590 for the three decompiled trees | `(git ls-files decompiled/ \| measure).Count` (and the other two dirs) |
 | decompiled_mods subdirs = Act4Heart, ActsFromThePast, BaseLib, Downfall | `ls decompiled_mods` |
 | Parity tooling still parses old `decompiled/` | `Get-Content sts2_env\cards\reference_static_metadata.py -TotalCount 20` and `Select-String -Path scripts\parity_reference_audit.py -Pattern "decompiled/"` |

@@ -53,7 +53,9 @@ sts2-build-and-env).
 
 ## Live-state warning (2026-07-24)
 
-- HEAD = fe25668 (2026-07-24 11:52, "Phase 0 training revamp"). The trainer
+- HEAD = c38fba3 (2026-07-24 12:22; the Phase 0 revamp landed at fe25668,
+  11:52, and `034a8d3` relaunched G1 with 200-ep evals every 1M steps
+  after the first 500-ep eval proved too slow). The trainer
   was rewritten that morning: stages A/B and the combat-env path are DELETED;
   the ladder is G1–G5, full-run only, never halts, constant lr=2e-4 +
   target_kl=0.03. Anything you read about "stage A/B", linear LR anneal, or
@@ -73,8 +75,10 @@ sts2-build-and-env).
 ### 1.1 Where the numbers live
 
 The trainer prints SB3 blocks to stdout only; the `output\*_campaign.log`
-files are operator redirections (e.g.
-`... train_necrobinder.py --stage G1 ... 2>&1 | Tee-Object output\necrobinder_g1_campaign.log`).
+files are operator redirections — use the `cmd /c "... > output\<name>_campaign.log 2>&1"`
+form from sts2-run-and-operate (PowerShell 5.1's `2>&1` wraps native stderr
+lines in error records and mangles the log; the exact redirection the operator
+used for existing logs is convention, not recorded).
 Eval results also go to `<output-dir>\<stage>\eval_history.jsonl` (one JSON
 per line) and into every checkpoint's sidecar JSON. TensorBoard event files
 land in `<output-dir>\<stage>\tb\` only when `--tensorboard` was passed
@@ -408,7 +412,7 @@ Rules when the obs changes (e.g. the spec's Phase 2 deck bag):
    checkpoint (from-scratch retrain; the spec accepts this). Never load an
    old checkpoint into a resized obs.
 4. Obs changes are training-pipeline changes: full gate per
-   sts2-change-control (full suite — 5290 collected as of 2026-07-24 — plus
+   sts2-change-control (full suite — 5,293 collected as of 2026-07-24 — plus
    a smoke rollout) before any long run.
 
 ## 6. PBRS: the invariance argument and what would falsify it
@@ -543,18 +547,19 @@ measurement mechanics that make an ablation valid are this skill's:
 
 ## Provenance and maintenance
 
-All facts verified 2026-07-24 against HEAD fe25668 on the live repo, with a
+All facts verified 2026-07-24 against HEAD fe25668 on the live repo (state
+lines re-checked at c38fba3 the same day), with a
 G1 training run in progress. Volatile facts and their one-line re-checks
 (run from `C:\Users\motqu\GitHub\sts2-rl-agent`):
 
 | Fact (as of 2026-07-24) | Re-verify with |
 |---|---|
-| HEAD fe25668; trainer is G1–G5 full-run-only, constant lr 2e-4, target_kl 0.03, n_steps 1024, gamma 0.997, ent_coef 0.01, n_envs default 24 | `git log --oneline -1` ; `Select-String -Path scripts\train_necrobinder.py -Pattern "LEARNING_RATE|TARGET_KL|n_steps|gamma"` |
+| HEAD c38fba3; trainer is G1–G5 full-run-only, constant lr 2e-4, target_kl 0.03, n_steps 1024, gamma 0.997, ent_coef 0.01, n_envs default 24 | `git log --oneline -1` ; `Select-String -Path scripts\train_necrobinder.py -Pattern "LEARNING_RATE|TARGET_KL|n_steps|gamma"` |
 | EVAL_FREQ 100k, EVAL_EPISODES 200 (default), EVAL_SEED_BLOCK 10,000,000, CHECKPOINT_FREQ 250k, RUN_MAX_STEPS 3000, output root `output/necrobinder_run` | `Select-String -Path scripts\train_necrobinder.py -Pattern "^EVAL_|^CHECKPOINT|^RUN_MAX|OUTPUT_ROOT"` |
 | PBRS not yet implemented; reward = win+1/death−1/trunc 0 + act 0.25/floor 0.004/hp-retention 0.05 at constant scale | `Select-String -Path sts2_env\gym_env\reward_config.py -Pattern "potential|act_completion|truncation"` |
 | RICH_OBS_SIZE 4184; segment offsets as tabled; enums 586/293/308 | the segment-table one-liner in section 5.1 |
 | 26 obs/reward tests green in test_rich_observation.py | `.venv\Scripts\python.exe -m pytest tests\test_rich_observation.py -q` |
-| Full suite 5290 collected (~1 s) | `.venv\Scripts\python.exe -m pytest tests --collect-only -q` |
+| Full suite 5,293 collected (~1 s) | `.venv\Scripts\python.exe -m pytest tests --collect-only -q` |
 | Stage A history: 50 evals, best 63.5%, no CI-separated improvement; final block approx_kl 8.03e-9, lr 1.44e-7, clip 0, fps 1307 | the summarizer on `output\necrobinder_a10\A\eval_history.jsonl` ; `Get-Content output\necrobinder_a10_campaign.log -Tail 25` |
 | G1 run live: 16 envs, 500 eval episodes, tensorboard on, healthy optimizer (kl ~5e-3, clip ~0.03, entropy −1.1) | `Get-Content output\necrobinder_g1_campaign.log -Tail 40` |
 | Checkpoints ~103 MB each, 22 zips in stage-A dir | `Get-ChildItem output\necrobinder_a10\A\*.zip \| Measure-Object -Property Length -Sum` |

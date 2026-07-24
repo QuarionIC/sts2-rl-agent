@@ -596,15 +596,16 @@ combat-count weak-pool gating (18a8059), the energy/AutoPlay bug, and the
 hook-order fix log are chronicled in sts2-failure-archaeology.
 
 Any change touching these contracts is a "sim behavior" change under
-sts2-change-control: full suite (5,276 tests at 18a8059) green + the four
-parity audit scripts, before it counts as done.
+sts2-change-control: full suite (5,293 tests as of 2026-07-24; drifts) green
++ the four parity audit scripts, before it counts as done.
 
 ---
 
 ## Provenance and maintenance
 
-All claims verified 2026-07-24 against HEAD `fe25668` (working tree had
-unrelated `sts2_env/content/` + `web/play_run.py` modifications). File:line
+All claims verified 2026-07-24 against HEAD `fe25668` (re-checked at
+`c38fba3` the same day; the once-in-flight `sts2_env/content/` +
+`web/play_run.py` modifications landed as `7af0a42`). File:line
 references drift with edits — re-grep for the symbol if a line looks off.
 Run everything from `C:\Users\motqu\GitHub\sts2-rl-agent`.
 

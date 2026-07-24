@@ -73,3 +73,29 @@ def test_rich_run_env_defaults_to_30_turn_combat_cap():
     env = RichSTS2RunEnv(character_id="Necrobinder", ascension_level=0, max_act_count=1)
     assert DEFAULT_RICH_MAX_COMBAT_TURNS == 30
     assert env.max_combat_turns == 30
+
+
+def test_conqueror_power_survives_sourceless_enemy_damage():
+    """Regression: ConquerorPower.modify_damage_multiplicative crashed with
+    AttributeError when an ENEMY attacked its owner (active_card_source is
+    None outside card plays); is_sovereign_blade must treat None as False."""
+    import sts2_env.cards  # ensure registries loaded  # noqa: F401
+    from sts2_env.cards.status import is_sovereign_blade
+    from sts2_env.core.enums import PowerId, ValueProp
+    from sts2_env.core.damage import calculate_damage
+    from sts2_env.core.rng import Rng
+    from sts2_env.monsters.act1 import create_nibbit
+
+    assert is_sovereign_blade(None) is False
+
+    combat = CombatState(
+        player_hp=70, player_max_hp=70, deck=[], rng_seed=11,
+        character_id="Necrobinder",
+    )
+    enemy, ai = create_nibbit(Rng(11))
+    combat.add_enemy(enemy, ai)
+    combat.apply_power_to(combat.primary_player, PowerId.CONQUEROR, 2)
+    # Enemy attack: no active card source anywhere -- must not raise, and the
+    # 2x Sovereign Blade multiplier must NOT apply.
+    dmg = calculate_damage(10, enemy, combat.primary_player, ValueProp.MOVE, combat)
+    assert dmg == 10
