@@ -28,6 +28,7 @@ HELP_COMMANDS = {"h", "help", "?"}
 CONFIRM_COMMANDS = {"c", "confirm", "e", "end", "skip"}
 AUTO_COMMANDS = {"a", "auto"}
 INSPECT_COMMANDS = {"i", "inspect", "deck"}
+MAP_COMMANDS = {"m", "map"}
 PHASE_LABELS = {
     RunManager.PHASE_MAP_CHOICE: "Map",
     RunManager.PHASE_COMBAT: "Combat",
@@ -265,6 +266,15 @@ def display_combat(combat: CombatState) -> None:
             state = f"  Intent: {describe_enemy_intents(ai)}"
         print(f"    [{i}] {display_name(enemy.monster_id)}  HP {enemy.current_hp}/{enemy.max_hp}  Block {enemy.block}{alive}{state}{display_text(powers)}")
 
+    allies = [ally for ally in combat.allies if ally is not None]
+    if allies:
+        print("\n  ALLIES:")
+        for ally in allies:
+            name = "Osty" if getattr(ally, "is_osty", False) else display_name(getattr(ally, "monster_id", "Ally"))
+            alive = "" if ally.is_alive else " [dead]"
+            powers = f"  Powers: {', '.join(str(p) for p in ally.powers.values())}" if ally.powers else ""
+            print(f"    {name}  HP {ally.current_hp}/{ally.max_hp}  Block {ally.block}{alive}{display_text(powers)}")
+
     if player.powers:
         print(f"\n  YOUR POWERS: {', '.join(str(power) for power in player.powers.values())}")
 
@@ -485,6 +495,7 @@ def print_help() -> None:
     print("  Pick an action by number.")
     print("  Common shortcuts: a = first action, c/e = confirm/skip/end/leave, q = quit.")
     print("  Inspect: i = show deck, relics, and potions.")
+    print("  Map: m = show the act map at any time (including during combat).")
     print("  Combat targets and reward choices are listed as separate numbered actions.")
 
 
@@ -522,6 +533,9 @@ def run_interactive(mgr: RunManager) -> int:
             raw = input("\n  Action> ")
             if raw.strip().lower() in INSPECT_COMMANDS:
                 display_inventory(mgr)
+                continue
+            if raw.strip().lower() in MAP_COMMANDS:
+                display_map(mgr, actions)
                 continue
             try:
                 action = choose_action(raw, actions)

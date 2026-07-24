@@ -36,6 +36,20 @@
       cursor: pointer;
     }
     button:hover { border-color: var(--accent); }
+    .map-overlay {
+      position: fixed; inset: 0; z-index: 50;
+      background: rgba(0, 0, 0, 0.72);
+      display: flex; align-items: flex-start; justify-content: center;
+      overflow: auto; padding: 32px 16px;
+    }
+    .map-overlay[hidden] { display: none; }
+    .map-overlay-inner {
+      background: var(--panel, #1b1b1f);
+      border: 1px solid var(--accent, #6b6bff);
+      border-radius: 10px; padding: 16px 20px;
+      max-width: 900px; width: 100%;
+    }
+    #mapToggle { margin-left: auto; }
     button.primary {
       background: #705b22;
       border-color: #9b7d30;
@@ -278,10 +292,20 @@
         <div class="topline">
           <h2 id="screenTitle">Loading</h2>
           <div class="phase" id="phase"></div>
+          <button id="mapToggle" type="button" title="View the act map (m)">🗺 Map</button>
         </div>
         <div id="screen"></div>
       </section>
     </main>
+    <div id="mapOverlay" class="map-overlay" hidden>
+      <div class="map-overlay-inner">
+        <div class="topline">
+          <h2>Act Map</h2>
+          <button id="mapClose" type="button">✕ Close</button>
+        </div>
+        <div id="mapOverlayBody"></div>
+      </div>
+    </div>
     <aside class="actions">
       <h2>Actions</h2>
       <div class="action-list" id="actions"></div>
@@ -315,7 +339,10 @@
       render(await api(`/api/action?index=${index}`, { method: "POST" }));
     }
 
+    let latestState = null;
+
     function render(state) {
+      latestState = state;
       $("character").value = state.character;
       $("summary").innerHTML = [
         ["Character", state.character],
@@ -368,6 +395,13 @@
           <span class="intent">${escapeHtml(enemy.intent)}</span>
         </div>
       `).join("");
+      const allies = (screen.allies || []).map((ally) => `
+        <div class="enemy-row ${ally.alive ? "" : "dead"}">
+          <strong>${escapeHtml(ally.name)}</strong>
+          <span>HP ${escapeHtml(ally.hp)} · Block ${escapeHtml(ally.block)}</span>
+          ${ally.powers && ally.powers.length ? `<span class="intent">${escapeHtml(ally.powers.join(", "))}</span>` : ""}
+        </div>
+      `).join("");
       const hand = screen.hand.map((card) => `
         <div class="card-row">
           <span>${card.playable ? "●" : "○"} [${card.index}] ${escapeHtml(card.name)}</span>
@@ -387,6 +421,7 @@
         <div class="combat-grid">
           <div class="section"><h3>Player</h3><div>HP ${escapeHtml(screen.player.hp)} · Block ${escapeHtml(screen.player.block)} · Energy ${escapeHtml(screen.energy)}</div>${endTurn}</div>
           <div class="section"><h3>Enemies</h3><div class="items">${enemies}</div></div>
+          ${allies ? `<div class="section"><h3>Allies</h3><div class="items">${allies}</div></div>` : ""}
           <div class="section"><h3>Hand</h3><div class="hand">${hand}</div></div>
           ${potions ? `<div class="section"><h3>Potions</h3><div class="items">${potions}</div></div>` : ""}
           <div class="section"><h3>Piles</h3><div>Draw ${screen.piles.draw} · Discard ${screen.piles.discard} · Exhaust ${screen.piles.exhaust}</div></div>
@@ -501,6 +536,50 @@
         "'": "&#39;",
       }[char]));
     }
+
+    // Self-contained map overview (no shared globals / SVG edges) so it can be
+    // shown over any screen without disturbing the main map-phase renderer.
+    function renderMapOverview(screen) {
+      if (!screen || !screen.rows || !screen.rows.length) {
+        return `<div class="muted">No map yet.</div>`;
+      }
+      const columns = screen.columns && screen.columns.length ? screen.columns : [0];
+      const mapColumns = `repeat(${columns.length}, minmax(82px, 1fr))`;
+      const rows = screen.rows.map((row) => {
+        const byCol = new Map(row.map((node) => [node.coord[0], node]));
+        const cells = columns.map((col) => {
+          const node = byCol.get(col);
+          if (!node) return `<div></div>`;
+          const classes = ["node", node.reachable ? "reachable" : "", node.visited ? "visited" : "", node.boss ? "boss" : ""].join(" ");
+          const label = node.boss ? `${escapeHtml(node.label)}<br><strong>${escapeHtml(node.boss)}</strong>` : escapeHtml(node.label);
+          return `<div class="${classes}"><strong>(${node.coord[0]},${node.coord[1]})</strong><br>${label}</div>`;
+        }).join("");
+        return `<div class="map-row" style="--map-columns: ${mapColumns}">${cells}</div>`;
+      }).join("");
+      const actTitle = screen.act_name ? escapeHtml(screen.act_name) : "Map";
+      const bossLine = screen.bosses && screen.bosses.length
+        ? `<div class="muted">Boss${screen.bosses.length > 1 ? " (one of)" : ""}: ${screen.bosses.map(escapeHtml).join(" / ")}</div>`
+        : "";
+      const current = screen.current ? `(${screen.current[0]},${screen.current[1]})` : "Start";
+      return `<h3>${actTitle}</h3>${bossLine}<div class="muted">Current: ${current} · ○ reachable · ● visited</div><div class="map">${rows}</div>`;
+    }
+
+    function openMap() {
+      if (!latestState) return;
+      $("mapOverlayBody").innerHTML = renderMapOverview(latestState.map_overview);
+      $("mapOverlay").hidden = false;
+    }
+    function closeMap() { $("mapOverlay").hidden = true; }
+
+    $("mapToggle").addEventListener("click", openMap);
+    $("mapClose").addEventListener("click", closeMap);
+    $("mapOverlay").addEventListener("click", (e) => { if (e.target.id === "mapOverlay") closeMap(); });
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeMap();
+      else if ((e.key === "m" || e.key === "M") && !/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) {
+        $("mapOverlay").hidden ? openMap() : closeMap();
+      }
+    });
 
     $("newRun").addEventListener("click", newRun);
     loadState().catch((error) => {

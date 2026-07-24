@@ -164,6 +164,12 @@ def serialize_run(
             for index, action in enumerate(actions)
         ],
         "screen": _screen(mgr, actions, combat),
+        # Read-only snapshot of the act map so the UI can show it at any time
+        # (e.g. during combat) without advancing the run. During the MAP phase
+        # "screen" already holds the interactive map; this mirrors it and, in
+        # other phases, has no "move" actions so it renders purely as an
+        # overview.
+        "map_overview": _map_screen(mgr, actions),
         "inventory": _inventory(mgr),
     }
 
@@ -246,6 +252,17 @@ def _combat_screen(combat: CombatState, actions: list[dict[str, Any]]) -> dict:
             "alive": enemy.is_alive,
             "powers": [str(power) for power in enemy.powers.values()],
         })
+    allies = []
+    for ally in combat.allies:
+        if ally is None:
+            continue
+        allies.append({
+            "name": "Osty" if getattr(ally, "is_osty", False) else display_name(getattr(ally, "monster_id", "Ally")),
+            "hp": f"{ally.current_hp}/{ally.max_hp}",
+            "block": ally.block,
+            "alive": ally.is_alive,
+            "powers": [str(power) for power in ally.powers.values()],
+        })
     return {
         "type": "combat",
         "title": "Combat",
@@ -258,6 +275,7 @@ def _combat_screen(combat: CombatState, actions: list[dict[str, Any]]) -> dict:
             "powers": [str(power) for power in player.powers.values()],
         },
         "enemies": enemies,
+        "allies": allies,
         "hand": [
             {
                 "index": index,
@@ -313,7 +331,22 @@ def _combat_potion_actions(actions: list[dict[str, Any]], slot_index: int) -> li
 
 
 #: In-game act names (from decompiled act classes: Overgrowth/Hive/Glory/Underdocks).
-ACT_NAMES = {0: "Overgrowth", 1: "Hive", 2: "Glory", 3: "Underdocks"}
+import re as _re
+
+# Fallback act names by slot index, used only if the selected act has no
+# act_id set. The real name comes from the selected ActConfig.act_id, since a
+# slot can now be filled by an alternate act (e.g. Act 1 = Overgrowth /
+# Underdocks / Exordium).
+ACT_NAMES = {0: "Overgrowth", 1: "Hive", 2: "Glory", 3: "The Ending"}
+
+
+def _act_display_name(mgr: RunManager) -> str:
+    act = mgr.run_state.current_act
+    act_id = getattr(act, "act_id", "") or ""
+    if act_id:
+        # "TheCity" -> "The City", "TheBeyond" -> "The Beyond".
+        return _re.sub(r"(?<=[a-z])(?=[A-Z])", " ", act_id)
+    return ACT_NAMES.get(act.act_index, f"Act {act.act_index + 1}")
 
 
 def _boss_name(mgr: RunManager) -> str | None:
@@ -386,7 +419,7 @@ def _map_screen(mgr: RunManager, actions: list[dict[str, Any]]) -> dict:
         "columns": columns,
         "rows": rows,
         "paths": paths,
-        "act_name": ACT_NAMES.get(act_index, f"Act {act_index + 1}"),
+        "act_name": _act_display_name(mgr),
         "act_index": act_index,
         "bosses": [boss_label] if boss_label else [],
     }
