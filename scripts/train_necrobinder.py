@@ -114,7 +114,15 @@ def run_eval(model, stage_name: str, n_episodes: int = EVAL_EPISODES,
     floors: list[int] = []
     acts: list[int] = []
     deaths_by_act: dict[int, int] = {}
+    eval_start = time.perf_counter()
     for ep in range(n_episodes):
+        if ep and ep % 50 == 0:
+            elapsed = time.perf_counter() - eval_start
+            print(
+                f"[eval] ... {ep}/{n_episodes} episodes "
+                f"({elapsed:.0f}s, {wins} wins so far)",
+                flush=True,
+            )
         obs, info = env.reset(seed=seed_block + ep)
         done = False
         steps = 0
