@@ -33,6 +33,13 @@ ent_coef=0.01. Reward shaping is a fixed scale (1.0) -- no win-rate anneal.
 auxiliary KL(pi_theta || pi_BC) term (coef 0.5 -> 0.02 over 10M steps by
 default) anchors the policy to the frozen BC reference so the prior is
 refined, not eroded (attempts 7/8 failure mode).
+--sil enables Self-Imitation Learning (Oh et al. 2018) on top of either
+class: the agent's own closed episodes go into a ~100k-transition ring
+buffer and, after each PPO update, --sil-updates minibatch SIL updates
+(batch 512) push the policy toward actions whose realized return beat the
+value estimate -- re-learning from its own rare boss-killing episodes
+(attempt 9 failure mode: eval floors climbed past the BC teacher but
+act-1 boss kills stayed flat, so wins never compounded).
 """
 
 from __future__ import annotations
@@ -298,6 +305,18 @@ def build_model(train_env, tensorboard_dir: str | None, args=None):
             anchor_coef_final=args.anchor_coef_final,
             anchor_decay_steps=args.anchor_decay_steps,
         )
+    if args is not None and getattr(args, "sil", False):
+        # Self-Imitation Learning on top (works with or without the anchor:
+        # SILAnchoredMaskablePPO with no anchor attached trains as plain
+        # MaskablePPO + SIL). Fix for attempt 9 where rare act-1 boss kills
+        # never compounded into wins.
+        from sts2_env.train.anchored_ppo import SILAnchoredMaskablePPO
+
+        algo_cls = SILAnchoredMaskablePPO
+        extra.update(
+            sil_coef=args.sil_coef,
+            sil_updates=args.sil_updates,
+        )
 
     return algo_cls(
         "MlpPolicy",
@@ -404,7 +423,11 @@ def train_stage(
     train_env = make_vec_env(stage_name, args.n_envs)
 
     if resume_from is not None:
-        if getattr(args, "anchor_model", None):
+        if getattr(args, "sil", False):
+            from sts2_env.train.anchored_ppo import SILAnchoredMaskablePPO
+
+            load_cls = SILAnchoredMaskablePPO
+        elif getattr(args, "anchor_model", None):
             from sts2_env.train.anchored_ppo import AnchoredMaskablePPO
 
             load_cls = AnchoredMaskablePPO
@@ -434,6 +457,18 @@ def train_stage(
         model.anchor_coef_final = args.anchor_coef_final
         model.anchor_decay_steps = args.anchor_decay_steps
         model.set_anchor(args.anchor_model)
+
+    if getattr(args, "sil", False):
+        # CLI is authoritative on every launch (resume included; the replay
+        # buffer itself is runtime-only and refills from fresh rollouts).
+        model.sil_coef = args.sil_coef
+        model.sil_updates = args.sil_updates
+        print(
+            f"[sil] self-imitation enabled: coef {model.sil_coef}, "
+            f"{model.sil_updates} updates/iter, batch {model.sil_batch_size}, "
+            f"buffer cap {model.sil_buffer.capacity:,} transitions",
+            flush=True,
+        )
 
     CurriculumCallback = build_callback_class()
     callback = CurriculumCallback(
@@ -504,6 +539,18 @@ def main():
     parser.add_argument("--anchor-decay-steps", type=int, default=10_000_000,
                         help="Timesteps over which the anchor coefficient decays "
                              "linearly, on ABSOLUTE steps (default 10M; resume-safe).")
+    parser.add_argument("--sil", action="store_true",
+                        help="Enable Self-Imitation Learning: replay the agent's "
+                             "own closed episodes from a ~100k-transition ring "
+                             "buffer and run --sil-updates minibatch updates of "
+                             "-(R - V(s))_+ * log pi(a|s) (+ 0.01 value term) "
+                             "after each PPO update. Composes with "
+                             "--anchor-model and --init-model.")
+    parser.add_argument("--sil-coef", type=float, default=0.1,
+                        help="SIL loss coefficient (default 0.1).")
+    parser.add_argument("--sil-updates", type=int, default=4,
+                        help="SIL minibatch updates (batch 512) after each PPO "
+                             "update (default 4).")
     parser.add_argument("--tensorboard", action="store_true")
     parser.add_argument("--progress", action="store_true", help="Show progress bar")
     parser.add_argument("--output-dir", type=str, default=DEFAULT_OUTPUT_ROOT)
