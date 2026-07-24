@@ -30,6 +30,8 @@ Enemies                 ``ENEMIES_OFF``                 5*304
 Relics                  ``RELICS_OFF``                  296
 Potion usable flags     ``POTION_FLAGS_OFF``            5
 Run-level state         ``RUN_OFF``                     78
+Run deck bag            ``DECK_BAG_OFF``                582
+Archetype scalars       ``ARCH_SCALARS_OFF``            8
 ======================  ==============================  =====
 
 Card ids are encoded as ``list(CardId).index(card_id) + 1`` (0 = empty slot).
@@ -47,7 +49,7 @@ import numpy as np
 
 from sts2_env.core.combat import CombatState
 from sts2_env.core.constants import MAX_ENEMIES, MAX_HAND_SIZE
-from sts2_env.core.enums import CardId, CardType, IntentType, MapPointType, PowerId, RoomType
+from sts2_env.core.enums import CardId, CardTag, CardType, IntentType, MapPointType, PowerId, RoomType
 from sts2_env.map.acts import ACT_3, NUM_ACT_SLOTS, act_candidates_for_slot
 from sts2_env.potions.base import all_potion_models
 from sts2_env.relics.base import RelicId
@@ -223,7 +225,27 @@ RUN_LOOKAHEAD_OFF = RUN_ACT_CAND_OFF + NUM_ACT_SLOTS * (MAX_ACT_CANDIDATES + 1) 
 RUN_PHASE_OFF = RUN_LOOKAHEAD_OFF + MAP_LOOKAHEAD_ROWS * NUM_MAP_POINT_TYPES
 # phase one-hot(9) + subscreen flags: offered_potion, offered_relic, run_pending_choice = 12
 RUN_MISC_OFF = RUN_PHASE_OFF + NUM_RUN_PHASES + 3  # ascension/20, is_elite, is_boss = 3
-RUN_SIZE = RUN_MISC_OFF + 3  # 78
+RUN_BASE_SIZE = RUN_MISC_OFF + 3  # 78 (run scalars, pre-deck-bag)
+
+# --- run-level DECK BAG: per-CardId counts of player.deck / BAG_COUNT_SCALE,
+# projected through the shared card-embedding table by the policy exactly
+# like the combat pile bags. Closes the gap where at CARD_REWARD/SHOP/removal
+# nodes the policy could not see what it already owned. ---
+DECK_BAG_OFF = RUN_OFF + RUN_BASE_SIZE
+DECK_BAG_SIZE = NUM_CARD_IDS  # 582
+
+# --- Necrobinder archetype scalars derived from the deck (see
+# _build_archetype_card_sets for the derivation). Order:
+#  0 summon-card count/10        1 Soul-generator count/10
+#  2 Soul-payoff count/10        3 Doom-applier count/10
+#  4 ethereal count/10           5 Osty-attack count/10
+#  6 zero-cost count/10          7 upgraded fraction
+ARCH_SCALARS_OFF = DECK_BAG_OFF + DECK_BAG_SIZE
+NUM_ARCH_SCALARS = 8
+ARCH_SCALARS_SIZE = NUM_ARCH_SCALARS
+ARCH_COUNT_SCALE = 10.0
+
+RUN_SIZE = RUN_BASE_SIZE + DECK_BAG_SIZE + ARCH_SCALARS_SIZE  # 668
 
 RICH_OBS_SIZE = RUN_OFF + RUN_SIZE
 
@@ -264,8 +286,88 @@ def segment_table() -> list[tuple[str, int, int]]:
         ("enemies", ENEMIES_OFF, ENEMIES_SIZE),
         ("relics", RELICS_OFF, RELICS_SIZE),
         ("potion_flags", POTION_FLAGS_OFF, POTION_FLAGS_SIZE),
-        ("run", RUN_OFF, RUN_SIZE),
+        ("run", RUN_OFF, RUN_BASE_SIZE),
+        ("deck_bag", DECK_BAG_OFF, DECK_BAG_SIZE),
+        ("archetype_scalars", ARCH_SCALARS_OFF, ARCH_SCALARS_SIZE),
     ]
+
+
+# ---------------------------------------------------------------------------
+# Necrobinder archetype card sets (for the run-level archetype scalars)
+# ---------------------------------------------------------------------------
+#
+# Derived PROGRAMMATICALLY from the card-effect registry: each card's
+# registered effect / late-effect source is scanned for the authoritative
+# implementation markers (combat.summon_osty / PowerId.SUMMON_NEXT_TURN,
+# make_soul, PowerId.DOOM, Soul-reading payoffs). A hand-listed baseline of
+# the known Necrobinder cards is unioned in as a safety net for frozen /
+# source-less deployments where ``inspect.getsource`` fails. Ethereal,
+# Osty-attack, zero-cost, and upgraded are NOT sets: they are read off each
+# deck CardInstance directly (keywords/tags/cost/upgraded), which tracks
+# upgrade-dependent changes correctly.
+
+_ARCH_BASELINE: dict[str, tuple[str, ...]] = {
+    # Cards that summon Osty/minions (verified vs the registry scan).
+    "summon": ("AFTERLIFE", "BODYGUARD", "CLEANSE", "DIRGE", "INVOKE",
+               "LEGION_OF_BONE", "NECRO_MASTERY_CARD", "PULL_AGGRO",
+               "REANIMATE", "SPUR"),
+    # Cards that create SOUL cards.
+    "soul_gen": ("CAPTURE_SPIRIT", "DIRGE", "GLIMPSE_BEYOND", "GRAVE_WARDEN",
+                 "REAVE", "SEANCE", "SEVERANCE"),
+    # Cards whose payoff reads/consumes Souls (SoulStorm scaling, Haunt /
+    # DevourLife on-Soul-played powers).
+    "soul_pay": ("DEVOUR_LIFE_CARD", "HAUNT", "SOUL_STORM"),
+    # Cards that apply the DOOM power.
+    "doom": ("BLIGHT_STRIKE", "DEATHBRINGER", "DEATHS_DOOR", "END_OF_DAYS",
+             "NEGATIVE_PULSE", "NO_ESCAPE", "SCOURGE", "TIMES_UP"),
+}
+
+
+def _build_archetype_card_sets() -> dict[str, frozenset[CardId]]:
+    import inspect
+    import re
+
+    import sts2_env.cards  # noqa: F401  # ensure card modules are registered
+    from sts2_env.cards.registry import _CARD_EFFECTS, _CARD_LATE_EFFECTS
+
+    patterns = {
+        "summon": re.compile(r"summon_osty|PowerId\.SUMMON_NEXT_TURN\b"),
+        "soul_gen": re.compile(r"make_soul"),
+        "soul_pay": re.compile(
+            r"CardId\.SOUL\b|is_soul\(|PowerId\.HAUNT\b|PowerId\.DEVOUR_LIFE\b"),
+        "doom": re.compile(r"PowerId\.DOOM\b"),
+    }
+    valid_names = {cid.name for cid in CardId}
+    sets: dict[str, set[CardId]] = {
+        key: {CardId[name] for name in names if name in valid_names}
+        for key, names in _ARCH_BASELINE.items()
+    }
+    for cid in CardId:
+        sources: list[str] = []
+        for registry in (_CARD_EFFECTS, _CARD_LATE_EFFECTS):
+            fn = registry.get(cid)
+            if fn is None:
+                continue
+            try:
+                sources.append(inspect.getsource(fn))
+            except (OSError, TypeError):
+                continue
+        if not sources:
+            continue
+        src = "\n".join(sources)
+        for key, pattern in patterns.items():
+            if pattern.search(src):
+                sets[key].add(cid)
+    # The SOUL token itself is not a payoff card (its decorator line matches).
+    sets["soul_pay"].discard(CardId.SOUL)
+    return {key: frozenset(s) for key, s in sets.items()}
+
+
+_ARCHETYPE_SETS: dict[str, frozenset[CardId]] = _build_archetype_card_sets()
+NECRO_SUMMON_CARD_IDS = _ARCHETYPE_SETS["summon"]
+NECRO_SOUL_GENERATOR_IDS = _ARCHETYPE_SETS["soul_gen"]
+NECRO_SOUL_PAYOFF_IDS = _ARCHETYPE_SETS["soul_pay"]
+NECRO_DOOM_APPLIER_IDS = _ARCHETYPE_SETS["doom"]
 
 
 class RichObservationEncoder:
@@ -496,7 +598,7 @@ class RichObservationEncoder:
                 keys += 1
         obs[r + RUN_KEYS_OFF + 3] = keys / 3.0
 
-        # deck aggregates
+        # deck aggregates + run-level deck bag + archetype scalars
         deck = player.deck
         n = len(deck)
         d = r + RUN_DECK_OFF
@@ -504,6 +606,8 @@ class RichObservationEncoder:
         if n:
             n_att = n_skill = n_pow = n_curse = n_upg = 0
             cost_sum = 0
+            n_summon = n_soul_gen = n_soul_pay = n_doom = 0
+            n_ethereal = n_osty_attack = n_zero_cost = 0
             for card in deck:
                 cost_sum += max(0, card.cost)
                 if card.upgraded:
@@ -516,12 +620,42 @@ class RichObservationEncoder:
                     n_pow += 1
                 if card.card_type == CardType.CURSE:
                     n_curse += 1
+                # deck bag (same shared-embedding projection as pile bags)
+                ci = self._card_idx.get(card.card_id)
+                if ci is not None:
+                    obs[DECK_BAG_OFF + ci] += 1.0 / BAG_COUNT_SCALE
+                # archetype membership (sets for effect-derived roles;
+                # instance properties for upgrade-tracking ones)
+                cid = card.card_id
+                if cid in NECRO_SUMMON_CARD_IDS:
+                    n_summon += 1
+                if cid in NECRO_SOUL_GENERATOR_IDS:
+                    n_soul_gen += 1
+                if cid in NECRO_SOUL_PAYOFF_IDS:
+                    n_soul_pay += 1
+                if cid in NECRO_DOOM_APPLIER_IDS:
+                    n_doom += 1
+                if card.is_ethereal:
+                    n_ethereal += 1
+                if CardTag.OSTY_ATTACK in card.tags:
+                    n_osty_attack += 1
+                if card.cost == 0 and not card.is_unplayable:
+                    n_zero_cost += 1
             obs[d + 1] = (cost_sum / n) / 3.0
             obs[d + 2] = n_upg / n
             obs[d + 3] = n_curse / 5.0
             obs[d + 4] = n_att / n
             obs[d + 5] = n_skill / n
             obs[d + 6] = n_pow / n
+            a = ARCH_SCALARS_OFF
+            obs[a + 0] = n_summon / ARCH_COUNT_SCALE
+            obs[a + 1] = n_soul_gen / ARCH_COUNT_SCALE
+            obs[a + 2] = n_soul_pay / ARCH_COUNT_SCALE
+            obs[a + 3] = n_doom / ARCH_COUNT_SCALE
+            obs[a + 4] = n_ethereal / ARCH_COUNT_SCALE
+            obs[a + 5] = n_osty_attack / ARCH_COUNT_SCALE
+            obs[a + 6] = n_zero_cost / ARCH_COUNT_SCALE
+            obs[a + 7] = n_upg / n
 
         # act-slot candidate selection (reads the registry dynamically)
         for slot in range(NUM_ACT_SLOTS):
