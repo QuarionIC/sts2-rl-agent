@@ -835,6 +835,10 @@ class AlchemicalCoffer(RelicInstance):
 
     def _add_potion_to_slot(self, owner: Creature, potion: object, slot: int) -> bool:
         combat = getattr(owner, "combat_state", None)
+        # Same stale-reference guard as after_obtained: a finished combat must
+        # not receive the potion (it would vanish with the combat state).
+        if combat is not None and getattr(combat, "is_over", False):
+            combat = None
         if combat is not None:
             from sts2_env.core.hooks import fire_after_potion_procured
 
@@ -865,6 +869,11 @@ class AlchemicalCoffer(RelicInstance):
         from sts2_env.potions.base import create_potion, roll_random_potion_model
 
         combat = getattr(owner, "combat_state", None)
+        # A run-level PlayerState can hold a STALE combat_state reference from
+        # the previous fight (it is not cleared on combat end). Obtaining this
+        # relic at a rewards screen must take the out-of-combat path.
+        if combat is not None and getattr(combat, "is_over", False):
+            combat = None
         if combat is not None:
             state = combat.combat_player_state_for(owner)
             if state is None:

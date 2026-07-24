@@ -33,7 +33,6 @@ from sts2_env.gym_env.rich_observation import (
     RichObservationEncoder,
 )
 from sts2_env.gym_env.run_env import (
-    DEFAULT_MAX_COMBAT_TURNS,
     STS2RunEnv,
 )
 from sts2_env.run.run_manager import RunManager
@@ -41,8 +40,16 @@ from sts2_env.run.run_manager import RunManager
 logger = logging.getLogger(__name__)
 
 #: Default step cap for full-run episodes (a full 4-act run finishes well
-#: under this; the cap only catches pathological stalls).
+#: under this; the cap only catches pathological non-combat stalls, e.g.
+#: toggling a selection screen forever -- those don't consume combat turns).
 DEFAULT_RUN_MAX_STEPS = 3_000
+
+#: Combat-turn cap for training/eval runs. A real fight essentially never
+#: needs 30 turns; a combat that drags this long is a stall (e.g. infinite
+#: blocking) and is scored as a DEATH (-1), giving an unambiguous "stalling
+#: loses" signal instead of an unlabeled truncation. (STS2RunEnv's own
+#: default of 200 is kept for non-training uses.)
+DEFAULT_RICH_MAX_COMBAT_TURNS = 30
 
 
 class RichSTS2RunEnv(STS2RunEnv):
@@ -59,7 +66,9 @@ class RichSTS2RunEnv(STS2RunEnv):
     reward_config : reward terms; ``shaping_scale`` is a constant knob
         settable via :meth:`set_shaping_scale` (0 for pure-sparse eval).
     max_steps / max_combat_turns / render_mode : as in STS2RunEnv
-        (default max_steps is DEFAULT_RUN_MAX_STEPS = 3000).
+        (defaults: max_steps=DEFAULT_RUN_MAX_STEPS=3000; max_combat_turns=
+        DEFAULT_RICH_MAX_COMBAT_TURNS=30 -- combats exceeding 30 turns are
+        scored as deaths).
     """
 
     def __init__(
@@ -69,7 +78,7 @@ class RichSTS2RunEnv(STS2RunEnv):
         max_act_count: int = 4,
         reward_config: RewardConfig | None = None,
         max_steps: int = DEFAULT_RUN_MAX_STEPS,
-        max_combat_turns: int = DEFAULT_MAX_COMBAT_TURNS,
+        max_combat_turns: int = DEFAULT_RICH_MAX_COMBAT_TURNS,
         render_mode: str | None = None,
     ):
         if not 1 <= max_act_count <= 4:

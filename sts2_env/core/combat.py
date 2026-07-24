@@ -684,7 +684,17 @@ class CombatState:
         return state
 
     def combat_player_state_for(self, creature: Creature) -> CombatPlayerState | None:
-        return self._combat_player_state_by_creature.get(creature)
+        try:
+            return self._combat_player_state_by_creature.get(creature)
+        except TypeError:
+            # Callers occasionally hold a run-level PlayerState (an unhashable
+            # dataclass) instead of the combat Creature -- e.g. relic
+            # after_obtained hooks fired through PlayerState.obtain_relic*.
+            # Resolve by identity against each state's creature/player_state.
+            for state in self.combat_player_states:
+                if state.player_state is creature or state.creature is creature:
+                    return state
+            return None
 
     def relics_for_creature(self, creature: Creature) -> list[RelicInstance]:
         state = self.combat_player_state_for(creature)
