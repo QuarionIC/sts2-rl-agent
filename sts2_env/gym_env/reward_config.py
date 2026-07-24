@@ -1,9 +1,9 @@
-"""Reward configuration for the rich envs (docs/TRAINING_REDESIGN.md).
+"""Reward configuration for the rich envs (docs/TRAINING_REVAMP_SPEC.json).
 
-Terminal rewards (win / death) are fixed and never annealed.  All shaping
-terms are multiplied by a single ``shaping_scale`` in [0, 1] which the
-trainer anneals toward 0 as the eval win rate rises
-(``shaping_scale = max(0, 1 - win_rate * 1.25)``).
+Terminal rewards (win / death / truncation) are fixed and never annealed.
+All shaping terms are multiplied by a single ``shaping_scale`` in [0, 1].
+It is a constant knob (1.0 during training, 0.0 for pure-sparse eval); the
+old trainer-side win-rate anneal has been removed.
 """
 
 from __future__ import annotations
@@ -18,17 +18,22 @@ class RewardConfig:
     Attributes
     ----------
     win : terminal reward for winning the episode (never annealed).
-    death : terminal reward for dying / timing out (never annealed).
-    act_completion : shaping bonus per act boss killed (annealed).
-    floor : shaping bonus per floor climbed (annealed).
+    death : terminal reward for dying (never annealed).
+    truncation : terminal reward when the episode is truncated (step-limit
+        timeout). 0.0 so a slow-but-alive run is NOT scored as a death;
+        the value function bootstraps instead.
+    act_completion : shaping bonus per act boss killed (x shaping_scale).
+    floor : shaping bonus per floor climbed (x shaping_scale).
     combat_hp_retention : shaping bonus per combat win, multiplied by
-        ``hp_end / hp_start`` for that combat (annealed).
+        ``hp_end / hp_start`` for that combat (x shaping_scale).
     shaping_scale : global multiplier in [0, 1] applied to every shaping
-        term. 1.0 = full shaping, 0.0 = pure sparse reward.
+        term. 1.0 = full shaping, 0.0 = pure sparse reward. Constant
+        during training (no anneal).
     """
 
     win: float = 1.0
     death: float = -1.0
+    truncation: float = 0.0
     act_completion: float = 0.25
     floor: float = 0.004
     combat_hp_retention: float = 0.05

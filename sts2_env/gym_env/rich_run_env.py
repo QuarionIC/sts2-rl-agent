@@ -3,12 +3,18 @@
 Subclasses :class:`~sts2_env.gym_env.run_env.STS2RunEnv` (same ``Discrete(157)``
 action space, masks, and step dispatch -- those are bridge-aligned and
 unchanged) but replaces the observation with the rich vector and the sparse
-reward with the annealable shaped reward from
-:class:`~sts2_env.gym_env.reward_config.RewardConfig`.
+reward with the shaped reward from
+:class:`~sts2_env.gym_env.reward_config.RewardConfig` (constant
+``shaping_scale``; set to 0 for pure-sparse eval).
 
 Adds ``max_act_count``: the episode terminates with a WIN as soon as the
 player advances past act ``max_act_count - 1`` (i.e. that act's boss died
-and the boss-relic screen resolved), enabling curriculum stages C/D/E.
+and the boss-relic screen resolved), enabling the act-count curriculum axis.
+
+Truncation (step-limit timeout) is NOT scored as a death: it adds
+``cfg.truncation`` (0.0 by default) and tags ``info["truncated"]``.
+A forced loss from a simulator bug (``info["sim_error"]``) is also not
+scored as a death (terminal reward 0.0).
 """
 
 from __future__ import annotations
@@ -28,12 +34,15 @@ from sts2_env.gym_env.rich_observation import (
 )
 from sts2_env.gym_env.run_env import (
     DEFAULT_MAX_COMBAT_TURNS,
-    DEFAULT_MAX_STEPS,
     STS2RunEnv,
 )
 from sts2_env.run.run_manager import RunManager
 
 logger = logging.getLogger(__name__)
+
+#: Default step cap for full-run episodes (a full 4-act run finishes well
+#: under this; the cap only catches pathological stalls).
+DEFAULT_RUN_MAX_STEPS = 3_000
 
 
 class RichSTS2RunEnv(STS2RunEnv):
@@ -47,9 +56,10 @@ class RichSTS2RunEnv(STS2RunEnv):
         terminates with a WIN when the player finishes act
         ``max_act_count`` (act indices 0..max_act_count-1). 4 = full run
         including the Act 4 Heart.
-    reward_config : reward terms; ``shaping_scale`` is annealable via
-        :meth:`set_shaping_scale`.
-    max_steps / max_combat_turns / render_mode : as in STS2RunEnv.
+    reward_config : reward terms; ``shaping_scale`` is a constant knob
+        settable via :meth:`set_shaping_scale` (0 for pure-sparse eval).
+    max_steps / max_combat_turns / render_mode : as in STS2RunEnv
+        (default max_steps is DEFAULT_RUN_MAX_STEPS = 3000).
     """
 
     def __init__(
@@ -58,7 +68,7 @@ class RichSTS2RunEnv(STS2RunEnv):
         ascension_level: int = 10,
         max_act_count: int = 4,
         reward_config: RewardConfig | None = None,
-        max_steps: int = DEFAULT_MAX_STEPS,
+        max_steps: int = DEFAULT_RUN_MAX_STEPS,
         max_combat_turns: int = DEFAULT_MAX_COMBAT_TURNS,
         render_mode: str | None = None,
     ):
@@ -157,9 +167,15 @@ class RichSTS2RunEnv(STS2RunEnv):
 
         # --- terminal rewards (never annealed) ---
         if terminated:
-            reward += cfg.terminal_reward(won)
+            if info.get("sim_error"):
+                # Forced loss from a simulator bug: do not score as death.
+                reward += 0.0
+            else:
+                reward += cfg.terminal_reward(won)
         elif truncated:
-            reward += cfg.death
+            # Step-limit timeout is NOT a death; bootstrap instead.
+            reward += cfg.truncation
+            info["truncated"] = True
 
         if terminated or truncated:
             info["won"] = won

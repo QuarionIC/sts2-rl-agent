@@ -1,32 +1,34 @@
-"""Necrobinder Ascension-10 curriculum trainer (docs/TRAINING_REDESIGN.md).
+"""Necrobinder full-run curriculum trainer (docs/TRAINING_REVAMP_SPEC.json).
 
-Single entrypoint for the staged curriculum:
+Single entrypoint for the full-run-only ladder. Every stage trains the SAME
+RichSTS2RunEnv task; difficulty moves along two axes only (ascension level,
+act count). There is no combat-only stage and the ladder never halts:
+promotion thresholds are telemetry, not gates -- each stage always trains to
+its step budget.
 
-=====  =============================================================  ==========
-Stage  Config                                                         Promotion
-=====  =============================================================  ==========
-A      Combat-only, Act 1 encounters, starter deck, A10               >85% win
-B      Combat-only, mixed-act pools (incl. legacy + Heart), sampled   >75% win
-       decks
-C      Full run, Act 1 only, A10                                      >80% win
-D      Full run, Acts 1-2                                             >70% win
-E      Full run, Acts 1-3                                             >60% win
-F      Full run, Acts 1-4 (Heart), shaping annealed                   95% target
-=====  =============================================================  ==========
+=====  ==========  =========  ==========  ==============
+Stage  Ascension   Acts       Budget      Gate (telemetry)
+=====  ==========  =========  ==========  ==============
+G1     0           1-2        20M         0.80
+G2     0           1-4        30M         0.55
+G3     4           1-4        40M         0.50
+G4     8           1-4        50M         0.45
+G5     10          1-4        60M         0.45 (final)
+=====  ==========  =========  ==========  ==============
 
 Usage
 -----
-    python scripts/train_necrobinder.py --stage A --total-steps 2000000
+    python scripts/train_necrobinder.py --stage G1 --total-steps 20000000
     python scripts/train_necrobinder.py --auto            # run the ladder
-    python scripts/train_necrobinder.py --stage C --resume
+    python scripts/train_necrobinder.py --stage G1 --resume
 
-Checkpoints: ``output/necrobinder_a10/<stage>/ckpt_<steps>.zip`` +
-sidecar JSON (stage, steps, shaping_scale, eval history, promotion state)
-every 250k steps and on eval improvement (``best_model.zip``).
-Eval: every 100k steps, 200 episodes, shaping_scale=0, seed block
-10_000_000+, deterministic. History in ``eval_history.jsonl``.
-Shaping anneal: ``shaping_scale = max(0, 1 - win_rate * 1.25)`` after each
-eval, pushed into every training env.
+Checkpoints: ``<output-dir>/<stage>/ckpt_<steps>.zip`` + sidecar
+JSON (stage, steps, eval history, promotion state) every 250k steps and on
+eval improvement (``best_model.zip``).
+Eval: every 100k steps, deterministic, shaping_scale=0, seed block
+10_000_000+. History in ``eval_history.jsonl``.
+Optimizer stays alive: constant lr=2e-4 with target_kl=0.03, constant
+ent_coef=0.01. Reward shaping is a fixed scale (1.0) -- no win-rate anneal.
 """
 
 from __future__ import annotations
@@ -41,71 +43,53 @@ from pathlib import Path
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# Stage table
+# Stage table (full-run only; promotion is telemetry, never a gate)
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class StageConfig:
     name: str
-    env_kind: str                      # "combat" | "run"
-    encounter_pools: tuple[str, ...]   # combat env only
-    deck_sampler: str                  # combat env only
-    max_act_count: int                 # run env only
-    promotion_win_rate: float
+    ascension_level: int
+    max_act_count: int                 # 1-4; 4 includes the Act 4 Heart
+    promotion_win_rate: float          # telemetry threshold, never halts
+    budget: int                        # default per-stage timestep budget
 
 
 STAGES: dict[str, StageConfig] = {
-    "A": StageConfig("A", "combat", ("act1",), "starter", 1, 0.85),
-    "B": StageConfig(
-        "B", "combat",
-        # thebeyond is import-guarded in resolve_encounter_pool and joins
-        # automatically once the module lands.
-        ("act1", "act2", "act3", "act4heart", "exordium", "thecity", "thebeyond"),
-        "progressive", 1, 0.75,
-    ),
-    "C": StageConfig("C", "run", (), "starter", 1, 0.80),
-    "D": StageConfig("D", "run", (), "starter", 2, 0.70),
-    "E": StageConfig("E", "run", (), "starter", 3, 0.60),
-    "F": StageConfig("F", "run", (), "starter", 4, 0.95),
+    "G1": StageConfig("G1", 0, 2, 0.80, 20_000_000),
+    "G2": StageConfig("G2", 0, 4, 0.55, 30_000_000),
+    "G3": StageConfig("G3", 4, 4, 0.50, 40_000_000),
+    "G4": StageConfig("G4", 8, 4, 0.45, 50_000_000),
+    "G5": StageConfig("G5", 10, 4, 0.45, 60_000_000),
 }
-STAGE_ORDER = "ABCDEF"
+STAGE_ORDER = ["G1", "G2", "G3", "G4", "G5"]
 
-DEFAULT_OUTPUT_ROOT = "output/necrobinder_a10"
+DEFAULT_OUTPUT_ROOT = "output/necrobinder_run"
 EVAL_FREQ = 100_000
 CHECKPOINT_FREQ = 250_000
 EVAL_EPISODES = 200
 EVAL_SEED_BLOCK = 10_000_000
-ENT_COEF_START = 0.01
-ENT_COEF_END = 0.003
-LR_START = 2.5e-4
+ENT_COEF = 0.01
+LEARNING_RATE = 2.0e-4
+TARGET_KL = 0.03
+RUN_MAX_STEPS = 3_000
 
 
 # ---------------------------------------------------------------------------
 # Env factories (module-level so SubprocVecEnv can pickle them on Windows)
 # ---------------------------------------------------------------------------
 
-def make_stage_env(stage_name: str, shaping_scale: float = 1.0, max_steps: int = 10_000):
-    """Create one (unwrapped) env for a stage. Picklable via functools.partial."""
+def make_stage_env(stage_name: str, shaping_scale: float = 1.0,
+                   max_steps: int = RUN_MAX_STEPS):
+    """Create one (unwrapped) run env for a stage. Picklable via partial."""
     from sts2_env.gym_env.reward_config import RewardConfig
+    from sts2_env.gym_env.rich_run_env import RichSTS2RunEnv
 
     stage = STAGES[stage_name]
     cfg = RewardConfig(shaping_scale=shaping_scale)
-    if stage.env_kind == "combat":
-        from sts2_env.gym_env.rich_combat_env import RichSTS2CombatEnv
-
-        return RichSTS2CombatEnv(
-            character_id="Necrobinder",
-            ascension_level=10,
-            encounter_pools=stage.encounter_pools,
-            deck_sampler=stage.deck_sampler,
-            reward_config=cfg,
-            max_episode_steps=1000,
-        )
-    from sts2_env.gym_env.rich_run_env import RichSTS2RunEnv
-
     return RichSTS2RunEnv(
         character_id="Necrobinder",
-        ascension_level=10,
+        ascension_level=stage.ascension_level,
         max_act_count=stage.max_act_count,
         reward_config=cfg,
         max_steps=max_steps,
@@ -117,11 +101,18 @@ def make_stage_env(stage_name: str, shaping_scale: float = 1.0, max_steps: int =
 # ---------------------------------------------------------------------------
 
 def run_eval(model, stage_name: str, n_episodes: int = EVAL_EPISODES,
-             seed_block: int = EVAL_SEED_BLOCK, max_episode_steps: int = 10_000) -> dict:
-    """Evaluate on a dedicated env with shaping_scale=0 (pure sparse reward)."""
+             seed_block: int = EVAL_SEED_BLOCK, max_episode_steps: int = RUN_MAX_STEPS) -> dict:
+    """Evaluate on a dedicated env with shaping_scale=0 (pure sparse reward).
+
+    The run env's info dict carries ``floor``/``act`` every step, so
+    mean_floors and deaths_by_act are real telemetry (the old combat-env
+    eval was blind to both).
+    """
     env = make_stage_env(stage_name, shaping_scale=0.0)
     wins = 0
+    truncations = 0
     floors: list[int] = []
+    acts: list[int] = []
     deaths_by_act: dict[int, int] = {}
     for ep in range(n_episodes):
         obs, info = env.reset(seed=seed_block + ep)
@@ -135,7 +126,9 @@ def run_eval(model, stage_name: str, n_episodes: int = EVAL_EPISODES,
             steps += 1
         won = bool(info.get("won", False))
         wins += won
+        truncations += bool(info.get("truncated", False))
         floors.append(int(info.get("floor", 0)))
+        acts.append(int(info.get("act", 0)))
         if not won:
             act = int(info.get("act", 0))
             deaths_by_act[act] = deaths_by_act.get(act, 0) + 1
@@ -143,12 +136,14 @@ def run_eval(model, stage_name: str, n_episodes: int = EVAL_EPISODES,
         "win_rate": wins / n_episodes,
         "episodes": n_episodes,
         "mean_floors": float(np.mean(floors)) if floors else 0.0,
+        "mean_act": float(np.mean(acts)) if acts else 0.0,
+        "truncation_rate": truncations / n_episodes,
         "deaths_by_act": deaths_by_act,
     }
 
 
 # ---------------------------------------------------------------------------
-# Combined eval / checkpoint / anneal / promotion callback
+# Combined eval / checkpoint / promotion-telemetry callback
 # ---------------------------------------------------------------------------
 
 def build_callback_class():
@@ -156,6 +151,9 @@ def build_callback_class():
     from stable_baselines3.common.callbacks import BaseCallback
 
     class CurriculumCallback(BaseCallback):
+        """Eval + checkpoint callback. NEVER stops training: promotion is
+        recorded as telemetry only and every stage runs to its budget."""
+
         def __init__(
             self,
             stage_name: str,
@@ -164,7 +162,6 @@ def build_callback_class():
             eval_freq: int = EVAL_FREQ,
             checkpoint_freq: int = CHECKPOINT_FREQ,
             eval_episodes: int = EVAL_EPISODES,
-            stop_on_promotion: bool = False,
             verbose: int = 1,
         ):
             super().__init__(verbose)
@@ -175,27 +172,20 @@ def build_callback_class():
             self.eval_freq = eval_freq
             self.checkpoint_freq = checkpoint_freq
             self.eval_episodes = eval_episodes
-            self.stop_on_promotion = stop_on_promotion
             self._last_eval = state.get("last_eval_step", 0)
             self._last_ckpt = state.get("last_ckpt_step", 0)
 
-        # -- entropy anneal: 0.01 -> 0.003 over training progress --
-        def _on_rollout_start(self) -> None:
-            progress_remaining = self.model._current_progress_remaining
-            self.model.ent_coef = ENT_COEF_END + (ENT_COEF_START - ENT_COEF_END) * progress_remaining
-
         def _on_step(self) -> bool:
             t = self.num_timesteps
-            continue_training = True
             if t - self._last_eval >= self.eval_freq:
                 self._last_eval = t
-                continue_training = self._do_eval(t)
+                self._do_eval(t)
             if t - self._last_ckpt >= self.checkpoint_freq:
                 self._last_ckpt = t
                 self._save_checkpoint(t)
-            return continue_training
+            return True
 
-        def _do_eval(self, t: int) -> bool:
+        def _do_eval(self, t: int) -> None:
             if self.verbose:
                 print(f"\n[eval] stage {self.stage_name} @ {t:,} steps "
                       f"({self.eval_episodes} episodes, shaping=0) ...")
@@ -204,23 +194,15 @@ def build_callback_class():
             metrics.update({"steps": t, "wall_s": round(time.perf_counter() - start, 1)})
             win_rate = metrics["win_rate"]
 
-            # shaping anneal, pushed to every training env
-            shaping = max(0.0, 1.0 - win_rate * 1.25)
-            self.state["shaping_scale"] = shaping
-            metrics["shaping_scale"] = shaping
-            try:
-                self.model.get_env().env_method("set_shaping_scale", shaping)
-            except Exception as exc:  # pragma: no cover
-                print(f"[warn] could not push shaping_scale: {exc}")
-
             self.state.setdefault("eval_history", []).append(metrics)
             self.state["last_eval_step"] = t
             with open(self.stage_dir / "eval_history.jsonl", "a", encoding="utf-8") as f:
                 f.write(json.dumps(metrics) + "\n")
             if self.verbose:
                 print(f"[eval] win_rate={win_rate:.1%} mean_floors={metrics['mean_floors']:.1f} "
-                      f"deaths_by_act={metrics['deaths_by_act']} shaping={shaping:.3f} "
-                      f"({metrics['wall_s']}s)")
+                      f"mean_act={metrics['mean_act']:.2f} "
+                      f"deaths_by_act={metrics['deaths_by_act']} "
+                      f"trunc={metrics['truncation_rate']:.1%} ({metrics['wall_s']}s)")
 
             # best-model checkpoint on improvement
             if win_rate > self.state.get("best_win_rate", -1.0):
@@ -230,18 +212,17 @@ def build_callback_class():
                 if self.verbose:
                     print(f"[eval] new best ({win_rate:.1%}) -> best_model.zip")
 
-            # promotion: threshold hit on 2 consecutive evals
+            # promotion telemetry: threshold hit on 2 consecutive evals.
+            # Never stops training -- the stage always runs to budget.
             if win_rate >= self.stage.promotion_win_rate:
                 self.state["promotion_streak"] = self.state.get("promotion_streak", 0) + 1
             else:
                 self.state["promotion_streak"] = 0
-            if self.state["promotion_streak"] >= 2:
+            if self.state["promotion_streak"] >= 2 and not self.state.get("promoted"):
                 self.state["promoted"] = True
-                print(f"[promotion] stage {self.stage_name} criterion "
-                      f"(>{self.stage.promotion_win_rate:.0%} x2) met at {t:,} steps")
-                if self.stop_on_promotion:
-                    return False
-            return True
+                print(f"[promotion] stage {self.stage_name} telemetry criterion "
+                      f"(>{self.stage.promotion_win_rate:.0%} x2) met at {t:,} steps "
+                      f"(training continues to budget)")
 
         def _save_checkpoint(self, t: int) -> None:
             path = self.stage_dir / f"ckpt_{t:010d}"
@@ -255,7 +236,6 @@ def build_callback_class():
             sidecar = {
                 "stage": self.stage_name,
                 "steps": t,
-                "shaping_scale": self.state.get("shaping_scale", 1.0),
                 "best_win_rate": self.state.get("best_win_rate", -1.0),
                 "promotion_streak": self.state.get("promotion_streak", 0),
                 "promoted": self.state.get("promoted", False),
@@ -272,10 +252,6 @@ def build_callback_class():
 # Model construction / resume / warm-start
 # ---------------------------------------------------------------------------
 
-def linear_lr(progress_remaining: float) -> float:
-    return LR_START * progress_remaining
-
-
 def build_model(train_env, tensorboard_dir: str | None):
     from sb3_contrib import MaskablePPO
 
@@ -284,15 +260,16 @@ def build_model(train_env, tensorboard_dir: str | None):
     return MaskablePPO(
         "MlpPolicy",
         train_env,
-        learning_rate=linear_lr,
-        n_steps=512,
+        learning_rate=LEARNING_RATE,   # constant; target_kl regulates step size
+        n_steps=1024,
         batch_size=4096,
-        n_epochs=4,
-        gamma=0.999,
+        n_epochs=3,
+        gamma=0.997,
         gae_lambda=0.95,
         clip_range=0.2,
-        ent_coef=ENT_COEF_START,
+        ent_coef=ENT_COEF,             # constant floor; no anneal
         vf_coef=0.5,
+        target_kl=TARGET_KL,
         policy_kwargs=rich_policy_kwargs(),
         device="cuda",
         verbose=1,
@@ -314,10 +291,10 @@ def find_latest_checkpoint(stage_dir: Path) -> tuple[Path, dict] | None:
     return latest.with_suffix(""), sidecar
 
 
-def make_vec_env(stage_name: str, n_envs: int, shaping_scale: float):
+def make_vec_env(stage_name: str, n_envs: int):
     from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
 
-    factories = [partial(make_stage_env, stage_name, shaping_scale) for _ in range(n_envs)]
+    factories = [partial(make_stage_env, stage_name) for _ in range(n_envs)]
     vec = SubprocVecEnv(factories) if n_envs > 1 else DummyVecEnv(factories)
     return VecMonitor(vec)
 
@@ -330,15 +307,15 @@ def train_stage(
     stage_name: str,
     args,
     warm_start_from: Path | None = None,
-    stop_on_promotion: bool = False,
 ) -> dict:
     from sb3_contrib import MaskablePPO
 
     stage_dir = Path(args.output_dir) / stage_name
     stage_dir.mkdir(parents=True, exist_ok=True)
     tb_dir = str(stage_dir / "tb") if args.tensorboard else None
+    total_steps = args.total_steps or STAGES[stage_name].budget
 
-    state: dict = {"shaping_scale": 1.0}
+    state: dict = {}
     resume_from: Path | None = None
     if args.resume:
         found = find_latest_checkpoint(stage_dir)
@@ -346,16 +323,15 @@ def train_stage(
             resume_from, sidecar = found
             state.update(sidecar)
             print(f"[resume] stage {stage_name}: {resume_from}.zip "
-                  f"(steps={state.get('steps', '?')}, shaping={state['shaping_scale']:.3f})")
+                  f"(steps={state.get('steps', '?')})")
         else:
             print(f"[resume] no checkpoint in {stage_dir}; starting fresh")
 
-    train_env = make_vec_env(stage_name, args.n_envs, state["shaping_scale"])
+    train_env = make_vec_env(stage_name, args.n_envs)
 
     if resume_from is not None:
         model = MaskablePPO.load(
             str(resume_from), env=train_env, device="cuda", tensorboard_log=tb_dir,
-            custom_objects={"learning_rate": linear_lr},
         )
         reset_num_timesteps = False
     else:
@@ -377,13 +353,13 @@ def train_stage(
         eval_freq=args.eval_freq,
         checkpoint_freq=args.checkpoint_freq,
         eval_episodes=args.eval_episodes,
-        stop_on_promotion=stop_on_promotion,
     )
 
-    print(f"\n=== Stage {stage_name}: {STAGES[stage_name]} ===")
+    print(f"\n=== Stage {stage_name}: {STAGES[stage_name]} "
+          f"({total_steps:,} steps) ===")
     start = time.perf_counter()
     model.learn(
-        total_timesteps=args.total_steps,
+        total_timesteps=total_steps,
         callback=callback,
         reset_num_timesteps=reset_num_timesteps,
         progress_bar=args.progress,
@@ -401,16 +377,16 @@ def train_stage(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Necrobinder A10 curriculum trainer")
+    parser = argparse.ArgumentParser(description="Necrobinder full-run curriculum trainer")
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--stage", choices=list(STAGE_ORDER), help="Train one stage")
+    group.add_argument("--stage", choices=STAGE_ORDER, help="Train one stage")
     group.add_argument("--auto", action="store_true",
-                       help="Run the full ladder with promotion criteria")
-    parser.add_argument("--start-stage", choices=list(STAGE_ORDER), default="A",
-                        help="First stage for --auto (default A)")
-    parser.add_argument("--n-envs", type=int, default=16)
-    parser.add_argument("--total-steps", type=int, default=5_000_000,
-                        help="Timestep budget per stage (default 5M)")
+                       help="Run the full ladder G1->G5 (each stage to budget)")
+    parser.add_argument("--start-stage", choices=STAGE_ORDER, default="G1",
+                        help="First stage for --auto (default G1)")
+    parser.add_argument("--n-envs", type=int, default=24)
+    parser.add_argument("--total-steps", type=int, default=None,
+                        help="Timestep budget per stage (default: the stage's budget)")
     parser.add_argument("--eval-freq", type=int, default=EVAL_FREQ)
     parser.add_argument("--eval-episodes", type=int, default=EVAL_EPISODES)
     parser.add_argument("--checkpoint-freq", type=int, default=CHECKPOINT_FREQ)
@@ -425,24 +401,15 @@ def main():
         train_stage(args.stage, args)
         return
 
-    # --auto: ladder with promotion + warm starts
+    # --auto: the ladder NEVER halts. Every stage trains to its budget and
+    # warm-starts the next from its best model (promotion is telemetry only).
     start_idx = STAGE_ORDER.index(args.start_stage)
     prev_best: Path | None = None
     for stage_name in STAGE_ORDER[start_idx:]:
-        state = train_stage(
-            stage_name, args,
-            warm_start_from=prev_best,
-            stop_on_promotion=(stage_name != "F"),
-        )
+        train_stage(stage_name, args, warm_start_from=prev_best)
         best = Path(args.output_dir) / stage_name / "best_model"
         if best.with_suffix(".zip").exists():
             prev_best = best
-        if not state.get("promoted") and stage_name != "F":
-            print(f"[auto] stage {stage_name} exhausted its budget without meeting "
-                  f"the promotion criterion; continuing to the next stage anyway "
-                  f"is unsafe -- stopping. Re-run with --resume or a larger "
-                  f"--total-steps.")
-            break
 
 
 if __name__ == "__main__":

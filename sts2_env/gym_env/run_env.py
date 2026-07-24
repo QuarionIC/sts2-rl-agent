@@ -312,6 +312,7 @@ class STS2RunEnv(gymnasium.Env):
         reward = 0.0
         phase = self._mgr.phase
         actions = self._mgr.get_available_actions()
+        sim_error = False
 
         # ---- dispatch action to RunManager ----
         try:
@@ -335,8 +336,10 @@ class STS2RunEnv(gymnasium.Env):
                 self._step_treasure()
         except Exception:
             # Guard against simulation bugs so the episode can finish.
-            # Force-end as a loss if the run is not already over.
+            # Force-end as a loss if the run is not already over, but tag
+            # it so callers can avoid scoring a simulator bug as a death.
             logger.exception("STS2RunEnv.step failed during phase %s with action %s", phase, action)
+            sim_error = True
             if not self._mgr.is_over:
                 self._mgr.run_state.lose_run()
 
@@ -348,12 +351,17 @@ class STS2RunEnv(gymnasium.Env):
             truncated = True
 
         if terminated:
-            reward = REWARD_WIN if self._mgr.player_won else REWARD_DEATH
+            if sim_error:
+                reward = 0.0  # simulator bug, not a real death
+            else:
+                reward = REWARD_WIN if self._mgr.player_won else REWARD_DEATH
         elif truncated:
             reward = REWARD_DEATH
 
         obs = self._encode_obs()
         info = self._build_info()
+        if sim_error:
+            info["sim_error"] = True
         return obs, float(reward), terminated, truncated, info
 
     def action_masks(self) -> np.ndarray:
