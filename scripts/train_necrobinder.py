@@ -33,6 +33,16 @@ ent_coef=0.01. Reward shaping is a fixed scale (1.0) -- no win-rate anneal.
 
 from __future__ import annotations
 
+import os
+
+# MUST run before numpy is imported (here and, via inherited environment, in
+# every spawned worker): OpenBLAS otherwise commits ~775 MB of per-thread
+# buffers per process on this 24-thread machine (measured 795 MB -> 20 MB
+# private with 1 thread). RL env stepping does no BLAS-heavy math, and 16-24
+# single-threaded workers beat 16x24-way thread oversubscription anyway.
+for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_var, "1")
+
 import argparse
 import json
 import time
@@ -300,7 +310,9 @@ def find_latest_checkpoint(stage_dir: Path) -> tuple[Path, dict] | None:
 
 
 def make_vec_env(stage_name: str, n_envs: int):
-    from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
+    from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
+
+    from slim_vecenv import SlimSubprocVecEnv as SubprocVecEnv
 
     factories = [partial(make_stage_env, stage_name) for _ in range(n_envs)]
     vec = SubprocVecEnv(factories) if n_envs > 1 else DummyVecEnv(factories)
