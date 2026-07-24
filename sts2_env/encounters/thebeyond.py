@@ -235,3 +235,54 @@ ALL_THEBEYOND_ENCOUNTERS: list[EncounterSetup] = (
     list(ELITE_ENCOUNTERS) +
     list(BOSS_ENCOUNTERS)
 )
+
+
+# ---- Event-only encounters ----
+#
+# Triggered by TheBeyond events (sts2_env/events/thebeyond.py), never part
+# of the weak/normal/elite/boss pools above (their decompiled encounter
+# classes' IsValidForAct always returns false). Registered in
+# EVENT_ENCOUNTER_REGISTRY -- consumed by RunManager._enter_event_combat
+# with suppress_default_rewards=True -- exactly like the Exordium event
+# fights in sts2_env/encounters/exordium.py.
+
+from sts2_env.monsters.exordium import (  # noqa: E402
+    create_guardian as _create_guardian,
+    create_hexaghost as _create_hexaghost,
+    create_slime_boss as _create_slime_boss,
+)
+
+
+def setup_two_orb_walkers_event(combat: CombatState, rng: Rng) -> None:
+    # TwoOrbWalkersEvent.cs: 2x OrbWalker (MysteriousSphere event fight).
+    for _ in range(2):
+        _add(combat, rng, create_orb_walker)
+
+
+def setup_mind_bloom_guardian(combat: CombatState, rng: Rng) -> None:
+    # MindBloomGuardian.cs: 1x Guardian (Exordium boss reskin).
+    _add(combat, rng, _create_guardian)
+
+
+def setup_mind_bloom_hexaghost(combat: CombatState, rng: Rng) -> None:
+    # MindBloomHexaghost.cs: 1x Hexaghost (Exordium boss reskin).
+    _add(combat, rng, _create_hexaghost)
+
+
+def setup_mind_bloom_slime_boss(combat: CombatState, rng: Rng) -> None:
+    # MindBloomSlimeBoss.cs: 1x SlimeBoss (slots list only holds the
+    # positions its split slimes can occupy mid-fight).
+    _add(combat, rng, _create_slime_boss)
+
+
+THEBEYOND_EVENT_ENCOUNTER_REGISTRY: dict[str, EncounterSetup] = {
+    "two_orb_walkers_event": setup_two_orb_walkers_event,
+    "mind_bloom_guardian": setup_mind_bloom_guardian,
+    "mind_bloom_hexaghost": setup_mind_bloom_hexaghost,
+    "mind_bloom_slime_boss": setup_mind_bloom_slime_boss,
+}
+
+# Additive registration into the shared event-encounter registry.
+from sts2_env.encounters.events import EVENT_ENCOUNTER_REGISTRY as _EVENT_ENCOUNTER_REGISTRY  # noqa: E402
+
+_EVENT_ENCOUNTER_REGISTRY.update(THEBEYOND_EVENT_ENCOUNTER_REGISTRY)

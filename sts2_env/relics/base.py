@@ -348,6 +348,18 @@ class RelicId(Enum):
     ENCHIRIDION = auto()
     NILRYS_CODEX = auto()
 
+    # Acts from the Past (mod) -- TheBeyond event relics
+    MARK_OF_THE_BLOOM = auto()
+
+    # Acts from the Past (mod) -- shared shrine event relics
+    SPIRIT_POOP = auto()
+    WARPED_TONGS = auto()
+    CULTIST_HEADPIECE = auto()
+    FACE_OF_CLERIC = auto()
+    GREMLIN_VISAGE = auto()
+    NLOTHS_HUNGRY_FACE = auto()
+    SSSERPENT_HEAD = auto()
+
     # Act4Heart mod (the three keys)
     EMERALD_KEY = auto()
     RUBY_KEY = auto()

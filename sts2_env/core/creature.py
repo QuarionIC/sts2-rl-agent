@@ -116,6 +116,16 @@ class Creature:
         """Heal HP, capped at max. Returns actual healed."""
         if amount <= 0 or self.is_dead:
             return 0
+        # Duck-typed relic heal-amount hook ("Acts from the Past" mod:
+        # MarkOfTheBloom reduces all healing to 0). Only player creatures
+        # have relics (relics_for_creature returns [] for enemies).
+        if self.combat_state is not None:
+            for relic in self.combat_state.relics_for_creature(self):
+                hook = getattr(relic, "modify_heal_amount", None)
+                if callable(hook):
+                    amount = hook(self, amount)
+            if amount <= 0:
+                return 0
         before = self.current_hp
         self.current_hp = min(self.current_hp + amount, self.max_hp)
         healed = self.current_hp - before

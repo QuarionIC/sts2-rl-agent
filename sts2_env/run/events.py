@@ -47,6 +47,20 @@ class EventModel:
     # BonfireSpirits, Duplicator). Only meaningful when is_shared is True --
     # see `event_allowed_in_act` below. Always False for base-game events.
     is_legacy_exclusive: bool = False
+    # "Acts from the Past" mod: True for events implementing the mod's
+    # IShrineEvent interface. Shrines are interleaved into LEGACY act event
+    # pools at a 25% draw chance per slot (see `interleave_shrine_events`
+    # below, mirroring ShrinePatches.EventPoolPatch), and non-one-time
+    # shrines may be re-offered within the same run (they bypass the
+    # visited-events exclusion, mirroring RepeatableShrineValidityPatch).
+    is_shrine: bool = False
+    # IShrineEvent.IsOneTimeEvent (C# default false). Only meaningful when
+    # is_shrine is True.
+    is_one_time_event: bool = False
+    # "Acts from the Past" mod IActRestricted.AllowedActIndices: 1-based act
+    # numbers (act slot index + 1) this event may appear in, or None for no
+    # restriction (e.g. FaceTrader => (1, 2), DesignerInSpire => (2, 3)).
+    allowed_act_numbers: tuple[int, ...] | None = None
 
     @property
     def pending_choice(self) -> PendingCardChoice | None:
@@ -257,6 +271,19 @@ def event_allowed_in_act(event: EventModel, act: object) -> bool:
     return True
 
 
+def _event_blocked_by_visited(event: EventModel, run_state: RunState) -> bool:
+    """Visited-events exclusion, with the "Acts from the Past" mod's
+    RepeatableShrineValidityPatch semantics: a non-one-time shrine event may
+    be re-offered even after it was visited this run (the patch temporarily
+    removes such events' ids from RunState's visited set while the next
+    event is validated)."""
+    if event.event_id not in run_state.visited_event_ids:
+        return False
+    if getattr(event, "is_shrine", False) and not getattr(event, "is_one_time_event", False):
+        return False
+    return True
+
+
 def get_allowed_events(run_state: RunState, pool: list[str] | None = None) -> list[EventModel]:
     """Return events from pool that pass is_allowed and haven't been visited."""
     candidates = all_events() if pool is None else [
@@ -264,7 +291,7 @@ def get_allowed_events(run_state: RunState, pool: list[str] | None = None) -> li
     ]
     return [
         e for e in candidates
-        if e.event_id not in run_state.visited_event_ids
+        if not _event_blocked_by_visited(e, run_state)
         and e.is_allowed(run_state)
         and event_allowed_in_act(e, run_state.current_act)
     ]
@@ -286,7 +313,7 @@ def pick_event(run_state: RunState, pool: list[str] | None = None) -> EventModel
         candidate = _EVENT_REGISTRY.get(event_id)
         if (
             candidate is not None
-            and candidate.event_id not in run_state.visited_event_ids
+            and not _event_blocked_by_visited(candidate, run_state)
             and candidate.is_allowed(run_state)
             and event_allowed_in_act(candidate, act)
         ):
@@ -305,3 +332,63 @@ def pick_event(run_state: RunState, pool: list[str] | None = None) -> EventModel
     if uses_act_event_order:
         act.events_visited = event_index
     return event
+
+
+# ── "Acts from the Past" shrine pool logic ───────────────────────────────
+#
+# Decompiled reference: ActsFromThePast.Patches.Events.ShrinePatches
+# .EventPoolPatch (Postfix on ActModel.GenerateRooms). After the config
+# gates above (event_allowed_in_act) and IActRestricted filtering, a LEGACY
+# act's event pool is rebuilt by interleaving shrine events (IShrineEvent)
+# with the non-shrine events: for each output slot, a shrine is drawn with
+# 25% probability (rng.NextFloat(1f) < 0.25f) while shrines remain;
+# otherwise the next non-shrine event is taken; once non-shrines run out
+# the remaining shrines are appended.
+
+SHRINE_DRAW_CHANCE = 0.25
+
+
+def build_legacy_event_pool(event_ids: list[str], act: object, rng: Rng) -> list[str]:
+    """Build a LEGACY act's ordered event pool (ShrinePatches.EventPoolPatch).
+
+    ``event_ids`` is the candidate pool (the act's own event ids plus any
+    shared event ids); events are filtered through ``event_allowed_in_act``
+    and the mod's IActRestricted act-number gate (1-based act number ==
+    act.act_index + 1), then shrine events are interleaved with non-shrine
+    events at a 25% draw chance per slot. Intended to be called only for
+    acts flagged ``is_legacy`` (vanilla acts keep their static event_ids
+    lists); the relative order of ``event_ids`` is preserved within each of
+    the shrine/non-shrine halves, matching the C# patch.
+    """
+    act_number = getattr(act, "act_index", 0) + 1
+    filtered: list[EventModel] = []
+    for event_id in event_ids:
+        event = _EVENT_REGISTRY.get(event_id)
+        if event is None:
+            continue
+        if not event_allowed_in_act(event, act):
+            continue
+        allowed_acts = getattr(event, "allowed_act_numbers", None)
+        if allowed_acts is not None and act_number not in allowed_acts:
+            continue
+        filtered.append(event)
+
+    shrines = [event for event in filtered if getattr(event, "is_shrine", False)]
+    if not shrines:
+        return [event.event_id for event in filtered]
+    regulars = [event for event in filtered if not getattr(event, "is_shrine", False)]
+
+    interleaved: list[EventModel] = []
+    shrine_index = 0
+    regular_index = 0
+    for _ in range(len(shrines) + len(regulars)):
+        if rng.next_float(1.0) < SHRINE_DRAW_CHANCE and shrine_index < len(shrines):
+            interleaved.append(shrines[shrine_index])
+            shrine_index += 1
+        elif regular_index < len(regulars):
+            interleaved.append(regulars[regular_index])
+            regular_index += 1
+        else:
+            interleaved.append(shrines[shrine_index])
+            shrine_index += 1
+    return [event.event_id for event in interleaved]

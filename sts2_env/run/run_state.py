@@ -170,6 +170,15 @@ class PlayerState:
         )
 
     def heal(self, amount: int) -> int:
+        # Duck-typed relic heal-amount hook ("Acts from the Past" mod:
+        # MarkOfTheBloom reduces all healing to 0) -- same pattern as the
+        # gain_gold relic hooks below.
+        for relic in self._ensure_relic_objects():
+            hook = getattr(relic, "modify_heal_amount", None)
+            if callable(hook):
+                amount = hook(self, amount)
+        if amount <= 0:
+            return 0
         before = self.current_hp
         self.current_hp = min(self.current_hp + amount, self.max_hp)
         return self.current_hp - before
@@ -1545,8 +1554,20 @@ class RunState:
     def _generate_rooms(self) -> None:
         if self._rooms_generated:
             return
-        for act in self.acts:
-            self.rng.up_front.shuffle(act.event_ids)
+        from sts2_env.core.rng import Rng
+        from sts2_env.run.events import build_legacy_event_pool
+
+        for i, act in enumerate(self.acts):
+            if act.is_legacy:
+                # "Acts from the Past" legacy act: ShrinePatches.EventPoolPatch
+                # replaces the event order with a shrine/non-shrine interleave
+                # (a Postfix on GenerateRooms) rather than a plain shuffle.
+                # Uses a dedicated per-act RNG stream so it's deterministic and
+                # doesn't perturb the shared up_front stream.
+                pool_rng = Rng(self.seed, f"legacy_event_pool_{i}")
+                act.event_ids = build_legacy_event_pool(act.event_ids, act, pool_rng)
+            else:
+                self.rng.up_front.shuffle(act.event_ids)
             act.events_visited = 0
         self._rooms_generated = True
 

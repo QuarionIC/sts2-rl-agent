@@ -359,17 +359,32 @@ class TestNlothsGift:
 # ===========================================================================
 
 class TestActSlotCandidates:
-    def test_vanilla_slots_default_to_a_single_candidate(self):
-        assert act_candidates_for_slot(0) == [ACT_0]
-        assert act_candidates_for_slot(1) == [ACT_1]
-        assert act_candidates_for_slot(2) == [ACT_2]
+    def test_slots_expose_their_installed_act_candidates(self):
+        # The user's install (v0.109.0 + Acts-from-the-Past) offers per-slot
+        # alternates, all wired in and rolled uniformly.
+        assert [c.act_id for c in act_candidates_for_slot(0)] == [
+            "Overgrowth", "Underdocks", "Exordium",
+        ]
+        assert [c.act_id for c in act_candidates_for_slot(1)] == ["Hive", "TheCity"]
+        assert [c.act_id for c in act_candidates_for_slot(2)] == ["Glory", "TheBeyond"]
 
-    def test_single_candidate_selection_never_touches_rng(self):
-        # Passing None as rng would blow up if select_act_for_slot tried to
-        # use it -- proves the singleton fast path never calls rng.choice.
+    def test_selection_returns_a_registered_candidate_and_is_seed_deterministic(self):
+        from sts2_env.core.rng import Rng
+
+        for slot in range(NUM_ACT_SLOTS):
+            candidates = act_candidates_for_slot(slot)
+            picked = select_act_for_slot(slot, Rng(777, "act_selection"))
+            assert picked in candidates
+            # Same seed -> same pick.
+            again = select_act_for_slot(slot, Rng(777, "act_selection"))
+            assert again is picked
+
+    def test_single_candidate_selection_never_touches_rng(self, monkeypatch):
+        # The singleton fast path still exists: a slot with exactly one
+        # candidate resolves without ever calling rng.choice (passing None
+        # would raise if it tried).
+        monkeypatch.setattr(acts_module, "_ACT_SLOT_CANDIDATES", {0: [ACT_0]})
         assert select_act_for_slot(0, rng=None) is ACT_0
-        assert select_act_for_slot(1, rng=None) is ACT_1
-        assert select_act_for_slot(2, rng=None) is ACT_2
 
     def test_invalid_slot_raises(self):
         with pytest.raises(ValueError):
@@ -377,18 +392,19 @@ class TestActSlotCandidates:
         with pytest.raises(ValueError):
             register_act_candidate(NUM_ACT_SLOTS, ACT_0)
 
-    def test_run_state_acts_are_unchanged_regression_check(self):
-        """Regression: RunState.acts must still resolve to the same 4 vanilla
-        ActConfigs, in the same order, as before this extension point existed."""
+    def test_run_state_acts_resolve_per_slot_from_registered_candidates(self):
+        """RunState.acts must be 4 acts: one candidate per slot (0/1/2) picked
+        via the act_selection RNG stream, plus the fixed Act4Heart ending."""
         run_state = RunState(seed=5501, character_id="Ironclad")
 
         assert [act.act_index for act in run_state.acts] == [0, 1, 2, 3]
-        assert run_state.acts[0].boss_ids == ACT_0.boss_ids
-        assert run_state.acts[1].boss_ids == ACT_1.boss_ids
-        assert run_state.acts[2].boss_ids == ACT_2.boss_ids
+        for slot in range(NUM_ACT_SLOTS):
+            picked_ids = {c.act_id for c in act_candidates_for_slot(slot)}
+            assert run_state.acts[slot].act_id in picked_ids
+        # Act 4 is always the Act4Heart ending.
         assert run_state.acts[3].boss_ids == ACT_3.boss_ids == ["CorruptHeart"]
-        # act_selection RNG stream exists but is untouched (no candidates to pick from yet).
-        assert run_state.rng.act_selection.counter == 0
+        # Multi-candidate slots now consume the dedicated act_selection stream.
+        assert run_state.rng.act_selection.counter > 0
 
     def test_registering_a_second_candidate_makes_both_reachable_by_rng(self, monkeypatch):
         monkeypatch.setattr(

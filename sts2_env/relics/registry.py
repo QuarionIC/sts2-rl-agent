@@ -81,4 +81,6 @@ def load_all_relics() -> None:
     import sts2_env.relics.act4_heart_keys  # noqa: F401
     import sts2_env.relics.exordium  # noqa: F401
     import sts2_env.relics.thecity  # noqa: F401
+    import sts2_env.relics.thebeyond  # noqa: F401
+    import sts2_env.relics.aftp_shared  # noqa: F401
     _RELICS_LOADED = True

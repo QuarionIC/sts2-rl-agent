@@ -158,28 +158,48 @@ def _get_starter_deck(character_id: str) -> list[CardInstance]:
 # Encounter pool accessor per act
 # ---------------------------------------------------------------------------
 
-def _get_encounter_pools(act_index: int) -> dict[str, list]:
-    """Return {weak, normal, elite, boss} encounter setup lists for an act."""
-    if act_index == 0:
+def _get_encounter_pools(pool_key: str) -> dict[str, list]:
+    """Return {weak, normal, elite, boss} encounter setup lists for an act.
+
+    Keyed by ActConfig.pool_key (the encounters/* module basename) rather
+    than the raw slot index, so an alternate act selected for a slot
+    (vanilla Underdocks, or the legacy mod acts Exordium/TheCity/TheBeyond)
+    pulls its OWN encounters instead of the slot's vanilla default.
+    """
+    if pool_key == "act1":
         from sts2_env.encounters.act1 import (
             WEAK_ENCOUNTERS, NORMAL_ENCOUNTERS, ELITE_ENCOUNTERS, BOSS_ENCOUNTERS,
         )
-    elif act_index == 1:
+    elif pool_key == "act2":
         from sts2_env.encounters.act2 import (
             WEAK_ENCOUNTERS, NORMAL_ENCOUNTERS, ELITE_ENCOUNTERS, BOSS_ENCOUNTERS,
         )
-    elif act_index == 2:
+    elif pool_key == "act3":
         from sts2_env.encounters.act3 import (
             WEAK_ENCOUNTERS, NORMAL_ENCOUNTERS, ELITE_ENCOUNTERS, BOSS_ENCOUNTERS,
         )
-    elif act_index == 3:
+    elif pool_key == "act4_heart":
         # Act4Heart mod ("TheEnding"): Corrupt Heart boss, Spire Shield +
         # Spire Spear elite, and the (unreachable via the hand-authored
         # map) empty weak encounter. Not the vanilla "Underdocks" pools.
         from sts2_env.encounters.act4_heart import (
             WEAK_ENCOUNTERS, NORMAL_ENCOUNTERS, ELITE_ENCOUNTERS, BOSS_ENCOUNTERS,
         )
+    elif pool_key == "exordium":
+        from sts2_env.encounters.exordium import (
+            WEAK_ENCOUNTERS, NORMAL_ENCOUNTERS, ELITE_ENCOUNTERS, BOSS_ENCOUNTERS,
+        )
+    elif pool_key == "thecity":
+        from sts2_env.encounters.thecity import (
+            WEAK_ENCOUNTERS, NORMAL_ENCOUNTERS, ELITE_ENCOUNTERS, BOSS_ENCOUNTERS,
+        )
+    elif pool_key == "thebeyond":
+        from sts2_env.encounters.thebeyond import (
+            WEAK_ENCOUNTERS, NORMAL_ENCOUNTERS, ELITE_ENCOUNTERS, BOSS_ENCOUNTERS,
+        )
     else:
+        # "act4" == vanilla Underdocks (legacy module naming predating the
+        # Act4Heart mod's real 4th act).
         from sts2_env.encounters.act4 import (
             WEAK_ENCOUNTERS, NORMAL_ENCOUNTERS, ELITE_ENCOUNTERS, BOSS_ENCOUNTERS,
         )
@@ -337,7 +357,7 @@ class RunManager:
         return self._act_boss_setup
 
     def _roll_act_boss(self):
-        pool = _get_encounter_pools(self._run_state.current_act_index)["boss"]
+        pool = _get_encounter_pools(self._run_state.current_act.pool_key)["boss"]
         if not pool:
             return None
         return self._rng.choice(pool)
@@ -570,7 +590,7 @@ class RunManager:
         self._selected_combat_player_id = player.player_id
 
         # Select encounter from appropriate pool
-        pools = _get_encounter_pools(self._run_state.current_act_index)
+        pools = _get_encounter_pools(self._run_state.current_act.pool_key)
         if room_type == RoomType.BOSS:
             pool = pools["boss"]
         elif room_type == RoomType.ELITE:
@@ -1912,6 +1932,44 @@ class RunManager:
             self._phase = self.PHASE_RUN_OVER
             return {"phase": self.PHASE_RUN_OVER, "description": description}
 
+        # Event-embedded combat that RESUMES the event afterwards ("Acts
+        # from the Past" mod: EventModel.EnterCombatWithoutExitingEvent with
+        # returnToEvent=true -- e.g. TheCity's Colosseum slaver fight, whose
+        # Resume() shows the POST_SLAVERS page). The event's choose() signals
+        # this with finished=False + next_options + event_combat_setup: the
+        # combat is entered now and, once its (possibly empty) reward chain
+        # is consumed, the event phase is restored with next_options.
+        resume_combat_setup = result.event_combat_setup or result.rewards.get("event_combat_setup")
+        if not result.finished and result.next_options and resume_combat_setup:
+            resume_event_model = event
+            resume_event_options = list(result.next_options)
+
+            def _resume_event_after_combat() -> None:
+                if self._run_state.is_over:
+                    self._phase = self.PHASE_RUN_OVER
+                    return
+                if self._run_state.player.is_dead:
+                    self._run_state.lose_run()
+                    self._phase = self.PHASE_RUN_OVER
+                    return
+                self._event_model = resume_event_model
+                self._event_options = resume_event_options
+                self._phase = self.PHASE_EVENT
+
+            self._resume_after_reward_chain = _resume_event_after_combat
+            self._event_model = None
+            self._event_options = []
+            self._enter_event_combat(
+                resume_combat_setup,
+                list(reward_objects),
+                post_combat_phase=result.post_combat_phase,
+            )
+            return {
+                "phase": self.phase,
+                "description": description,
+                "finished": False,
+            }
+
         if not result.finished and result.next_options:
             if reward_objects:
                 def _resume_event_options_after_rewards() -> None:
@@ -2058,8 +2116,26 @@ class RunManager:
                 "finished": True,
             }
 
+        # "Acts from the Past" mod -- TheBeyond's SecretPortal (classic):
+        # entering the portal teleports directly into the act's boss room
+        # (C# SecretPortal.TeleportToBoss: RunManager.EnterMapCoord(
+        # Map.BossMapPoint.coord)), skipping the rest of the map.
+        if result.rewards.get("jump_to_boss"):
+            self._jump_to_boss_room()
+            return {"phase": self.phase, "description": description}
+
         self._enter_map_choice()
         return {"phase": self.phase, "description": description}
+
+    def _jump_to_boss_room(self) -> None:
+        """Enter the current act's boss node directly (SecretPortal)."""
+        act_map = self._run_state.map
+        boss_point = getattr(act_map, "boss_point", None) if act_map is not None else None
+        if boss_point is None:
+            self._enter_map_choice()
+            return
+        self._run_state.add_visited_coord(boss_point.coord, room_type=RoomType.BOSS)
+        self._enter_room(RoomType.BOSS)
 
     def _do_treasure_collect(self) -> dict:
         reward = self._current_reward

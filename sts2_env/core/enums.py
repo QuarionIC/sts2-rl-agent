@@ -1159,3 +1159,6 @@ class CardId(Enum):
     JAX = auto()
     BITE = auto()
     RITUAL_DAGGER = auto()
+
+    # Acts from the Past (mod) -- TheBeyond legacy-act event cards
+    MADNESS = auto()

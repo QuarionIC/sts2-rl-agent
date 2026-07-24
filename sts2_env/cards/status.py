@@ -10,6 +10,7 @@ from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage
 from sts2_env.cards.factory import create_character_cards
 from sts2_env.cards.registry import (
     register_after_combat_end_hook,
+    register_before_card_played_hook,
     register_after_card_drawn_hook,
     register_after_map_generated_hook,
     register_chosen_hook,
@@ -2035,3 +2036,77 @@ def make_ritual_dagger(upgraded: bool = False) -> CardInstance:
         },
         instance_id=_get_next_id(),
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# "Acts from the Past" mod -- TheBeyond legacy-act event cards
+# ═══════════════════════════════════════════════════════════════════════
+#
+# Decompiled references: decompiled_mods/ActsFromThePast/ActsFromThePast.
+# Cards/{Madness,Pain}.cs. Like NECRONOMICURSE/JAX/BITE/RITUAL_DAGGER above,
+# these are NOT added to any card pool constant (the vanilla pools are
+# asserted byte-for-byte in tests/test_card_pool_parity.py) -- they are only
+# ever created explicitly by mod events (WindingHalls adds Madness;
+# OminousForge's Rummage adds Pain).
+
+MADNESS_ELIGIBLE_MIN_COST = 0
+
+
+# --- Madness ---
+# 1-cost Skill, Exhaust (upgrade: 0-cost): a random card in your hand that
+# costs energy becomes free for the rest of this combat.
+# C# Madness.OnPlay: hand cards where CostsEnergyOrStars(base) or
+# CostsEnergyOrStars(upgraded), pick one with Rng.CombatCardSelection,
+# SetToFreeThisCombat().
+@register_effect(CardId.MADNESS)
+def madness_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
+    owner = _owner(card, combat)
+    state = combat.combat_player_state_for(owner)
+    if state is None:
+        return
+    eligible = [
+        hand_card for hand_card in state.hand
+        if hand_card is not card
+        and not getattr(hand_card, "costs_x", False)
+        and hand_card.cost is not None
+        and hand_card.cost >= MADNESS_ELIGIBLE_MIN_COST
+    ]
+    if not eligible:
+        return
+    chosen = combat.combat_card_selection_rng.choice(eligible)
+    chosen.set_free_this_combat()
+
+
+def make_madness(upgraded: bool = False) -> CardInstance:
+    return CardInstance(
+        card_id=CardId.MADNESS, cost=0 if upgraded else 1,
+        card_type=CardType.SKILL, target_type=TargetType.NONE,
+        rarity=CardRarity.EVENT, upgraded=upgraded,
+        keywords=frozenset({"exhaust"}),
+        instance_id=_get_next_id(),
+    )
+
+
+# --- Pain (mod behavior) ---
+# The base-game PAIN CardId above is a legacy no-op curse ("not in STS2 card
+# pools"). The "Acts from the Past" mod re-introduces STS1 Pain with real
+# rules text: Unplayable; while Pain is in your hand, lose 1 HP whenever you
+# play ANOTHER card. C# Pain.BeforeCardPlayed: cardPlay.Card != this &&
+# same owner && this in hand pile -> CreatureCmd.Damage(1, ValueProp 14
+# [HpLoss]).
+PAIN_HP_LOSS = 1
+
+
+@register_before_card_played_hook(CardId.PAIN)
+def pain_before_card_played(
+    card: CardInstance,
+    played_card: CardInstance,
+    owner: Creature,
+    combat: CombatState,
+) -> None:
+    if played_card is card:
+        return
+    state = combat.combat_player_state_for(owner)
+    if state is None or card not in state.hand:
+        return
+    _hp_loss(card, combat, PAIN_HP_LOSS)

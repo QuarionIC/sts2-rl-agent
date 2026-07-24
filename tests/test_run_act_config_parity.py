@@ -15,17 +15,28 @@ FIRE_POTION_ID = "FirePotion"
 
 def test_initialize_run_generates_shuffled_act_event_rooms_like_csharp_runmanager():
     run_state = RunState(seed=RUN_SEED)
-    static_event_ids = [event_id for act in ALL_ACTS for event_id in act.event_ids]
+    # Capture each SELECTED act's candidate event list + legacy flag before
+    # _generate_rooms rewrites them (the acts chosen per slot vary by seed).
+    pre = [(act.is_legacy, list(act.event_ids)) for act in run_state.acts]
 
     run_state.initialize_run()
 
-    generated_event_ids = [event_id for act in run_state.acts for event_id in act.event_ids]
-    assert sorted(generated_event_ids) == sorted(static_event_ids)
-    assert generated_event_ids != static_event_ids
-    # Fisher-Yates shuffle of N elements consumes N-1 RNG draws (0 for N<=1,
-    # e.g. the Act4Heart mod's Act 4 which has no events at all).
-    expected_counter = sum(max(0, len(act.event_ids) - 1) for act in ALL_ACTS)
-    assert run_state.rng.up_front.counter == expected_counter
+    up_front_expected = 0
+    for (is_legacy, before), act in zip(pre, run_state.acts):
+        if is_legacy:
+            # "Acts from the Past" legacy act: the event pool is filtered
+            # (event_allowed_in_act + IActRestricted) and shrine-interleaved
+            # via build_legacy_event_pool -- a subset/reorder of the
+            # candidate list that does NOT touch the shared up_front stream.
+            assert set(act.event_ids).issubset(set(before))
+            assert act.event_ids  # always at least some allowed events
+        else:
+            # Vanilla act: Fisher-Yates shuffle preserves the multiset and
+            # consumes len-1 up_front draws (0 for N<=1, e.g. Act4Heart's
+            # eventless Act 4).
+            assert sorted(act.event_ids) == sorted(before)
+            up_front_expected += max(0, len(before) - 1)
+    assert run_state.rng.up_front.counter == up_front_expected
 
 
 def test_initialize_run_does_not_regenerate_event_rooms_after_first_initialization():

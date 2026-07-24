@@ -32,6 +32,14 @@ class ActConfig:
     # decompiled ForgottenAltar.HasVisitedExordium iterates
     # runState.Acts[0..CurrentActIndex) testing `is ExordiumAct`).
     act_id: str = ""
+    # Identifies which encounters/* module supplies this act's encounter
+    # setup pools (weak/normal/elite/boss). RunManager._get_encounter_pools
+    # switches on this so that an alternate act selected for a slot pulls its
+    # OWN encounters rather than the slot's vanilla default. Values match the
+    # encounters module basename: "act1"/"act2"/"act3" (vanilla Overgrowth/
+    # Hive/Glory), "act4" (vanilla Underdocks alternate), "act4_heart" (the
+    # Act4Heart mod ending), "exordium"/"thecity"/"thebeyond" (legacy mod acts).
+    pool_key: str = ""
 
     def to_mutable(self) -> "ActConfig":
         return ActConfig(
@@ -46,6 +54,7 @@ class ActConfig:
             events_visited=self.events_visited,
             is_legacy=self.is_legacy,
             act_id=self.act_id,
+            pool_key=self.pool_key,
         )
 
 
@@ -54,6 +63,8 @@ class ActConfig:
 ACT_0 = ActConfig(
     act_index=0,
     num_rooms=15,
+    pool_key="act1",
+    act_id="Overgrowth",
     boss_ids=["TheLich"],
     elite_ids=["SentryAndSentry", "GremlinNob", "BookOfStabbing"],
     weak_encounter_ids=[
@@ -86,6 +97,8 @@ ACT_1 = ActConfig(
     act_index=1,
     num_rooms=14,  # C# Hive.BaseNumberOfRooms = 14
     num_weak_encounters=2,  # C# Hive.NumberOfWeakEncounters = 2
+    pool_key="act2",
+    act_id="Hive",
     boss_ids=["TheCollector", "Automaton", "Champ"],
     elite_ids=["TaskMaster", "SphericGuardian", "Snecko"],
     weak_encounter_ids=[
@@ -123,6 +136,8 @@ ACT_2 = ActConfig(
     act_index=2,
     num_rooms=13,  # C# Glory.BaseNumberOfRooms = 13
     num_weak_encounters=2,  # C# Glory.NumberOfWeakEncounters = 2
+    pool_key="act3",
+    act_id="Glory",
     boss_ids=["AwakenedOne", "TimeEater", "DonuAndDeca"],
     elite_ids=["GiantHead", "Nemesis", "Reptomancer"],
     weak_encounter_ids=[
@@ -167,6 +182,8 @@ ACT_3 = ActConfig(
     act_index=3,
     num_rooms=2,
     num_weak_encounters=0,
+    pool_key="act4_heart",
+    act_id="TheEnding",
     boss_ids=["CorruptHeart"],
     elite_ids=["SpireShieldAndSpireSpear"],
     weak_encounter_ids=["EmptyFightAct4Weak"],
@@ -233,9 +250,9 @@ def act_candidates_for_slot(slot: int) -> list[ActConfig]:
 def select_act_for_slot(slot: int, rng) -> ActConfig:
     """Pick which ActConfig fills a given campaign slot.
 
-    With a single candidate (the vanilla default today), this is
-    deterministic and never touches `rng`. With multiple candidates, one is
-    chosen uniformly at random via `rng.choice`.
+    With a single candidate, this is deterministic and never touches `rng`.
+    With multiple candidates, one is chosen uniformly at random via
+    `rng.choice`.
     """
     candidates = _ACT_SLOT_CANDIDATES.get(slot)
     if not candidates:
@@ -243,3 +260,96 @@ def select_act_for_slot(slot: int, rng) -> ActConfig:
     if len(candidates) == 1:
         return candidates[0]
     return rng.choice(candidates)
+
+
+# ── Alternate acts for the user's install ───────────────────────────────
+#
+# The real game (v0.109.0 + the two active gameplay mods) offers these
+# per-slot alternates, all treated as fully-discovered so each slot picks
+# uniformly (see decompiled ActModel.GetRandomList: once every non-default
+# act is in Progress.DiscoveredActs it joins the default in a uniform roll):
+#
+#   Slot 0 (Act 1): Overgrowth (ACT_0) | Underdocks | Exordium
+#   Slot 1 (Act 2): Hive (ACT_1)       | TheCity
+#   Slot 2 (Act 3): Glory (ACT_2)      | TheBeyond
+#
+# Underdocks is a VANILLA alternate (decompiled MegaCrit...Acts/Underdocks.cs,
+# Index 0, IsDefault false, gated on UnderdocksEpoch which the user's account
+# has revealed -- confirmed by the user). Its full encounter roster already
+# lives in encounters/act4.py + monsters/act4.py (legacy naming predating the
+# Act4Heart mod's real 4th act), so it just needs an ActConfig pointing at
+# pool_key "act4". Exordium/TheCity/TheBeyond are the "Acts from the Past"
+# mod's STS1-recreation acts (always unlocked; IsUnlocked => true).
+
+UNDERDOCKS = ActConfig(
+    act_index=0,
+    num_rooms=15,  # C# Underdocks.BaseNumberOfRooms = 15
+    num_weak_encounters=3,  # C# Underdocks.NumberOfWeakEncounters = 3
+    pool_key="act4",
+    act_id="Underdocks",
+    boss_ids=["WaterfallGiant", "SoulFysh", "LagavulinMatriarch"],
+    # Vanilla Underdocks.AllEvents (decompiled) -- all already implemented.
+    event_ids=[
+        "AbyssalBaths", "DrowningBeacon", "EndlessConveyor", "PunchOff",
+        "SpiralingWhirlpool", "SunkenStatue", "SunkenTreasury",
+        "DoorsOfLightAndDark", "TrashHeap", "WaterloggedScriptorium",
+    ],
+)
+
+
+def _build_legacy_acts() -> tuple[ActConfig, ActConfig, ActConfig]:
+    """Construct the three "Acts from the Past" legacy ActConfigs.
+
+    Imported lazily inside this function so map/acts.py has no module-level
+    dependency on the events package (which would risk an import cycle, since
+    event modules pull in cards/relics that ultimately import map helpers).
+    Each legacy act's candidate event pool is its own act-exclusive events
+    plus the shared shrine/event pool; the per-run interleaved ordering
+    (ShrinePatches.EventPoolPatch) is applied later at act-entry time by
+    RunState.enter_act via events.build_legacy_event_pool.
+    """
+    from sts2_env.events.exordium import EXORDIUM_EVENT_IDS
+    from sts2_env.events.thecity import THECITY_EVENT_IDS
+    from sts2_env.events.thebeyond import THEBEYOND_EVENT_IDS
+    from sts2_env.events.aftp_shared import AFTP_SHARED_EVENT_IDS
+
+    exordium = ActConfig(
+        act_index=0,
+        num_rooms=15,  # CustomActModel.BaseNumberOfRooms[Index 0] = 15
+        num_weak_encounters=3,
+        pool_key="exordium",
+        act_id="Exordium",
+        is_legacy=True,
+        boss_ids=["SlimeBoss", "Guardian", "Hexaghost"],
+        event_ids=[*EXORDIUM_EVENT_IDS, *AFTP_SHARED_EVENT_IDS],
+    )
+    thecity = ActConfig(
+        act_index=1,
+        num_rooms=14,  # CustomActModel.BaseNumberOfRooms[Index 1] = 14
+        num_weak_encounters=2,
+        pool_key="thecity",
+        act_id="TheCity",
+        is_legacy=True,
+        boss_ids=["Champ", "Collector", "BronzeAutomaton"],
+        event_ids=[*THECITY_EVENT_IDS, *AFTP_SHARED_EVENT_IDS],
+    )
+    thebeyond = ActConfig(
+        act_index=2,
+        num_rooms=13,  # CustomActModel.BaseNumberOfRooms[Index 2] = 13
+        num_weak_encounters=2,
+        pool_key="thebeyond",
+        act_id="TheBeyond",
+        is_legacy=True,
+        boss_ids=["AwakenedOne", "DonuAndDeca", "TimeEater"],
+        event_ids=[*THEBEYOND_EVENT_IDS, *AFTP_SHARED_EVENT_IDS],
+    )
+    return exordium, thecity, thebeyond
+
+
+EXORDIUM, THECITY, THEBEYOND = _build_legacy_acts()
+
+# Register every alternate so each slot rolls uniformly among its candidates.
+register_act_candidate(0, UNDERDOCKS)
+register_act_candidate(0, EXORDIUM)
+register_act_candidate(1, THECITY)
+register_act_candidate(2, THEBEYOND)
