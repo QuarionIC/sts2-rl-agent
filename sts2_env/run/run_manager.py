@@ -595,8 +595,24 @@ class RunManager:
             pool = pools["boss"]
         elif room_type == RoomType.ELITE:
             pool = pools["elite"]
-        elif self._run_state.act_floor <= self._run_state.current_act.num_weak_encounters:
-            pool = pools["weak"]
+        elif room_type == RoomType.MONSTER:
+            # Weak-vs-regular pool selection is gated on the number of REGULAR
+            # monster combats entered this act, NOT the floor number (act_floor
+            # counts every room -- events, rests, shops, etc). The first
+            # num_weak_encounters regular monster combats draw from the weak
+            # pool; every one after draws from the normal pool. This mirrors the
+            # decompiled ActModel.GenerateRooms ordered encounter queue (weak
+            # then regular), consumed in order by monster rooms. Both plain
+            # Monster nodes and "?"/Unknown nodes that resolve into a monster
+            # fight reach here with room_type == MONSTER, so both count.
+            if (
+                self._run_state.regular_monster_combats_this_act
+                < self._run_state.current_act.num_weak_encounters
+            ):
+                pool = pools["weak"]
+            else:
+                pool = pools["normal"]
+            self._run_state.regular_monster_combats_this_act += 1
         else:
             pool = pools["normal"]
 

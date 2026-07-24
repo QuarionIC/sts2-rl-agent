@@ -1372,13 +1372,28 @@ def create_guardian(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Monst
     hp = _ascension_value(ascension_level, TOUGH_ENEMIES_ASCENSION_LEVEL, GUARDIAN_TOUGH_HP, GUARDIAN_BASE_HP)
     creature = Creature(max_hp=hp, monster_id=GUARDIAN_MONSTER_ID)
 
+    def _transition_to_defensive(combat: CombatState, *, set_move: bool) -> None:
+        # Shared defensive-mode transition (C# Guardian.TransitionToDefensiveMode):
+        # close the shell, gain the defensive block, and bump the next
+        # threshold. When ``set_move`` (the immediate player-turn case), also
+        # force the CLOSE_UP intent right now -- the C# SetMoveImmediate(
+        # _closeUpState, forceTransition: true). The deferred (enemy-turn)
+        # case leaves the move alone; the offensive branch chooser then
+        # routes to CLOSE_UP on the next roll because ``is_open`` is now False.
+        mode = creature.powers.get(PowerId.MODE_SHIFT)
+        if mode is None:
+            return
+        mode.pending_shift = False
+        mode.is_open = False
+        mode.base_threshold += GUARDIAN_THRESHOLD_INCREASE
+        _gain_block(creature, GUARDIAN_DEFENSIVE_BLOCK, combat)
+        if set_move:
+            combat.set_enemy_state(creature, GUARDIAN_CLOSE_UP_MOVE)
+
     def _check_pending_mode_shift(combat: CombatState) -> None:
         mode = creature.powers.get(PowerId.MODE_SHIFT)
         if mode is not None and mode.pending_shift:
-            mode.pending_shift = False
-            mode.is_open = False
-            mode.base_threshold += GUARDIAN_THRESHOLD_INCREASE
-            _gain_block(creature, GUARDIAN_DEFENSIVE_BLOCK, combat)
+            _transition_to_defensive(combat, set_move=False)
 
     def charge_up(combat: CombatState) -> None:
         _gain_block(creature, GUARDIAN_CHARGE_UP_BLOCK, combat)
@@ -1411,6 +1426,7 @@ def create_guardian(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Monst
         if mode is None:
             creature.apply_power(PowerId.MODE_SHIFT, 1)
             mode = creature.powers[PowerId.MODE_SHIFT]
+            mode.on_immediate_shift = lambda combat: _transition_to_defensive(combat, set_move=True)
         mode.start(mode.base_threshold)
         creature.block = 0
         _deal_damage_to_player(combat, creature, GUARDIAN_TWIN_SLAM_DAMAGE, hits=GUARDIAN_TWIN_SLAM_HITS)
@@ -1439,7 +1455,12 @@ def create_guardian(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Monst
 
     base_threshold = _ascension_value(ascension_level, TOUGH_ENEMIES_ASCENSION_LEVEL, GUARDIAN_TOUGH_THRESHOLD, GUARDIAN_BASE_THRESHOLD)
     creature.apply_power(PowerId.MODE_SHIFT, 1)
-    creature.powers[PowerId.MODE_SHIFT].start(base_threshold)
+    mode_power = creature.powers[PowerId.MODE_SHIFT]
+    mode_power.start(base_threshold)
+    # Register the immediate defensive-mode transition used when the
+    # threshold breaks on the player's turn (C# ModeShiftPower ->
+    # TransitionToDefensiveMode when !IsExecutingMove).
+    mode_power.on_immediate_shift = lambda combat: _transition_to_defensive(combat, set_move=True)
     return creature, MonsterAI(states, GUARDIAN_CHARGE_UP_MOVE)
 
 

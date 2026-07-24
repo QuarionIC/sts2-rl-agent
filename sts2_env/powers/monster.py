@@ -1628,21 +1628,30 @@ class SplitPower(PowerInstance):
     monster's own move-selection logic checks this flag at its next natural
     branch/move-selection point and routes to its SPLIT move.
 
-    Not from vanilla STS2 decompiled source (the "Acts from the Past" mod's
-    own SplitPower.cs was not present in the decompiled snapshot used for
-    this port), but its usage site (SlimeBoss.cs) confirms this exact
-    "flag checked at the monster's own move-selection point" shape rather
-    than an immediate state override -- this port follows that. StackType
-    Single, ``amount`` unused.
+    C# ref: ActsFromThePast.Powers/SplitPower.cs -- ``AfterDamageReceived``
+    (owner is target, ``result.UnblockedDamage > 0``, ``CurrentHp <=
+    MaxHp / 2``): the first time the threshold is crossed it sets the
+    monster's ``SplitTriggered`` flag AND calls ``SetMoveImmediate(
+    SplitState, forceTransition: true)`` -- i.e. the SPLIT intent is shown
+    IMMEDIATELY the moment HP drops to <=50% (mid-player-turn), not deferred
+    to the slime's next move-selection point. This port replicates that by
+    forcing the owner's current AI state to ``split_state_id`` at that
+    instant via ``combat.set_enemy_state`` (the sim analogue of
+    ``ForceCurrentState``). The slime's own branch chooser also checks
+    ``triggered`` so the SPLIT move remains selected on subsequent rolls.
+    StackType Single, ``amount`` unused. Used by all three Exordium
+    splitters (AcidSlimeLarge, SpikeSlimeLarge, SlimeBoss), all of which
+    name their split move state ``"SPLIT"``.
     """
 
     power_type = PowerType.BUFF
     stack_type = PowerStackType.SINGLE
     is_visible = False
 
-    def __init__(self, amount: int = 1):
+    def __init__(self, amount: int = 1, split_state_id: str = "SPLIT"):
         super().__init__(PowerId.SPLIT, amount)
         self.triggered: bool = False
+        self.split_state_id: str = split_state_id
 
     def after_damage_received(
         self,
@@ -1657,6 +1666,12 @@ class SplitPower(PowerInstance):
             return
         if owner.current_hp * 2 <= owner.max_hp:
             self.triggered = True
+            # Immediate SPLIT intent override, matching the C#
+            # SetMoveImmediate(SplitState, forceTransition: true): the
+            # observed/telegraphed intent must flip to SPLIT (Unknown) the
+            # instant the <=50% threshold is crossed, before the slime's
+            # next turn.
+            combat.set_enemy_state(owner, self.split_state_id)
 
 
 # ---------------------------------------------------------------------------
@@ -1665,15 +1680,32 @@ class SplitPower(PowerInstance):
 class ModeShiftPower(PowerInstance):
     """Tracks Guardian's offensive-mode damage-until-mode-shift threshold.
 
-    Not from vanilla STS2 decompiled source -- implements the "Acts from
-    the Past" mod's Exordium legacy-act Guardian boss mode-shift mechanic.
-    While ``is_open`` (offensive mode), every point of unblocked damage the
-    owner takes decrements ``threshold``; reaching <=0 sets ``pending_shift``,
-    which the monster AI checks when resolving the follow-up after its
-    current offensive move finishes (deferred transition). ``base_threshold``
-    increases permanently (+10) every time CLOSE_UP runs, matching the C#
-    "gets tougher each time" behavior. StackType.Single; state lives on
-    dedicated attributes rather than ``amount``.
+    Implements the "Acts from the Past" mod's Exordium legacy-act Guardian
+    boss mode-shift mechanic. While ``is_open`` (offensive mode), every
+    point of unblocked damage the owner takes decrements ``threshold``.
+
+    C# ref: ActsFromThePast.Powers/ModeShiftPower.cs -- ``AfterDamageReceived``
+    decrements ``Amount`` by ``result.UnblockedDamage``; when it reaches
+    <=0 it sets ``guardian.CloseUpTriggered`` and then EITHER, if
+    ``guardian.IsExecutingMove`` (the Guardian is taking damage *during* its
+    own attack move, e.g. reflected thorns), sets ``PendingModeShift`` for a
+    deferred flip at the end of that move (``Guardian.CheckPendingModeShift``
+    -> ``TransitionToDefensiveMode(setMove: false)``), OR ELSE (the normal
+    case: damage taken on the *player's* turn, ``IsExecutingMove == false``)
+    calls ``TransitionToDefensiveMode()`` IMMEDIATELY -- which gains the
+    defensive Block, bumps the next threshold, closes the shell, and
+    ``SetMoveImmediate(_closeUpState, forceTransition: true)`` so the CLOSE_UP
+    (defensive) intent is telegraphed the instant the threshold breaks.
+
+    This port maps ``IsExecutingMove`` to ``combat.current_side == ENEMY``
+    (the only way the Guardian takes damage while executing its own move is
+    from a player creature's Thorns during the enemy turn). On the player's
+    turn the transition is applied immediately via ``on_immediate_shift``
+    (registered by the Guardian factory, which owns the block/threshold/
+    close-up-move-id specifics); on the enemy turn it is deferred through
+    ``pending_shift``. ``base_threshold`` increases permanently (+10) each
+    shift, matching the C# "gets tougher each time" behavior. StackType
+    Single; state lives on dedicated attributes rather than ``amount``.
     """
 
     power_type = PowerType.BUFF
@@ -1686,6 +1718,11 @@ class ModeShiftPower(PowerInstance):
         self.base_threshold: int = 0
         self.threshold: int = 0
         self.pending_shift: bool = False
+        # Set by the Guardian factory: called (with the combat) to perform
+        # the immediate defensive-mode transition when the threshold breaks
+        # on the player's turn. Owns the block gain, threshold bump, and
+        # immediate CLOSE_UP intent override.
+        self.on_immediate_shift: Callable[[CombatState], None] | None = None
 
     def start(self, base_threshold: int) -> None:
         """(Re)enter offensive mode tracking at the given base threshold."""
@@ -1703,11 +1740,19 @@ class ModeShiftPower(PowerInstance):
         props: ValueProp,
         combat: CombatState,
     ) -> None:
-        if target is not owner or damage <= 0 or not self.is_open:
+        if target is not owner or damage <= 0 or not self.is_open or not owner.is_alive:
             return
         self.threshold -= damage
-        if self.threshold <= 0:
+        if self.threshold > 0:
+            return
+        # Threshold broken. Defer only when the Guardian is taking damage
+        # during its own move (enemy turn, e.g. reflected Thorns); otherwise
+        # (player's turn) flip to defensive mode -- and the CLOSE_UP intent --
+        # immediately, matching the C# TransitionToDefensiveMode() call.
+        if combat.current_side == CombatSide.ENEMY or self.on_immediate_shift is None:
             self.pending_shift = True
+        else:
+            self.on_immediate_shift(combat)
 
 
 # ---------------------------------------------------------------------------

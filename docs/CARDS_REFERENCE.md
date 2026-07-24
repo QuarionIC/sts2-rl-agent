@@ -3540,15 +3540,16 @@
 ### BorrowedTime
 - **ID:** BORROWED_TIME
 - **Color:** necrobinder
-- **Cost:** 0
+- **Cost:** 1
 - **Type:** Skill
 - **Rarity:** Uncommon
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {DoomPower: 3, Energy: 1}
-- **Effect:** Apply Doom to self; Gain Energy
-- **Upgrade:** Energy+1
+- **Vars:** {BorrowedTimePower: 1, Energy: 4}
+- **Effect:** Gain Energy; Apply Borrowed Time to self (cards cost more this turn)
+- **Upgrade:** Energy+2
+- **Note:** Reworked in game patch v0.109.0 (was: cost 0, gain 1 Energy, apply Doom 3 to self).
 ### Bury
 - **ID:** BURY
 - **Color:** necrobinder

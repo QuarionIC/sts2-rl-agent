@@ -408,8 +408,15 @@ def test_web_combat_screen_exposes_powers_and_pile_contents() -> None:
         last_description="",
     )["screen"]
 
-    assert "VULNERABLE(2)" in screen["player"]["powers"]
-    assert any("STRENGTH(3)" in e["powers"] for e in screen["enemies"])
+    player_powers = screen["player"]["powers"]
+    assert any(p["text"] == "VULNERABLE(2)" for p in player_powers)
+    # Each power entry carries a hover description explaining the effect.
+    vulnerable = next(p for p in player_powers if p["text"] == "VULNERABLE(2)")
+    assert vulnerable["desc"] and "50%" in vulnerable["desc"]
+    enemy_powers = [p for e in screen["enemies"] for p in e["powers"]]
+    assert any(p["text"] == "STRENGTH(3)" for p in enemy_powers)
+    strength = next(p for p in enemy_powers if p["text"] == "STRENGTH(3)")
+    assert strength["desc"] and "3" in strength["desc"]
     piles = screen["piles"]
     # Contents, not just counts.
     assert len(piles["draw_cards"]) == piles["draw"]
@@ -417,3 +424,47 @@ def test_web_combat_screen_exposes_powers_and_pile_contents() -> None:
     assert "discard_cards" in piles
     # Draw pile is presented sorted (order hidden in-game).
     assert piles["draw_cards"] == sorted(piles["draw_cards"])
+
+
+def test_web_combat_hand_cards_and_potions_carry_descriptions() -> None:
+    """Hand cards (and combat potions) must expose a non-empty ``desc`` string
+    that the frontend renders as a hover tooltip."""
+    mgr = RunManager(seed=COMBAT_TEST_SEED, character_id="Necrobinder")
+    assert mgr.run_state.player.add_potion(create_potion("FirePotion"))
+    mgr._enter_combat(RoomType.MONSTER)
+
+    screen = serialize_run(
+        mgr,
+        mgr.get_available_actions(),
+        seed=COMBAT_TEST_SEED,
+        character="Necrobinder",
+        ascension=0,
+        last_description="",
+    )["screen"]
+
+    assert screen["hand"]
+    for card in screen["hand"]:
+        assert card["desc"] and card["desc"].strip()
+    for potion in screen["potions"]:
+        assert potion["desc"] and potion["desc"].strip()
+
+
+def test_web_inventory_deck_and_potions_carry_descriptions() -> None:
+    mgr = RunManager(seed=COMBAT_TEST_SEED, character_id="Necrobinder")
+    assert mgr.run_state.player.add_potion(create_potion("BlockPotion"))
+
+    state = serialize_run(
+        mgr,
+        mgr.get_available_actions(),
+        seed=COMBAT_TEST_SEED,
+        character="Necrobinder",
+        ascension=0,
+        last_description="",
+    )
+
+    deck = state["inventory"]["deck"]
+    assert deck
+    for card in deck:
+        assert card["name"] and card["desc"] and card["desc"].strip()
+    for potion in state["inventory"]["potions"]:
+        assert potion["desc"] and potion["desc"].strip()

@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, urlparse
 import sts2_env.events  # noqa: F401
 import sts2_env.potions.effects  # noqa: F401
 
+from sts2_env.content import card_description, potion_description, power_description
 from sts2_env.cli.play_run import (
     CHARACTERS,
     DEFAULT_CHARACTER_INDEX,
@@ -237,6 +238,24 @@ def _choice_screen(actions: list[dict[str, Any]]) -> dict:
     }
 
 
+def _power_entries(powers: Any) -> list[dict[str, str]]:
+    """Serialize a creature's powers as ``{text, desc}`` pairs.
+
+    ``text`` keeps the existing display string (e.g. ``"VULNERABLE(2)"``) so the
+    UI looks unchanged; ``desc`` is a hover tooltip explaining the effect.
+    """
+    return [
+        {
+            "text": str(power),
+            "desc": power_description(
+                getattr(power, "power_id", None),
+                getattr(power, "amount", None),
+            ),
+        }
+        for power in powers.values()
+    ]
+
+
 def _combat_screen(combat: CombatState, actions: list[dict[str, Any]]) -> dict:
     player = combat.primary_player
     end_turn_action_index = _find_action_index(actions, action="end_turn")
@@ -250,7 +269,7 @@ def _combat_screen(combat: CombatState, actions: list[dict[str, Any]]) -> dict:
             "block": enemy.block,
             "intent": describe_enemy_intents(ai),
             "alive": enemy.is_alive,
-            "powers": [str(power) for power in enemy.powers.values()],
+            "powers": _power_entries(enemy.powers),
         })
     allies = []
     for ally in combat.allies:
@@ -261,7 +280,7 @@ def _combat_screen(combat: CombatState, actions: list[dict[str, Any]]) -> dict:
             "hp": f"{ally.current_hp}/{ally.max_hp}",
             "block": ally.block,
             "alive": ally.is_alive,
-            "powers": [str(power) for power in ally.powers.values()],
+            "powers": _power_entries(ally.powers),
         })
     return {
         "type": "combat",
@@ -272,7 +291,7 @@ def _combat_screen(combat: CombatState, actions: list[dict[str, Any]]) -> dict:
         "player": {
             "hp": f"{player.current_hp}/{player.max_hp}",
             "block": player.block,
-            "powers": [str(power) for power in player.powers.values()],
+            "powers": _power_entries(player.powers),
         },
         "enemies": enemies,
         "allies": allies,
@@ -280,6 +299,7 @@ def _combat_screen(combat: CombatState, actions: list[dict[str, Any]]) -> dict:
             {
                 "index": index,
                 "name": describe_card(card),
+                "desc": card_description(card),
                 "playable": combat.can_play_card(card),
                 "targeted": card.target_type_for(player) in {TargetType.ANY_ENEMY, TargetType.ANY_ALLY},
                 "actions": _combat_card_actions(actions, index),
@@ -290,6 +310,7 @@ def _combat_screen(combat: CombatState, actions: list[dict[str, Any]]) -> dict:
             {
                 "index": index,
                 "name": display_name(potion.potion_id),
+                "desc": potion_description(potion),
                 "targeted": potion.target_type == PotionTargetType.ANY_ENEMY,
                 "actions": _combat_potion_actions(actions, index),
             }
@@ -630,10 +651,14 @@ def _find_action_index(actions: list[dict[str, Any]], **criteria: Any) -> int | 
 def _inventory(mgr: RunManager) -> dict:
     player = mgr.run_state.player
     return {
-        "deck": [describe_card(card) for card in player.deck],
+        "deck": [{"name": describe_card(card), "desc": card_description(card)} for card in player.deck],
         "relics": [display_name(relic) for relic in player.relics],
         "potions": [
-            {"index": index, "name": display_name(potion.potion_id)}
+            {
+                "index": index,
+                "name": display_name(potion.potion_id),
+                "desc": potion_description(potion),
+            }
             for index, potion in enumerate(player.potions)
             if potion is not None
         ],

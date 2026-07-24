@@ -257,6 +257,25 @@
       margin: 0 6px 6px 0;
       font-size: 13px;
     }
+    [data-tip] { cursor: help; }
+    .card-row[data-tip], .item-row[data-tip] { cursor: default; }
+    .tip-pop {
+      position: fixed;
+      z-index: 100;
+      max-width: 300px;
+      background: #14140f;
+      color: var(--text);
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      line-height: 1.4;
+      white-space: pre-line;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+      pointer-events: none;
+    }
+    .tip-pop[hidden] { display: none; }
+    .tip-pop .tip-head { color: var(--accent); font-weight: 700; }
     @media (max-width: 980px) {
       .app {
         grid-template-columns: 1fr;
@@ -322,6 +341,54 @@
   <script>
     const $ = (id) => document.getElementById(id);
 
+    // ── Hover tooltips ─────────────────────────────────────────────────
+    // A single fixed-position element (created once, positioned by JS) so
+    // tooltips are never clipped by scroll containers and survive re-renders.
+    const tipPop = document.createElement("div");
+    tipPop.className = "tip-pop";
+    tipPop.hidden = true;
+    document.body.appendChild(tipPop);
+
+    function tipAttr(text) {
+      return text ? ` data-tip="${escapeHtml(text)}"` : "";
+    }
+
+    function positionTip(target) {
+      const rect = target.getBoundingClientRect();
+      const tip = tipPop.getBoundingClientRect();
+      let left = rect.left + rect.width / 2 - tip.width / 2;
+      let top = rect.top - tip.height - 8;
+      if (top < 4) top = rect.bottom + 8;
+      left = Math.max(6, Math.min(left, window.innerWidth - tip.width - 6));
+      top = Math.max(6, Math.min(top, window.innerHeight - tip.height - 6));
+      tipPop.style.left = `${left}px`;
+      tipPop.style.top = `${top}px`;
+    }
+
+    function showTip(target) {
+      const text = target.getAttribute("data-tip");
+      if (!text) return;
+      const lines = text.split("\n");
+      // First line is a compact "type · cost" style header; emphasize it.
+      tipPop.innerHTML = lines
+        .map((line, i) => `<div${i === 0 ? ' class="tip-head"' : ""}>${escapeHtml(line)}</div>`)
+        .join("");
+      tipPop.hidden = false;
+      positionTip(target);
+    }
+
+    function hideTip() { tipPop.hidden = true; }
+
+    document.addEventListener("mouseover", (event) => {
+      const target = event.target.closest("[data-tip]");
+      if (target) showTip(target);
+    });
+    document.addEventListener("mouseout", (event) => {
+      const target = event.target.closest("[data-tip]");
+      if (target && !target.contains(event.relatedTarget)) hideTip();
+    });
+    document.addEventListener("scroll", hideTip, true);
+
     async function api(path, options = {}) {
       const response = await fetch(path, options);
       if (!response.ok) throw new Error(await response.text());
@@ -372,8 +439,8 @@
         button.addEventListener("click", () => takeAction(button.dataset.action));
       }
       $("relics").innerHTML = state.relics.length ? state.relics.map((r) => `<span class="pill">${escapeHtml(r)}</span>`).join("") : `<span class="muted">None</span>`;
-      $("deck").innerHTML = state.inventory.deck.map((card) => `<div class="card-row">${escapeHtml(card)}</div>`).join("");
-      $("potions").innerHTML = state.inventory.potions.length ? state.inventory.potions.map((p) => `<span class="pill">${escapeHtml(p.name)}</span>`).join("") : `<span class="muted">None</span>`;
+      $("deck").innerHTML = state.inventory.deck.map((card) => `<div class="card-row"${tipAttr(card.desc)}>${escapeHtml(card.name)}</div>`).join("");
+      $("potions").innerHTML = state.inventory.potions.length ? state.inventory.potions.map((p) => `<span class="pill"${tipAttr(p.desc)}>${escapeHtml(p.name)}</span>`).join("") : `<span class="muted">None</span>`;
       drawMapEdges();
     }
 
@@ -391,31 +458,36 @@
       return "";
     }
 
+    function renderPowers(powers) {
+      if (!powers || !powers.length) return "";
+      return `<span class="powers">${powers.map((p) => `<span class="pill"${tipAttr(p.desc)}>${escapeHtml(p.text)}</span>`).join("")}</span>`;
+    }
+
     function renderCombat(screen) {
       const enemies = screen.enemies.map((enemy) => `
         <div class="enemy-row ${enemy.alive ? "" : "dead"}">
           <strong>[${enemy.index}] ${escapeHtml(enemy.name)}</strong>
           <span>HP ${escapeHtml(enemy.hp)} · Block ${escapeHtml(enemy.block)}</span>
           <span class="intent">${escapeHtml(enemy.intent)}</span>
-          ${enemy.powers && enemy.powers.length ? `<span class="powers">${enemy.powers.map((p) => `<span class="pill">${escapeHtml(p)}</span>`).join("")}</span>` : ""}
+          ${renderPowers(enemy.powers)}
         </div>
       `).join("");
       const allies = (screen.allies || []).map((ally) => `
         <div class="enemy-row ${ally.alive ? "" : "dead"}">
           <strong>${escapeHtml(ally.name)}</strong>
           <span>HP ${escapeHtml(ally.hp)} · Block ${escapeHtml(ally.block)}</span>
-          ${ally.powers && ally.powers.length ? `<span class="intent">${escapeHtml(ally.powers.join(", "))}</span>` : ""}
+          ${renderPowers(ally.powers)}
         </div>
       `).join("");
       const hand = screen.hand.map((card) => `
         <div class="card-row">
-          <span>${card.playable ? "●" : "○"} [${card.index}] ${escapeHtml(card.name)}</span>
+          <span${tipAttr(card.desc)}>${card.playable ? "●" : "○"} [${card.index}] ${escapeHtml(card.name)}</span>
           <span>${card.actions.map((action) => `<button data-action="${action.action_index}">${escapeHtml(action.target)}</button>`).join(" ") || `<span class="muted">${card.targeted ? "target" : ""}</span>`}</span>
         </div>
       `).join("");
       const potions = screen.potions.map((potion) => `
         <div class="item-row">
-          <span>[${potion.index}] ${escapeHtml(potion.name)}</span>
+          <span${tipAttr(potion.desc)}>[${potion.index}] ${escapeHtml(potion.name)}</span>
           <span>${potion.actions.map((action) => `<button data-action="${action.action_index}">${escapeHtml(action.target)}</button>`).join(" ")}</span>
         </div>
       `).join("");
@@ -423,7 +495,7 @@
         ? ""
         : `<button data-action="${screen.end_turn_action_index}">End turn</button>`;
       const playerPowers = (screen.player.powers && screen.player.powers.length)
-        ? `<div class="powers">${screen.player.powers.map((p) => `<span class="pill">${escapeHtml(p)}</span>`).join("")}</div>`
+        ? renderPowers(screen.player.powers)
         : `<div class="muted">No powers</div>`;
       const pileList = (title, cards, count) => {
         const body = (cards && cards.length)

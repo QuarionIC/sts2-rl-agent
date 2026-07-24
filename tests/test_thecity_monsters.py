@@ -834,7 +834,9 @@ def test_champ_anger_triggers_exactly_once_at_half_hp_and_clears_debuffs():
     combat.add_enemy(creature, ai)
     combat.start_combat()
     creature.apply_power(PowerId.WEAK, 3, applier=combat.player)
-    creature.current_hp = creature.max_hp // 2
+    # C# Champ.cs: anger requires CurrentHp < MaxHp / 2 (strict). Exactly half
+    # (440 -> 220) must NOT trigger; one below must.
+    creature.current_hp = creature.max_hp // 2 - 1
     ai.roll_move(combat.monster_ai_rng)
     # Force a fresh resolution by directly invoking the branch chooser via a
     # full turn cycle (roll_move alone won't re-resolve the already-decided
@@ -854,7 +856,8 @@ def test_champ_execute_reachable_only_after_threshold():
     moves_before = _run_turns(combat, ai, 20)
     assert tc.CHAMP_EXECUTE_MOVE not in moves_before
 
-    creature.current_hp = creature.max_hp // 2
+    # Strictly below half HP (see anger-threshold test above).
+    creature.current_hp = creature.max_hp // 2 - 1
     execute_seen = False
     for _ in range(30):
         if combat.is_over:
@@ -1208,3 +1211,20 @@ def test_boss_pool_has_all_three_bosses_and_matches_run_manager_pick_mechanism()
     assert names == {"setup_champ_boss", "setup_collector_boss", "setup_bronze_automaton_boss"}
     picks = {Rng(seed).choice(enc.BOSS_ENCOUNTERS).__name__ for seed in range(30)}
     assert picks == names
+
+
+def test_champ_anger_boundary_is_strictly_below_half_hp():
+    """C# Champ.cs SelectNextMove: `CurrentHp < MaxHp / 2` -- at EXACTLY half
+    HP (even max) the Champ must NOT anger; one HP lower it must."""
+    combat = _make_combat(1, player_hp=999)
+    creature, ai = tc.create_champ(Rng(1))
+    combat.add_enemy(creature, ai)
+    combat.start_combat()
+    assert creature.max_hp % 2 == 0  # boundary only interesting for even max
+    creature.current_hp = creature.max_hp // 2
+    moves_at_half = _run_turns(combat, ai, 2)
+    assert tc.CHAMP_ANGER_MOVE not in moves_at_half
+
+    creature.current_hp = creature.max_hp // 2 - 1
+    moves_below_half = _run_turns(combat, ai, 2)
+    assert tc.CHAMP_ANGER_MOVE in moves_below_half

@@ -1446,6 +1446,15 @@ class RunState:
         self.visited_map_coords: list[MapCoord] = []
         self.map_point_history: list[MapPointHistoryEntry] = []
         self.act_floor: int = 0
+        # Number of REGULAR monster combats (RoomType.MONSTER, whether from a
+        # Monster map node or a "?"/Unknown node that resolved into a monster
+        # fight) entered so far in the current act. Gates weak-vs-regular pool
+        # selection: the first ActConfig.num_weak_encounters regular monster
+        # combats use the weak pool. Elite/boss combats do NOT count here.
+        # Matches the decompiled ActModel.GenerateRooms ordered encounter queue
+        # (first NumberOfWeakEncounters slots weak, remainder regular), consumed
+        # in order by monster rooms -- i.e. combat-count based, not floor based.
+        self.regular_monster_combats_this_act: int = 0
         self.total_floor: int = 0
         self._rooms_generated = False
 
@@ -1664,6 +1673,7 @@ class RunState:
         self.current_act_index = act_index
         self.visited_map_coords.clear()
         self.act_floor = 0
+        self.regular_monster_combats_this_act = 0
         self.unknown_odds.reset_to_base()
         self.generate_map()
         self._fire_after_act_entered()

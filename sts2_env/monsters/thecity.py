@@ -1119,7 +1119,10 @@ def create_champ(rng: Rng, ascension_level: int = 0) -> tuple[Creature, MonsterA
 
     def chooser(state_log: list[str], rng_: Rng) -> str:
         state["turns"] += 1
-        if creature.current_hp <= creature.max_hp // 2 and not state["threshold_reached"]:
+        # C# Champ.cs SelectNextMove: `CurrentHp < MaxHp / 2` (decimal division,
+        # strict less-than) -- NOT <= max_hp // 2, which would trigger one HP
+        # early when max HP is even (e.g. 220/440 must not anger).
+        if creature.current_hp * 2 < creature.max_hp and not state["threshold_reached"]:
             state["threshold_reached"] = True
             return CHAMP_ANGER_MOVE
         last = state_log[-1] if state_log else None

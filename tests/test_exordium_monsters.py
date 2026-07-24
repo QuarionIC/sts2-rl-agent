@@ -14,7 +14,9 @@ import pytest
 
 from sts2_env.cards.ironclad import create_ironclad_starter_deck
 from sts2_env.core.combat import CombatState
-from sts2_env.core.enums import CardId, PowerId, ValueProp
+from sts2_env.core.enums import CardId, CombatSide, IntentType, PowerId, ValueProp
+from sts2_env.gym_env import observation as obsmod
+from sts2_env.gym_env.rich_observation import RichObservationEncoder
 from sts2_env.core.rng import INT_MAX, Rng
 from sts2_env.monsters.state_machine import MonsterAI
 from sts2_env.run.rooms import CombatRoom
@@ -743,13 +745,14 @@ def test_slime_boss_split_overrides_deterministic_cycle_and_spawns_both_large_sl
     assert creature.powers[PowerId.SPLIT].triggered
     hp_at_trigger = creature.current_hp
 
-    # Split is only checked at the branch after SLAM completes (matching
-    # the decompiled SlimeBoss.cs SelectNextMove -- it does not interrupt
-    # an already-in-progress GOOP_SPRAY/PREP_SLAM/SLAM sequence), so the
-    # already-queued GOOP_SPRAY still finishes its 3-move cycle first.
+    # SplitPower.cs calls SetMoveImmediate(SplitState, forceTransition: true)
+    # the instant HP crosses <=50%, so the SPLIT intent is telegraphed
+    # IMMEDIATELY (mid-player-turn) and interrupts any already-queued
+    # GOOP_SPRAY/PREP_SLAM/SLAM -- it does not wait for the sequence to
+    # finish. The very next enemy move is therefore SPLIT.
+    assert ai.current_move.state_id == ex.SLIME_BOSS_SPLIT_MOVE
     moves = _run_turns(combat, ai, 4)
-    assert moves[:3] == [ex.SLIME_BOSS_GOOP_SPRAY_MOVE, ex.SLIME_BOSS_PREP_SLAM_MOVE, ex.SLIME_BOSS_SLAM_MOVE]
-    assert ex.SLIME_BOSS_SPLIT_MOVE in moves
+    assert moves[0] == ex.SLIME_BOSS_SPLIT_MOVE
     assert creature.is_dead
     spawned = {e.monster_id: e for e in combat.enemies if e is not creature}
     assert ex.SPIKE_SLIME_LARGE_MONSTER_ID in spawned
@@ -785,23 +788,57 @@ def test_guardian_offensive_cycle_is_deterministic_without_damage():
     ]
 
 
-def test_guardian_crossing_threshold_defers_to_end_of_current_move_then_shifts():
+def test_guardian_crossing_threshold_on_player_turn_shifts_immediately():
+    # ModeShiftPower.cs: when the threshold breaks and the Guardian is NOT
+    # executing its own move (the player-turn case, IsExecutingMove == false)
+    # it calls TransitionToDefensiveMode() IMMEDIATELY -- gaining the
+    # defensive block, bumping the next threshold, closing the shell, and
+    # SetMoveImmediate(_closeUpState, forceTransition: true). The queued
+    # FIERCE_BASH is interrupted; the telegraphed intent flips to CLOSE_UP
+    # the instant the threshold breaks, before the Guardian's next turn.
     combat = _make_combat(1, player_hp=999999)
     creature, ai = ex.create_guardian(Rng(1), ascension_level=0)
     combat.add_enemy(creature, ai)
     combat.start_combat()
     mode = creature.powers[PowerId.MODE_SHIFT]
 
-    # Perform CHARGE_UP, then deal exactly threshold damage mid-"turn" (as
-    # if it happened during the following player turn) -- the pending
-    # shift must NOT interrupt the currently-queued FIERCE_BASH; it should
-    # only redirect the move *after* that.
     ai.current_move.perform(combat)  # CHARGE_UP
     ai.on_move_performed()
     ai.roll_move(combat.monster_ai_rng)
     assert ai.current_move.state_id == ex.GUARDIAN_FIERCE_BASH_MOVE
 
     creature.block = 0
+    combat.deal_damage(combat.player, creature, mode.threshold, ValueProp.MOVE)
+    # Immediate transition (still the player's turn -> current_side PLAYER):
+    assert mode.pending_shift is False
+    assert mode.is_open is False
+    assert mode.base_threshold == ex.GUARDIAN_BASE_THRESHOLD + ex.GUARDIAN_THRESHOLD_INCREASE
+    assert creature.block == ex.GUARDIAN_DEFENSIVE_BLOCK
+    assert ai.current_move.state_id == ex.GUARDIAN_CLOSE_UP_MOVE
+
+
+def test_guardian_crossing_threshold_during_own_move_defers_to_move_end():
+    # The other ModeShiftPower.cs branch: if the Guardian breaks its own
+    # threshold WHILE executing a move (e.g. reflected player Thorns during
+    # its attack, IsExecutingMove == true) the shift is DEFERRED via
+    # PendingModeShift and applied at the end of that move
+    # (CheckPendingModeShift -> TransitionToDefensiveMode(setMove: false),
+    # letting the branch chooser route to CLOSE_UP on the next roll rather
+    # than force-overriding the intent mid-move). Modeled here by the enemy
+    # side being active when the damage lands.
+    combat = _make_combat(1, player_hp=999999)
+    creature, ai = ex.create_guardian(Rng(1), ascension_level=0)
+    combat.add_enemy(creature, ai)
+    combat.start_combat()
+    mode = creature.powers[PowerId.MODE_SHIFT]
+
+    ai.current_move.perform(combat)  # CHARGE_UP
+    ai.on_move_performed()
+    ai.roll_move(combat.monster_ai_rng)
+    assert ai.current_move.state_id == ex.GUARDIAN_FIERCE_BASH_MOVE
+
+    creature.block = 0
+    combat.current_side = CombatSide.ENEMY  # Guardian is executing its own move
     combat.deal_damage(combat.player, creature, mode.threshold, ValueProp.MOVE)
     assert mode.pending_shift is True
     assert mode.is_open is True  # not yet flipped -- deferred
@@ -822,15 +859,17 @@ def test_guardian_defensive_cycle_close_up_roll_attack_twin_slam_reopens():
     combat.start_combat()
     mode = creature.powers[PowerId.MODE_SHIFT]
     creature.block = 0
-    # Cross the threshold before CHARGE_UP (the already-queued first move)
-    # even performs -- CHARGE_UP still resolves fully (gaining its block)
-    # since the transition is only applied at the *end* of whichever
-    # offensive move is currently resolving, then CLOSE_UP follows.
+    # Cross the threshold on the player turn before CHARGE_UP (the queued
+    # first move) even performs. Per ModeShiftPower.cs the transition is
+    # immediate (SetMoveImmediate CLOSE_UP), so the queued CHARGE_UP is
+    # interrupted and the very next enemy move is CLOSE_UP, then the fixed
+    # defensive sequence ROLL_ATTACK -> TWIN_SLAM (reopens) -> WHIRLWIND.
     combat.deal_damage(combat.player, creature, mode.threshold + 5, ValueProp.MOVE)
+    assert ai.current_move.state_id == ex.GUARDIAN_CLOSE_UP_MOVE
     moves = _run_turns(combat, ai, 5)
     assert moves == [
-        ex.GUARDIAN_CHARGE_UP_MOVE,
-        ex.GUARDIAN_CLOSE_UP_MOVE, ex.GUARDIAN_ROLL_ATTACK_MOVE, ex.GUARDIAN_TWIN_SLAM_MOVE, ex.GUARDIAN_WHIRLWIND_MOVE,
+        ex.GUARDIAN_CLOSE_UP_MOVE, ex.GUARDIAN_ROLL_ATTACK_MOVE, ex.GUARDIAN_TWIN_SLAM_MOVE,
+        ex.GUARDIAN_WHIRLWIND_MOVE, ex.GUARDIAN_CHARGE_UP_MOVE,
     ]
     assert creature.has_power(PowerId.THORNS) is False  # removed by TWIN_SLAM
     assert mode.is_open is True  # reopened by TWIN_SLAM
@@ -1028,3 +1067,102 @@ def test_boss_pool_has_all_three_bosses_and_matches_run_manager_pick_mechanism()
     assert names == {"setup_slime_boss_boss", "setup_guardian_boss", "setup_hexaghost_boss"}
     picks = {Rng(seed).choice(enc.BOSS_ENCOUNTERS).__name__ for seed in range(30)}
     assert picks == names
+
+
+# ---------------------------------------------------------------------------
+# 30. Mid-turn intent updates reflected in the RL observations
+#
+# Regression coverage for the "stale intent" fix: an enemy whose telegraphed
+# move changes DURING the player's turn (slime split threshold, Guardian
+# mode-shift, Lagavulin wake) must update ai.current_move immediately, and
+# both observation encoders read ai.current_move so the encoded intent must
+# reflect the new move before the enemy's turn.
+# ---------------------------------------------------------------------------
+
+def _flat_enemy_intent(combat, i=0):
+    """(attack_onehot, intent_damage, all_intent_onehots) for enemy i in the flat obs."""
+    obs = obsmod.encode_observation(combat)
+    eb = obsmod.OBS_SIZE - obsmod.MAX_ENEMIES * obsmod.ENEMY_FEATURES + i * obsmod.ENEMY_FEATURES
+    onehots = [obs[eb + 3 + j] for j in range(obsmod.NUM_INTENT_TYPES)]
+    dmg = obs[eb + 3 + obsmod.NUM_INTENT_TYPES]
+    atk = obs[eb + 3 + obsmod.INTENT_TYPES.index(IntentType.ATTACK)]
+    return atk, dmg, onehots
+
+
+def _rich_enemy_intent(combat, intent_type, i=0):
+    """(onehot_for_intent_type, intent_damage) for enemy i in the rich obs."""
+    import sts2_env.gym_env.rich_observation as rich
+    obs = RichObservationEncoder().encode_combat(combat)
+    eb = rich.ENEMIES_OFF + i * rich.ENEMY_BLOCK_SIZE
+    idx = rich.INTENT_TO_IDX[intent_type]
+    return obs[eb + rich.ENEMY_CORE_FEATURES + idx], obs[eb + 4]
+
+
+def test_acid_slime_large_split_intent_immediate_and_reflected_in_observations():
+    combat = _make_combat(1)
+    creature, ai = ex.create_acid_slime_large(Rng(1), ascension_level=0)
+    combat.add_enemy(creature, ai)
+    combat.start_combat()
+    # Seeded initial telegraph is an attack (CORROSIVE_SPIT).
+    assert ai.current_move.state_id == ex.ACID_SLIME_LARGE_SPIT_MOVE
+    atk_before, dmg_before, _ = _flat_enemy_intent(combat)
+    assert atk_before == 1.0 and dmg_before > 0.0
+    rich_unknown_before, _ = _rich_enemy_intent(combat, IntentType.UNKNOWN)
+    assert rich_unknown_before == 0.0
+
+    # Drop it to <=50% mid-player-turn; SplitPower must flip the intent to
+    # SPLIT (Unknown) immediately, before the slime's own turn.
+    half = creature.max_hp // 2
+    combat.deal_damage(combat.player, creature, creature.current_hp - half, ValueProp.MOVE)
+    assert creature.powers[PowerId.SPLIT].triggered
+    assert ai.current_move.state_id == ex.ACID_SLIME_LARGE_SPLIT_MOVE
+    assert ai.current_move.intents[0].intent_type == IntentType.UNKNOWN
+
+    # Flat obs: the attack one-hot and intent damage collapse to zero (Unknown
+    # is not one of the flat encoder's 5 intent types).
+    atk_after, dmg_after, onehots_after = _flat_enemy_intent(combat)
+    assert atk_after == 0.0 and dmg_after == 0.0
+    assert all(v == 0.0 for v in onehots_after)
+    # Rich obs: the Unknown intent bit turns on.
+    rich_unknown_after, rich_dmg_after = _rich_enemy_intent(combat, IntentType.UNKNOWN)
+    assert rich_unknown_after == 1.0 and rich_dmg_after == 0.0
+
+
+def test_guardian_mode_shift_intent_immediate_and_reflected_in_observation():
+    combat = _make_combat(1, player_hp=999999)
+    creature, ai = ex.create_guardian(Rng(1), ascension_level=0)
+    combat.add_enemy(creature, ai)
+    combat.start_combat()
+    mode = creature.powers[PowerId.MODE_SHIFT]
+    # Initial telegraph is CHARGE_UP (a Defend intent).
+    assert ai.current_move.state_id == ex.GUARDIAN_CHARGE_UP_MOVE
+    defend_before, _ = _rich_enemy_intent(combat, IntentType.DEFEND)
+    assert defend_before == 1.0
+
+    creature.block = 0
+    combat.deal_damage(combat.player, creature, mode.threshold + 5, ValueProp.MOVE)
+    # Immediate defensive-mode shift: intent flips to CLOSE_UP (a Buff intent).
+    assert ai.current_move.state_id == ex.GUARDIAN_CLOSE_UP_MOVE
+    assert ai.current_move.intents[0].intent_type == IntentType.BUFF
+    buff_after, _ = _rich_enemy_intent(combat, IntentType.BUFF)
+    defend_after, _ = _rich_enemy_intent(combat, IntentType.DEFEND)
+    assert buff_after == 1.0 and defend_after == 0.0
+
+
+def test_lagavulin_wake_stun_intent_immediate_and_reflected_in_observation():
+    combat = _make_combat(1)
+    creature, ai = ex.create_lagavulin(Rng(1), ascension_level=0)
+    combat.add_enemy(creature, ai)
+    combat.start_combat()
+    assert ai.current_move.state_id == ex.LAGAVULIN_SLEEP_MOVE
+    sleep_before, _ = _rich_enemy_intent(combat, IntentType.SLEEP)
+    assert sleep_before == 1.0
+
+    # Unblocked damage while asleep wakes it mid-player-turn -> stunned intent.
+    combat.deal_damage(combat.player, creature, 5, ValueProp.MOVE)
+    assert not creature.has_power(PowerId.ASLEEP)
+    assert ai.current_move.state_id == "STUNNED"
+    assert ai.current_move.intents[0].intent_type == IntentType.STUN
+    stun_after, _ = _rich_enemy_intent(combat, IntentType.STUN)
+    sleep_after, _ = _rich_enemy_intent(combat, IntentType.SLEEP)
+    assert stun_after == 1.0 and sleep_after == 0.0
