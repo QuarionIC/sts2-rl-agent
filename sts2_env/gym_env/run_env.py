@@ -281,6 +281,12 @@ class STS2RunEnv(gymnasium.Env):
         # Per-combat step counting for MAX_STEPS_PER_COMBAT (see _step_combat).
         self._steps_combat_ref: object | None = None
         self._steps_in_combat: int = 0
+        # Anti-dither bookkeeping for pending-choice screens (see
+        # _limit_choice_mask): per-option toggle counts + total steps spent on
+        # the CURRENT choice screen (identity-tracked; reset on screen change).
+        self._choice_ref: object | None = None
+        self._choice_toggles: dict[int, int] = {}
+        self._choice_steps: int = 0
         self.render_mode = render_mode
 
         # Mutable state -- set during reset()
@@ -371,6 +377,108 @@ class STS2RunEnv(gymnasium.Env):
             info["sim_error"] = True
         return obs, float(reward), terminated, truncated, info
 
+    # ------------------------------------------------------------------
+    # Anti-dither guard for pending-choice screens
+    # ------------------------------------------------------------------
+    #
+    # Observed pathology (forensics via scripts/inspect_episodes.py): the
+    # deterministic policy toggles the same option selected/deselected
+    # forever on "choose a card" screens -- an absorbing argmax 2-cycle that
+    # burns the episode step cap, hangs evals, and wastes training steps.
+    # The guard makes every choice screen terminate in bounded decisions
+    # while keeping every OUTCOME reachable:
+    #   - an option toggled >= 2 times on the same screen is masked out
+    #     (re-toggling it cannot produce a new state);
+    #   - after a hard step budget on one screen, only confirm remains
+    #     legal (or the least-toggled option when confirm isn't yet legal,
+    #     e.g. min-select unmet -- confirm becomes forced right after);
+    #   - if the rules would leave no legal action, counts reset (never
+    #     deadlocks).
+
+    #: Per-option toggle limit on one choice screen.
+    CHOICE_TOGGLE_LIMIT = 2
+    #: Hard step budget per choice screen before confirm is forced.
+    CHOICE_STEP_BUDGET_PER_OPTION = 4
+    CHOICE_STEP_BUDGET_BASE = 8
+
+    def _active_choice_object(self) -> object | None:
+        """The live pending-choice object (run-level or combat-level)."""
+        mgr = self._mgr
+        if mgr is None:
+            return None
+        pending = getattr(mgr.run_state, "pending_choice", None)
+        if pending is not None:
+            return pending
+        combat = mgr.get_combat_state()
+        if combat is not None and combat.pending_choice is not None:
+            return combat.pending_choice
+        event = getattr(mgr, "_event_model", None)
+        if event is not None and getattr(event, "pending_choice", None) is not None:
+            return event.pending_choice
+        return None
+
+    def _sync_choice_tracking(self, choice_obj: object | None) -> None:
+        if choice_obj is not self._choice_ref:
+            self._choice_ref = choice_obj
+            self._choice_toggles = {}
+            self._choice_steps = 0
+
+    def _note_choice_action(self, local: int) -> None:
+        """Record one decision on the current choice screen (local 0 =
+        confirm, local >= 1 = toggle option local-1)."""
+        self._sync_choice_tracking(self._active_choice_object())
+        if self._choice_ref is None:
+            return
+        self._choice_steps += 1
+        if local >= 1:
+            self._choice_toggles[local - 1] = self._choice_toggles.get(local - 1, 0) + 1
+
+    def _limit_choice_mask(
+        self,
+        mask: np.ndarray,
+        base: int,
+        n_options: int,
+        can_confirm: bool,
+        choice_obj: object | None,
+        selected_flags: list[bool] | None = None,
+    ) -> None:
+        self._sync_choice_tracking(choice_obj)
+        if choice_obj is None or n_options <= 0:
+            return
+        budget = self.CHOICE_STEP_BUDGET_BASE + self.CHOICE_STEP_BUDGET_PER_OPTION * n_options
+        original = mask[base: base + 1 + n_options].copy()
+
+        if self._choice_steps >= budget:
+            # Hard cap: force resolution. Confirm-only when legal; else keep
+            # ONE option -- preferring an UNSELECTED one so the forced toggle
+            # creates a selection and makes confirm legal on the next step
+            # (min-select screens have confirm illegal at zero selections).
+            if can_confirm:
+                mask[base + 1: base + 1 + n_options] = 0
+            else:
+                legal = [i for i in range(n_options) if mask[base + 1 + i]]
+                if legal:
+                    unselected = [
+                        i for i in legal
+                        if selected_flags is None or not (i < len(selected_flags) and selected_flags[i])
+                    ]
+                    pool = unselected or legal
+                    keep = min(pool, key=lambda i: self._choice_toggles.get(i, 0))
+                    mask[base + 1: base + 1 + n_options] = 0
+                    mask[base + 1 + keep] = 1
+        else:
+            for i in range(n_options):
+                if self._choice_toggles.get(i, 0) >= self.CHOICE_TOGGLE_LIMIT:
+                    mask[base + 1 + i] = 0
+
+        if mask[base: base + 1 + n_options].sum() == 0:
+            # Never deadlock: restore the mask and allow re-toggling, but KEEP
+            # the step budget accruing -- resetting it here previously created
+            # a period-2N meta-cycle (exhaust toggles -> reset -> repeat) in
+            # which the hard cap could never fire.
+            mask[base: base + 1 + n_options] = original
+            self._choice_toggles = {}
+
     def action_masks(self) -> np.ndarray:
         """Return a boolean mask over the unified discrete action space.
 
@@ -388,11 +496,18 @@ class STS2RunEnv(gymnasium.Env):
         actions = self._mgr.get_available_actions()
 
         if phase != RunManager.PHASE_COMBAT and any(a.get("action") in {"choose", "confirm_choice"} for a in actions):
-            if any(a.get("action") == "confirm_choice" for a in actions):
+            can_confirm = any(a.get("action") == "confirm_choice" for a in actions)
+            if can_confirm:
                 mask[layout.combat_start] = 1
             choose_actions = [a for a in actions if a.get("action") == "choose"]
-            for i in range(min(len(choose_actions), layout.combat_size - 1)):
+            n_options = min(len(choose_actions), layout.combat_size - 1)
+            for i in range(n_options):
                 mask[layout.combat_start + 1 + i] = 1
+            self._limit_choice_mask(
+                mask, layout.combat_start, n_options, can_confirm,
+                self._active_choice_object(),
+                selected_flags=[bool(a.get("selected")) for a in choose_actions[:n_options]],
+            )
         elif phase == RunManager.PHASE_COMBAT:
             combat = self._mgr.get_combat_state()
             if combat is not None:
@@ -410,6 +525,16 @@ class STS2RunEnv(gymnasium.Env):
                 available_combat_slots = max(0, len(mask) - layout.combat_start)
                 n = min(len(combat_mask), layout.combat_size, available_combat_slots)
                 mask[layout.combat_start: layout.combat_start + n] = combat_mask[:n]
+                if combat.pending_choice is not None:
+                    pc = combat.pending_choice
+                    n_pc = min(pc.num_options, layout.combat_size - 1)
+                    sel = getattr(pc, "selected_indices", None)
+                    self._limit_choice_mask(
+                        mask, layout.combat_start, n_pc,
+                        bool(mask[layout.combat_start]),
+                        pc,
+                        selected_flags=[i in sel for i in range(n_pc)] if sel is not None else None,
+                    )
                 select_actions = [
                     a for a in actions if a.get("action") == "select_player"
                 ]
@@ -502,6 +627,7 @@ class STS2RunEnv(gymnasium.Env):
 
         local = max(0, min(action - layout.combat_start, layout.combat_size - 1))
         if combat.pending_choice is not None:
+            self._note_choice_action(local)
             if local == 0:
                 mgr.take_action({"action": "confirm_choice"})
             else:
@@ -646,6 +772,7 @@ class STS2RunEnv(gymnasium.Env):
         actions = mgr.get_available_actions()
         if any(a.get("action") in {"choose", "confirm_choice"} for a in actions):
             local = max(0, min(action - layout.combat_start, layout.combat_size - 1))
+            self._note_choice_action(local)
             if local == 0:
                 mgr.take_action({"action": "confirm_choice"})
             else:
@@ -666,6 +793,7 @@ class STS2RunEnv(gymnasium.Env):
         assert mgr is not None
         layout = _LAYOUT
         local = max(0, min(action - layout.combat_start, layout.combat_size - 1))
+        self._note_choice_action(local)
         if local == 0:
             mgr.take_action({"action": "confirm_choice"})
         else:
