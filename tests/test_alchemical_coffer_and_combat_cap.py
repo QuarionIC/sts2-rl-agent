@@ -99,3 +99,46 @@ def test_conqueror_power_survives_sourceless_enemy_damage():
     # 2x Sovereign Blade multiplier must NOT apply.
     dmg = calculate_damage(10, enemy, combat.primary_player, ValueProp.MOVE, combat)
     assert dmg == 10
+
+
+def test_per_combat_step_cap_forces_death_on_within_turn_loops():
+    """A pending-choice toggle loop inside ONE combat turn never advances
+    turn_count, so the 30-turn cap can't fire; the per-combat step cap
+    (MAX_STEPS_PER_COMBAT) must force the loss instead."""
+    from sts2_env.gym_env.run_env import MAX_STEPS_PER_COMBAT
+    from sts2_env.gym_env.rich_run_env import RichSTS2RunEnv
+
+    env = RichSTS2RunEnv(character_id="Necrobinder", ascension_level=0, max_act_count=1)
+    obs, info = env.reset(seed=424242)
+    # Drive to the first combat.
+    steps = 0
+    while info.get("phase") != "COMBAT" and steps < 200:
+        import numpy as np
+        mask = env.action_masks()
+        a = int(np.flatnonzero(mask)[0])
+        obs, r, term, trunc, info = env.step(a)
+        steps += 1
+    assert info.get("phase") == "COMBAT"
+    # Hammer a non-turn-ending action repeatedly: action index 1 in the
+    # combat slice is "play card slot 0 / toggle choice option 0" when legal,
+    # else fall back to the first legal non-END_TURN action; if only
+    # END_TURN is legal this test still terminates via the turn cap. The
+    # point is the episode must END (terminated, not truncated) within
+    # MAX_STEPS_PER_COMBAT + a small margin.
+    import numpy as np
+    ended = False
+    for _ in range(MAX_STEPS_PER_COMBAT + 50):
+        mask = env.action_masks()
+        legal = np.flatnonzero(mask)
+        non_end = [a for a in legal if a != 0]
+        a = int(non_end[0]) if non_end else 0
+        obs, r, term, trunc, info = env.step(a)
+        if term:
+            ended = True
+            break
+        if info.get("phase") != "COMBAT":
+            # Combat resolved legitimately (fast win) -- acceptable; the cap
+            # only exists for pathological loops.
+            ended = True
+            break
+    assert ended, "combat neither resolved nor hit the per-combat step cap"

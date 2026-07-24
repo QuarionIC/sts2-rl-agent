@@ -208,6 +208,10 @@ RUN_OBS_SIZE = COMBAT_OBS_SIZE + _RUN_STATE_SIZE  # 131 + 20 = 151
 DEFAULT_MAX_STEPS = 10_000
 DEFAULT_MAX_COMBAT_TURNS = 200
 
+#: Per-combat env-step cap. 30 turns x ~10 decisions/turn is generous for any
+#: legitimate fight; only within-turn pending-choice loops exceed this.
+MAX_STEPS_PER_COMBAT = 400
+
 OBS_VALUE_LOW = -1.0
 OBS_VALUE_HIGH = 10.0
 OBS_CURRENT_ACT_SCALE = 3.0
@@ -274,6 +278,9 @@ class STS2RunEnv(gymnasium.Env):
         self._ascension_level = ascension_level
         self.max_steps = max_steps
         self.max_combat_turns = max_combat_turns
+        # Per-combat step counting for MAX_STEPS_PER_COMBAT (see _step_combat).
+        self._steps_combat_ref: object | None = None
+        self._steps_in_combat: int = 0
         self.render_mode = render_mode
 
         # Mutable state -- set during reset()
@@ -525,16 +532,25 @@ class STS2RunEnv(gymnasium.Env):
                             if combat2 is not None and not combat2.is_over:
                                 mgr.take_action({"action": "end_turn"})
 
-        # Force-end combat if it exceeds the turn limit.
+        # Force-end combat if it exceeds the turn limit, OR the per-combat
+        # STEP limit. The turn cap alone has a hole: an agent looping a
+        # pending-choice toggle WITHIN one turn never ends the turn, so
+        # turn_count freezes while env steps burn to the episode cap
+        # (observed: truncated eval episodes stuck in COMBAT phase). Both
+        # caps score as a death: taking absurdly long = losing.
         if mgr.phase == RunManager.PHASE_COMBAT:
             combat_now = mgr.get_combat_state()
-            if (
-                combat_now is not None
-                and not combat_now.is_over
-                and combat_now.turn_count > self.max_combat_turns
-            ):
-                mgr.run_state.player.current_hp = 0
-                mgr.run_state.lose_run()
+            if combat_now is not None and not combat_now.is_over:
+                if combat_now is not self._steps_combat_ref:
+                    self._steps_combat_ref = combat_now
+                    self._steps_in_combat = 0
+                self._steps_in_combat += 1
+                if (
+                    combat_now.turn_count > self.max_combat_turns
+                    or self._steps_in_combat > MAX_STEPS_PER_COMBAT
+                ):
+                    mgr.run_state.player.current_hp = 0
+                    mgr.run_state.lose_run()
 
     def _step_map_choice(self, action: int) -> None:
         layout = _LAYOUT
