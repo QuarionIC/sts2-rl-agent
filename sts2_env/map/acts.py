@@ -244,6 +244,7 @@ def register_act_candidate(slot: int, act: ActConfig) -> None:
 
 def act_candidates_for_slot(slot: int) -> list[ActConfig]:
     """Return the (copy of the) list of candidate ActConfigs for a slot."""
+    _ensure_alternate_acts_registered()
     return list(_ACT_SLOT_CANDIDATES.get(slot, []))
 
 
@@ -254,6 +255,7 @@ def select_act_for_slot(slot: int, rng) -> ActConfig:
     With multiple candidates, one is chosen uniformly at random via
     `rng.choice`.
     """
+    _ensure_alternate_acts_registered()
     candidates = _ACT_SLOT_CANDIDATES.get(slot)
     if not candidates:
         raise ValueError(f"No act candidates registered for slot {slot}")
@@ -346,10 +348,28 @@ def _build_legacy_acts() -> tuple[ActConfig, ActConfig, ActConfig]:
     return exordium, thecity, thebeyond
 
 
-EXORDIUM, THECITY, THEBEYOND = _build_legacy_acts()
+_alternate_acts_registered = False
 
-# Register every alternate so each slot rolls uniformly among its candidates.
-register_act_candidate(0, UNDERDOCKS)
-register_act_candidate(0, EXORDIUM)
-register_act_candidate(1, THECITY)
-register_act_candidate(2, THEBEYOND)
+
+def _ensure_alternate_acts_registered() -> None:
+    """Lazily build + register the per-slot alternate acts on first registry
+    access (via act_candidates_for_slot / select_act_for_slot).
+
+    This is deliberately NOT done at module import time: constructing the
+    three legacy mod acts imports the events package, and doing so while
+    map.acts is still initializing forms an import cycle
+    (map.acts -> events.* -> run -> map/__init__ -> map.acts) that fires
+    whenever sts2_env.events is imported before map.acts has finished (e.g.
+    the web play_run entry point does `import sts2_env.events` first).
+    Deferring to first access lets every module finish importing first.
+    """
+    global _alternate_acts_registered
+    if _alternate_acts_registered:
+        return
+    _alternate_acts_registered = True  # set before building: re-entrancy guard
+    # Each slot rolls uniformly among its candidates (default + alternates).
+    register_act_candidate(0, UNDERDOCKS)
+    exordium, thecity, thebeyond = _build_legacy_acts()
+    register_act_candidate(0, exordium)
+    register_act_candidate(1, thecity)
+    register_act_candidate(2, thebeyond)
