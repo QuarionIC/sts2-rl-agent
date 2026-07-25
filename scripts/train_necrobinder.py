@@ -27,6 +27,13 @@ JSON (stage, steps, eval history, promotion state) every 250k steps and on
 eval improvement (``best_model.zip``).
 Eval: every 100k steps, deterministic, shaping_scale=0, seed block
 10_000_000+. History in ``eval_history.jsonl``.
+--seed <int> makes a run reproducible: python/numpy/torch(+CUDA) RNGs, the
+SB3 model seed (policy init) and the TRAINING vec-env seeds (disjoint block
+seed*1000 + env_index) all derive from it. Eval seeds NEVER move -- they
+stay on the held-out 10_000_000+episode block so different seeds are scored
+on identical runs. Unset = historical unseeded behavior. Add --deterministic
+for bit-exact GPU replay (the CUDA embedding backward is otherwise
+nondeterministic; see enable_exact_determinism).
 Optimizer stays alive: constant lr=2e-4 with target_kl=0.03, constant
 ent_coef=0.01. Reward shaping is a fixed scale (1.0) -- no win-rate anneal.
 --anchor-model <bc_init.zip> trains with AnchoredMaskablePPO instead: an
@@ -45,6 +52,7 @@ act-1 boss kills stayed flat, so wins never compounded).
 from __future__ import annotations
 
 import os
+import sys
 
 # MUST run before numpy is imported (here and, via inherited environment, in
 # every spawned worker): OpenBLAS otherwise commits ~775 MB of per-thread
@@ -53,6 +61,12 @@ import os
 # single-threaded workers beat 16x24-way thread oversubscription anyway.
 for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_var, "1")
+
+# cuBLAS reads this when it creates its handle -- i.e. at the first CUDA
+# matmul, long before argparse could tell us about --deterministic. Peeking at
+# argv is the only way to set it in time; it is a no-op without the flag.
+if "--deterministic" in sys.argv:
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 
 import argparse
 import json
@@ -89,7 +103,15 @@ DEFAULT_OUTPUT_ROOT = "output/necrobinder_run"
 EVAL_FREQ = 100_000
 CHECKPOINT_FREQ = 250_000
 EVAL_EPISODES = 200
+#: Held-out eval seed block. Eval episode e always runs run-seed
+#: EVAL_SEED_BLOCK + e, for EVERY --seed: the eval set is fixed so scores are
+#: comparable across seeds and across runs. --seed must never reach it.
 EVAL_SEED_BLOCK = 10_000_000
+#: Spacing between the TRAINING env seed blocks of consecutive --seed values.
+#: SB3 hands env i the seed base+i, so a naive base=--seed would make seeds 0
+#: and 1 share 15 of their 16 env seeds -- the runs would not be independent,
+#: which is the entire point of a multi-seed confirmation phase.
+TRAIN_SEED_STRIDE = 1_000
 ENT_COEF = 0.01
 LEARNING_RATE = 2.0e-4
 TARGET_KL = 0.03
@@ -141,6 +163,84 @@ def env_kwargs_from_args(args) -> dict:
         include_deck_obs=not getattr(args, "no_deck_obs", False),
         gamma_shape=getattr(args, "gamma", None),
     )
+
+
+# ---------------------------------------------------------------------------
+# Reproducibility (--seed)
+# ---------------------------------------------------------------------------
+
+def train_env_seed_base(seed: int) -> int:
+    """First TRAINING env seed for a ``--seed`` value.
+
+    Training env i is seeded ``base + i`` (SB3's ``VecEnv.seed`` spacing), so
+    one ``--seed`` owns the block ``[base, base + n_envs)``. Blocks of
+    different ``--seed`` values are disjoint (stride ``TRAIN_SEED_STRIDE``)
+    and always strictly below :data:`EVAL_SEED_BLOCK` -- eval seeds are
+    held out and must never move with ``--seed``.
+    """
+    if seed < 0:
+        raise ValueError(f"--seed must be >= 0, got {seed}")
+    base = seed * TRAIN_SEED_STRIDE
+    if base + TRAIN_SEED_STRIDE > EVAL_SEED_BLOCK:
+        raise ValueError(
+            f"--seed {seed} maps to training env seed block starting at "
+            f"{base}, which would run into the held-out eval block "
+            f"{EVAL_SEED_BLOCK}; use --seed < "
+            f"{EVAL_SEED_BLOCK // TRAIN_SEED_STRIDE}"
+        )
+    return base
+
+
+def seed_everything(seed: int) -> None:
+    """Seed python / numpy / torch (incl. CUDA) for a reproducible run.
+
+    Called from ``main`` BEFORE any env or model is built, so every random
+    draw of the process is downstream of ``--seed``. The model constructor
+    additionally receives ``seed=`` (SB3 re-applies the same seeding right
+    before the policy tensors are initialised) and the training vec-env is
+    seeded explicitly in :func:`train_stage`. Eval is deliberately NOT
+    touched: :func:`run_eval` always resets on ``EVAL_SEED_BLOCK + episode``.
+    """
+    import random
+
+    random.seed(seed)
+    np.random.seed(seed)
+    try:
+        import torch
+    except ImportError:      # torch-free callers (tests/tools)
+        return
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+
+def enable_exact_determinism() -> None:
+    """Opt-in bit-exact reproducibility (``--deterministic``).
+
+    MEASURED, this repo, this policy: with ``--seed`` alone the initial
+    policy tensors, the training env seed block and the whole FIRST rollout
+    are bit-identical on both CPU and CUDA -- but the rich policy's backward
+    pass on CUDA is NOT (three identical forward/backward passes over the
+    same batch produced three different gradient hashes, from atomicAdd
+    accumulation in the embedding backward). So on GPU the first optimizer
+    update injects float-level noise and two same-seed runs drift apart.
+    ``torch.use_deterministic_algorithms(True)`` plus
+    ``CUBLAS_WORKSPACE_CONFIG=:4096:8`` (set at import from argv) removes
+    that: the same three passes then hash identically.
+
+    Off by default: it can cost throughput, and an op without a
+    deterministic CUDA kernel raises at runtime -- a crash mid-run is worse
+    than float drift for a multi-seed study, which needs controlled
+    independent seeds, not bit-exact replay.
+    """
+    import torch
+
+    torch.use_deterministic_algorithms(True)
+    print(f"[seed] exact determinism ON "
+          f"(CUBLAS_WORKSPACE_CONFIG="
+          f"{os.environ.get('CUBLAS_WORKSPACE_CONFIG')})", flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -362,6 +462,10 @@ def build_model(train_env, tensorboard_dir: str | None, args=None):
         policy_kwargs=rich_policy_kwargs(
             hand_encoding=getattr(args, "hand_encoding", None) or "perslot",
         ),
+        # None (the default) = SB3's unseeded behavior, unchanged. With a
+        # seed, SB3 seeds python/numpy/torch again immediately before the
+        # policy tensors are created, so the initial weights are fixed too.
+        seed=getattr(args, "seed", None),
         device="cuda",
         verbose=1,
         tensorboard_log=tensorboard_dir,
@@ -504,6 +608,18 @@ def train_stage(
             flush=True,
         )
 
+    if getattr(args, "seed", None) is not None:
+        # Explicit, AFTER model construction: build_model's seed= made SB3
+        # call env.seed(args.seed) (blocks would overlap across seeds), and
+        # the vec-env consumes _seeds at the next reset -- which is the one
+        # model.learn() does below. Resume path gets seeded here too.
+        base = train_env_seed_base(args.seed)
+        train_env.seed(base)
+        print(f"[seed] --seed {args.seed}: python/numpy/torch seeded; "
+              f"training env seeds {base}..{base + args.n_envs - 1}; "
+              f"eval stays on the held-out block {EVAL_SEED_BLOCK:,}+episode "
+              f"(NOT affected by --seed)", flush=True)
+
     CurriculumCallback = build_callback_class()
     callback = CurriculumCallback(
         stage_name=stage_name,
@@ -552,6 +668,24 @@ def main():
     parser.add_argument("--checkpoint-freq", type=int, default=CHECKPOINT_FREQ)
     parser.add_argument("--resume", action="store_true",
                         help="Resume from the latest checkpoint of the stage")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Reproducibility seed. Seeds python/numpy/torch "
+                             "(+CUDA), the SB3 model (policy init, action "
+                             "space) and the TRAINING vec-env, which gets the "
+                             f"disjoint seed block seed*{TRAIN_SEED_STRIDE}+i. "
+                             "Eval keeps its fixed held-out block "
+                             f"({EVAL_SEED_BLOCK:,}+episode) so runs stay "
+                             "comparable across seeds. Default: unset = "
+                             "unseeded (historical behavior).")
+    parser.add_argument("--deterministic", action="store_true",
+                        help="With --seed, also make the CUDA update path "
+                             "bit-exact (torch.use_deterministic_algorithms "
+                             "+ CUBLAS_WORKSPACE_CONFIG). Without it, the "
+                             "policy's embedding backward on CUDA uses "
+                             "atomicAdd, so same-seed runs drift apart after "
+                             "the first optimizer update. May cost throughput "
+                             "and raises if an op has no deterministic CUDA "
+                             "kernel. Default off.")
     parser.add_argument("--lr", type=float, default=LEARNING_RATE,
                         help="Constant learning rate (default 2e-4; use ~5e-5 to fine-tune a BC init without eroding it).")
     parser.add_argument("--target-kl", type=float, default=TARGET_KL,
@@ -612,6 +746,11 @@ def main():
     args = parser.parse_args()
     _RUNTIME_LR[0] = args.lr
     _RUNTIME_KL[0] = args.target_kl
+    if args.seed is not None:
+        train_env_seed_base(args.seed)   # validate before spawning anything
+        seed_everything(args.seed)
+    if getattr(args, "deterministic", False):
+        enable_exact_determinism()
 
     if args.stage:
         train_stage(args.stage, args)
