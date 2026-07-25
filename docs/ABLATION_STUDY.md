@@ -83,12 +83,133 @@ under ~0.35/M as noise per the caveat above.
 |-----|--------|----|----|----|---------|---------------|
 | A0 | completed | 6.68 | 6.63 | 6.79 | +0.05 | 0 |
 | A1 | completed | 6.46 | 7.46 | 6.99 | +0.26 | 2 |
-| A2 | completed | ~3.37 | | 4.47 | +0.55 | 0 |
+| A2 | completed | 3.37 | 4.51 | 4.48 | +0.55 | 0 |
 | A3 | pending | | | | | |
 | A4 | pending | | | | | |
 | A5 | pending | | | | | |
 | A6 | pending | | | | | |
 | A7 | pending | | | | | |
+
+## Confirmation phase
+
+Built and ready; **not launched** — the 8-arm screen must finish first
+(launching a second trainer would fight the running one for the 16 GB box).
+Harness: `scripts/confirm_phase.py`, seed control: `train_necrobinder.py
+--seed`.
+
+### Seed control (`--seed`, default unset = historical unseeded behavior)
+
+One flag fixes everything a run depends on:
+
+| what | how |
+|------|-----|
+| python / numpy / torch (+CUDA) RNGs | `seed_everything(seed)` before any env or model is built |
+| SB3 model: policy init, action space, its own env seeding | `seed=` passed to `MaskablePPO`/`SILAnchoredMaskablePPO` |
+| training vec-env | `train_env.seed(seed * 1000)` → env *i* resets on `seed*1000 + i`, consumed at the first `learn()` reset |
+| SIL replay sampler | already `np.random.default_rng(self.seed)`, so it follows the model seed |
+
+The stride matters: SB3's own spacing is `seed + i`, so `--seed 0` and
+`--seed 1` with 16 envs would share **15 of 16** env seeds — the "independent"
+seeds of a seed study would be nearly the same runs. `seed * 1000` gives each
+seed a disjoint block.
+
+**Eval isolation.** `--seed` never reaches evaluation. `run_eval` always resets
+episode *e* on `EVAL_SEED_BLOCK + e` (10,000,000+), so every seed and every
+config is scored on the *same* held-out runs; the callback never passes a
+`seed_block` override, and the seed is absent from the env kwargs shared with
+the eval env. A seed ≥ 10,000 (which would run the training block into the eval
+block) is rejected at startup, before anything spawns.
+
+### What "reproducible" means here, measured
+
+- Same `--seed`, two processes: **bit-identical** initial policy tensors,
+  first observation, and the entire first rollout (actions, rewards, buffer
+  hashes) — verified on CPU *and* CUDA.
+- After the first optimizer update on GPU they drift: the rich policy's CUDA
+  backward is nondeterministic (three identical forward/backward passes over
+  one batch produced three different gradient hashes — atomicAdd in the
+  embedding backward; the CPU path is exact). Two 12,288-step `--seed 0` runs
+  ended with policies differing by max |Δ| = 2.6e-3.
+- `--deterministic` (opt-in) adds `torch.use_deterministic_algorithms(True)`
+  and `CUBLAS_WORKSPACE_CONFIG=:4096:8`: the same paired runs then produced
+  **identical** logged rollout/train statistics and bit-identical final policy
+  tensors (max |Δ| = 0.0). It is off by default because an op without a
+  deterministic CUDA kernel raises at runtime, and a crash mid-run is worse
+  than float drift for a study that needs *controlled independent* seeds, not
+  bit-exact replay.
+
+### Design
+
+- **Configs**: A0 baseline + the top-2 screened arms by slope, *after the level
+  gate* (an arm finishing more than the noise band below baseline is excluded —
+  A2 would otherwise be carried in on the best slope in the study while
+  finishing 2.31 floors behind). Overridable: `--configs A0,A1,A4`, and
+  `FINAL` expresses the screen's combined winner config.
+- **Runs**: 3M steps, 16 envs, `--eval-freq 500000` → **6 eval points** per run
+  (halves slope-estimate noise vs the screen's 3), 200-episode deterministic
+  evals, seeds 0/1/2, strictly sequential (one trainer process at a time).
+- **No early stop.** The screen cuts hopeless arms; truncating a confirmation
+  seed would bias its slope and destroy the comparison.
+- **Hardening reused from the screen harness** (imported, not copied): BLAS
+  caps, 8 GB commit-headroom preflight, unconditional `taskkill /T` process-tree
+  reap, one retry for zero-eval crashes, incremental
+  `output/confirm/results.json` with completed runs skipped on relaunch.
+
+### Statistics and the decision rule
+
+Per seed: least-squares floor slope over the 6 eval points, plus final floors.
+Across seeds: mean ± standard error (sd with ddof=1 / √n), and a Welch
+unequal-variance t-test vs A0 (implemented in-repo; there is no scipy in this
+venv — validated against textbook t critical values and a known worked
+example).
+
+Decision, in order:
+
+1. **Level gate** — a config whose mean final floors sits more than the pooled
+   SE *below* baseline is disqualified, whatever its slope.
+2. **Winner** only if `mean_slope(config) − mean_slope(A0) > pooled SE`
+   (`√(SE_c² + SE_b²)`). Otherwise: **not distinguishable**, and the
+   simpler/cheaper config (fewest extra flags; ties → A0) is recommended.
+
+n = 3 gives **low statistical power**. The per-seed values and the mean ± SE
+are the evidence; the p-values are printed as descriptive context and are not
+used as a significance gate. Nothing is promoted on a p-value.
+
+### Exact command (run only after the screen finishes)
+
+```powershell
+# from the repo root, with the screen's results.json complete
+.venv\Scripts\python.exe scripts\confirm_phase.py
+```
+
+Defaults: A0 + top-2 arms × seeds 0,1,2 = 9 runs × 3M steps ≈ **8-9 h**
+(measured: 44 min training + ~12 min of evals per run). Useful variants:
+
+```powershell
+.venv\Scripts\python.exe scripts\confirm_phase.py --dry-run          # print the plan
+.venv\Scripts\python.exe scripts\confirm_phase.py --configs A0,A1,FINAL
+.venv\Scripts\python.exe scripts\confirm_phase.py --analyze-only --write-docs
+```
+
+Detached (the screen itself had to be relaunched this way — agent-parented runs
+die with the agent):
+
+```powershell
+New-Item -ItemType Directory -Force output\confirm | Out-Null
+Start-Process -FilePath .venv\Scripts\python.exe `
+  -ArgumentList 'scripts\confirm_phase.py' -NoNewWindow `
+  -RedirectStandardOutput output\confirm\study.log `
+  -RedirectStandardError output\confirm\study.err
+```
+
+`--analyze-only --write-docs` recomputes the statistics from
+`output/confirm/results.json` and rewrites **only** the marked block below.
+
+<!-- confirm-phase:results:start -->
+
+_No confirmation runs recorded yet — the phase has not been launched._
+
+<!-- confirm-phase:results:end -->
 
 ## Historical reference (prior lineages, for context)
 
