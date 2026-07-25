@@ -27,6 +27,15 @@ with every component in [0, 1]:
 
 ``shaping_scale`` is a constant multiplier knob on F (1.0 during training,
 0.0 for pure-sparse eval). It is never annealed.
+
+Legacy shaping (ablation switch)
+--------------------------------
+``legacy_shaping=True`` restores the attempt-6-era event-based shaping that
+PBRS replaced (floor +0.004, act completion +0.25, combat-win HP retention
++0.05 * hp_end/hp_start; all times ``shaping_scale``). The run env then
+applies those terms INSTEAD of the PBRS term F. Terminal rewards (win +1 /
+death -1 / truncation -1) are identical in both modes. Default is False --
+PBRS -- so existing behavior is unchanged.
 """
 
 from __future__ import annotations
@@ -65,6 +74,12 @@ class RewardConfig:
     shaping_scale : global multiplier in [0, 1] applied to the PBRS term F.
         1.0 = full shaping, 0.0 = pure sparse reward. Constant during
         training (no anneal -- PBRS is invariant and needs none).
+    legacy_shaping : ablation switch (default False). True = the run env
+        applies the attempt-6-era event shaping terms below INSTEAD of the
+        PBRS term. Terminal rewards are identical in both modes.
+    act_completion / floor / combat_hp_retention : legacy event shaping
+        magnitudes (only consumed when ``legacy_shaping`` is True; all
+        multiplied by ``shaping_scale``).
     """
 
     win: float = 1.0
@@ -75,6 +90,10 @@ class RewardConfig:
     w_effective_hp: float = 0.30
     w_enemy_down: float = 0.20
     shaping_scale: float = 1.0
+    legacy_shaping: bool = False
+    act_completion: float = 0.25
+    floor: float = 0.004
+    combat_hp_retention: float = 0.05
 
     # ------------------------------------------------------------------
 
@@ -84,6 +103,23 @@ class RewardConfig:
 
     def terminal_reward(self, won: bool) -> float:
         return self.win if won else self.death
+
+    # ------------------------------------------------------------------
+    # Legacy event shaping (attempt-6 era; only when legacy_shaping=True)
+    # ------------------------------------------------------------------
+
+    def act_completion_reward(self, acts_completed: int = 1) -> float:
+        return self.shaping_scale * self.act_completion * acts_completed
+
+    def floor_reward(self, floors_climbed: int = 1) -> float:
+        return self.shaping_scale * self.floor * floors_climbed
+
+    def combat_win_reward(self, hp_start: int, hp_end: int) -> float:
+        """HP-retention bonus for a combat win."""
+        if hp_start <= 0:
+            return 0.0
+        ratio = max(0.0, min(1.0, hp_end / hp_start))
+        return self.shaping_scale * self.combat_hp_retention * ratio
 
     # ------------------------------------------------------------------
     # Potential Phi and its components

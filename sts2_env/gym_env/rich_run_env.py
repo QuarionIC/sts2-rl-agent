@@ -31,6 +31,9 @@ from gymnasium import spaces
 
 from sts2_env.gym_env.reward_config import RewardConfig
 from sts2_env.gym_env.rich_observation import (
+    ARCH_SCALARS_OFF,
+    ARCH_SCALARS_SIZE,
+    DECK_BAG_OFF,
     RICH_OBS_HIGH,
     RICH_OBS_LOW,
     RICH_OBS_SIZE,
@@ -69,6 +72,12 @@ class RichSTS2RunEnv(STS2RunEnv):
         including the Act 4 Heart.
     reward_config : reward terms; ``shaping_scale`` is a constant knob
         settable via :meth:`set_shaping_scale` (0 for pure-sparse eval).
+        ``reward_config.legacy_shaping=True`` swaps the PBRS term for the
+        attempt-6-era event shaping (floor / act / combat HP retention).
+    include_deck_obs : ablation switch (default True). False zeroes the
+        run-level deck-bag + archetype-scalar obs segment so the policy
+        cannot see the owned deck (layout unchanged; the RUN_DECK
+        aggregates remain).
     max_steps / max_combat_turns / render_mode : as in STS2RunEnv
         (defaults: max_steps=DEFAULT_RUN_MAX_STEPS=3000; max_combat_turns=
         DEFAULT_RICH_MAX_COMBAT_TURNS=30 -- combats exceeding 30 turns are
@@ -84,6 +93,7 @@ class RichSTS2RunEnv(STS2RunEnv):
         max_steps: int = DEFAULT_RUN_MAX_STEPS,
         max_combat_turns: int = DEFAULT_RICH_MAX_COMBAT_TURNS,
         render_mode: str | None = None,
+        include_deck_obs: bool = True,
     ):
         if not 1 <= max_act_count <= 4:
             raise ValueError(f"max_act_count must be in 1..4, got {max_act_count}")
@@ -101,11 +111,14 @@ class RichSTS2RunEnv(STS2RunEnv):
         )
         self.max_act_count = max_act_count
         self.reward_config = reward_config or RewardConfig()
+        self.include_deck_obs = include_deck_obs
         self._encoder = RichObservationEncoder()
         # PBRS bookkeeping: previous potential Phi(s) and the enemy-HP
         # depletion value carried between combats (see RewardConfig).
         self._phi_prev: float = 0.0
         self._enemy_down: float = 0.0
+        # Legacy-shaping bookkeeping: player HP when the current combat began.
+        self._combat_hp_start: int | None = None
 
     # ------------------------------------------------------------------
 
@@ -131,6 +144,7 @@ class RichSTS2RunEnv(STS2RunEnv):
             self.reward_config.enemy_down(combat) if combat is not None else 0.0
         )
         self._phi_prev = self.reward_config.potential(self._mgr, self._enemy_down)
+        self._combat_hp_start = None
         return obs, info
 
     def step(
@@ -142,6 +156,12 @@ class RichSTS2RunEnv(STS2RunEnv):
         cfg = self.reward_config
 
         was_in_combat = mgr.phase == RunManager.PHASE_COMBAT
+        prev_act = rs.current_act_index
+        prev_floor = rs.total_floor
+        if cfg.legacy_shaping and was_in_combat and self._combat_hp_start is None:
+            combat = mgr.get_combat_state()
+            if combat is not None:
+                self._combat_hp_start = combat.primary_player.current_hp
 
         # Parent handles dispatch, terminal detection, and the sparse
         # terminal reward (recomputed below). It calls the overridden
@@ -166,13 +186,34 @@ class RichSTS2RunEnv(STS2RunEnv):
             terminated = True
             won = True
 
-        # --- PBRS shaping: F = gamma_shape * Phi(s') - Phi(s), Phi=0 at terminal ---
-        phi_next = (
-            0.0 if (terminated or truncated)
-            else cfg.potential(mgr, self._enemy_down)
-        )
-        reward += cfg.shaping_reward(self._phi_prev, phi_next)
-        self._phi_prev = phi_next
+        if cfg.legacy_shaping:
+            # --- legacy (attempt-6 era) event shaping instead of PBRS ---
+            floors = rs.total_floor - prev_floor
+            if floors > 0:
+                reward += cfg.floor_reward(floors)
+            acts_done = rs.current_act_index - prev_act
+            if won:
+                acts_done = max(acts_done, 1)  # final act completion on a win
+            if acts_done > 0:
+                reward += cfg.act_completion_reward(acts_done)
+            in_combat = mgr.phase == RunManager.PHASE_COMBAT
+            if was_in_combat and not in_combat:
+                if not rs.player.is_dead and not (terminated and not won):
+                    hp_start = self._combat_hp_start or rs.player.current_hp
+                    reward += cfg.combat_win_reward(hp_start, rs.player.current_hp)
+                self._combat_hp_start = None
+            elif in_combat and self._combat_hp_start is None:
+                combat = mgr.get_combat_state()
+                if combat is not None:
+                    self._combat_hp_start = combat.primary_player.current_hp
+        else:
+            # --- PBRS shaping: F = gamma_shape*Phi(s') - Phi(s), Phi=0 at terminal ---
+            phi_next = (
+                0.0 if (terminated or truncated)
+                else cfg.potential(mgr, self._enemy_down)
+            )
+            reward += cfg.shaping_reward(self._phi_prev, phi_next)
+            self._phi_prev = phi_next
 
         # --- terminal rewards (never annealed) ---
         if terminated:
@@ -197,4 +238,9 @@ class RichSTS2RunEnv(STS2RunEnv):
     def _encode_obs(self) -> np.ndarray:
         if self._mgr is None:
             return np.zeros(RICH_OBS_SIZE, dtype=np.float32)
-        return self._encoder.encode_run(self._mgr)
+        obs = self._encoder.encode_run(self._mgr)
+        if not self.include_deck_obs:
+            # Ablation: hide the owned deck (deck bag + archetype scalars;
+            # the two segments are contiguous by construction).
+            obs[DECK_BAG_OFF:ARCH_SCALARS_OFF + ARCH_SCALARS_SIZE] = 0.0
+        return obs

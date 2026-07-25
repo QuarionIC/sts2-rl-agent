@@ -105,19 +105,41 @@ RUN_MAX_STEPS = 3_000
 # ---------------------------------------------------------------------------
 
 def make_stage_env(stage_name: str, shaping_scale: float = 1.0,
-                   max_steps: int = RUN_MAX_STEPS):
-    """Create one (unwrapped) run env for a stage. Picklable via partial."""
+                   max_steps: int = RUN_MAX_STEPS,
+                   legacy_shaping: bool = False,
+                   include_deck_obs: bool = True,
+                   gamma_shape: float | None = None):
+    """Create one (unwrapped) run env for a stage. Picklable via partial.
+
+    Ablation switches (defaults preserve historical behavior exactly):
+    legacy_shaping = attempt-6-era event shaping instead of PBRS;
+    include_deck_obs=False hides the deck-bag + archetype obs segment;
+    gamma_shape overrides the PBRS discount (must match training gamma).
+    """
     from sts2_env.gym_env.reward_config import RewardConfig
     from sts2_env.gym_env.rich_run_env import RichSTS2RunEnv
 
     stage = STAGES[stage_name]
-    cfg = RewardConfig(shaping_scale=shaping_scale)
+    cfg = RewardConfig(shaping_scale=shaping_scale, legacy_shaping=legacy_shaping)
+    if gamma_shape is not None:
+        cfg.gamma_shape = gamma_shape
     return RichSTS2RunEnv(
         character_id="Necrobinder",
         ascension_level=stage.ascension_level,
         max_act_count=stage.max_act_count,
         reward_config=cfg,
         max_steps=max_steps,
+        include_deck_obs=include_deck_obs,
+    )
+
+
+def env_kwargs_from_args(args) -> dict:
+    """Ablation env switches shared by training AND eval envs (the obs
+    layout/semantics must match between the two or eval is meaningless)."""
+    return dict(
+        legacy_shaping=bool(getattr(args, "legacy_shaping", False)),
+        include_deck_obs=not getattr(args, "no_deck_obs", False),
+        gamma_shape=getattr(args, "gamma", None),
     )
 
 
@@ -126,14 +148,16 @@ def make_stage_env(stage_name: str, shaping_scale: float = 1.0,
 # ---------------------------------------------------------------------------
 
 def run_eval(model, stage_name: str, n_episodes: int = EVAL_EPISODES,
-             seed_block: int = EVAL_SEED_BLOCK, max_episode_steps: int = RUN_MAX_STEPS) -> dict:
+             seed_block: int = EVAL_SEED_BLOCK, max_episode_steps: int = RUN_MAX_STEPS,
+             env_kwargs: dict | None = None) -> dict:
     """Evaluate on a dedicated env with shaping_scale=0 (pure sparse reward).
 
     The run env's info dict carries ``floor``/``act`` every step, so
     mean_floors and deaths_by_act are real telemetry (the old combat-env
-    eval was blind to both).
+    eval was blind to both). ``env_kwargs`` carries the ablation switches so
+    the eval env's OBSERVATION matches training (shaping is 0 either way).
     """
-    env = make_stage_env(stage_name, shaping_scale=0.0)
+    env = make_stage_env(stage_name, shaping_scale=0.0, **(env_kwargs or {}))
     wins = 0
     truncations = 0
     floors: list[int] = []
@@ -196,6 +220,7 @@ def build_callback_class():
             checkpoint_freq: int = CHECKPOINT_FREQ,
             eval_episodes: int = EVAL_EPISODES,
             verbose: int = 1,
+            env_kwargs: dict | None = None,
         ):
             super().__init__(verbose)
             self.stage_name = stage_name
@@ -205,6 +230,7 @@ def build_callback_class():
             self.eval_freq = eval_freq
             self.checkpoint_freq = checkpoint_freq
             self.eval_episodes = eval_episodes
+            self.env_kwargs = env_kwargs or {}
             self._last_eval = state.get("last_eval_step", 0)
             self._last_ckpt = state.get("last_ckpt_step", 0)
 
@@ -223,7 +249,8 @@ def build_callback_class():
                 print(f"\n[eval] stage {self.stage_name} @ {t:,} steps "
                       f"({self.eval_episodes} episodes, shaping=0) ...")
             start = time.perf_counter()
-            metrics = run_eval(self.model, self.stage_name, self.eval_episodes)
+            metrics = run_eval(self.model, self.stage_name, self.eval_episodes,
+                               env_kwargs=self.env_kwargs)
             metrics.update({"steps": t, "wall_s": round(time.perf_counter() - start, 1)})
             win_rate = metrics["win_rate"]
 
@@ -325,13 +352,16 @@ def build_model(train_env, tensorboard_dir: str | None, args=None):
         n_steps=1024,
         batch_size=4096,
         n_epochs=3,
-        gamma=0.997,
+        gamma=0.997 if getattr(args, "gamma", None) is None else args.gamma,
         gae_lambda=0.95,
         clip_range=0.2,
-        ent_coef=ENT_COEF,             # constant floor; no anneal
+        # constant floor; no anneal
+        ent_coef=ENT_COEF if getattr(args, "ent_coef", None) is None else args.ent_coef,
         vf_coef=0.5,
         target_kl=_RUNTIME_KL[0],
-        policy_kwargs=rich_policy_kwargs(),
+        policy_kwargs=rich_policy_kwargs(
+            hand_encoding=getattr(args, "hand_encoding", None) or "perslot",
+        ),
         device="cuda",
         verbose=1,
         tensorboard_log=tensorboard_dir,
@@ -382,12 +412,15 @@ def find_latest_checkpoint(stage_dir: Path) -> tuple[Path, dict] | None:
     return latest.with_suffix(""), sidecar
 
 
-def make_vec_env(stage_name: str, n_envs: int):
+def make_vec_env(stage_name: str, n_envs: int, env_kwargs: dict | None = None):
     from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
     from slim_vecenv import SlimSubprocVecEnv as SubprocVecEnv
 
-    factories = [partial(make_stage_env, stage_name) for _ in range(n_envs)]
+    factories = [
+        partial(make_stage_env, stage_name, **(env_kwargs or {}))
+        for _ in range(n_envs)
+    ]
     vec = SubprocVecEnv(factories) if n_envs > 1 else DummyVecEnv(factories)
     return VecMonitor(vec)
 
@@ -420,7 +453,8 @@ def train_stage(
         else:
             print(f"[resume] no checkpoint in {stage_dir}; starting fresh")
 
-    train_env = make_vec_env(stage_name, args.n_envs)
+    env_kwargs = env_kwargs_from_args(args)
+    train_env = make_vec_env(stage_name, args.n_envs, env_kwargs)
 
     if resume_from is not None:
         if getattr(args, "sil", False):
@@ -478,6 +512,7 @@ def train_stage(
         eval_freq=args.eval_freq,
         checkpoint_freq=args.checkpoint_freq,
         eval_episodes=args.eval_episodes,
+        env_kwargs=env_kwargs,
     )
 
     print(f"\n=== Stage {stage_name}: {STAGES[stage_name]} "
@@ -521,6 +556,26 @@ def main():
                         help="Constant learning rate (default 2e-4; use ~5e-5 to fine-tune a BC init without eroding it).")
     parser.add_argument("--target-kl", type=float, default=TARGET_KL,
                         help="PPO target KL (default 0.03; lower = more conservative updates).")
+    parser.add_argument("--ent-coef", type=float, default=ENT_COEF,
+                        help="Constant entropy coefficient (default 0.01).")
+    parser.add_argument("--gamma", type=float, default=None,
+                        help="Discount factor (default 0.997). Also sets the "
+                             "PBRS gamma_shape so shaping stays policy-invariant.")
+    parser.add_argument("--legacy-shaping", action="store_true",
+                        help="Ablation: attempt-6-era event shaping (floor "
+                             "+0.004, act +0.25, combat HP retention +0.05) "
+                             "INSTEAD of the PBRS term. Terminal rewards and "
+                             "truncation=-1 are unchanged.")
+    parser.add_argument("--no-deck-obs", action="store_true",
+                        help="Ablation: zero the run-level deck-bag + "
+                             "archetype obs segment (deck invisible; layout "
+                             "unchanged).")
+    parser.add_argument("--hand-encoding", choices=["perslot", "meanpool"],
+                        default="perslot",
+                        help="Ablation: hand feature encoding. 'perslot' "
+                             "(default) = slot-aligned concat + pooled "
+                             "context; 'meanpool' = permutation-invariant "
+                             "pool only (pre-per-slot architecture).")
     parser.add_argument("--init-model", type=str, default=None,
                         help="MaskablePPO zip (e.g. output/bc_init/bc_init.zip) whose "
                              "policy tensors are loaded into the FRESH model before "

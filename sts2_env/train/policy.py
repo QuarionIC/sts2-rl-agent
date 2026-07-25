@@ -59,7 +59,16 @@ from sts2_env.gym_env.rich_observation import (
 
 
 class RichFeaturesExtractor(BaseFeaturesExtractor):
-    """Slices the rich flat obs, embeds the ID dims, passes the rest through."""
+    """Slices the rich flat obs, embeds the ID dims, passes the rest through.
+
+    ``hand_encoding`` (ablation switch):
+
+    * ``"perslot"`` (default) -- per-slot CONCAT in fixed slot order plus a
+      mean-pool global context (slot-aligned with the combat action indices).
+    * ``"meanpool"`` -- the pre-per-slot encoding: ONLY the permutation-
+      invariant mean-pool over hand slots (the action head cannot tell which
+      card sits in which slot).
+    """
 
     def __init__(
         self,
@@ -67,19 +76,26 @@ class RichFeaturesExtractor(BaseFeaturesExtractor):
         card_embed_dim: int = 96,
         small_embed_dim: int = 16,
         hand_hidden: int = 96,
+        hand_encoding: str = "perslot",
     ):
         obs_size = int(observation_space.shape[0])
         assert obs_size == RICH_OBS_SIZE, (
             f"RichFeaturesExtractor expects obs size {RICH_OBS_SIZE}, got {obs_size}"
         )
+        if hand_encoding not in ("perslot", "meanpool"):
+            raise ValueError(f"hand_encoding must be 'perslot' or 'meanpool', got {hand_encoding!r}")
         # Flat passthrough: everything from PILE_SIZES_OFF up to the deck bag
         # (pile sizes, player, powers, necro, enemies, relics, flags, run
         # scalars). The deck bag itself is embedded, not passed raw; the
         # archetype scalars after it are appended explicitly.
         flat_size = DECK_BAG_OFF - PILE_SIZES_OFF
+        hand_dim = (
+            NUM_HAND_SLOTS * hand_hidden + hand_hidden  # per-slot concat + pool
+            if hand_encoding == "perslot"
+            else hand_hidden                            # mean-pool only
+        )
         features_dim = (
-            NUM_HAND_SLOTS * hand_hidden   # per-slot hand concat (slot-aligned)
-            + hand_hidden                  # mean-pooled global hand context
+            hand_dim                       # hand encoding (see hand_encoding)
             + NUM_PILES * card_embed_dim   # combat pile bag projections
             + card_embed_dim               # run-level deck bag projection
             + small_embed_dim              # pooled potion embeddings
@@ -89,6 +105,7 @@ class RichFeaturesExtractor(BaseFeaturesExtractor):
         )
         super().__init__(observation_space, features_dim)
 
+        self.hand_encoding = hand_encoding
         self.card_embed_dim = card_embed_dim
         self.card_embedding = nn.Embedding(NUM_CARD_IDS + 1, card_embed_dim, padding_idx=0)
         self.potion_embedding = nn.Embedding(POTION_VOCAB_SIZE, small_embed_dim, padding_idx=0)
@@ -108,10 +125,14 @@ class RichFeaturesExtractor(BaseFeaturesExtractor):
         hand_scalars = obs[:, HAND_SCALARS_OFF:HAND_SCALARS_OFF + HAND_SCALARS_SIZE]
         hand_scalars = hand_scalars.view(batch, NUM_HAND_SLOTS, HAND_FEATURES)
         hand_x = self.hand_mlp(torch.cat([hand_emb, hand_scalars], dim=-1))  # (B, 10, H)
-        # Per-slot CONCAT in fixed slot order (aligned with combat action
-        # indices) + a mean-pool as permutation-invariant global context.
-        hand_slots = hand_x.reshape(batch, NUM_HAND_SLOTS * hand_x.shape[-1])  # (B, 10*H)
         hand_pooled = hand_x.mean(dim=1)  # (B, H)
+        if self.hand_encoding == "perslot":
+            # Per-slot CONCAT in fixed slot order (aligned with combat action
+            # indices) + the mean-pool as permutation-invariant global context.
+            hand_slots = hand_x.reshape(batch, NUM_HAND_SLOTS * hand_x.shape[-1])
+            hand_feats = [hand_slots, hand_pooled]
+        else:  # meanpool: permutation-invariant pool only (pre-per-slot arch)
+            hand_feats = [hand_pooled]
 
         # --- combat pile bags projected through the SAME card embedding ---
         bags = obs[:, PILE_BAGS_OFF:PILE_BAGS_OFF + PILE_BAGS_SIZE]
@@ -135,8 +156,8 @@ class RichFeaturesExtractor(BaseFeaturesExtractor):
         arch = obs[:, ARCH_SCALARS_OFF:ARCH_SCALARS_OFF + ARCH_SCALARS_SIZE]
 
         return torch.cat(
-            [hand_slots, hand_pooled, bag_feats, deck_feats,
-             potion_pooled, boss_emb, flat, arch],
+            hand_feats + [bag_feats, deck_feats,
+                          potion_pooled, boss_emb, flat, arch],
             dim=1,
         )
 
@@ -146,6 +167,7 @@ def rich_policy_kwargs(
     small_embed_dim: int = 16,
     hand_hidden: int = 96,
     torso: tuple[int, ...] = (1024, 1024, 512),
+    hand_encoding: str = "perslot",
 ) -> dict:
     """policy_kwargs for MaskablePPO("MlpPolicy", ...) with the rich extractor."""
     return dict(
@@ -154,6 +176,7 @@ def rich_policy_kwargs(
             card_embed_dim=card_embed_dim,
             small_embed_dim=small_embed_dim,
             hand_hidden=hand_hidden,
+            hand_encoding=hand_encoding,
         ),
         net_arch=dict(pi=list(torso), vf=list(torso)),
     )
