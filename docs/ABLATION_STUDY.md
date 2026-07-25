@@ -25,8 +25,24 @@ One factor changes per arm relative to A0:
 | A6 | gamma 0.99 |
 | A7 | lr 4e-4 with target_kl 0.05 |
 
-Selection metric, in priority order: floor **slope** per million steps, then
-final mean floors, then act-2 reaches — each required to clear the noise band.
+Selection rule, in order: a **level gate** (an arm finishing more than the
+noise band below baseline is disqualified outright), then floor **slope** per
+million steps, then final mean floors, then act-2 reaches — each required to
+clear the noise band.
+
+### Why the level gate exists (a rule bug caught mid-study)
+
+The original rule tested slope *first*. Arm A2 (mean-pool) scored the best
+slope in the entire screen, **+0.55/M**, while finishing **2.31 floors behind
+the baseline** — it started around 3.4 floors and was merely climbing out of a
+hole. On the unpatched rule it would have been adopted into the final config on
+that slope alone. A high slope from a much worse starting point is not evidence
+of a better configuration, so level is now a gate that precedes slope.
+
+The noise band was also recalibrated from 0.3 to **1.0 mean floors**, because
+0.3 was smaller than the measured run-to-run variance (below) and would have
+promoted seed noise. Consequence, stated plainly: this one-seed screen can only
+detect *large* effects.
 
 ## METHODOLOGY CAVEAT (read before trusting any single arm)
 
@@ -67,7 +83,7 @@ under ~0.35/M as noise per the caveat above.
 |-----|--------|----|----|----|---------|---------------|
 | A0 | completed | 6.68 | 6.63 | 6.79 | +0.05 | 0 |
 | A1 | completed | 6.46 | 7.46 | 6.99 | +0.26 | 2 |
-| A2 | pending | | | | | |
+| A2 | completed | ~3.37 | | 4.47 | +0.55 | 0 |
 | A3 | pending | | | | | |
 | A4 | pending | | | | | |
 | A5 | pending | | | | | |

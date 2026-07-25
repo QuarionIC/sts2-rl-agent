@@ -75,7 +75,16 @@ ARM_STEPS = 3_000_000
 EVAL_FREQ = 1_000_000
 EVAL_EPISODES = 200
 N_ENVS = 16
-NOISE_FLOORS = 0.3          # baseline arm-to-arm noise (~mean_floors units)
+# Single-seed noise band in mean_floors units. MEASURED, not assumed: the same
+# baseline config produced 5.445 and 6.68 mean floors at its 1M eval across two
+# runs (~1.2 floors of run-to-run variance from seed/init alone), which dwarfs
+# the ~0.28-floor standard error of a 200-episode eval. The original 0.3 band
+# would have promoted pure seed noise. 1.0 is the smallest defensible band for
+# a ONE-SEED screen; effects this coarse screen can legitimately detect are
+# large ones (e.g. mean-pool finishing 2.3 floors behind). Anything inside the
+# band must go to the 3-seed confirmation phase (scripts/confirm_phase.py)
+# before it is believed.
+NOISE_FLOORS = 1.0
 ACT2_NOISE = 10             # episodes out of 200
 # 1M-eval floor below which an arm is hopeless. Deliberately LOW: the study's
 # selection criterion is the floor SLOPE, and a from-scratch arm can sit at
@@ -376,6 +385,17 @@ def select_winners(results: dict) -> tuple[list[str], list[str], list[str]]:
         d_slope_floors = (rec["floor_slope_per_m"] - b_slope) * span_m
         d_final = rec["final_floors"] - b_final
         d_act2 = rec["final_act2"] - b_act2
+        # LEVEL GATE (must precede the slope test). A high slope means nothing
+        # if the arm is simply climbing out of a hole: A2 (mean-pool) scored
+        # slope +0.55/M -- the best in the screen -- while finishing 2.3 floors
+        # BEHIND the baseline, because it started ~3.3 floors lower. Without
+        # this gate the old rule adopted it on slope alone.
+        if d_final < -NOISE_FLOORS:
+            verdicts.append(
+                f"{arm}: DISQUALIFIED on level (final {d_final:+.2f} floors vs "
+                f"baseline, worse than -{NOISE_FLOORS}) despite slope "
+                f"{d_slope_floors:+.2f} -- keep baseline")
+            continue
         if d_slope_floors > NOISE_FLOORS:
             winners.append(arm)
             verdicts.append(
