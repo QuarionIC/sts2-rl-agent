@@ -56,6 +56,7 @@ for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_var, "1")
 
 import argparse
+import ctypes
 import json
 import shutil
 import subprocess
@@ -192,8 +193,52 @@ def kill_tree(pid: int) -> None:
     )
 
 
+class _MEMORYSTATUSEX(ctypes.Structure):
+    _fields_ = [
+        ("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+        ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+        ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+        ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+        ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+    ]
+
+
+def commit_available_mb() -> int:
+    """Available Windows commit (pagefile-backed) in MB. The first study
+    launch died to commit exhaustion: a 16GB orphaned multiprocessing worker
+    from an unrelated session starved the trainer until numpy's 299MiB
+    rollout flatten (16,1024,4778) failed, and every later arm OOM'd on
+    startup within seconds."""
+    st = _MEMORYSTATUSEX()
+    st.dwLength = ctypes.sizeof(_MEMORYSTATUSEX)
+    ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st))
+    return int(st.ullAvailPageFile // (1024 * 1024))
+
+
+#: Commit headroom an arm needs to start safely (trainer + 16 workers + CUDA
+#: host allocations peak well under this; attempts 1-10 ran 24 envs).
+PREFLIGHT_COMMIT_MB = 8_000
+PREFLIGHT_WAIT_S = 300
+
+
+def preflight_commit(arm: str) -> int:
+    """Wait (bounded) for commit headroom before launching an arm, so a
+    still-dying previous arm's workers cannot cascade an OOM into this one."""
+    deadline = time.time() + PREFLIGHT_WAIT_S
+    avail = commit_available_mb()
+    while avail < PREFLIGHT_COMMIT_MB and time.time() < deadline:
+        print(f"[{arm}] preflight: only {avail} MB commit available; "
+              f"waiting for {PREFLIGHT_COMMIT_MB} MB ...", flush=True)
+        time.sleep(15)
+        avail = commit_available_mb()
+    if avail < PREFLIGHT_COMMIT_MB:
+        print(f"[{arm}] preflight: proceeding anyway with {avail} MB "
+              f"(watch for OOM)", flush=True)
+    return avail
+
+
 def run_arm(arm: str, flags: list[str], results: dict,
-            fresh: bool = True) -> dict:
+            fresh: bool = True, retries: int = 1) -> dict:
     arm_dir = STUDY_DIR / arm
     if fresh and arm_dir.exists():
         shutil.rmtree(arm_dir)  # stale partial output would corrupt parsing
@@ -204,6 +249,7 @@ def run_arm(arm: str, flags: list[str], results: dict,
            "--output-dir", str(arm_dir), *flags]
     print(f"\n[{arm}] {ARMS.get(arm, ('FINAL combined config',))[0]}")
     print(f"[{arm}] launching: {' '.join(cmd)}", flush=True)
+    commit_at_start = preflight_commit(arm)
 
     start = time.time()
     status = "completed"
@@ -247,11 +293,23 @@ def run_arm(arm: str, flags: list[str], results: dict,
         except BaseException:
             kill_tree(proc.pid)  # never leave a half-dead arm running
             raise
+        finally:
+            # ALWAYS reap the tree: a crashed trainer can strand its 16 env
+            # workers, whose resident commit then OOMs every later arm (the
+            # exact first-launch cascade). No-op if they exited cleanly.
+            kill_tree(proc.pid)
     if status == "completed" and proc.returncode != 0:
         status = f"crashed (rc={proc.returncode})"
 
     wall = time.time() - start
     record = summarize(arm, flags, read_evals(arm_dir), status, wall)
+    record["commit_available_mb_at_start"] = commit_at_start
+    if status.startswith("crashed") and not record["evals"] and retries > 0:
+        # Zero-eval crash smells transient (commit/CUDA OOM at startup);
+        # one clean retry after the reap.
+        print(f"[{arm}] zero-eval crash; retrying "
+              f"({retries} left)", flush=True)
+        return run_arm(arm, flags, results, fresh=True, retries=retries - 1)
     results["arms"][arm] = record
     save_results(results)
     print(f"[{arm}] {status} in {wall/60:.1f} min; "
