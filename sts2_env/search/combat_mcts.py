@@ -58,6 +58,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import math
+import types
 from dataclasses import dataclass
 from typing import Any, Callable, Protocol
 
@@ -124,6 +125,127 @@ class MCTSConfig:
     #: (HP-sensitive) instead of the constant ``win_value``.
     win_value_from_net: bool = True
     seed: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Cloning: deepcopy + closure rebinding
+# ---------------------------------------------------------------------------
+#
+# ``copy.deepcopy`` treats FUNCTION objects as atomic, but the simulator
+# builds monster AIs as factory closures over their creature
+# (monsters/*.py: ``def chomp(combat): _deal_damage_to_player(combat,
+# creature, ...)``) and pending choices can capture the live combat the
+# same way. A plain deepcopy therefore yields clones whose AI moves still
+# act on the ORIGINAL creatures -- simulations visibly corrupted the live
+# env (enemy block climbing 0 -> 196 across searches) before this fix.
+# ``clone_combat`` repairs that: it walks the cloned graph and rebuilds
+# every function whose closure cells reference an original object that the
+# deepcopy memo mapped to a clone. Sim internals stay untouched.
+
+#: Types the closure-rebinding walk never descends into.
+_WALK_ATOMIC = (
+    type(None), bool, int, float, complex, str, bytes, bytearray,
+    type, types.ModuleType, types.BuiltinFunctionType,
+)
+
+
+def _rebind_function(fn: types.FunctionType, memo: dict) -> types.FunctionType:
+    """A copy of ``fn`` whose closure cells point at the deepcopy'd
+    counterparts of their contents (unchanged cells are shared)."""
+    changed = False
+    new_cells = []
+    for cell in fn.__closure__ or ():
+        try:
+            contents = cell.cell_contents
+        except ValueError:  # empty cell
+            new_cells.append(cell)
+            continue
+        replacement = memo.get(id(contents), contents)
+        if replacement is not contents:
+            changed = True
+            new_cells.append(types.CellType(replacement))
+        else:
+            new_cells.append(cell)
+    if not changed:
+        return fn
+    rebound = types.FunctionType(
+        fn.__code__, fn.__globals__, fn.__name__, fn.__defaults__, tuple(new_cells)
+    )
+    rebound.__kwdefaults__ = fn.__kwdefaults__
+    rebound.__dict__.update(fn.__dict__)
+    return rebound
+
+
+def _fix_leaked_closures(root: Any, memo: dict) -> None:
+    """Walk ``root`` (a fresh clone) and rebind every reachable closure
+    function whose cells leak originals. In-place for object attributes,
+    dict values, and list items; tuples/frozensets are rebuilt bottom-up."""
+    seen: dict[int, Any] = {}
+
+    def fix(obj: Any) -> Any:
+        if isinstance(obj, _WALK_ATOMIC):
+            return obj
+        oid = id(obj)
+        if oid in seen:
+            return seen[oid]
+        if isinstance(obj, types.FunctionType):
+            fixed = _rebind_function(obj, memo)
+            seen[oid] = fixed
+            return fixed
+        seen[oid] = obj  # pre-register for cycles; tuples overwrite below
+        if isinstance(obj, dict):
+            for k, v in list(obj.items()):
+                nv = fix(v)
+                if nv is not v:
+                    obj[k] = nv
+        elif isinstance(obj, list):
+            for i, v in enumerate(obj):
+                nv = fix(v)
+                if nv is not v:
+                    obj[i] = nv
+        elif isinstance(obj, tuple):
+            items = [fix(v) for v in obj]
+            if any(n is not o for n, o in zip(items, obj)):
+                rebuilt = tuple(items)
+                seen[oid] = rebuilt
+                return rebuilt
+        elif isinstance(obj, (set, frozenset)):
+            items = [fix(v) for v in obj]
+            if any(n is not o for n, o in zip(items, obj)):
+                rebuilt = type(obj)(items)
+                seen[oid] = rebuilt
+                return rebuilt
+        else:
+            d = getattr(obj, "__dict__", None)
+            if d is not None:
+                for k, v in list(d.items()):
+                    nv = fix(v)
+                    if nv is not v:
+                        setattr(obj, k, nv)
+            for klass in type(obj).__mro__:
+                for slot in getattr(klass, "__slots__", ()):
+                    if slot in ("__dict__", "__weakref__"):
+                        continue
+                    try:
+                        v = getattr(obj, slot)
+                    except AttributeError:
+                        continue
+                    nv = fix(v)
+                    if nv is not v:
+                        setattr(obj, slot, nv)
+        return obj
+
+    fix(root)
+
+
+def clone_combat(combat: CombatState) -> CombatState:
+    """Deepcopy a CombatState AND rebind leaked closure cells so the clone
+    is fully self-contained (safe to simulate on). Use this -- never a bare
+    ``copy.deepcopy`` -- for search clones."""
+    memo: dict = {}
+    clone = copy.deepcopy(combat, memo)
+    _fix_leaked_closures(clone, memo)
+    return clone
 
 
 # ---------------------------------------------------------------------------
@@ -485,7 +607,7 @@ class CombatMCTS:
         for sim in range(cfg.n_simulations):
             det = sim % max(cfg.n_determinizations, 1)
             det_seed = (base_seed + 0x9E3779B1 * (det + 1)) & _SEED_MASK
-            state = copy.deepcopy(root_combat)
+            state = clone_combat(root_combat)
             determinize(state, det_seed)
 
             node = root

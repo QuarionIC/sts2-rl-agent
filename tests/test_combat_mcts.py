@@ -24,6 +24,7 @@ from sts2_env.search.combat_mcts import (
     MCTSConfig,
     UniformEvaluator,
     apply_combat_action,
+    clone_combat,
     determinize,
     make_bare_obs_builder,
     mcts_action_distribution,
@@ -107,6 +108,80 @@ class TestDeepcopySafety:
         assert clone.is_over and clone.player_won
         assert combat.enemies[0].current_hp == 1
         assert not combat.is_over
+
+
+# ---------------------------------------------------------------------------
+# closure rebinding (the live-state corruption regression)
+# ---------------------------------------------------------------------------
+
+def _make_closure_captured_combat():
+    """Combat whose enemy AI move is a CLOSURE over its creature -- the
+    factory pattern every monsters/*.py create_* function uses."""
+    from sts2_env.core.creature import Creature
+    from sts2_env.core.enums import CombatSide
+    from sts2_env.monsters.state_machine import MonsterAI, MoveState
+
+    deck = [create_card(CardId.STRIKE_NECROBINDER) for _ in range(5)]
+    deck += [create_card(CardId.DEFEND_NECROBINDER) for _ in range(5)]
+    combat = CombatState(
+        player_hp=60, player_max_hp=60, deck=deck,
+        rng_seed=7, character_id="Necrobinder",
+    )
+    creature = Creature(
+        max_hp=50, current_hp=50, side=CombatSide.ENEMY, monster_id="CLOSURE_TEST"
+    )
+
+    def buff(_combat: CombatState) -> None:
+        # Mutates the CAPTURED creature (not the one in the passed combat):
+        # exactly how real monster moves reference their owner. max_hp is
+        # used because nothing in turn bookkeeping resets it.
+        creature.max_hp += 5
+
+    move = MoveState("BUFF", buff, [], follow_up_id="BUFF")
+    ai = MonsterAI({"BUFF": move}, "BUFF")
+    combat.add_enemy(creature, ai)
+    combat.start_combat()
+    return combat, creature
+
+
+class TestCloneCombatClosureRebinding:
+    def test_plain_deepcopy_leaks_ai_closures(self):
+        """Documents the simulator trap clone_combat exists for: deepcopy
+        copies function objects atomically, so a cloned AI's move still
+        mutates the ORIGINAL creature. If this ever starts failing, the sim
+        gained real deepcopy support and the closure walk can go."""
+        combat, creature = _make_closure_captured_combat()
+        clone = copy.deepcopy(combat)
+        clone.end_player_turn()  # clone enemy performs BUFF
+        assert creature.max_hp == 55          # original corrupted (the bug)
+        assert clone.enemies[0].max_hp == 50  # clone missed its own buff
+
+    def test_clone_combat_rebinds_ai_closures(self):
+        combat, creature = _make_closure_captured_combat()
+        clone = clone_combat(combat)
+        clone.end_player_turn()
+        assert creature.max_hp == 50          # original untouched
+        assert clone.enemies[0].max_hp == 55  # buff landed on the clone
+
+    def test_search_leaves_live_enemy_untouched(self):
+        """End-to-end: a full search over the closure-captured combat must
+        not move ANY observable state of the live combat (the corruption
+        that sank the first GO/NO-GO eval showed up as enemy block/buffs
+        climbing across searches)."""
+        combat, creature = _make_closure_captured_combat()
+        before = (
+            creature.max_hp, creature.current_hp, creature.block,
+            combat.player.current_hp, combat.rng.counter,
+            [c.instance_id for c in combat.hand],
+        )
+        mcts = CombatMCTS(UniformEvaluator(), make_bare_obs_builder(), _cfg())
+        mcts.run(combat)
+        after = (
+            creature.max_hp, creature.current_hp, creature.block,
+            combat.player.current_hp, combat.rng.counter,
+            [c.instance_id for c in combat.hand],
+        )
+        assert before == after
 
 
 # ---------------------------------------------------------------------------
