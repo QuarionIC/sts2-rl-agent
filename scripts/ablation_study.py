@@ -35,8 +35,10 @@ Usage
 Results persist incrementally to output/ablation/results.json (one record per
 arm: flags, evals, least-squares floor slope, final floors, act-2 reaches,
 wall time, status). Completed arms are skipped on relaunch; a crashed arm is
-recorded and the study continues. Early stop: if the 1M eval shows
-mean_floors < 6.0 the arm is catastrophic and is killed to save wall time.
+recorded and the study continues. Early stop: only if the 1M eval shows
+mean_floors < 3.0 (a policy that cannot clear the opening rooms). The bar is
+low on purpose -- selection is by SLOPE, so a slow-starting arm must be
+allowed to show its trajectory.
 
 Selection rule (applied by --through-final / --select-only): an arm's factor
 is adopted only if it beats A0 by more than the noise floor (0.3 mean
@@ -75,7 +77,13 @@ EVAL_EPISODES = 200
 N_ENVS = 16
 NOISE_FLOORS = 0.3          # baseline arm-to-arm noise (~mean_floors units)
 ACT2_NOISE = 10             # episodes out of 200
-EARLY_STOP_FLOORS = 6.0     # 1M-eval floor below which an arm is hopeless
+# 1M-eval floor below which an arm is hopeless. Deliberately LOW: the study's
+# selection criterion is the floor SLOPE, and a from-scratch arm can sit at
+# 4.5-6 floors at 1M and still have the best slope (the first calibration used
+# 6.0 and early-stopped the BASELINE arm A0 at 5.45 and the mean-pool arm A2 at
+# 4.67, destroying the comparison the study exists to make). Only truly broken
+# arms -- a policy that cannot clear the first few rooms -- are cut here.
+EARLY_STOP_FLOORS = 3.0
 ARM_TIMEOUT_S = 4 * 3600    # hard per-arm wall clock cap
 POLL_S = 30
 

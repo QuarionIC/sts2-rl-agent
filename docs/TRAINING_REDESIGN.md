@@ -1,7 +1,13 @@
-# Training Redesign — Necrobinder Ascension 10, 95%+ Full-Run Win Rate
+# Training Redesign — Necrobinder Ascension 10 Full-Run Win Rate
+
+> **SUPERSEDED.** Historical record of the first redesign (stages A-F). The
+> adopted plan is `docs/TRAINING_REVAMP_SPEC.json` (full-run-only G-ladder);
+> component selection is `docs/ABLATION_STUDY.md`. **Target revised
+> 2026-07-25: 50%+ A10 Necrobinder win rate** (was 95%, which exceeds top
+> human win rates).
 
 Goal: an agent that beats Ascension 10 as Necrobinder on the user's actual game
-version (v0.109.0 beta + Acts from the Past + Act 4 Heart mods) in 95%+ of runs,
+version (v0.109.0 beta + Acts from the Past + Act 4 Heart mods) in 50%+ of runs (revised target; originally 95%),
 with fully local inference.
 
 ## Why the previous attempt got 0%
@@ -77,7 +83,7 @@ Potential-based shaping, annealed toward sparse as win rate rises:
 | C | Full run, Act 1 only, A10 | >80% run win |
 | D | Full run, Acts 1-2 | >70% run win |
 | E | Full run, Acts 1-3 | >60% run win |
-| F | Full run, Acts 1-4 (Heart), shaping annealed | target: 95% |
+| F | Full run, Acts 1-4 (Heart), shaping annealed | target: 50% |
 
 Stages C+ initialize the combat slice of the policy from the stage-B weights
 (same action-space prefix by construction).
