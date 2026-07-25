@@ -61,6 +61,14 @@ DEFAULT_SEED_BLOCK = 10_000_000
 DEFAULT_DIRICHLET_EPS = 0.25
 MAX_EPISODE_STEPS = 3_000
 
+#: Terminal value MCTS assigns to player death. The value net is trained on
+#: PBRS-shaped returns (gamma 0.997, terminal -1 PLUS the terminal potential
+#: drop), so its "alive but losing" predictions sit around -1.1..-1.35 --
+#: BELOW the naive -1.0 death terminal, which would make search PREFER dying
+#: over continuing. -1.5 sits below the observed alive band on the same
+#: scale (death's true shaped return is roughly -1 - Phi(s) <= -1).
+DEFAULT_LOSS_VALUE = -1.5
+
 
 # ---------------------------------------------------------------------------
 # Shared worker plumbing
@@ -128,6 +136,7 @@ def _collect_worker(args: dict) -> dict:
         n_simulations=args["sims"],
         n_determinizations=args["determinizations"],
         dirichlet_eps=args["dirichlet_eps"],
+        loss_value=args["loss_value"],
         seed=worker_id,
     )
 
@@ -207,6 +216,7 @@ def run_collect(args) -> list[str]:
             sims=args.sims,
             determinizations=args.determinizations,
             dirichlet_eps=args.dirichlet_eps,
+            loss_value=args.loss_value,
             quota=quota,
             seed_base=args.seed_base + 5_000_000,  # disjoint from eval seeds
             max_minutes=args.max_minutes,
@@ -347,6 +357,7 @@ def _eval_worker(args: dict) -> list[dict]:
         n_simulations=args["sims"],
         n_determinizations=args["determinizations"],
         dirichlet_eps=0.0,
+        loss_value=args["loss_value"],
     )
     records = []
     for seed in args["seeds"]:
@@ -393,6 +404,7 @@ def run_eval(args) -> None:
             max_act_count=args.max_act_count,
             sims=args.sims,
             determinizations=args.determinizations,
+            loss_value=args.loss_value,
             seeds=chunk,
         )
         for i, chunk in enumerate(chunks) if chunk
@@ -453,6 +465,11 @@ def main() -> None:
     p.add_argument("--max-act-count", type=int, default=2)
     p.add_argument("--sims", type=int, default=DEFAULT_SIMS)
     p.add_argument("--determinizations", type=int, default=DEFAULT_DETERMINIZATIONS)
+    p.add_argument("--loss-value", type=float, default=DEFAULT_LOSS_VALUE,
+                   help="MCTS terminal value for player death (default -1.5: "
+                        "must sit BELOW the value net's alive-state range, "
+                        "which is ~-1.1..-1.35 on the PBRS-trained scale; "
+                        "-1.0 would make search prefer dying)")
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--seed-base", type=int, default=DEFAULT_SEED_BLOCK)
     # collect

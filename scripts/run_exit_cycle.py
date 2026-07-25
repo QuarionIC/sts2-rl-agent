@@ -158,6 +158,8 @@ def main() -> None:
     p.add_argument("--decisions", type=int, default=20_000)
     p.add_argument("--sims", type=int, default=96)
     p.add_argument("--determinizations", type=int, default=12)
+    p.add_argument("--loss-value", type=float, default=-1.5,
+                   help="MCTS death terminal (see exit_distill.py --loss-value)")
     p.add_argument("--dirichlet-eps", type=float, default=0.25)
     p.add_argument("--max-minutes", type=float, default=120.0)
     p.add_argument("--epochs", type=int, default=3)
@@ -187,6 +189,7 @@ def main() -> None:
         mode="all", checkpoint=checkpoint, out_dir=str(out_dir),
         ascension=args.ascension, max_act_count=args.max_act_count,
         sims=args.sims, determinizations=args.determinizations,
+        loss_value=args.loss_value,
         workers=args.workers, seed_base=args.seed_base,
         decisions=args.decisions, dirichlet_eps=args.dirichlet_eps,
         max_minutes=args.max_minutes, epochs=args.epochs, lr=args.lr,
