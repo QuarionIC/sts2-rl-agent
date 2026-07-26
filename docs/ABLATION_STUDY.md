@@ -81,14 +81,53 @@ under ~0.35/M as noise per the caveat above.
 
 | arm | status | 1M | 2M | 3M | slope/M | act-2 reaches |
 |-----|--------|----|----|----|---------|---------------|
-| A0 | completed | 6.68 | 6.63 | 6.79 | +0.05 | 0 |
-| A1 | completed | 6.46 | 7.46 | 6.99 | +0.26 | 2 |
-| A2 | completed | 3.37 | 4.51 | 4.48 | +0.55 | 0 |
-| A3 | pending | | | | | |
-| A4 | pending | | | | | |
-| A5 | pending | | | | | |
-| A6 | pending | | | | | |
-| A7 | pending | | | | | |
+| A0 baseline | completed | 6.68 | 6.62 | 6.79 | +0.05 | 0 |
+| A1 legacy shaping | completed | 6.46 | 7.46 | 6.99 | +0.26 | 2 |
+| A2 mean-pool | completed | 3.37 | 4.51 | 4.47 | +0.55 | 0 |
+| A3 no-deck-obs | INVALID (sleep-truncated, rerunning) | 7.07 | 5.77 | — | — | — |
+| A4 SIL | completed | 6.17 | 6.8 | 7.1 | +0.46 | 0 |
+| A5 ent 0.03 | completed | 6.89 | 5.79 | 6.04 | -0.42 | 0 |
+| **A6 gamma 0.99** | completed | 5.57 | 6.96 | 7.14 | +0.79 | 0 |
+| A7 lr 4e-4/kl .05 | completed | 7.1 | 6.65 | 6.52 | -0.29 | 0 |
+
+### Verdicts (patched rule: level gate first, then slope; noise band 1.0 floors)
+
+- **A6 (gamma 0.99) — the only WIN.** Slope +0.79/M vs baseline +0.05
+  (+1.47 implied floors over the 2M span, clearing the 1.0 band) *and* the
+  best final level of any arm (7.14), so it passes the level gate rather than
+  gaming it. Mechanism is plausible: gamma 0.997 implies a ~333-step effective
+  horizon against ~500-step episodes, while the binding constraint is combat
+  execution (37% of deaths are regular Act-1 fights). A 0.99 discount shortens
+  the horizon to ~100 steps, cutting advantage-estimate variance and
+  concentrating credit where the deaths happen. `--gamma` moves the PBRS
+  shaping discount in lockstep, preserving invariance.
+  **Single seed — a candidate for confirmation, not a conclusion.**
+- **A2 (mean-pool) — DISQUALIFIED on level**, 2.31 floors behind baseline
+  despite the study's second-best slope. The per-slot hand encoding is the one
+  architectural choice this screen validates, because the effect is large
+  enough to survive the conservative band.
+- **A1, A4, A5, A7 — within noise.** A4 (SIL, final 7.10) and A1 (legacy
+  shaping, final 6.99) are nominally positive and carry into the confirmation
+  phase as secondary candidates. A5 (higher entropy) and A7 (wider steps) are
+  nominally negative and are not pursued.
+
+### Incidents that shaped this study
+
+1. **Early-stop mis-calibration** cut the baseline (5.45) and mean-pool (4.67)
+   arms at their 1M evals under a 6.0-floor rule, before either could show a
+   trajectory — while the baseline's rerun finished at 6.79. Threshold → 3.0.
+2. **Selection-rule inversion**: slope was tested before level, which would
+   have adopted the disqualified mean-pool arm on its high slope. Level is now
+   a gate that precedes slope.
+3. **Machine sleep**: Modern Standby for 10h37m killed arm A3 through a
+   wall-clock timeout that fired on wake, truncating it at 2 of 3 evals and
+   producing a meaningless −1.30 slope. Timeouts now measure process-tree CPU
+   time; AC sleep is disabled on the training box.
+4. **Stale in-memory decision rule**: when the long-running harness reached its
+   FINAL arm it applied the *unpatched* selection rule and launched a combined
+   config containing the disqualified mean-pool encoding. Killed before it
+   consumed a slot. Lesson: patching a decision rule does not reach an
+   already-running process — re-derive selections in a fresh process.
 
 ## Confirmation phase
 
