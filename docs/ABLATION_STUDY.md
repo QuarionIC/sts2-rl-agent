@@ -84,7 +84,7 @@ under ~0.35/M as noise per the caveat above.
 | A0 baseline | completed | 6.68 | 6.62 | 6.79 | +0.05 | 0 |
 | A1 legacy shaping | completed | 6.46 | 7.46 | 6.99 | +0.26 | 2 |
 | A2 mean-pool | completed | 3.37 | 4.51 | 4.47 | +0.55 | 0 |
-| A3 no-deck-obs | INVALID (sleep-truncated, rerunning) | 7.07 | 5.77 | — | — | — |
+| A3 no-deck-obs | completed (rerun) | 7.09 | 6.24 | 6.57 | -0.62 | 0 |
 | A4 SIL | completed | 6.17 | 6.8 | 7.1 | +0.46 | 0 |
 | A5 ent 0.03 | completed | 6.89 | 5.79 | 6.04 | -0.42 | 0 |
 | **A6 gamma 0.99** | completed | 5.57 | 6.96 | 7.14 | +0.79 | 0 |
@@ -122,6 +122,11 @@ under ~0.35/M as noise per the caveat above.
   despite the study's second-best slope. The per-slot hand encoding is the one
   architectural choice this screen validates, because the effect is large
   enough to survive the conservative band.
+- **A3 (no deck obs) — LOSS on slope** (-1.34 implied floors), final level a
+  wash (-0.22, inside noise). Removing the deck-bag/archetype observation
+  costs learning rate, so deck visibility earns its keep. Together with A2
+  this gives the screen two validated architecture results: keep per-slot
+  encoding, keep the deck observation.
 - **A1, A4, A5, A7 — within noise.** A4 (SIL, final 7.10) and A1 (legacy
   shaping, final 6.99) are nominally positive and carry into the confirmation
   phase as secondary candidates. A5 (higher entropy) and A7 (wider steps) are
