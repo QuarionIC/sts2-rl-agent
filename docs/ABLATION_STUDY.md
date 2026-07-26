@@ -102,6 +102,22 @@ under ~0.35/M as noise per the caveat above.
   concentrating credit where the deaths happen. `--gamma` moves the PBRS
   shaping discount in lockstep, preserving invariance.
   **Single seed — a candidate for confirmation, not a conclusion.**
+
+  **Confound that weakens this win (recorded before confirmation runs):**
+  A6's trajectory is 5.57 → 6.96 → 7.14. It *started* 1.11 floors BELOW the
+  baseline's 1M eval (6.68) and finished only +0.35 above it — an advantage
+  well inside the noise band. Its slope therefore rests heavily on a low
+  starting point, which is the same mechanism that inflated the disqualified
+  mean-pool arm's slope, merely milder and pointing the other way. Measured
+  seed variance at the 1M eval is ~1.2 floors, so a 5.57 start is exactly what
+  the *baseline* config itself can produce by chance. The level gate catches
+  the severe form of this failure but not the mild form.
+
+  Consequence for the confirmation phase: **compare mean FINAL floors across
+  seeds as the primary statistic** (start-point noise averages out across
+  seeds and does not contaminate the endpoint), with slope reported as
+  secondary evidence of continued improvement. A per-seed slope computed from
+  a single noisy first eval is the weakest number in this study.
 - **A2 (mean-pool) — DISQUALIFIED on level**, 2.31 floors behind baseline
   despite the study's second-best slope. The per-slot hand encoding is the one
   architectural choice this screen validates, because the effect is large
