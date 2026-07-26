@@ -152,8 +152,8 @@ under ~0.35/M as noise per the caveat above.
 
 ## Confirmation phase
 
-Built and ready; **not launched** — the 8-arm screen must finish first
-(launching a second trainer would fight the running one for the 16 GB box).
+**COMPLETED** — see the results section below. Harness details follow for
+reproducibility.
 Harness: `scripts/confirm_phase.py`, seed control: `train_necrobinder.py
 --seed`.
 
@@ -282,3 +282,57 @@ _No confirmation runs recorded yet — the phase has not been launched._
 - Death forensics over 120 deterministic episodes: 37% regular Act-1 combats,
   27% elites, 17% Act-1 boss, 17% Act-2 — combat execution is the bottleneck,
   not a single fight.
+
+## Confirmation phase RESULTS (2026-07-26, 9 runs, 5.24 h)
+
+Protocol: 3 configs x 3 seeds, 3M steps each, evals every 500k (6 points per
+run), 200 deterministic episodes per eval, shaping off, held-out eval seed
+block. Primary statistic **AUC = mean mean_floors across all six evals**.
+
+### Why AUC, not the endpoint (the screen's primary statistic was wrong)
+
+The three baseline seeds ended at **4.80 / 7.24 / 7.51** final floors -- a 2.7-floor
+spread for one identical config -- and seed 0 swung 7.12 -> 4.79 between its own
+last two evals. A single 200-episode eval of a still-moving policy is far too
+noisy to be a primary statistic. Measured standard errors across the 3 seeds:
+
+| statistic | baseline SE | verdict |
+|-----------|-------------|---------|
+| final eval only | +/- 0.86 | unusable at n=3 |
+| mean of last 3 evals | +/- 0.20 | usable |
+| **AUC (all 6 evals)** | **+/- 0.12** | **primary** |
+
+AUC averages out both eval sampling noise and policy fluctuation, and uses
+every data point the run produced. This supersedes the "mean FINAL floors"
+choice recorded above, which the data falsified.
+
+### Results
+
+| config | AUC per seed | AUC mean +/- SE | vs baseline | Welch t (df) | exact perm. p (1-tail) | rank-separated |
+|--------|--------------|------------------|-------------|--------------|------------------------|----------------|
+| A0 baseline | 6.22, 5.94, 6.35 | 6.17 +/- 0.12 | -- | -- | -- | -- |
+| **A6 gamma 0.99** | 7.33, 6.65, 6.48 | **6.82 +/- 0.26** | **+0.65** | 2.27 (2.8) | **0.050** | **YES** |
+| A4 SIL | 6.76, 7.19, 5.55 | 6.50 +/- 0.49 | +0.33 | 0.64 (2.2) | 0.250 | no |
+
+### Verdict
+
+**gamma 0.99 is ADOPTED.** Every one of its three seeds beats every one of the
+three baseline seeds -- complete rank separation, which at 3-vs-3 is the most
+extreme of the 20 possible splits and yields an exact one-tailed permutation
+p = 0.050. The Welch test agrees (t = 2.27, df ~ 2.8, one-tailed p ~ 0.06).
+Effect size +0.65 floors AUC. Honest limits: n = 3 per arm, one task (G1: A0,
+acts 1-2), 3M steps; p = 0.05 is the floor of what this design can produce, so
+this is a defensible adoption decision, **not** a strong scientific claim.
+Notably the confirmation also *removed* the screen's confound -- A6's advantage
+here is not a low-start artifact; it leads throughout.
+
+**SIL is NOT adopted.** +0.33 floors with a seed spanning 5.55-7.19; p = 0.25,
+no rank separation. It remains available (`--sil`) and may matter later when
+there are actual wins to imitate -- at 3M steps from scratch there are none.
+
+### Adopted long-run configuration
+
+Baseline + `--gamma 0.99`, i.e. PBRS shaping, per-slot hand encoding, deck-bag
+observation, lr 2e-4, target_kl 0.03, ent_coef 0.01, 16 envs. The two
+architecture choices validated by the screen (per-slot encoding, deck
+observation) are part of the baseline and stay.
