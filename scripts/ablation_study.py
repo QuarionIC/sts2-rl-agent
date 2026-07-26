@@ -203,6 +203,30 @@ def summarize(arm: str, flags: list[str], evals: list[dict],
 # Arm runner
 # ---------------------------------------------------------------------------
 
+def tree_cpu_seconds(pid: int) -> float | None:
+    """Total CPU seconds used by a process tree, or None if unmeasurable.
+
+    Used instead of wall clock for the arm timeout: a suspended machine
+    (Modern Standby) advances wall time but not CPU time, so a sleeping
+    laptop can no longer kill a healthy arm mid-run.
+    """
+    try:
+        import psutil
+    except ImportError:
+        return None
+    try:
+        proc = psutil.Process(pid)
+        total = sum(proc.cpu_times()[:2])
+        for child in proc.children(recursive=True):
+            try:
+                total += sum(child.cpu_times()[:2])
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        return total
+    except (psutil.NoSuchProcess, psutil.AccessDenied, Exception):
+        return None
+
+
 def kill_tree(pid: int) -> None:
     subprocess.run(
         ["taskkill", "/PID", str(pid), "/T", "/F"],
@@ -300,8 +324,25 @@ def run_arm(arm: str, flags: list[str], results: dict,
                     proc.wait(timeout=60)
                     status = "early_stopped"
                     break
-                if time.time() - start > ARM_TIMEOUT_S:
-                    print(f"[{arm}] TIMEOUT after {ARM_TIMEOUT_S/3600:.1f}h; killing",
+                # Timeout on the arm's CPU TIME, not wall clock. A0's first
+                # study lost arm A3 this way: the laptop entered Modern
+                # Standby for 10h37m mid-arm, and on wake the wall-clock check
+                # saw ">4h elapsed" and killed a run that had used only ~38
+                # minutes of CPU and was training normally at ~1400 fps. The
+                # arm's truncated 2-eval history then produced a meaningless
+                # -1.3 slope. CPU time does not advance while suspended.
+                cpu_s = tree_cpu_seconds(proc.pid)
+                if cpu_s is None:  # psutil unavailable -> wall clock w/ slack
+                    if time.time() - start > ARM_TIMEOUT_S * 3:
+                        print(f"[{arm}] TIMEOUT (wall fallback) after "
+                              f"{(time.time()-start)/3600:.1f}h; killing", flush=True)
+                        kill_tree(proc.pid)
+                        proc.wait(timeout=60)
+                        status = "timeout"
+                        break
+                elif cpu_s > ARM_TIMEOUT_S:
+                    print(f"[{arm}] TIMEOUT after {cpu_s/3600:.1f}h CPU "
+                          f"({(time.time()-start)/3600:.1f}h wall); killing",
                           flush=True)
                     kill_tree(proc.pid)
                     proc.wait(timeout=60)
