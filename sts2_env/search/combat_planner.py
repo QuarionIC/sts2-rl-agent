@@ -309,8 +309,8 @@ def plan_combat(root_combat, config: PlannerConfig | None = None) -> PlanResult:
 #: Fast profile for TRAINING throughput: single cheap rung, one escalation
 #: on loss, tight time budgets. ~1-3s per combat.
 TRAIN_LADDER = (
-    PlannerConfig(time_budget_s=2.0),
-    PlannerConfig(beam_width=32, max_expansions=40_000, time_budget_s=6.0),
+    PlannerConfig(time_budget_s=1.5),
+    PlannerConfig(beam_width=32, max_expansions=40_000, time_budget_s=4.0),
 )
 
 #: Thorough profile for EVALUATION / real play: full escalation with the
