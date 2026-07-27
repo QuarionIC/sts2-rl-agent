@@ -53,15 +53,70 @@ TRAIN_SEED_STRIDE = 1_000
 # Env factories
 # ---------------------------------------------------------------------------
 
-def make_combat_env(ascension: int = 0, seed: int = 0, pools=("act1",)):
+class HarvestedDeckSampler:
+    """Sample decks the RUN agent actually brought to combat.
+
+    The progressive sampler guesses at plausible mid-run decks. Once a run
+    agent exists, its real decks are strictly better training data -- refitting
+    the combat agent on them closes the distribution shift that opens up as
+    soon as the run agent starts building decks of its own. Falls back to the
+    progressive sampler when the harvest is empty rather than failing, so an
+    alternation round can never silently train on nothing.
+    """
+
+    def __init__(self, character_id: str, deck_file: str):
+        import pickle
+
+        from sts2_env.gym_env.rich_combat_env import ProgressiveDeckSampler
+
+        self.fallback = ProgressiveDeckSampler(character_id)
+        with open(deck_file, "rb") as fh:
+            self.samples = pickle.load(fh)
+        self._relic_cache: dict[str, object] = {}
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __call__(self, np_random):
+        from sts2_env.cards.factory import create_card
+
+        if not self.samples:
+            return self.fallback(np_random)
+        card_ids, relic_ids, potion_ids, hp_frac = self.samples[
+            int(np_random.integers(0, len(self.samples)))
+        ]
+        deck = []
+        for cid, upgraded in card_ids:
+            try:
+                deck.append(create_card(cid, upgraded=bool(upgraded)))
+            except Exception:
+                continue
+        if not deck:  # every card failed to materialise -- do not hand back an empty deck
+            return self.fallback(np_random)
+        relics = []
+        from sts2_env.relics.registry import create_relic_by_name
+
+        for rid in relic_ids:
+            try:
+                relics.append(create_relic_by_name(rid))
+            except Exception:
+                continue
+        return deck, relics, [], float(hp_frac)
+
+
+def make_combat_env(ascension: int = 0, seed: int = 0, pools=("act1",),
+                    deck_file: str | None = None):
     import sts2_env.events  # noqa: F401
     from sts2_env.gym_env.rich_combat_env import RichSTS2CombatEnv
 
+    sampler = (
+        HarvestedDeckSampler("Necrobinder", deck_file) if deck_file else "progressive"
+    )
     env = RichSTS2CombatEnv(
         character_id="Necrobinder",
         ascension_level=ascension,
         encounter_pools=tuple(pools),
-        deck_sampler="progressive",
+        deck_sampler=sampler,
     )
     env.reset(seed=seed)
     return env
@@ -161,8 +216,9 @@ def eval_run_agent(model, combat_model_path, n_episodes, ascension, max_act_coun
     }
 
 
-def eval_combat_agent(model, n_episodes, ascension, pools):
-    env = make_combat_env(ascension=ascension, seed=EVAL_SEED_BLOCK, pools=pools)
+def eval_combat_agent(model, n_episodes, ascension, pools, deck_file=None):
+    env = make_combat_env(ascension=ascension, seed=EVAL_SEED_BLOCK, pools=pools,
+                          deck_file=deck_file)
     env.set_shaping_scale(0.0)
     wins, hp_frac = [], []
     t0 = time.time()
@@ -240,6 +296,9 @@ def main() -> int:
     ap.add_argument("--ascension", type=int, default=0)
     ap.add_argument("--max-act-count", type=int, default=2)
     ap.add_argument("--pools", nargs="*", default=["act1"])
+    ap.add_argument("--deck-file", default=None,
+                    help="Pickle of decks harvested from a run agent; replaces the "
+                         "synthetic progressive sampler for --phase combat")
     ap.add_argument("--combat-model", default=None,
                     help="Frozen combat agent for --phase run")
     ap.add_argument("--gamma", type=float, default=0.99)
@@ -266,8 +325,10 @@ def main() -> int:
     from sts2_env.train.policy import rich_policy_kwargs
 
     if args.phase == "combat":
-        factory = partial(make_combat_env, args.ascension, pools=tuple(args.pools))
-        eval_fn = lambda m, n: eval_combat_agent(m, n, args.ascension, tuple(args.pools))
+        factory = partial(make_combat_env, args.ascension, pools=tuple(args.pools),
+                          deck_file=args.deck_file)
+        eval_fn = lambda m, n: eval_combat_agent(m, n, args.ascension, tuple(args.pools),
+                                                 deck_file=args.deck_file)
     else:
         factory = partial(make_run_env, args.combat_model, args.ascension,
                           args.max_act_count)
