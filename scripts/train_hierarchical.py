@@ -134,7 +134,8 @@ def make_combat_env(ascension: int = 0, seed: int = 0, pools=("act1",),
 
 
 def make_run_env(combat_model_path: str | None, ascension: int = 0,
-                 max_act_count: int = 2, seed: int = 0, combat_device: str = "cpu"):
+                 max_act_count: int = 2, seed: int = 0, combat_device: str = "cpu",
+                 w_deck_quality: float = 0.0):
     """Hierarchical run env with the frozen combat agent loaded in-process.
 
     The model is loaded inside the factory so each subprocess worker owns its
@@ -155,11 +156,14 @@ def make_run_env(combat_model_path: str | None, ascension: int = 0,
     else:
         controller = RandomCombatController(seed=seed)
 
+    from sts2_env.gym_env.reward_config import RewardConfig
+
     env = HierarchicalRunEnv(
         character_id="Necrobinder",
         ascension_level=ascension,
         max_act_count=max_act_count,
         combat_controller=controller,
+        reward_config=RewardConfig(w_deck_quality=w_deck_quality),
     )
     env.reset(seed=seed)
     return env
@@ -212,13 +216,16 @@ def load_shared_combat_model(path: str, device: str = "cpu"):
 # ---------------------------------------------------------------------------
 
 def eval_run_agent(model, combat_model_path, n_episodes, ascension, max_act_count,
-                   seed_block=EVAL_SEED_BLOCK):
+                   seed_block=EVAL_SEED_BLOCK, w_deck_quality=0.0):
     """Deterministic eval of the run agent. Reports the metrics the campaign
     tracks (floors, act, win) plus the deck statistics that diagnosed the
     plateau -- final deck size and upgrades are the whole point of this
     architecture, so they are first-class here."""
+    # shaping_scale 0 makes eval pure-sparse, so w_deck_quality cannot
+    # influence the reported metrics -- it only shapes TRAINING.
     env = make_run_env(combat_model_path, ascension=ascension,
-                       max_act_count=max_act_count, seed=seed_block)
+                       max_act_count=max_act_count, seed=seed_block,
+                       w_deck_quality=w_deck_quality)
     env.set_shaping_scale(0.0)
 
     floors, acts, wins, decks, ups, decisions, trunc = [], [], [], [], [], [], 0
@@ -352,6 +359,9 @@ def main() -> int:
     ap.add_argument("--output-dir", default=None)
     ap.add_argument("--tensorboard", action="store_true")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--w-deck-quality", type=float, default=0.0,
+                    help="Weight of the upgrade-density term in Phi "
+                         "(0 = off, matching all prior results)")
     ap.add_argument("--combat-device", default="cpu",
                     help="Device for the frozen combat model during --phase run")
     ap.add_argument("--vec-mode", choices=["auto", "dummy", "subproc"],
@@ -377,9 +387,11 @@ def main() -> int:
                                                  deck_file=args.deck_file)
     else:
         factory = partial(make_run_env, args.combat_model, args.ascension,
-                          args.max_act_count, combat_device=args.combat_device)
+                          args.max_act_count, combat_device=args.combat_device,
+                          w_deck_quality=args.w_deck_quality)
         eval_fn = lambda m, n: eval_run_agent(
-            m, args.combat_model, n, args.ascension, args.max_act_count)
+            m, args.combat_model, n, args.ascension, args.max_act_count,
+            w_deck_quality=args.w_deck_quality)
 
     vec_mode = args.vec_mode
     if vec_mode == "auto":
