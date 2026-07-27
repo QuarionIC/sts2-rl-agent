@@ -135,7 +135,8 @@ def make_combat_env(ascension: int = 0, seed: int = 0, pools=("act1",),
 
 def make_run_env(combat_model_path: str | None, ascension: int = 0,
                  max_act_count: int = 2, seed: int = 0, combat_device: str = "cpu",
-                 w_deck_quality: float = 0.0):
+                 w_deck_quality: float = 0.0, use_planner: bool = False,
+                 planner_ladder: str = "train"):
     """Hierarchical run env with the frozen combat agent loaded in-process.
 
     The model is loaded inside the factory so each subprocess worker owns its
@@ -149,22 +150,32 @@ def make_run_env(combat_model_path: str | None, ascension: int = 0,
         RandomCombatController,
     )
 
-    controller = None
-    if combat_model_path:
-        model = load_shared_combat_model(combat_model_path, combat_device)
-        controller = PolicyCombatController(model, deterministic=False)
-    else:
-        controller = RandomCombatController(seed=seed)
-
     from sts2_env.gym_env.reward_config import RewardConfig
 
     env = HierarchicalRunEnv(
         character_id="Necrobinder",
         ascension_level=ascension,
         max_act_count=max_act_count,
-        combat_controller=controller,
         reward_config=RewardConfig(w_deck_quality=w_deck_quality),
     )
+
+    if use_planner:
+        # Deterministic search plays combats: no torch in this process at
+        # all, so subprocess vectorisation is memory-cheap again.
+        from sts2_env.search.combat_planner import (
+            EVAL_LADDER,
+            TRAIN_LADDER,
+            PlannedCombatController,
+        )
+
+        ladder = EVAL_LADDER if planner_ladder == "eval" else TRAIN_LADDER
+        env.set_combat_controller(PlannedCombatController(env, ladder=ladder))
+    elif combat_model_path:
+        model = load_shared_combat_model(combat_model_path, combat_device)
+        env.set_combat_controller(PolicyCombatController(model, deterministic=False))
+    else:
+        env.set_combat_controller(RandomCombatController(seed=seed))
+
     env.reset(seed=seed)
     return env
 
@@ -359,6 +370,10 @@ def main() -> int:
     ap.add_argument("--output-dir", default=None)
     ap.add_argument("--tensorboard", action="store_true")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--combat-planner", action="store_true",
+                    help="Play combats with the deterministic beam-search "
+                         "planner instead of a learned combat model")
+    ap.add_argument("--planner-ladder", choices=["train", "eval"], default="train")
     ap.add_argument("--w-deck-quality", type=float, default=0.0,
                     help="Weight of the upgrade-density term in Phi "
                          "(0 = off, matching all prior results)")
@@ -388,15 +403,21 @@ def main() -> int:
     else:
         factory = partial(make_run_env, args.combat_model, args.ascension,
                           args.max_act_count, combat_device=args.combat_device,
-                          w_deck_quality=args.w_deck_quality)
+                          w_deck_quality=args.w_deck_quality,
+                          use_planner=args.combat_planner,
+                          planner_ladder=args.planner_ladder)
         eval_fn = lambda m, n: eval_run_agent(
             m, args.combat_model, n, args.ascension, args.max_act_count,
             w_deck_quality=args.w_deck_quality)
 
     vec_mode = args.vec_mode
     if vec_mode == "auto":
-        # The run phase loads a torch combat model per process; see make_vec.
-        vec_mode = "dummy" if args.phase == "run" else "subproc"
+        # A torch combat model per worker forces single-process (see
+        # make_vec); the planner has no such cost, so it parallelises.
+        if args.phase == "run":
+            vec_mode = "subproc" if args.combat_planner else "dummy"
+        else:
+            vec_mode = "subproc"
     print(f"[{args.phase}] vec mode: {vec_mode} ({args.n_envs} envs)", flush=True)
     train_env = make_vec(factory, args.n_envs, vec_mode)
 
