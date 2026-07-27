@@ -40,6 +40,7 @@ import sys
 import time
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -64,7 +65,8 @@ class HarvestedDeckSampler:
     alternation round can never silently train on nothing.
     """
 
-    def __init__(self, character_id: str, deck_file: str):
+    def __init__(self, character_id: str, deck_file: str,
+                 mix_progressive: float = 0.3):
         import pickle
 
         from sts2_env.gym_env.rich_combat_env import ProgressiveDeckSampler
@@ -72,6 +74,12 @@ class HarvestedDeckSampler:
         self.fallback = ProgressiveDeckSampler(character_id)
         with open(deck_file, "rb") as fh:
             self.samples = pickle.load(fh)
+        # Refitting PURELY on the current run agent's decks would overfit the
+        # combat agent to whatever that agent happens to build right now --
+        # and it demonstrably builds diluted decks (13.1 cards, 0.57
+        # upgrades). Keeping a slice of synthetic decks preserves coverage of
+        # the leaner, more upgraded builds a better run agent should reach.
+        self.mix_progressive = float(mix_progressive)
         self._relic_cache: dict[str, object] = {}
 
     def __len__(self) -> int:
@@ -81,6 +89,8 @@ class HarvestedDeckSampler:
         from sts2_env.cards.factory import create_card
 
         if not self.samples:
+            return self.fallback(np_random)
+        if self.mix_progressive > 0.0 and np_random.random() < self.mix_progressive:
             return self.fallback(np_random)
         card_ids, relic_ids, potion_ids, hp_frac = self.samples[
             int(np_random.integers(0, len(self.samples)))
@@ -105,12 +115,13 @@ class HarvestedDeckSampler:
 
 
 def make_combat_env(ascension: int = 0, seed: int = 0, pools=("act1",),
-                    deck_file: str | None = None):
+                    deck_file: str | None = None, mix_progressive: float = 0.3):
     import sts2_env.events  # noqa: F401
     from sts2_env.gym_env.rich_combat_env import RichSTS2CombatEnv
 
     sampler = (
-        HarvestedDeckSampler("Necrobinder", deck_file) if deck_file else "progressive"
+        HarvestedDeckSampler("Necrobinder", deck_file, mix_progressive)
+        if deck_file else "progressive"
     )
     env = RichSTS2CombatEnv(
         character_id="Necrobinder",
@@ -123,7 +134,7 @@ def make_combat_env(ascension: int = 0, seed: int = 0, pools=("act1",),
 
 
 def make_run_env(combat_model_path: str | None, ascension: int = 0,
-                 max_act_count: int = 2, seed: int = 0, gamma_note: str = ""):
+                 max_act_count: int = 2, seed: int = 0, combat_device: str = "cpu"):
     """Hierarchical run env with the frozen combat agent loaded in-process.
 
     The model is loaded inside the factory so each subprocess worker owns its
@@ -139,9 +150,7 @@ def make_run_env(combat_model_path: str | None, ascension: int = 0,
 
     controller = None
     if combat_model_path:
-        from sb3_contrib import MaskablePPO
-
-        model = MaskablePPO.load(combat_model_path, device="cpu")
+        model = load_shared_combat_model(combat_model_path, combat_device)
         controller = PolicyCombatController(model, deterministic=False)
     else:
         controller = RandomCombatController(seed=seed)
@@ -156,14 +165,46 @@ def make_run_env(combat_model_path: str | None, ascension: int = 0,
     return env
 
 
-def make_vec(factory, n_envs: int):
+def make_vec(factory, n_envs: int, vec_mode: str = "auto"):
+    """Vectorise, choosing the mode that fits in RAM.
+
+    The run phase cannot use one-env-per-subprocess. Each worker must load its
+    own combat model, and the torch runtime alone costs ~765MB resident --
+    measured, not estimated -- so 16 workers would want ~12GB on a 15.7GB box
+    that has ~5GB free. ``dummy`` keeps every env in one process sharing a
+    single torch runtime and a single combat model, trading parallelism for a
+    ~7x memory reduction. The combat phase has no such constraint and keeps
+    using subprocesses.
+    """
     from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
     from slim_vecenv import SlimSubprocVecEnv as SubprocVecEnv
 
     factories = [partial(factory, seed=i * TRAIN_SEED_STRIDE) for i in range(n_envs)]
-    vec = SubprocVecEnv(factories) if n_envs > 1 else DummyVecEnv(factories)
+    if vec_mode == "dummy" or n_envs == 1:
+        vec = DummyVecEnv(factories)
+    else:
+        vec = SubprocVecEnv(factories)
     return VecMonitor(vec)
+
+
+_SHARED_COMBAT_MODEL: dict[str, Any] = {}
+
+
+def load_shared_combat_model(path: str, device: str = "cpu"):
+    """One combat model per PROCESS, reused by every env in it.
+
+    With DummyVecEnv all envs live in the same process, so loading the model
+    once instead of per-env saves ~130MB of parameters per additional env and
+    keeps the inference weights in one place.
+    """
+    model = _SHARED_COMBAT_MODEL.get(path)
+    if model is None:
+        from sb3_contrib import MaskablePPO
+
+        model = MaskablePPO.load(path, device=device)
+        _SHARED_COMBAT_MODEL[path] = model
+    return model
 
 
 # ---------------------------------------------------------------------------
@@ -311,6 +352,11 @@ def main() -> int:
     ap.add_argument("--output-dir", default=None)
     ap.add_argument("--tensorboard", action="store_true")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--combat-device", default="cpu",
+                    help="Device for the frozen combat model during --phase run")
+    ap.add_argument("--vec-mode", choices=["auto", "dummy", "subproc"],
+                    default="auto",
+                    help="auto: subproc for combat, dummy for run (see make_vec)")
     args = ap.parse_args()
 
     out_dir = Path(args.output_dir or f"output/hier/{args.phase}")
@@ -331,11 +377,16 @@ def main() -> int:
                                                  deck_file=args.deck_file)
     else:
         factory = partial(make_run_env, args.combat_model, args.ascension,
-                          args.max_act_count)
+                          args.max_act_count, combat_device=args.combat_device)
         eval_fn = lambda m, n: eval_run_agent(
             m, args.combat_model, n, args.ascension, args.max_act_count)
 
-    train_env = make_vec(factory, args.n_envs)
+    vec_mode = args.vec_mode
+    if vec_mode == "auto":
+        # The run phase loads a torch combat model per process; see make_vec.
+        vec_mode = "dummy" if args.phase == "run" else "subproc"
+    print(f"[{args.phase}] vec mode: {vec_mode} ({args.n_envs} envs)", flush=True)
+    train_env = make_vec(factory, args.n_envs, vec_mode)
 
     model = MaskablePPO(
         "MlpPolicy",

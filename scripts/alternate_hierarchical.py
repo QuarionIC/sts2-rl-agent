@@ -135,12 +135,20 @@ def main() -> int:
     ap.add_argument("--rounds", type=int, default=3)
     ap.add_argument("--combat-steps", type=int, default=3_000_000)
     ap.add_argument("--run-steps", type=int, default=3_000_000)
-    ap.add_argument("--n-envs", type=int, default=16)
+    ap.add_argument("--n-envs", type=int, default=16,
+                    help="Envs for the COMBAT phase (subprocess workers)")
+    ap.add_argument("--run-n-envs", type=int, default=8,
+                    help="Envs for the RUN phase. Kept low and in one "
+                         "process: each would otherwise load its own "
+                         "combat model at ~765MB resident.")
     ap.add_argument("--eval-freq", type=int, default=500_000)
     ap.add_argument("--eval-episodes", type=int, default=200)
     ap.add_argument("--ascension", type=int, default=0)
     ap.add_argument("--max-act-count", type=int, default=2)
     ap.add_argument("--harvest-episodes", type=int, default=150)
+    ap.add_argument("--seed-run", default=None,
+                    help="Existing run model, so round 1 already harvests its "
+                         "real decks instead of waiting a full round")
     ap.add_argument("--seed-combat", default=None,
                     help="Existing combat model to start round 1 from "
                          "(skips the bootstrap combat training)")
@@ -153,7 +161,7 @@ def main() -> int:
     ledger = root / "rounds.jsonl"
 
     combat_model = args.seed_combat
-    run_model = None
+    run_model = args.seed_run
 
     for rnd in range(1, args.rounds + 1):
         t0 = time.time()
@@ -162,7 +170,7 @@ def main() -> int:
         # ---- 1. combat agent ----
         cdir = root / f"r{rnd}" / "combat"
         cdir.mkdir(parents=True, exist_ok=True)
-        if rnd == 1 and combat_model:
+        if rnd == 1 and combat_model and not run_model:
             print(f"[r{rnd}] reusing seed combat model: {combat_model}", flush=True)
         else:
             cmd = [PY, "scripts/train_hierarchical.py", "--phase", "combat",
@@ -176,6 +184,7 @@ def main() -> int:
             if run_model:
                 # Refit on the decks the run agent actually produces.
                 decks = root / f"r{rnd}" / "harvested_decks.pkl"
+                decks.parent.mkdir(parents=True, exist_ok=True)
                 n = harvest_decks(run_model, combat_model, decks,
                                   args.harvest_episodes, args.ascension,
                                   args.max_act_count)
@@ -198,7 +207,7 @@ def main() -> int:
         rdir.mkdir(parents=True, exist_ok=True)
         cmd = [PY, "scripts/train_hierarchical.py", "--phase", "run",
                "--total-steps", str(args.run_steps),
-               "--n-envs", str(args.n_envs),
+               "--n-envs", str(args.run_n_envs),
                "--eval-freq", str(args.eval_freq),
                "--eval-episodes", str(args.eval_episodes),
                "--ascension", str(args.ascension),
