@@ -170,6 +170,10 @@ def make_run_env(combat_model_path: str | None, ascension: int = 0,
 
         ladder = EVAL_LADDER if planner_ladder == "eval" else TRAIN_LADDER
         env.set_combat_controller(PlannedCombatController(env, ladder=ladder))
+        # A planner stall costs ~2s per step (each queue refill is a fresh
+        # search), so 400 steps of stall is ~13 minutes inside ONE env.step.
+        # Legitimate planned fights stay under ~60 decisions; cap accordingly.
+        env.max_combat_steps = 120
     elif combat_model_path:
         model = load_shared_combat_model(combat_model_path, combat_device)
         env.set_combat_controller(PolicyCombatController(model, deterministic=False))
@@ -227,7 +231,8 @@ def load_shared_combat_model(path: str, device: str = "cpu"):
 # ---------------------------------------------------------------------------
 
 def eval_run_agent(model, combat_model_path, n_episodes, ascension, max_act_count,
-                   seed_block=EVAL_SEED_BLOCK, w_deck_quality=0.0):
+                   seed_block=EVAL_SEED_BLOCK, w_deck_quality=0.0,
+                   use_planner=False, planner_ladder="train"):
     """Deterministic eval of the run agent. Reports the metrics the campaign
     tracks (floors, act, win) plus the deck statistics that diagnosed the
     plateau -- final deck size and upgrades are the whole point of this
@@ -236,7 +241,8 @@ def eval_run_agent(model, combat_model_path, n_episodes, ascension, max_act_coun
     # influence the reported metrics -- it only shapes TRAINING.
     env = make_run_env(combat_model_path, ascension=ascension,
                        max_act_count=max_act_count, seed=seed_block,
-                       w_deck_quality=w_deck_quality)
+                       w_deck_quality=w_deck_quality, use_planner=use_planner,
+                       planner_ladder=planner_ladder)
     env.set_shaping_scale(0.0)
 
     floors, acts, wins, decks, ups, decisions, trunc = [], [], [], [], [], [], 0
@@ -387,7 +393,7 @@ def main() -> int:
     out_dir = Path(args.output_dir or f"output/hier/{args.phase}")
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    if args.phase == "run" and not args.combat_model:
+    if args.phase == "run" and not args.combat_model and not args.combat_planner:
         print("WARNING: --phase run without --combat-model: combats will be played "
               "by a RANDOM controller. Useful only for plumbing checks.", flush=True)
 
@@ -408,7 +414,8 @@ def main() -> int:
                           planner_ladder=args.planner_ladder)
         eval_fn = lambda m, n: eval_run_agent(
             m, args.combat_model, n, args.ascension, args.max_act_count,
-            w_deck_quality=args.w_deck_quality)
+            w_deck_quality=args.w_deck_quality,
+            use_planner=args.combat_planner, planner_ladder=args.planner_ladder)
 
     vec_mode = args.vec_mode
     if vec_mode == "auto":
