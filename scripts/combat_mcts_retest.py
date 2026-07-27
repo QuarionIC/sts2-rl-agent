@@ -225,10 +225,14 @@ def main() -> int:
     if tot_real == 0:
         print("  >> Every override was a same-card permutation: search made no "
               "genuinely different play. Budget did not bite.")
-    elif ml > pl:
+    elif ml > pl and p_mc < 0.05:
         lift = ml / n - pl / n
-        print(f"  >> Search LIFTS survival by {lift:+.1%}. At p={ml/n:.3f} a run lasts "
-              f"~{1/max(1-ml/n,1e-6):.1f} combats vs ~{1/max(1-pl/n,1e-6):.1f}.")
+        print(f"  >> Search LIFTS survival by {lift:+.1%} (McNemar p={p_mc:.4f}). "
+              f"At p={ml/n:.3f} a run lasts ~{1/max(1-ml/n,1e-6):.1f} combats "
+              f"vs ~{1/max(1-pl/n,1e-6):.1f}.")
+    elif ml != pl:
+        print(f"  >> Raw difference ({pl} vs {ml}) is NOT significant "
+              f"(McNemar p={p_mc:.4f}): treat as a tie.")
     else:
         print("  >> Search does not improve survival even on contested positions.")
 

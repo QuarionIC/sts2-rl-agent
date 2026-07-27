@@ -319,6 +319,12 @@ EVAL_LADDER = (
     PlannerConfig(time_budget_s=6.0),
     PlannerConfig(beam_width=32, max_expansions=40_000, time_budget_s=15.0),
     PlannerConfig(beam_width=64, max_expansions=120_000, time_budget_s=30.0),
+    # Desperation rung: only reached when every cheaper rung planned a LOSS,
+    # so it never slows ordinary fights. Justified by measurement: an A10
+    # 49-HP-vs-68 fight lost at beam 64/96 was WON (2 HP left) at beam 160 --
+    # deep beams convert real fights, and at the margin those conversions are
+    # exactly the ones that decide runs.
+    PlannerConfig(beam_width=160, max_expansions=900_000, time_budget_s=120.0),
 )
 
 
