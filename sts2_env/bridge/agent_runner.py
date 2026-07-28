@@ -166,7 +166,7 @@ def detect_model_mode(model: Any) -> str:
 
 
 def run_agent(
-    model_path: str,
+    model_path: str | None = None,
     host: str = "127.0.0.1",
     port: int = 9002,
     deterministic: bool = True,
@@ -175,6 +175,11 @@ def run_agent(
     replay_factory: str | None = None,
     action_delay: float = 0.0,
     combat_delay: float = 0.0,
+    llm_model: str | None = None,
+    llm_gpu_layers: int = 34,
+    llm_ctx: int = 4096,
+    llm_max_tokens: int = 48,
+    llm_temperature: float = 0.2,
 ) -> None:
     """Main agent loop.
 
@@ -190,8 +195,30 @@ def run_agent(
         action_delay: Seconds to pause before each non-combat decision.
         combat_delay: Seconds to pause before each combat action (end turn is instant).
     """
-    model = load_model(model_path)
-    model_mode = detect_model_mode(model)
+    llm_policy = None
+    if llm_model:
+        # LLM drives every decision; no MaskablePPO model is loaded. The
+        # heuristic _pick_* helpers stay in place as the fallback for any
+        # reply that fails to parse.
+        from sts2_env.bridge.llm_policy import BridgeLLMPolicy
+        from sts2_env.llm.runner import LLMConfig, LocalLLM
+
+        logger.info("Loading local LLM: %s", llm_model)
+        _llm = LocalLLM(LLMConfig(
+            model_path=llm_model, n_ctx=llm_ctx, n_gpu_layers=llm_gpu_layers,
+            max_tokens=llm_max_tokens, temperature=llm_temperature,
+        ))
+        llm_policy = BridgeLLMPolicy(_llm)
+        logger.info("LLM loaded in %.0fs -- driving all decisions", _llm.load_s)
+
+    model = None
+    model_mode = None
+    if model_path:
+        model = load_model(model_path)
+        model_mode = detect_model_mode(model)
+    elif llm_policy is None:
+        raise SystemExit("Provide --model-path or --llm-model")
+
     adapter = StateAdapter()
     run_state_adapter: RunStateAdapter | None = None
     if model_mode == MODEL_MODE_FULL_RUN:
@@ -274,6 +301,9 @@ def run_agent(
                     and phase not in Phase.COMBAT_PHASES
                 ):
                     time.sleep(action_delay)
+
+                if llm_policy is not None:
+                    _LLM_POLICY[0] = llm_policy
 
                 if run_state_adapter is not None:
                     # ---- Full-run model: trained policy drives every phase ----
@@ -486,7 +516,7 @@ def _phase_for_state(state: dict[str, Any]) -> str:
     }.get(msg_type, state.get("phase", Phase.UNKNOWN))
 
 
-def _pick_map_node(state: dict[str, Any]) -> int:
+def _pick_map_node_heuristic(state: dict[str, Any]) -> int:
     """Choose a reachable map node from the bridge state's node list."""
     nodes = list(state.get("nodes", []))
     if not nodes:
@@ -504,6 +534,12 @@ def _pick_map_node(state: dict[str, Any]) -> int:
     return _read_index(nodes[0], DEFAULT_CHOICE_INDEX)
 
 
+
+def _pick_map_node(state: dict[str, Any]) -> int:
+    """LLM decision with the heuristic as fallback."""
+    _fb = _pick_map_node_heuristic(state)
+    return _llm_pick(state, list(state.get("nodes", [])), 'Which room do you move to next?', _fb, 'MAP')
+
 def _pick_card_select_indexes(state: dict[str, Any]) -> list[int]:
     """Choose required card indexes for upgrade/transform/select screens."""
     cards = list(state.get("cards", []))
@@ -515,7 +551,7 @@ def _pick_card_select_indexes(state: dict[str, Any]) -> list[int]:
     return [_read_index(card, fallback) for fallback, card in enumerate(cards[:count])]
 
 
-def _pick_card_reward_index(state: dict[str, Any]) -> int | None:
+def _pick_card_reward_index_heuristic(state: dict[str, Any]) -> int | None:
     """Choose a card reward, or return None when skipping is the best action."""
     cards = list(state.get("cards", []))
     can_skip = bool(state.get("can_skip", False))
@@ -529,6 +565,30 @@ def _pick_card_reward_index(state: dict[str, Any]) -> int | None:
                 return _read_index(card, fallback_index)
     return _read_index(cards[0], DEFAULT_CHOICE_INDEX)
 
+
+
+def _pick_card_reward_index(state: dict[str, Any]) -> int | None:
+    """LLM card pick. Returns None to skip, matching the heuristic contract.
+
+    Skip is presented as an explicit menu entry rather than inferred: the
+    in-sim work showed card-taking is the single decision that most affects
+    run depth, so the model must be able to choose it deliberately.
+    """
+    _fb = _pick_card_reward_index_heuristic(state)
+    policy = _LLM_POLICY[0]
+    cards = list(state.get("cards", []) or [])
+    if policy is None or not cards:
+        return _fb
+    from sts2_env.bridge.llm_policy import render_options
+
+    menu = list(cards) + [{"label": "Skip (take no card)"}]
+    prompt = render_options(state, menu, "Which card reward do you take?")
+    local = policy.pick(prompt, menu, lambda: 0, tag="CARD_REWARD")
+    if local == len(cards):
+        return None
+    if 0 <= local < len(cards):
+        return _read_index(cards[local], local)
+    return _fb
 
 def _pick_reward_screen_option(state: dict[str, Any]) -> int:
     options = _enabled_options(state)
@@ -555,7 +615,7 @@ def _pick_card_bundle_index(state: dict[str, Any]) -> int:
     return _read_index(option, DEFAULT_CHOICE_INDEX)
 
 
-def _pick_rest_option(state: dict[str, Any]) -> int:
+def _pick_rest_option_heuristic(state: dict[str, Any]) -> int:
     """Choose a rest-site option by option identity, not display order."""
     options = _enabled_options(state)
     if not options:
@@ -574,7 +634,13 @@ def _pick_rest_option(state: dict[str, Any]) -> int:
     return _read_index(option, DEFAULT_CHOICE_INDEX)
 
 
-def _pick_shop_option(state: dict[str, Any]) -> int:
+
+def _pick_rest_option(state: dict[str, Any]) -> int:
+    """LLM decision with the heuristic as fallback."""
+    _fb = _pick_rest_option_heuristic(state)
+    return _llm_pick(state, _enabled_options(state), 'What do you do at the rest site?', _fb, 'REST')
+
+def _pick_shop_option_heuristic(state: dict[str, Any]) -> int:
     """Buy an enabled shop item when one exists; leave when only exit remains."""
     options = _enabled_options(state)
     if not options:
@@ -587,13 +653,25 @@ def _pick_shop_option(state: dict[str, Any]) -> int:
     return _read_index(option, DEFAULT_CHOICE_INDEX)
 
 
-def _pick_event_option(state: dict[str, Any]) -> int:
+
+def _pick_shop_option(state: dict[str, Any]) -> int:
+    """LLM decision with the heuristic as fallback."""
+    _fb = _pick_shop_option_heuristic(state)
+    return _llm_pick(state, _enabled_options(state), 'What do you buy (or leave)?', _fb, 'SHOP')
+
+def _pick_event_option_heuristic(state: dict[str, Any]) -> int:
     """Choose the first enabled event option."""
     options = _enabled_options(state)
     if not options:
         return DEFAULT_CHOICE_INDEX
     return _read_index(options[0], DEFAULT_CHOICE_INDEX)
 
+
+
+def _pick_event_option(state: dict[str, Any]) -> int:
+    """LLM decision with the heuristic as fallback."""
+    _fb = _pick_event_option_heuristic(state)
+    return _llm_pick(state, _enabled_options(state), 'Which event option do you choose?', _fb, 'EVENT')
 
 def _pick_crystal_sphere_option(state: dict[str, Any]) -> int:
     options = _enabled_options(state)
@@ -606,7 +684,7 @@ def _pick_crystal_sphere_option(state: dict[str, Any]) -> int:
     return _read_index(option, DEFAULT_CHOICE_INDEX)
 
 
-def _pick_treasure_option(state: dict[str, Any]) -> int:
+def _pick_treasure_option_heuristic(state: dict[str, Any]) -> int:
     option = _first_matching_option(
         _enabled_options(state),
         actions=(TREASURE_COLLECT_ACTION,),
@@ -614,7 +692,13 @@ def _pick_treasure_option(state: dict[str, Any]) -> int:
     return _read_index(option, DEFAULT_CHOICE_INDEX) if option is not None else DEFAULT_CHOICE_INDEX
 
 
-def _pick_boss_relic_option(state: dict[str, Any]) -> int:
+
+def _pick_treasure_option(state: dict[str, Any]) -> int:
+    """LLM decision with the heuristic as fallback."""
+    _fb = _pick_treasure_option_heuristic(state)
+    return _llm_pick(state, _enabled_options(state), 'Do you open the treasure?', _fb, 'TREASURE')
+
+def _pick_boss_relic_option_heuristic(state: dict[str, Any]) -> int:
     option = _first_matching_option(
         _enabled_options(state),
         actions=(BOSS_RELIC_PICK_ACTION,),
@@ -622,11 +706,46 @@ def _pick_boss_relic_option(state: dict[str, Any]) -> int:
     return _read_index(option, DEFAULT_CHOICE_INDEX) if option is not None else DEFAULT_CHOICE_INDEX
 
 
+
+def _pick_boss_relic_option(state: dict[str, Any]) -> int:
+    """LLM decision with the heuristic as fallback."""
+    _fb = _pick_boss_relic_option_heuristic(state)
+    return _llm_pick(state, _enabled_options(state), 'Which boss relic do you take?', _fb, 'BOSS_RELIC')
+
 def _send_choice_or_skip(client: Any, choice_index: int | None) -> None:
     if choice_index is None:
         client.skip()
     else:
         client.choose(choice_index)
+
+
+#: Set by run_agent when --llm-model is used. The _pick_* helpers are
+#: module-level functions called from many places; a one-slot holder keeps
+#: their signatures (and the heuristic fallback path) unchanged.
+_LLM_POLICY: list[Any] = [None]
+
+
+def _llm_pick(state: dict[str, Any], options: list[dict[str, Any]],
+              question: str, fallback: Any, tag: str) -> Any:
+    """Route one decision through the LLM, falling back to the heuristic.
+
+    ``fallback`` is the heuristic's already-computed answer, so a parse
+    failure reproduces exactly the pre-LLM behaviour.
+    """
+    policy = _LLM_POLICY[0]
+    if policy is None or not options:
+        return fallback
+    from sts2_env.bridge.llm_policy import render_options
+
+    prompt = render_options(state, options, question)
+    local = policy.pick(prompt, options, lambda: 0, tag=tag)
+    # The model answers in MENU order; translate back to the payload's own
+    # index field, which is what the bridge expects and is NOT always
+    # positional.
+    chosen = options[local] if 0 <= local < len(options) else None
+    if chosen is None:
+        return fallback
+    return _read_index(chosen, local)
 
 
 def _enabled_options(state: dict[str, Any]) -> list[dict[str, Any]]:
@@ -799,9 +918,21 @@ def main() -> None:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
+        "--llm-model",
+        default=None,
+        help="Path to a local GGUF model (e.g. models/Qwen3.6-27B-Q3_K_M.gguf). "
+             "When set, the LLM makes every decision and no MaskablePPO model "
+             "is loaded; unparseable replies fall back to the heuristics.",
+    )
+    parser.add_argument("--llm-gpu-layers", type=int, default=34)
+    parser.add_argument("--llm-ctx", type=int, default=4096)
+    parser.add_argument("--llm-max-tokens", type=int, default=48)
+    parser.add_argument("--llm-temperature", type=float, default=0.2)
+    parser.add_argument(
         "--model-path",
-        required=True,
-        help="Path to the trained MaskablePPO model (.zip file).",
+        default=None,
+        help="Path to a trained MaskablePPO model (.zip). Optional when "
+             "--llm-model is given.",
     )
     parser.add_argument(
         "--host",
@@ -881,6 +1012,11 @@ def main() -> None:
         replay_factory=args.replay_factory,
         action_delay=args.action_delay,
         combat_delay=args.combat_delay,
+        llm_model=args.llm_model,
+        llm_gpu_layers=args.llm_gpu_layers,
+        llm_ctx=args.llm_ctx,
+        llm_max_tokens=args.llm_max_tokens,
+        llm_temperature=args.llm_temperature,
     )
 
 
