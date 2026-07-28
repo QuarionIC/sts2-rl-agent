@@ -584,8 +584,24 @@ class TurnObjective:
     setup: float = 0.0
     damage: float = 0.0
 
+    #: HP-loss bucket width. Strict lexicographic ordering on raw HP made
+    #: the planner TURTLE: because HP loss outranks damage absolutely, a
+    #: turn that blocked everything for 0 damage always beat one that
+    #: conceded 1 HP to deal 20, so it stalled and never closed fights
+    #: (observed live: consecutive turns planning dmg=0). Comparing HP loss
+    #: in buckets keeps "take less damage" as the higher priority while
+    #: letting damage decide between turns that are near-equally safe.
+    hp_bucket: float = 5.0
+
     def key(self) -> tuple:
-        return (self.lethal, self.hp_preserved, self.setup, self.damage)
+        import math
+
+        # hp_preserved is <= 0 (negative HP lost). ceil groups small losses
+        # with zero: 0 and -4 both land in bucket 0, -6 falls to -1. floor
+        # would put -1 in its own worse bucket, which is the turtling
+        # behaviour this is meant to remove.
+        bucket = math.ceil(self.hp_preserved / self.hp_bucket)
+        return (self.lethal, bucket, self.setup, self.damage)
 
 
 @dataclass

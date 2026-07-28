@@ -342,13 +342,18 @@ def run_agent(
                         client.end_turn()
                         continue
                     if model is None:
-                        # Planner could not plan and there is no model or LLM
-                        # to fall back to. Ending the turn keeps the run alive
-                        # instead of dereferencing a None model, which is how
-                        # the first live test crashed.
-                        logger.warning("Combat: no planner plan and no fallback "
-                                       "policy; ending turn.")
-                        client.end_turn()
+                        # Planner declined (e.g. an unrecognised modded
+                        # monster). Play a heuristic action rather than
+                        # ending the turn -- passing every turn lost a live
+                        # run outright.
+                        act_idx = _heuristic_combat_action(state, adapter)
+                        if act_idx is not None:
+                            decoded = adapter.decode_action(act_idx, state)
+                            if verbose:
+                                _log_combat_action(state, act_idx, decoded)
+                            _send_combat_action(client, decoded, combat_delay)
+                        else:
+                            client.end_turn()
                         continue
 
                 if phase in Phase.COMBAT_PHASES and llm_policy is not None:
@@ -789,16 +794,19 @@ _COMBAT_QUEUE: list[Any] = [[], -1]
 
 
 def _combat_planner_action(state: dict[str, Any]) -> int | None:
-    """Next combat action index from the deterministic per-turn planner.
+    """Next combat action from the deterministic per-turn planner.
 
-    Returns a SIM combat-action index (the caller translates it to a bridge
-    command via StateAdapter.decode_action), or None to fall back.
+    Returns a SIM combat-action index, or None to fall back.
 
-    The plan is cached and consumed one action per payload, and invalidated
-    whenever the game's turn number changes. Replanning every turn is what
-    keeps this honest against the live game: the plan is computed on a
-    reconstruction, so trusting it for longer than a turn would accumulate
-    divergence.
+    Every queued action is VALIDATED against the live payload before being
+    sent. A plan is computed on a reconstruction, and replaying it blind was
+    a real failure in live play: after one action the game's hand and energy
+    moved differently than the simulation, and the rest of the turn was
+    aimed at the wrong slots -- observed as two Strikes played from slot 0
+    with zero energy remaining. Each queued action therefore carries the
+    CARD ID it was chosen for, and if the live hand no longer holds that
+    card at that slot the plan is discarded and recomputed from the real
+    state.
     """
     if _COMBAT_POLICY[0] != "planner":
         return None
@@ -810,32 +818,80 @@ def _combat_planner_action(state: dict[str, Any]) -> int | None:
         if probe.can_plan:
             logger.info("Combat: deterministic per-turn planner ENGAGED.")
         else:
-            logger.warning(
-                "Combat: falling back -- %s. Rebuild the mod with the "
-                "pile/deck fields (see combat_reconstruct.py).", probe.reason())
+            logger.warning("Combat: falling back -- %s", probe.reason())
     if not _COMBAT_POLICY[1].can_plan:
         return None
 
     turn = int(state.get("round", -1))
-    if turn != _COMBAT_QUEUE[1] or not _COMBAT_QUEUE[0]:
+    hand = state.get("hand", []) or []
+
+    def _live_card(idx: int) -> str | None:
+        if 0 <= idx < len(hand):
+            c = hand[idx]
+            return str(c.get("id") or c.get("card_id") or "")
+        return None
+
+    # Drop a stale plan: new turn, or the next action no longer matches the
+    # card it was planned for.
+    if _COMBAT_QUEUE[0] and _COMBAT_QUEUE[1] == turn:
+        nxt = _COMBAT_QUEUE[0][0]
+        want = nxt.get("card_id")
+        idx = nxt.get("card_index")
+        if want is not None and idx is not None:
+            live = _live_card(idx)
+            if live is None or _norm_card(live) != _norm_card(want):
+                logger.info("Combat: plan diverged (slot %s holds %s, planned "
+                            "%s) -- replanning", idx, live, want)
+                _COMBAT_QUEUE[0] = []
+    else:
+        _COMBAT_QUEUE[0] = []
+
+    if not _COMBAT_QUEUE[0]:
         combat = reconstruct_combat(state)
         if combat is None:
             return None
+        from sts2_env.gym_env.action_space import (
+            action_to_card_and_target,
+            is_potion_action,
+        )
         from sts2_env.search.combat_planner import PlannerConfig, plan_turn
 
         plan = plan_turn(combat, PlannerConfig(beam_width=24,
                                                max_expansions=60_000,
                                                time_budget_s=6.0))
-        _COMBAT_QUEUE[0] = list(plan.actions)
+        # Annotate each action with the card it was chosen for, resolved
+        # against the SIM hand as it evolves through the plan -- that is the
+        # only place the intended card is knowable.
+        sim_hand = [str(getattr(c, "card_id", "")).replace("CardId.", "")
+                    for c in combat.combat_player_states[0].hand]
+        queued = []
+        for a in plan.actions:
+            entry: dict[str, Any] = {"action": int(a)}
+            if a != 0 and not is_potion_action(int(a)):
+                try:
+                    hidx, _ = action_to_card_and_target(int(a))
+                except Exception:
+                    hidx = None
+                if hidx is not None and 0 <= hidx < len(sim_hand):
+                    entry["card_index"] = hidx
+                    entry["card_id"] = sim_hand[hidx]
+                    sim_hand.pop(hidx)
+            queued.append(entry)
+        _COMBAT_QUEUE[0] = queued
         _COMBAT_QUEUE[1] = turn
-        logger.info("Combat turn %s: planned %d actions%s (obj lethal=%d hp=%.0f "
-                    "setup=%.0f dmg=%.0f)", turn, len(plan.actions),
+        logger.info("Combat turn %s: planned %d actions%s (obj lethal=%d "
+                    "hp=%.0f setup=%.0f dmg=%.0f)", turn, len(plan.actions),
                     " LETHAL" if plan.lethal else "", plan.objective.lethal,
                     plan.objective.hp_preserved, plan.objective.setup,
                     plan.objective.damage)
+
     if not _COMBAT_QUEUE[0]:
         return None
-    return int(_COMBAT_QUEUE[0].pop(0))
+    return int(_COMBAT_QUEUE[0].pop(0)["action"])
+
+
+def _norm_card(v: str) -> str:
+    return str(v).upper().replace("CARDID.", "").replace("-", "_").strip()
 
 def _llm_pick(state: dict[str, Any], options: list[dict[str, Any]],
               question: str, fallback: Any, tag: str) -> Any:
@@ -858,6 +914,74 @@ def _llm_pick(state: dict[str, Any], options: list[dict[str, Any]],
     if chosen is None:
         return fallback
     return _read_index(chosen, local)
+
+
+def _heuristic_combat_action(state: dict[str, Any], adapter: Any) -> int | None:
+    """Play one reasonable combat action without the planner.
+
+    This exists because the previous fallback ended the turn whenever the
+    planner declined, which lost a live run outright: the agent passed every
+    turn of the first fight until it died. Ending the turn is the single
+    worst legal action, so it must never be the default.
+
+    Priority mirrors the planner's objective as closely as a one-ply rule
+    can: kill something if a single card can, then commit powers, then
+    block against a real incoming attack, then attack the weakest enemy.
+    """
+    import numpy as _np
+
+    mask = adapter.compute_action_mask(state)
+    legal = [int(i) for i in _np.flatnonzero(_np.asarray(mask, dtype=bool))]
+    if not legal:
+        return None
+
+    hand = state.get("hand", []) or []
+    enemies = [e for e in (state.get("enemies") or [])
+               if e.get("is_alive", True) and int(e.get("hp", 0) or 0) > 0]
+    incoming = 0
+    for e in enemies:
+        dmg = e.get("intent_damage") or 0
+        try:
+            incoming += int(dmg) * int(e.get("intent_hits", 1) or 1)
+        except Exception:
+            pass
+    block = int((state.get("player") or {}).get("block", 0) or 0)
+
+    scored: list[tuple[int, int]] = []   # (priority, action)
+    for a in legal:
+        try:
+            d = adapter.decode_action(a, state)
+        except Exception:
+            continue
+        if d.get("type") == ActionType.END_TURN or d.get("out_of_hand"):
+            continue
+        idx = d.get("card_index", -1)
+        if not (0 <= idx < len(hand)):
+            continue
+        card = hand[idx]
+        ctype = str(card.get("type", "")).upper()
+        tgt = d.get("target_index", -1)
+        target_hp = None
+        if 0 <= tgt < len(enemies):
+            try:
+                target_hp = int(enemies[tgt].get("hp", 0) or 0)
+            except Exception:
+                target_hp = None
+
+        if ctype == "POWER":
+            pri = 2
+        elif ctype == "ATTACK":
+            # Prefer hitting the weakest live enemy: most likely to remove a
+            # source of damage this turn.
+            pri = 3 if target_hp is not None and target_hp <= 12 else 4
+        else:  # SKILL -- mostly block
+            pri = 1 if incoming > block else 6
+        scored.append((pri, a))
+
+    if not scored:
+        return None
+    scored.sort()
+    return scored[0][1]
 
 
 def _llm_combat_action(state: dict[str, Any], adapter: Any) -> int | None:

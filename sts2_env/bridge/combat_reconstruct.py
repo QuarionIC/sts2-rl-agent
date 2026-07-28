@@ -59,7 +59,65 @@ logger = logging.getLogger(__name__)
 REQUIRED_FOR_PLANNING = ("draw_pile", "discard_pile", "deck")
 
 
+#: Mod id prefixes the game puts on monster ids. "Acts from the Past"
+#: namespaces its content, so the wire sends ACTSFROMTHEPAST-CULTIST while
+#: the simulator calls the same creature EXORDIUM_CULTIST.
+_MOD_PREFIXES = ("ACTSFROMTHEPAST-", "ACT4HEART-", "DOWNFALL-", "BASE-")
+
 _MONSTER_FACTORIES: dict[str, Any] | None = None
+
+
+def _normalize_monster_id(raw: str, registry: dict[str, Any]) -> str | None:
+    """Resolve a wire monster id to a registry key, or None.
+
+    Live play sent ACTSFROMTHEPAST-CULTIST, which matched nothing and made
+    the planner decline every fight in the legacy acts -- the agent then
+    ended its turn until it died. Matching now strips the mod namespace and
+    falls back to a suffix match, since the simulator qualifies legacy
+    creatures by act (CULTIST -> EXORDIUM_CULTIST).
+    """
+    name = str(raw).strip().upper().replace("-", "_")
+    if name in registry:
+        return name
+    for pref in _MOD_PREFIXES:
+        p2 = pref.replace("-", "_")
+        if name.startswith(p2):
+            bare = name[len(p2):]
+            if bare in registry:
+                return bare
+            name = bare
+            break
+    # Act-qualified variants: CULTIST -> EXORDIUM_CULTIST / ACT1_CULTIST ...
+    suffix_hits = [k for k in registry if k.endswith("_" + name)]
+    if len(suffix_hits) == 1:
+        return suffix_hits[0]
+    if suffix_hits:
+        # Prefer the legacy-act spelling, which is what the mod supplies.
+        for pref in ("EXORDIUM_", "THECITY_", "THEBEYOND_"):
+            for k in suffix_hits:
+                if k.startswith(pref):
+                    return k
+        return sorted(suffix_hits)[0]
+    flat = name.replace("_", "")
+    for k in registry:
+        if k.replace("_", "") == flat:
+            return k
+    # Size suffixes: the mod spells them out (ACID_SLIME_SMALL) while the
+    # simulator abbreviates (EXORDIUM_ACID_SLIME_S).
+    for long, short in (("_SMALL", "_S"), ("_MEDIUM", "_M"), ("_LARGE", "_L"),
+                        ("_TINY", "_S"), ("_BIG", "_L")):
+        if name.endswith(long):
+            alt = name[: -len(long)] + short
+            if alt in registry:
+                return alt
+            hits = [k for k in registry if k.endswith("_" + alt)]
+            if hits:
+                for pref in ("EXORDIUM_", "THECITY_", "THEBEYOND_"):
+                    for k in hits:
+                        if k.startswith(pref):
+                            return k
+                return sorted(hits)[0]
+    return None
 
 
 def _monster_factories() -> dict[str, Any]:
@@ -277,10 +335,11 @@ def reconstruct_combat(state: dict[str, Any]) -> Any | None:
         return None
     built = 0
     for spec in wire_enemies:
-        mid = str(spec.get("id") or spec.get("monster_id") or "")
-        fn = factories.get(mid)
+        raw_mid = str(spec.get("id") or spec.get("monster_id") or "")
+        mid = _normalize_monster_id(raw_mid, factories)
+        fn = factories.get(mid) if mid else None
         if fn is None:
-            logger.warning("unknown monster id %r; cannot plan this fight", mid)
+            logger.warning("unknown monster id %r; cannot plan this fight", raw_mid)
             return None
         try:
             creature, ai = fn(Rng(int(state.get("round", 1)) or 1),
