@@ -66,11 +66,7 @@ class LLMConfig:
     #: CLOSED think block removes the option entirely: the block cannot be
     #: reopened, so generation starts at the answer. Measured 4/4 parse at
     #: ~6.5s per decision.
-    answer_prefill: str = "<think>
-
-</think>
-
-CHOICE:"
+    answer_prefill: str = "<think>\n\n</think>\n\nCHOICE:"
     seed: int = 0
     verbose: bool = False
 
