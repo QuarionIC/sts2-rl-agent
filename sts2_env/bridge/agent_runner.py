@@ -311,6 +311,40 @@ def run_agent(
                 if llm_policy is not None:
                     _LLM_POLICY[0] = llm_policy
 
+                # ---- Combat: deterministic per-turn planner ----
+                # Must come BEFORE the model branches. In LLM mode there is
+                # no MaskablePPO model at all, so the old combat branch below
+                # would dereference None; and previously nothing routed
+                # combat to the planner, which is why live play showed no
+                # planner behaviour despite --combat-policy planner.
+                if phase in Phase.COMBAT_PHASES and _COMBAT_POLICY[0] == "planner":
+                    planned = _combat_planner_action(state)
+                    if planned is not None:
+                        decoded = adapter.decode_action(planned, state)
+                        if verbose:
+                            _log_combat_action(state, planned, decoded)
+                        _send_combat_action(client, decoded, combat_delay)
+                        continue
+                    # Planner unavailable (payload lacks pile data): fall
+                    # through to the LLM/model paths below.
+                    if llm_policy is not None:
+                        act_idx = _llm_combat_action(state, adapter)
+                        if act_idx is not None:
+                            decoded = adapter.decode_action(act_idx, state)
+                            _send_combat_action(client, decoded, combat_delay)
+                            continue
+                        client.end_turn()
+                        continue
+
+                if phase in Phase.COMBAT_PHASES and llm_policy is not None:
+                    act_idx = _llm_combat_action(state, adapter)
+                    if act_idx is not None:
+                        decoded = adapter.decode_action(act_idx, state)
+                        _send_combat_action(client, decoded, combat_delay)
+                    else:
+                        client.end_turn()
+                    continue
+
                 if run_state_adapter is not None:
                     # ---- Full-run model: trained policy drives every phase ----
                     if phase == Phase.COMBAT_WAITING:
@@ -735,13 +769,21 @@ _LLM_POLICY: list[Any] = [None]
 #: once per combat decision.
 _COMBAT_POLICY: list[Any] = ["llm", None]
 
+#: [pending sim-action indices, the game turn they were planned for]
+_COMBAT_QUEUE: list[Any] = [[], -1]
 
-def _combat_planner_action(state: dict[str, Any]) -> dict[str, Any] | None:
-    """Plan this combat with deterministic search, or None to fall back.
 
-    Returns None whenever the payload cannot support a sound plan. The
-    reason is logged exactly once per session, because it is a property of
-    the deployed mod build and would otherwise repeat every decision.
+def _combat_planner_action(state: dict[str, Any]) -> int | None:
+    """Next combat action index from the deterministic per-turn planner.
+
+    Returns a SIM combat-action index (the caller translates it to a bridge
+    command via StateAdapter.decode_action), or None to fall back.
+
+    The plan is cached and consumed one action per payload, and invalidated
+    whenever the game's turn number changes. Replanning every turn is what
+    keeps this honest against the live game: the plan is computed on a
+    reconstruction, so trusting it for longer than a turn would accumulate
+    divergence.
     """
     if _COMBAT_POLICY[0] != "planner":
         return None
@@ -751,27 +793,34 @@ def _combat_planner_action(state: dict[str, Any]) -> dict[str, Any] | None:
         probe = probe_payload(state)
         _COMBAT_POLICY[1] = probe
         if probe.can_plan:
-            logger.info("Combat: deterministic planner ENGAGED.")
+            logger.info("Combat: deterministic per-turn planner ENGAGED.")
         else:
             logger.warning(
-                "Combat: falling back to the LLM -- %s. Rebuild the mod with "
-                "the pile/deck fields (see sts2_env/bridge/combat_reconstruct"
-                ".py) to enable planning.", probe.reason(),
-            )
+                "Combat: falling back -- %s. Rebuild the mod with the "
+                "pile/deck fields (see combat_reconstruct.py).", probe.reason())
     if not _COMBAT_POLICY[1].can_plan:
         return None
 
-    combat = reconstruct_combat(state)
-    if combat is None:
-        return None
-    from sts2_env.search.combat_planner import TRAIN_LADDER, plan_combat_escalating
+    turn = int(state.get("round", -1))
+    if turn != _COMBAT_QUEUE[1] or not _COMBAT_QUEUE[0]:
+        combat = reconstruct_combat(state)
+        if combat is None:
+            return None
+        from sts2_env.search.combat_planner import PlannerConfig, plan_turn
 
-    result = plan_combat_escalating(combat, TRAIN_LADDER)
-    if not result.actions:
+        plan = plan_turn(combat, PlannerConfig(beam_width=24,
+                                               max_expansions=60_000,
+                                               time_budget_s=6.0))
+        _COMBAT_QUEUE[0] = list(plan.actions)
+        _COMBAT_QUEUE[1] = turn
+        logger.info("Combat turn %s: planned %d actions%s (obj lethal=%d hp=%.0f "
+                    "setup=%.0f dmg=%.0f)", turn, len(plan.actions),
+                    " LETHAL" if plan.lethal else "", plan.objective.lethal,
+                    plan.objective.hp_preserved, plan.objective.setup,
+                    plan.objective.damage)
+    if not _COMBAT_QUEUE[0]:
         return None
-    return {"planned_actions": result.actions, "won": result.won,
-            "final_hp": result.final_hp}
-
+    return int(_COMBAT_QUEUE[0].pop(0))
 
 def _llm_pick(state: dict[str, Any], options: list[dict[str, Any]],
               question: str, fallback: Any, tag: str) -> Any:
@@ -794,6 +843,56 @@ def _llm_pick(state: dict[str, Any], options: list[dict[str, Any]],
     if chosen is None:
         return fallback
     return _read_index(chosen, local)
+
+
+def _llm_combat_action(state: dict[str, Any], adapter: Any) -> int | None:
+    """Let the LLM choose one combat action, as a sim action index.
+
+    Only used when the planner cannot run. Options are built from the
+    adapter's own legal mask, so the model can only pick a legal play.
+    """
+    policy = _LLM_POLICY[0]
+    if policy is None:
+        return None
+    import numpy as _np
+
+    from sts2_env.bridge.llm_policy import render_combat
+
+    mask = adapter.compute_action_mask(state)
+    legal = [int(i) for i in _np.flatnonzero(_np.asarray(mask, dtype=bool))]
+    if not legal:
+        return None
+    opts = []
+    for a in legal:
+        try:
+            d = adapter.decode_action(a, state)
+        except Exception:
+            continue
+        opts.append({"_action": a, "_label": _combat_option_label(state, a, d)})
+    if not opts:
+        return None
+    prompt = render_combat(state, opts)
+    local = policy.pick(prompt, opts, lambda: 0, tag="COMBAT")
+    if 0 <= local < len(opts):
+        return int(opts[local]["_action"])
+    return int(opts[0]["_action"])
+
+
+def _combat_option_label(state: dict[str, Any], action: int, decoded: dict) -> str:
+    if decoded.get("type") == ActionType.END_TURN:
+        return "End turn"
+    if decoded.get("out_of_hand"):
+        return f"Use potion slot {decoded.get('slot', '?')}"
+    hand = state.get("hand", []) or []
+    idx = decoded.get("card_index", -1)
+    name = "?"
+    if 0 <= idx < len(hand):
+        c = hand[idx]
+        name = str(c.get("id") or c.get("card_id") or "?")
+        if c.get("cost") is not None:
+            name += f" [{c['cost']}e]"
+    tgt = decoded.get("target_index", -1)
+    return f"Play {name}" + (f" -> enemy {tgt}" if tgt is not None and tgt >= 0 else "")
 
 
 def _enabled_options(state: dict[str, Any]) -> list[dict[str, Any]]:

@@ -624,6 +624,51 @@ def _living_enemy_hp(combat) -> int:
     return sum(e.current_hp for e in combat.enemies if e.is_alive)
 
 
+def _select_beam(children: list, cfg: PlannerConfig) -> list:
+    """Choose which mid-turn nodes survive to the next ply.
+
+    Ranking mid-turn nodes by a single scalar is what made the planner miss
+    lethal lines: a line that spends the whole turn setting up a kill looks
+    bad to a heuristic that rewards block and current HP, so it was pruned
+    several plies before the kill landed.
+
+    Mid-turn the terminal objective cannot be evaluated -- the enemies have
+    not acted, so HP loss is unknown. Rather than collapse that uncertainty
+    into one number, the beam is SPLIT along the two top priorities so
+    neither can starve the other:
+
+    * half ranked by proximity to LETHAL (least enemy HP remaining), which
+      preserves kill lines however ugly they look right now;
+    * half ranked by the safety heuristic, which preserves the block lines.
+
+    Ties are broken by setup then damage, mirroring priorities 3 and 4.
+    """
+    half = max(1, cfg.beam_width // 2)
+
+    def lethal_key(t):
+        child, _path, setup = t
+        return (_living_enemy_hp(child), -setup)
+
+    def safe_key(t):
+        child, _path, setup = t
+        return (-_heuristic(child, cfg), -setup)
+
+    by_lethal = sorted(children, key=lethal_key)[:half]
+    by_safety = sorted(children, key=safe_key)[:half]
+
+    seen_paths: set[tuple] = set()
+    beam = []
+    for child, path, setup in by_lethal + by_safety:
+        key = tuple(path)
+        if key in seen_paths:
+            continue
+        seen_paths.add(key)
+        beam.append((child, path, setup))
+        if len(beam) >= cfg.beam_width:
+            break
+    return beam
+
+
 def plan_turn(root_combat, config: PlannerConfig | None = None) -> TurnPlan:
     """Search this turn only; return the best action sequence for it.
 
@@ -696,7 +741,7 @@ def plan_turn(root_combat, config: PlannerConfig | None = None) -> TurnPlan:
                 seen.add(sig)
                 # Mid-turn ranking only decides what stays in the beam; the
                 # real decision is the terminal tuple above.
-                children.append((_heuristic(child, cfg), child, new_path, new_setup))
+                children.append((child, new_path, new_setup))
             if expansions >= cfg.max_expansions:
                 break
 
@@ -704,8 +749,7 @@ def plan_turn(root_combat, config: PlannerConfig | None = None) -> TurnPlan:
             break  # nothing outranks ending the fight
         if not children:
             break
-        children.sort(key=lambda t: -t[0])
-        frontier = [(c, p, s) for _, c, p, s in children[: cfg.beam_width]]
+        frontier = _select_beam(children, cfg)
         if expansions >= cfg.max_expansions:
             break
 
