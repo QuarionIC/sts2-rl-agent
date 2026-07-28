@@ -180,6 +180,7 @@ def run_agent(
     llm_ctx: int = 4096,
     llm_max_tokens: int = 48,
     llm_temperature: float = 0.2,
+    combat_policy: str = "planner",
 ) -> None:
     """Main agent loop.
 
@@ -195,6 +196,11 @@ def run_agent(
         action_delay: Seconds to pause before each non-combat decision.
         combat_delay: Seconds to pause before each combat action (end turn is instant).
     """
+    _COMBAT_POLICY[0] = combat_policy
+    _COMBAT_POLICY[1] = None
+    logger.info("Combat policy: %s | out-of-combat: %s",
+                combat_policy, "LLM" if llm_model else "model/heuristic")
+
     llm_policy = None
     if llm_model:
         # LLM drives every decision; no MaskablePPO model is loaded. The
@@ -724,6 +730,48 @@ def _send_choice_or_skip(client: Any, choice_index: int | None) -> None:
 #: their signatures (and the heuristic fallback path) unchanged.
 _LLM_POLICY: list[Any] = [None]
 
+#: Combat routing for the session: "planner" (deterministic search) or "llm".
+#: Slot 1 caches the capability probe so the "why not" is logged once, not
+#: once per combat decision.
+_COMBAT_POLICY: list[Any] = ["llm", None]
+
+
+def _combat_planner_action(state: dict[str, Any]) -> dict[str, Any] | None:
+    """Plan this combat with deterministic search, or None to fall back.
+
+    Returns None whenever the payload cannot support a sound plan. The
+    reason is logged exactly once per session, because it is a property of
+    the deployed mod build and would otherwise repeat every decision.
+    """
+    if _COMBAT_POLICY[0] != "planner":
+        return None
+    from sts2_env.bridge.combat_reconstruct import probe_payload, reconstruct_combat
+
+    if _COMBAT_POLICY[1] is None:
+        probe = probe_payload(state)
+        _COMBAT_POLICY[1] = probe
+        if probe.can_plan:
+            logger.info("Combat: deterministic planner ENGAGED.")
+        else:
+            logger.warning(
+                "Combat: falling back to the LLM -- %s. Rebuild the mod with "
+                "the pile/deck fields (see sts2_env/bridge/combat_reconstruct"
+                ".py) to enable planning.", probe.reason(),
+            )
+    if not _COMBAT_POLICY[1].can_plan:
+        return None
+
+    combat = reconstruct_combat(state)
+    if combat is None:
+        return None
+    from sts2_env.search.combat_planner import TRAIN_LADDER, plan_combat_escalating
+
+    result = plan_combat_escalating(combat, TRAIN_LADDER)
+    if not result.actions:
+        return None
+    return {"planned_actions": result.actions, "won": result.won,
+            "final_hp": result.final_hp}
+
 
 def _llm_pick(state: dict[str, Any], options: list[dict[str, Any]],
               question: str, fallback: Any, tag: str) -> Any:
@@ -924,6 +972,15 @@ def main() -> None:
              "When set, the LLM makes every decision and no MaskablePPO model "
              "is loaded; unparseable replies fall back to the heuristics.",
     )
+    parser.add_argument(
+        "--combat-policy",
+        choices=["planner", "llm"],
+        default="planner",
+        help="Who plays combat: 'planner' = deterministic beam search "
+             "(default; needs a mod build that sends pile+deck contents, "
+             "otherwise falls back to the LLM with a logged reason), "
+             "'llm' = the language model plays combat too.",
+    )
     parser.add_argument("--llm-gpu-layers", type=int, default=34)
     parser.add_argument("--llm-ctx", type=int, default=4096)
     parser.add_argument("--llm-max-tokens", type=int, default=48)
@@ -1012,6 +1069,7 @@ def main() -> None:
         replay_factory=args.replay_factory,
         action_delay=args.action_delay,
         combat_delay=args.combat_delay,
+        combat_policy=args.combat_policy,
         llm_model=args.llm_model,
         llm_gpu_layers=args.llm_gpu_layers,
         llm_ctx=args.llm_ctx,
