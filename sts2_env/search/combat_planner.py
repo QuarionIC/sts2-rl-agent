@@ -309,8 +309,8 @@ def plan_combat(root_combat, config: PlannerConfig | None = None) -> PlanResult:
 #: Fast profile for TRAINING throughput: single cheap rung, one escalation
 #: on loss, tight time budgets. ~1-3s per combat.
 TRAIN_LADDER = (
-    PlannerConfig(time_budget_s=1.5),
-    PlannerConfig(beam_width=32, max_expansions=40_000, time_budget_s=4.0),
+    PlannerConfig(beam_width=4, max_expansions=800, time_budget_s=0.0),
+    PlannerConfig(beam_width=16, max_expansions=6_000, time_budget_s=4.0),
 )
 
 #: Thorough profile for EVALUATION / real play: full escalation with the
@@ -341,6 +341,11 @@ class PlannedCombatController:
     def __init__(self, env, config: PlannerConfig | None = None,
                  ladder: tuple[PlannerConfig, ...] | None = ()):
         self._env = env
+        #: Anti-stall: turn number at the last replan, and how many replans
+        #: have happened without the turn advancing.
+        self._last_turn: int | None = None
+        self._stuck_replans = 0
+        self.forced_end_turns = 0
         self.cfg = config or PlannerConfig()
         #: () (default) = use the standard escalation ladder; None = single
         #: budget from ``config``; an explicit tuple = custom ladder.
@@ -366,10 +371,34 @@ class PlannedCombatController:
             legal = np.flatnonzero(np.asarray(mask, dtype=bool))
             return int(legal[0]) if legal.size else 0
 
+        # Anti-stall guard. A truncated plan (budget exhausted before any
+        # terminal) can return a short line that fails to advance the fight;
+        # the queue then empties, we replan from a nearly identical state,
+        # and the cycle repeats. Each iteration costs a full search, so a
+        # stalled fight burned ~120 searches (minutes) inside ONE env step
+        # and was the dominant cost in planner-based training -- measured
+        # throughput was 1.0 fps.
+        turn = int(getattr(combat, "turn_count", -1))
+        if turn != self._last_turn:
+            self._last_turn = turn
+            self._stuck_replans = 0
+        if self._stuck_replans >= 2:
+            # Two replans without the turn advancing: force END TURN so the
+            # fight always makes progress. Ending a turn is legal whenever
+            # the player is acting, and it is what a stuck line needs.
+            m0 = np.asarray(mask, dtype=bool)
+            if m0.size > ACTION_END_TURN and m0[ACTION_END_TURN]:
+                self._stuck_replans = 0
+                self._queue = []
+                self.forced_end_turns += 1
+                return ACTION_END_TURN
+
         key = id(combat)
         if key != self._combat_key or not self._queue:
             if key != self._combat_key:
                 self._combat_key = key
+                self._last_turn = turn
+                self._stuck_replans = 0
                 self.plans += 1
                 # Fresh combat: full ladder (escalates on loss / bloody win).
                 result = (plan_combat_escalating(combat, self.ladder)
@@ -382,6 +411,7 @@ class PlannedCombatController:
                 # not a fresh fight -- the cheap rung suffices, and running
                 # the full ladder here was the main throughput sink.
                 self.replans += 1
+                self._stuck_replans += 1
                 cheap = (self.ladder[0] if self.ladder is not None else self.cfg)
                 result = plan_combat(combat, cheap)
             self._queue = list(result.actions)
