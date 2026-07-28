@@ -95,6 +95,33 @@ class KnowledgeRunPolicy:
 
     # -- main -----------------------------------------------------------
 
+    def _pending_choice_action(self, actions: list[dict],
+                               mask: np.ndarray) -> int | None:
+        """Resolve a pending card choice toward the highest-prior card.
+
+        The choice slice is the combat slice: index 0 is confirm, and option
+        i is at 1+i (mirrors run_env's dispatch for non-combat choices).
+        """
+        from sts2_env.gym_env.run_env import _LAYOUT
+        from sts2_env.knowledge.card_priors import card_prior
+
+        choices = [a for a in actions if a.get("action") == "choose"]
+        if not choices:
+            return None
+        best_local = None
+        best_val = -1.0
+        for i, a in enumerate(choices):
+            cid = str(a.get("card_id", "") or a.get("option_id", ""))
+            val = card_prior(cid).value if cid else 0.0
+            if val > best_val:
+                best_val, best_local = val, i
+        if best_local is None:
+            return None
+        idx = _LAYOUT.combat_start + 1 + best_local
+        if 0 <= idx < mask.size and mask[idx]:
+            return idx
+        return None
+
     def act(self, obs, mask) -> int:
         mask = np.asarray(mask, dtype=bool)
         mgr = self.env._mgr
@@ -108,6 +135,17 @@ class KnowledgeRunPolicy:
         actions = mgr.get_available_actions()
         self.decisions[phase] += 1
         chosen: dict | None = None
+
+        # A pending run choice (e.g. WHICH card to upgrade after SMITH)
+        # reuses the combat slice and is not a phase of its own. Without
+        # this branch the upgrade landed on an arbitrary card, which is
+        # most often a Strike -- the smith_target skill existed but was
+        # never reachable.
+        if mgr.run_state.pending_choice is not None and "smith_target" in self.enabled:
+            idx = self._pending_choice_action(actions, mask)
+            if idx is not None:
+                self.skill_fired["smith_target"] += 1
+                return idx
 
         if phase == RunManager.PHASE_CARD_REWARD and "pick_card" in self.enabled:
             picks = [a for a in actions if a.get("action") == "pick_card"]

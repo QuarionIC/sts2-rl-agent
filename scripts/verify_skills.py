@@ -41,7 +41,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-ALL_SKILLS = ["pick_card", "rest_or_smith", "route", "shop"]
+ALL_SKILLS = ["pick_card", "rest_or_smith", "smith_target", "route", "shop"]
 
 
 def run_arm(label: str, enabled: set[str] | None, episodes: int, seed_base: int,

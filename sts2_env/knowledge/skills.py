@@ -75,11 +75,12 @@ def score_card(card_id: str, deck_counter: Counter, deck_size: int,
         if owned >= 2:
             score += min(3.0, 0.6 * owned)
 
-    # Dilution penalty past the soft ceiling: every extra card makes the good
-    # ones rarer. This is the correction for the measured "takes many weak
-    # cards" failure mode.
-    if deck_size >= DECK_TARGET_SOFT_MAX:
-        score -= 2.5 * (deck_size - DECK_TARGET_SOFT_MAX + 1)
+    # Dilution penalty, only for genuinely oversized decks. An earlier,
+    # steeper version fired at 18 cards and measurably HURT (see
+    # skill_pick_card); at current run lengths a card in hand beats a
+    # theoretical draw-rate argument.
+    if deck_size >= DECK_TARGET_SOFT_MAX + 6:
+        score -= 1.0 * (deck_size - (DECK_TARGET_SOFT_MAX + 6) + 1)
 
     # Diminishing returns on duplicates of situational cards (powers and
     # one-per-deck effects); attacks and block stack fine.
@@ -91,10 +92,21 @@ def score_card(card_id: str, deck_counter: Counter, deck_size: int,
 
 
 def skill_pick_card(ctx: dict) -> int | None:
-    """Take the best-scoring offered card, or skip when all are bad.
+    """Take the best-scoring offered card; skip only in the greedy variant.
 
-    Skipping matters: with a dilution penalty, adding a D-tier card to an
-    18-card deck is genuinely worse than taking nothing.
+    VERIFIED FALSE (2026-07-27), then corrected. The original version applied
+    a dilution penalty and skipped weak cards, on the theory that the
+    hierarchical agent's diluted 13.1-card decks were the problem. Measured
+    over 30 seed-matched runs it made decks SMALLER (12.6 vs 14.1) and runs
+    SHORTER (7.63 vs 8.87 floors), and leave-one-out showed removing the
+    skill entirely gained +1.43 +/- 0.74 floors -- it was the worst component
+    in the library.
+
+    The theory was wrong about the regime. Runs currently end around floor 8-9
+    after only ~5-8 card rewards, so a skipped reward is never recovered;
+    dilution only becomes the binding cost in long runs that reach act 2+.
+    ``allow_skip`` therefore defaults False, and the dilution penalty is
+    gated on genuinely oversized decks.
     """
     options = ctx.get("card_options") or []
     if not options:
@@ -109,8 +121,8 @@ def skill_pick_card(ctx: dict) -> int | None:
     ]
     best_score, best_i = max(scored)
 
-    # Skip threshold: below a C-tier card's baseline value, the pick is not
-    # worth the dilution. Early on the deck needs bodies, so the bar is lower.
+    if not ctx.get("allow_skip", False):
+        return best_i
     threshold = 1.0 if deck_size < DECK_TARGET_MIN else TIER_VALUE["C"]
     if best_score < threshold and ctx.get("can_skip", True):
         return None
