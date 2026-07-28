@@ -491,6 +491,20 @@ public class RlCombatHandler : IRoomHandler, IHandler
                 ["draw_pile_count"] = pcs?.DrawPile.Cards.Count ?? 0,
                 ["discard_pile_count"] = pcs?.DiscardPile.Cards.Count ?? 0,
                 ["exhaust_pile_count"] = pcs?.ExhaustPile.Cards.Count ?? 0,
+                // Ordered pile CONTENTS + the owned deck. The counts above are
+                // not enough for the Python-side deterministic combat planner:
+                // it rebuilds the combat in the simulator and searches it, so
+                // it needs to know WHICH cards are where, in order. Without
+                // these it refuses to plan (see combat_reconstruct.py) and
+                // combat falls back to the language model.
+                ["draw_pile"] = pcs?.DrawPile.Cards.Select(SerializeCard).ToList()
+                    ?? new List<Dictionary<string, object>>(),
+                ["discard_pile"] = pcs?.DiscardPile.Cards.Select(SerializeCard).ToList()
+                    ?? new List<Dictionary<string, object>>(),
+                ["exhaust_pile"] = pcs?.ExhaustPile.Cards.Select(SerializeCard).ToList()
+                    ?? new List<Dictionary<string, object>>(),
+                ["deck"] = player?.Deck?.Cards?.Select(SerializeCard).ToList()
+                    ?? new List<Dictionary<string, object>>(),
                 ["round"] = combatState?.RoundNumber ?? 0,
                 ["floor"] = runState?.TotalFloor ?? 0,
                 ["act"] = (runState?.CurrentActIndex ?? 0) + 1,

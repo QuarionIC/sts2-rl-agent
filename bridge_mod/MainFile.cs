@@ -25,6 +25,36 @@ public partial class MainFile : Node
     private static Harmony? _harmony;
     private static RlAutoSlayer? _autoSlayer;
 
+    /// <summary>
+    /// Read the sts2_who_plays flag written by scripts/who_plays.py.
+    /// Looked up beside the mod assembly first, then the game directory.
+    /// Any failure returns true (agent plays) so a missing or unreadable
+    /// flag can never lock the player out of their own bot.
+    /// </summary>
+    private static bool ShouldAgentPlay()
+    {
+        try
+        {
+            string asmDir = System.IO.Path.GetDirectoryName(
+                System.Reflection.Assembly.GetExecutingAssembly().Location) ?? ".";
+            foreach (string dir in new[] { asmDir, System.AppContext.BaseDirectory })
+            {
+                if (string.IsNullOrEmpty(dir)) continue;
+                string path = System.IO.Path.Combine(dir, "sts2_who_plays.txt");
+                if (!System.IO.File.Exists(path)) continue;
+                string value = System.IO.File.ReadAllText(path).Trim().ToLowerInvariant();
+                Logger.Log($"sts2_who_plays flag found at {path}: {value}");
+                return !value.StartsWith("human");
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"sts2_who_plays check failed ({ex.Message}); agent plays.");
+            return true;
+        }
+    }
+
     public static void Initialize()
     {
         Logger.Log("=== STS2 RL Bridge Mod Initializing ===");
@@ -74,8 +104,18 @@ public partial class MainFile : Node
             Logger.Log($"TCP server failed: {ex.Message}");
         }
 
-        // Phase 3: Launch AutoSlay with RL handlers on Godot main thread.
-        TaskHelper.RunSafely(LaunchRlAutoSlayAsync());
+        // Phase 3: Launch AutoSlay with RL handlers on Godot main thread,
+        // unless the player has taken the controller back via
+        // scripts/who_plays.py. Absent/unreadable flag => agent plays, which
+        // preserves the behaviour this mod had before the flag existed.
+        if (ShouldAgentPlay())
+        {
+            TaskHelper.RunSafely(LaunchRlAutoSlayAsync());
+        }
+        else
+        {
+            Logger.Log("sts2_who_plays = human -- AutoSlay disabled; you have the controller.");
+        }
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
             try
@@ -183,4 +223,6 @@ internal static class Logger
     {
         GD.Print($"[STS2Bridge] {message}");
     }
+
+
 }
