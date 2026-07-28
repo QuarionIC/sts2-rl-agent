@@ -74,8 +74,55 @@ public class RlAutoSlayer
     private const string CharacterButtonContainerPath = "CharSelectButtons/ButtonContainer";
     private const string CharacterConfirmButtonPath =
         "Submenus/CharacterSelectScreen/ConfirmButton";
-    private const string PreferredCharacterId = "Necrobinder";
-    private const int PreferredAscension = 10;
+    // Defaults; overridden per-run by sts2_agent_config.txt written by
+    // scripts/agent_config.py. Kept as the fallback so a missing or
+    // malformed config behaves exactly as before it existed.
+    private const string DefaultCharacterId = "Ironclad";
+    private const int DefaultAscension = 0;
+
+    private static string PreferredCharacterId => ReadConfig("character", DefaultCharacterId);
+    private static int PreferredAscension
+    {
+        get
+        {
+            string raw = ReadConfig("ascension", DefaultAscension.ToString());
+            return int.TryParse(raw, out int v) ? v : DefaultAscension;
+        }
+    }
+
+    /// <summary>
+    /// Read one "key=value" line from sts2_agent_config.txt, searched beside
+    /// the mod assembly then the game directory. Any failure returns
+    /// <paramref name="fallback"/> -- a broken config must never stop a run
+    /// from starting.
+    /// </summary>
+    private static string ReadConfig(string key, string fallback)
+    {
+        try
+        {
+            string asmDir = System.IO.Path.GetDirectoryName(
+                System.Reflection.Assembly.GetExecutingAssembly().Location) ?? ".";
+            foreach (string dir in new[] { asmDir, System.AppContext.BaseDirectory })
+            {
+                if (string.IsNullOrEmpty(dir)) continue;
+                string path = System.IO.Path.Combine(dir, "sts2_agent_config.txt");
+                if (!System.IO.File.Exists(path)) continue;
+                foreach (string line in System.IO.File.ReadAllLines(path))
+                {
+                    string t = line.Trim();
+                    if (t.Length == 0 || t.StartsWith("#")) continue;
+                    int eq = t.IndexOf('=');
+                    if (eq <= 0) continue;
+                    if (!t.Substring(0, eq).Trim().Equals(key, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    string value = t.Substring(eq + 1).Trim();
+                    if (value.Length > 0) return value;
+                }
+            }
+        }
+        catch { }
+        return fallback;
+    }
     private const int FinalRunFloor = 49;
     private const int RunTimeoutMinutes = 60;
     private const int RunStateTimeoutSeconds = 60;

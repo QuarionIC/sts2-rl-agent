@@ -53,3 +53,4 @@ extracted_pck/
 # NuGet
 nuget.config
 bridge_mod/sts2_who_plays.txt
+bridge_mod/sts2_agent_config.txt

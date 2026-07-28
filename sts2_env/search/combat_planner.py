@@ -76,9 +76,23 @@ class PlannerConfig:
     potion_bonus: float = 50.0
     #: Heuristic weights for non-terminal ranking (search guidance only).
     h_player_hp: float = 3.0
+    #: Block is scored only up to the damage actually INCOMING this turn.
+    #: It used to be rewarded unconditionally, which made the planner stack
+    #: block against enemies that were buffing or defending -- block that
+    #: expires unused at end of turn. Observed live: defensive cards played
+    #: when nothing was attacking.
     h_block: float = 0.6
+    #: Explicit penalty for block beyond incoming damage, so an over-block
+    #: line never ties with an equivalent line that attacked instead.
+    h_wasted_block: float = 0.35
     h_enemy_hp: float = -2.0
     h_osty_hp: float = 0.9
+    #: A turn that ends with every enemy dead takes zero further damage and
+    #: ends the fight; nothing else in the heuristic is comparable.
+    lethal_bonus: float = 400.0
+    #: A turn where block >= incoming damage takes ZERO HP loss. Ranked just
+    #: below lethal, because surviving intact is the planner's whole job.
+    safe_turn_bonus: float = 120.0
     #: Stop expanding once this many wins exist overall AND the best of them
     #: is within ``damage_tolerance`` of a damage-free clear. A win found
     #: early is usually a fast-kill line, not the cleanest one, so the search
@@ -132,18 +146,56 @@ def _signature(combat) -> tuple:
     )
 
 
+def incoming_damage(combat) -> int:
+    """Damage the living enemies INTEND to deal this turn.
+
+    Read from each monster's currently-rolled move, which is exactly the
+    intent the player sees. Non-attack intents (defend/buff/debuff) count
+    zero, which is the whole point: block is only worth anything against an
+    attack.
+    """
+    total = 0
+    for enemy in combat.enemies:
+        if not enemy.is_alive:
+            continue
+        ai = combat.enemy_ais.get(enemy.combat_id)
+        move = getattr(ai, "current_move", None)
+        for intent in (getattr(move, "intents", None) or []):
+            if getattr(intent, "is_attack", False):
+                total += int(getattr(intent, "total_damage", 0) or 0)
+    return total
+
+
 def _heuristic(combat, cfg: PlannerConfig) -> float:
-    """Rank non-terminal states for beam retention."""
+    """Rank non-terminal states for beam retention.
+
+    Two properties dominate, in this order: killing everything this turn,
+    and taking zero damage this turn. Both are checked explicitly rather
+    than left to emerge from the linear terms, because a linear combination
+    of HP and enemy HP does not distinguish "survives at 1 HP" from "takes
+    nothing", and the planner's objective is to minimise HP loss.
+    """
     p = combat.primary_player
     enemy_hp = sum(e.current_hp for e in combat.enemies if e.is_alive)
     osty = combat.get_osty(p)
     osty_hp = osty.current_hp if (osty is not None and osty.is_alive) else 0
-    return (
+
+    incoming = incoming_damage(combat)
+    useful_block = min(p.block, incoming)
+    wasted_block = max(0, p.block - incoming)
+
+    score = (
         cfg.h_player_hp * p.current_hp
-        + cfg.h_block * p.block
+        + cfg.h_block * useful_block
+        - cfg.h_wasted_block * wasted_block
         + cfg.h_enemy_hp * enemy_hp
         + cfg.h_osty_hp * osty_hp
     )
+    if enemy_hp <= 0:
+        score += cfg.lethal_bonus
+    elif incoming > 0 and p.block >= incoming:
+        score += cfg.safe_turn_bonus
+    return score
 
 
 def _terminal_score(combat, cfg: PlannerConfig) -> tuple[bool, float]:
@@ -224,6 +276,16 @@ def plan_combat(root_combat, config: PlannerConfig | None = None) -> PlanResult:
     entry_hp = float(max(0, root.primary_player.current_hp))
     deadline = (time.monotonic() + cfg.time_budget_s) if cfg.time_budget_s > 0 else None
 
+    # Zero-damage turn tracking. The requirement is explicit: for every turn,
+    # prefer a line that takes NO HP loss, either by killing everything
+    # before ending the turn or by blocking the whole incoming attack. The
+    # beam heuristic biases toward those, but a bias can still be outvoted;
+    # this records the best genuinely damage-free line so it can be chosen
+    # outright when one exists.
+    root_turn = int(getattr(root, "turn_count", 0))
+    root_incoming = incoming_damage(root)
+    best_safe: tuple[float, list[int]] | None = None
+
     for depth in range(cfg.max_depth):
         if not frontier:
             break
@@ -275,6 +337,17 @@ def plan_combat(root_combat, config: PlannerConfig | None = None) -> PlanResult:
                         if best_loss is None or score > best_loss[0]:
                             best_loss = (score, new_path, hp)
                     continue
+                # A zero-damage turn: the action ended the turn (or the fight)
+                # and the player is provably unharmed this turn -- every enemy
+                # is dead, or block covers the full incoming attack.
+                if int(action) == ACTION_END_TURN and cp is not None:
+                    alive_hp = sum(e.current_hp for e in child.enemies if e.is_alive)
+                    covered = (alive_hp <= 0) or (cp.block >= root_incoming)
+                    if covered and cp.current_hp >= entry_hp:
+                        cand = (float(cp.current_hp), new_path)
+                        if best_safe is None or cand[0] > best_safe[0]:
+                            best_safe = cand
+
                 sig = _signature(child)
                 if sig in seen:
                     continue
@@ -296,6 +369,11 @@ def plan_combat(root_combat, config: PlannerConfig | None = None) -> PlanResult:
     if best_win is not None:
         return PlanResult(best_win[1], True, best_win[2], expansions,
                           len(best_win[1]), entry_hp=entry_hp)
+    # No terminal win found this search, but a provably damage-free turn was:
+    # take it rather than a heuristic line that concedes HP.
+    if best_safe is not None:
+        return PlanResult(best_safe[1], False, best_safe[0], expansions,
+                          len(best_safe[1]), entry_hp=entry_hp)
     if best_loss is not None:
         return PlanResult(best_loss[1], False, best_loss[2], expansions,
                           len(best_loss[1]), entry_hp=entry_hp)
@@ -339,8 +417,17 @@ class PlannedCombatController:
     """
 
     def __init__(self, env, config: PlannerConfig | None = None,
-                 ladder: tuple[PlannerConfig, ...] | None = ()):
+                 ladder: tuple[PlannerConfig, ...] | None = (),
+                 per_turn: bool = True):
         self._env = env
+        #: Plan one turn at a time with the lexicographic objective
+        #: (lethal > HP preserved > setup > damage) instead of searching the
+        #: whole combat to a terminal. Whole-combat search missed lethal
+        #: lines -- a kill several plies deep lost the beam to shallower,
+        #: better-looking lines -- and let damage dealt outweigh HP lost.
+        self.per_turn = per_turn
+        self.turn_plans = 0
+        self.turn_lethals = 0
         #: Anti-stall: turn number at the last replan, and how many replans
         #: have happened without the turn advancing.
         self._last_turn: int | None = None
@@ -395,6 +482,29 @@ class PlannedCombatController:
 
         key = id(combat)
         if key != self._combat_key or not self._queue:
+            if self.per_turn:
+                # Replan every time the queue empties, which is once per
+                # turn: the plan always ends the turn, so exhausting it
+                # means a new turn has begun.
+                if key != self._combat_key:
+                    self._combat_key = key
+                    self.plans += 1
+                self._last_turn = turn
+                self._stuck_replans = 0
+                cfg = (self.ladder[0] if self.ladder else self.cfg)
+                tp = plan_turn(combat, cfg)
+                self.turn_plans += 1
+                self.turn_lethals += int(tp.lethal)
+                self._queue = list(tp.actions)
+                self.plan_expansions += tp.expansions
+                action = self._queue.pop(0) if self._queue else ACTION_END_TURN
+                m = np.asarray(mask, dtype=bool)
+                if not (0 <= action < m.size) or not m[action]:
+                    legal = np.flatnonzero(m)
+                    action = int(legal[0]) if legal.size else 0
+                    self._queue = []
+                return int(action)
+
             if key != self._combat_key:
                 self._combat_key = key
                 self._last_turn = turn
@@ -433,3 +543,172 @@ class PlannedCombatController:
                 action = int(legal[0]) if legal.size else 0
                 self._queue = []
         return int(action)
+
+
+# ---------------------------------------------------------------------------
+# Per-turn planning with a lexicographic objective
+# ---------------------------------------------------------------------------
+#
+# Whole-combat planning searched to a terminal state and returned one long
+# action queue. Two failures showed up in live play: lethal lines were missed
+# (a kill several plies deep lost the beam to shallower, higher-heuristic
+# lines) and blocking was insufficient (the scalar heuristic let a small HP
+# loss be outweighed by damage dealt).
+#
+# Planning ONE TURN at a time with a strictly ordered objective fixes both.
+# Within a turn the branching factor is small enough to search hard, so a
+# lethal line is found rather than pruned; and because the objective is
+# lexicographic, no amount of damage dealt can ever outrank taking less HP
+# loss. Replanning every turn is also what the live bridge needs, since it
+# resynchronises with the real game each turn instead of trusting a long
+# precomputed queue.
+
+
+@dataclass
+class TurnObjective:
+    """Lexicographic score for a finished turn. Higher is better, compared
+    strictly in priority order:
+
+    1. ``lethal``       -- every enemy dead, ending the combat.
+    2. ``hp_preserved`` -- negative HP lost, measured AFTER the enemies act.
+    3. ``setup``        -- scaling cards (powers) committed this turn.
+    4. ``damage``       -- enemy HP removed this turn.
+
+    Ordering matters more than weighting here: a tuple comparison makes it
+    impossible for (4) to buy its way past (2), which is exactly the failure
+    a single weighted sum produced.
+    """
+
+    lethal: int = 0
+    hp_preserved: float = 0.0
+    setup: float = 0.0
+    damage: float = 0.0
+
+    def key(self) -> tuple:
+        return (self.lethal, self.hp_preserved, self.setup, self.damage)
+
+
+@dataclass
+class TurnPlan:
+    actions: list[int]
+    objective: TurnObjective
+    expansions: int
+    lethal: bool = False
+
+
+def _is_power_card(combat, action: int) -> bool:
+    """True when *action* plays a POWER card from hand.
+
+    Powers are the archetypal 'set up to scale' play: they cost tempo now
+    for compounding value later, so a turn that lands one is preferred over
+    an equal-damage turn that does not.
+    """
+    from sts2_env.core.enums import CardType
+    from sts2_env.gym_env.action_space import action_to_card_and_target, is_potion_action
+
+    if action == ACTION_END_TURN or is_potion_action(action):
+        return False
+    try:
+        idx, _ = action_to_card_and_target(action)
+    except Exception:
+        return False
+    if idx is None:
+        return False
+    hand = combat.combat_player_states[0].hand
+    if idx >= len(hand):
+        return False
+    return getattr(hand[idx], "card_type", None) == CardType.POWER
+
+
+def _living_enemy_hp(combat) -> int:
+    return sum(e.current_hp for e in combat.enemies if e.is_alive)
+
+
+def plan_turn(root_combat, config: PlannerConfig | None = None) -> TurnPlan:
+    """Search this turn only; return the best action sequence for it.
+
+    The returned sequence always ends the turn (or the combat). Scoring
+    happens AFTER ``END TURN`` resolves, so ``hp_preserved`` reflects what
+    the enemies actually did rather than what they intended.
+    """
+    cfg = config or PlannerConfig()
+    root = clone_combat(root_combat)
+    entry_hp = float(max(0, root.primary_player.current_hp))
+    entry_enemy_hp = float(_living_enemy_hp(root))
+    deadline = (time.monotonic() + cfg.time_budget_s) if cfg.time_budget_s > 0 else None
+
+    # (state, path, setup_score)
+    frontier: list[tuple[Any, list[int], float]] = [(root, [], 0.0)]
+    seen: set[tuple] = set()
+    best: TurnPlan | None = None
+    expansions = 0
+
+    for _ in range(cfg.max_depth):
+        if not frontier:
+            break
+        if deadline is not None and time.monotonic() > deadline:
+            break
+        children: list[tuple[float, Any, list[int], float]] = []
+
+        for state, path, setup in frontier:
+            mask = get_action_mask(state).astype(bool)
+            legal = np.flatnonzero(mask)
+            if not legal.size:
+                continue
+            for action in legal:
+                if expansions >= cfg.max_expansions:
+                    break
+                expansions += 1
+                action = int(action)
+                is_power = _is_power_card(state, action)
+                child = clone_combat(state)
+                try:
+                    apply_combat_action(child, action)
+                except Exception:
+                    continue
+                new_path = path + [action]
+                new_setup = setup + (1.0 if is_power else 0.0)
+                cp = child.primary_player
+                if cp is None:
+                    continue
+
+                ended = action == ACTION_END_TURN or child.is_over or not cp.is_alive
+                if ended:
+                    alive_hp = _living_enemy_hp(child)
+                    obj = TurnObjective(
+                        lethal=1 if (alive_hp <= 0 and cp.is_alive) else 0,
+                        hp_preserved=-(entry_hp - float(max(0, cp.current_hp))),
+                        setup=new_setup,
+                        damage=entry_enemy_hp - float(alive_hp),
+                    )
+                    # A line that kills us is never acceptable while any
+                    # alternative survives; rank it below everything.
+                    if not cp.is_alive:
+                        obj = TurnObjective(-1, -1e9, 0.0, 0.0)
+                    if best is None or obj.key() > best.objective.key():
+                        best = TurnPlan(new_path, obj, expansions,
+                                        lethal=bool(obj.lethal))
+                    continue
+
+                sig = _signature(child)
+                if sig in seen:
+                    continue
+                seen.add(sig)
+                # Mid-turn ranking only decides what stays in the beam; the
+                # real decision is the terminal tuple above.
+                children.append((_heuristic(child, cfg), child, new_path, new_setup))
+            if expansions >= cfg.max_expansions:
+                break
+
+        if best is not None and best.lethal:
+            break  # nothing outranks ending the fight
+        if not children:
+            break
+        children.sort(key=lambda t: -t[0])
+        frontier = [(c, p, s) for _, c, p, s in children[: cfg.beam_width]]
+        if expansions >= cfg.max_expansions:
+            break
+
+    if best is None:
+        best = TurnPlan([ACTION_END_TURN], TurnObjective(), expansions)
+    return best
