@@ -48,6 +48,29 @@ class LLMConfig:
     n_gpu_layers: int = -1
     max_tokens: int = 160
     temperature: float = 0.3
+    #: Qwen3.6 is a hybrid reasoning model. Thinking costs hundreds of tokens
+    #: per decision, and at the few-tok/s this hardware sustains that is
+    #: minutes per move, so it is off by default. Turn it on only where the
+    #: throughput budget allows.
+    enable_thinking: bool = False
+    #: llama.cpp does not recognise the qwen35 architecture and silently
+    #: applies NO chat template, so the model reads the prompt as a document
+    #: to continue ("The user is playing...") instead of a turn to answer.
+    #: Qwen uses ChatML, so state it explicitly.
+    chat_format: str | None = "chatml"
+    #: Prefilled assistant text. Qwen3.6 is a hybrid reasoner that ignores a
+    #: /no_think suffix. Seeding with a bare "CHOICE:" only sometimes
+    #: collapsed the reasoning block -- measured 23% parse rate over a full
+    #: episode, because 77% of the time the model still opened a real <think>
+    #: and the token cap truncated it mid-reasoning. Prefilling an ALREADY
+    #: CLOSED think block removes the option entirely: the block cannot be
+    #: reopened, so generation starts at the answer. Measured 4/4 parse at
+    #: ~6.5s per decision.
+    answer_prefill: str = "<think>
+
+</think>
+
+CHOICE:"
     seed: int = 0
     verbose: bool = False
 
@@ -61,12 +84,16 @@ class LocalLLM:
 
         self.cfg = cfg
         t0 = time.time()
+        kw = {}
+        if cfg.chat_format:
+            kw["chat_format"] = cfg.chat_format
         self.llm = Llama(
             model_path=cfg.model_path,
             n_ctx=cfg.n_ctx,
             n_gpu_layers=cfg.n_gpu_layers,
             seed=cfg.seed,
             verbose=cfg.verbose,
+            **kw,
         )
         self.load_s = time.time() - t0
         self.calls = 0
@@ -75,9 +102,13 @@ class LocalLLM:
 
     def ask(self, system: str, user: str) -> str:
         t0 = time.time()
+        messages = [{"role": "system", "content": system},
+                    {"role": "user", "content": user}]
+        prefill = "" if self.cfg.enable_thinking else self.cfg.answer_prefill
+        if prefill:
+            messages.append({"role": "assistant", "content": prefill})
         out = self.llm.create_chat_completion(
-            messages=[{"role": "system", "content": system},
-                      {"role": "user", "content": user}],
+            messages=messages,
             max_tokens=self.cfg.max_tokens,
             temperature=self.cfg.temperature,
         )
@@ -87,7 +118,9 @@ class LocalLLM:
             self.total_out_tokens += int(out["usage"]["completion_tokens"])
         except Exception:
             pass
-        return out["choices"][0]["message"]["content"] or ""
+        text = out["choices"][0]["message"]["content"] or ""
+        # Re-attach the prefill so the parser sees the full "CHOICE: n" form.
+        return (prefill + text) if prefill else text
 
     @property
     def tokens_per_s(self) -> float:

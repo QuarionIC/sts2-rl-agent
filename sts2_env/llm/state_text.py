@@ -170,6 +170,12 @@ def _describe_option(a: dict) -> str:
 #: Accepts "CHOICE: 3", "choice 3", a bare leading integer, or "**3**".
 _CHOICE_RE = re.compile(r"choice\s*[:\-]?\s*\**\s*(\d+)", re.IGNORECASE)
 _BARE_RE = re.compile(r"^\D{0,12}?(\d+)")
+#: Qwen3.6 is a hybrid reasoning model: unless thinking is disabled it emits a
+#: <think> block first. Its contents routinely mention option numbers while
+#: deliberating ("option 3 is tempting, but..."), so parsing before stripping
+#: it reads the model's discarded candidates instead of its answer.
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+_OPEN_THINK_RE = re.compile(r"<think>.*", re.DOTALL | re.IGNORECASE)
 
 
 def parse_choice(reply: str, n_options: int) -> int | None:
@@ -180,6 +186,12 @@ def parse_choice(reply: str, n_options: int) -> int | None:
     is frequently 'skip' or the first map node.
     """
     if not reply:
+        return None
+    reply = _THINK_RE.sub(" ", reply)
+    # An unterminated <think> means generation was cut off mid-reasoning:
+    # there is no answer to parse, and whatever numbers appear are candidates
+    # the model was still weighing.
+    if _OPEN_THINK_RE.search(reply):
         return None
     m = _CHOICE_RE.search(reply)
     if not m:
