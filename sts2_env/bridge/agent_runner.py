@@ -222,8 +222,9 @@ def run_agent(
     if model_path:
         model = load_model(model_path)
         model_mode = detect_model_mode(model)
-    elif llm_policy is None:
-        raise SystemExit("Provide --model-path or --llm-model")
+    elif llm_policy is None and combat_policy != "planner":
+        raise SystemExit(
+            "Provide --model-path, --llm-model, or --combat-policy planner")
 
     adapter = StateAdapter()
     run_state_adapter: RunStateAdapter | None = None
@@ -233,6 +234,11 @@ def run_agent(
             "Loaded full-run model (action_space=%d, obs=%d) -- "
             "driving all phases via the trained policy.",
             FULL_RUN_ACTION_SPACE_SIZE, FULL_RUN_OBS_SIZE,
+        )
+    elif model is None:
+        logger.info(
+            "No MaskablePPO model loaded -- combat: %s, non-combat: %s.",
+            combat_policy, "LLM" if llm_model else "heuristics",
         )
     else:
         logger.info(
@@ -333,6 +339,15 @@ def run_agent(
                             decoded = adapter.decode_action(act_idx, state)
                             _send_combat_action(client, decoded, combat_delay)
                             continue
+                        client.end_turn()
+                        continue
+                    if model is None:
+                        # Planner could not plan and there is no model or LLM
+                        # to fall back to. Ending the turn keeps the run alive
+                        # instead of dereferencing a None model, which is how
+                        # the first live test crashed.
+                        logger.warning("Combat: no planner plan and no fallback "
+                                       "policy; ending turn.")
                         client.end_turn()
                         continue
 
