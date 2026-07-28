@@ -116,7 +116,29 @@ def main() -> int:
     ap.add_argument("--json-out", default="output/skill_verification.json")
     args = ap.parse_args()
 
-    results = {}
+    # Pin the code version into the result file. The v2 run was invalidated
+    # by a mid-flight planner change: Python caches imported modules, so a
+    # process that started before an edit runs the OLD code to completion
+    # while its output looks current. Recording the commit makes that
+    # detectable after the fact instead of by timestamp archaeology.
+    import subprocess
+    try:
+        rev = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                             capture_output=True, text=True,
+                             cwd=Path(__file__).resolve().parent.parent).stdout.strip()
+        dirty = bool(subprocess.run(["git", "status", "--porcelain"],
+                                    capture_output=True, text=True,
+                                    cwd=Path(__file__).resolve().parent.parent).stdout.strip())
+    except Exception:
+        rev, dirty = "unknown", False
+
+    results = {"_meta": {"git_rev": rev, "dirty_worktree": dirty,
+                         "episodes": args.episodes, "ladder": args.ladder,
+                         "ascension": args.ascension,
+                         "max_act_count": args.max_act_count,
+                         "seed_base": args.seed_base}}
+    tag = " (DIRTY)" if dirty else ""
+    print(f"code version: {rev}{tag}\n")
     print(f"=== baseline: random routing + planner ===", flush=True)
     base = run_arm("random", None, args.episodes, args.seed_base,
                    args.ascension, args.max_act_count, args.ladder,
