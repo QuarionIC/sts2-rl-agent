@@ -1,0 +1,88 @@
+{
+  "name": "live_planner_llm",
+  "description": "Verified-working live configuration: deterministic per-turn planner for combat, local LLM for out-of-combat decisions, Ironclad at ascension 0.",
+  "verified": {
+    "date": "2026-07-28",
+    "commit": "8181727",
+    "what_was_verified": "Planner drove two full combats against the running Steam client: multi-action turns (3-4 plays), real damage (9-17/turn), lethal taken when available, HP held at 79-80/80. No unrecognised card or monster ids.",
+    "not_yet_verified": "The LLM half has NOT been run live: Qwen3.6-27B Q3_K_M needs ~13GB and only ~4.4GB is free with the game running, so the two cannot coexist on this machine. LLM out-of-combat quality is measured in-sim only (13.12 +/- 1.52 floors, n=8)."
+  },
+
+  "game": {
+    "character": "Ironclad",
+    "ascension": 0,
+    "who_plays": "agent",
+    "_note": "Written by scripts/agent_config.py and scripts/who_plays.py into the deployed mod folder; read by RlAutoSlayer at character select."
+  },
+
+  "combat": {
+    "policy": "planner",
+    "planner": {
+      "beam_width": 24,
+      "max_expansions": 60000,
+      "time_budget_s": 6.0,
+      "per_turn": true
+    },
+    "objective_order": [
+      "lethal -- kill every enemy, ending the combat",
+      "hp_preserved -- HP lost, measured AFTER the enemy turn resolves",
+      "setup -- POWER cards played, to scale later turns",
+      "damage -- enemy HP removed"
+    ],
+    "_objective_note": "Lexicographic, not weighted. No quantity of damage can outrank taking less HP loss, because the comparison never reaches the damage field unless HP loss ties. A weighted sum let ~1.5 damage 'pay for' 1 HP, which is what produced the reported under-blocking.",
+    "_beam_note": "The beam is SPLIT: half ranked by proximity to lethal, half by the safety heuristic. Ranking mid-turn nodes by a single scalar pruned kill lines several plies before the kill landed, which is what produced the reported missed lethals.",
+    "measured_cost_s_per_turn": 12
+  },
+
+  "out_of_combat": {
+    "policy": "llm",
+    "model": "models/Qwen3.6-27B-Q3_K_M.gguf",
+    "n_gpu_layers": 34,
+    "n_ctx": 4096,
+    "max_tokens": 48,
+    "temperature": 0.2,
+    "chat_format": "chatml",
+    "answer_prefill": "<think>\n\n</think>\n\nCHOICE:",
+    "_prefill_note": "Qwen3.6 is a hybrid reasoner that ignores /no_think. Prefilling an ALREADY CLOSED think block is what took parse rate from 23% to ~99%: the block cannot be reopened, so generation starts at the answer.",
+    "fallback": "knowledge",
+    "_fallback_note": "Unparseable replies fall back to the scripted knowledge policy and are COUNTED, never coerced to option 0 -- option 0 is often 'skip'."
+  },
+
+  "launch": {
+    "order_matters": "Start the agent FIRST, then the game. The mod plays with RANDOM choices whenever no agent is connected ('[RlMap] No agent connected, selecting random node') and aborts the run after a 120s timeout.",
+    "agent_command": "python -m sts2_env.bridge.agent_runner --combat-policy planner --llm-model models/Qwen3.6-27B-Q3_K_M.gguf --llm-gpu-layers 34 --verbose",
+    "planner_only_command": "python -m sts2_env.bridge.agent_runner --combat-policy planner --verbose",
+    "game_command": "start steam://rungameid/2868840",
+    "healthy_log_lines": [
+      "Combat: deterministic per-turn planner ENGAGED.",
+      "Combat turn N: planned K actions (obj lethal=.. hp=.. setup=.. dmg=..)"
+    ],
+    "unhealthy_log_lines": [
+      "Combat: falling back -- ... does not send ...  (mod build lacks pile/deck fields)",
+      "Combat: no planner plan and no fallback policy; ending turn.",
+      "... card ids unrecognised ...",
+      "unknown monster id ..."
+    ]
+  },
+
+  "mod_requirements": {
+    "rebuild_needed_for": [
+      "RlCombatHandler.cs -- draw_pile/discard_pile/exhaust_pile/deck CONTENTS (counts alone cannot support planning)",
+      "MainFile.cs -- ShouldAgentPlay() gate reading sts2_who_plays.txt",
+      "RlAutoSlayer.cs -- character/ascension read from sts2_agent_config.txt"
+    ],
+    "build": "set DOTNET_ROOT=%LOCALAPPDATA%\\Microsoft\\dotnet and prepend it to PATH, then: dotnet build bridge_mod/STS2BridgeMod.csproj",
+    "_build_notes": [
+      "The dotnet first on PATH ships runtimes only; SDK 9.0.316 is in %LOCALAPPDATA%\\Microsoft\\dotnet.",
+      "Godot's headless --export-pack exits -1 even on success; judge by ': error ' lines and artifact timestamps, not exit code.",
+      "Deploy fails with MSB3027/MSB3021 while the game is running -- it holds the DLL. Those are copy errors, not compile errors."
+    ]
+  },
+
+  "known_gaps": [
+    "Enemy AI move state is not sent, so plans beyond one enemy turn are partly guesswork -- this is why planning is per-turn.",
+    "draw_pile index 0 is ASSUMED to be the top of the pile; unverified. If plans diverge on the first draw, reverse it.",
+    "Card tier priors in the LLM prompt are Necrobinder-specific; Ironclad cards render without a tier.",
+    "The 'setup' objective term counts POWER cards only; other scaling plays are not recognised."
+  ]
+}
