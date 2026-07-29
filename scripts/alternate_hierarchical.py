@@ -47,6 +47,25 @@ if not Path(PY).exists():
     PY = sys.executable
 
 
+def pick_model(out_dir: Path) -> str:
+    """best_model.zip if an eval ever fired, else final_model.zip.
+
+    ``best_model.zip`` is written only by the eval callback, so a phase whose
+    total-steps never reaches eval-freq produces no such file and the NEXT
+    stage dies on a missing path -- after the training it depends on has
+    already been paid for. Fall back rather than lose the round.
+    """
+    best = out_dir / "best_model.zip"
+    if best.exists():
+        return str(best)
+    final = out_dir / "final_model.zip"
+    if final.exists():
+        print(f"  note: no best_model.zip in {out_dir} (no eval fired); "
+              f"using final_model.zip", flush=True)
+        return str(final)
+    raise FileNotFoundError(f"no model produced in {out_dir}")
+
+
 def harvest_decks(run_model: str, combat_model: str, out_path: Path,
                   episodes: int, ascension: int, max_act_count: int) -> int:
     """Record (deck, relics, potions, hp_fraction) at every combat the run
@@ -144,7 +163,11 @@ def main() -> int:
     ap.add_argument("--eval-freq", type=int, default=500_000)
     ap.add_argument("--eval-episodes", type=int, default=200)
     ap.add_argument("--ascension", type=int, default=0)
-    ap.add_argument("--max-act-count", type=int, default=2)
+    ap.add_argument("--max-act-count", type=int, default=1,
+                    help="Acts the episode must clear to WIN. 1 = the current "
+                         "goal: beat act 1 consistently. Matches the default in "
+                         "train_hierarchical.py; the reward's progress term is "
+                         "normalised by this, so the two MUST agree.")
     ap.add_argument("--harvest-episodes", type=int, default=150)
     ap.add_argument("--seed-run", default=None,
                     help="Existing run model, so round 1 already harvests its "
@@ -200,7 +223,7 @@ def main() -> int:
             if rc != 0:
                 print(f"[r{rnd}] combat training FAILED (rc={rc})", flush=True)
                 return rc
-            combat_model = str(cdir / "best_model.zip")
+            combat_model = pick_model(cdir)
 
         # ---- 2. run agent ----
         rdir = root / f"r{rnd}" / "run"
@@ -219,7 +242,7 @@ def main() -> int:
         if rc != 0:
             print(f"[r{rnd}] run training FAILED (rc={rc})", flush=True)
             return rc
-        run_model = str(rdir / "best_model.zip")
+        run_model = pick_model(rdir)
 
         rec = {
             "round": rnd,
