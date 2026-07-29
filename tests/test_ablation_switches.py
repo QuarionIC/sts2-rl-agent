@@ -29,8 +29,8 @@ class TestLegacyRewardConfig:
     def test_defaults_unchanged(self):
         cfg = RewardConfig()
         assert cfg.legacy_shaping is False
-        assert cfg.win == 1.0 and cfg.death == -1.0 and cfg.truncation == -1.0
-        assert cfg.gamma_shape == pytest.approx(0.997)
+        assert cfg.win > 1.0 and cfg.death < 0.0 and cfg.truncation == cfg.death
+        assert cfg.gamma_shape == pytest.approx(1.0)
         assert cfg.shaping_scale == 1.0
 
     def test_legacy_magnitudes_match_attempt6(self):
@@ -115,7 +115,13 @@ class TestLegacyRunEnv:
                 assert reward == 0.0
             steps += 1
         assert done
-        assert reward in (1.0, -1.0)
+        # Terminal is win (+1) or a GRADED loss in [-1.0, -0.6]; legacy mode
+        # changes only the shaping, never the terminal.
+        cfg = env.reward_config
+        if info.get("won"):
+            assert reward == pytest.approx(cfg.win)
+        else:
+            assert cfg.death <= reward <= cfg.death + cfg.death_progress_credit
 
     def test_legacy_floor_bonus_accounting(self):
         """Replaying the SAME seed+actions with scale 1 vs scale 0: every

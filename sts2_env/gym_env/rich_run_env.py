@@ -42,6 +42,7 @@ from sts2_env.gym_env.rich_observation import (
 from sts2_env.gym_env.run_env import (
     STS2RunEnv,
 )
+from sts2_env.core.enums import RoomType
 from sts2_env.run.run_manager import RunManager
 
 logger = logging.getLogger(__name__)
@@ -111,12 +112,22 @@ class RichSTS2RunEnv(STS2RunEnv):
         )
         self.max_act_count = max_act_count
         self.reward_config = reward_config or RewardConfig()
+        # Keep the progress denominator in step with the win condition, so a
+        # floor is worth 1/17 of progress and hitting the goal puts the
+        # progress component at exactly 1.0.
+        self.reward_config.target_acts = float(max_act_count)
         self.include_deck_obs = include_deck_obs
         self._encoder = RichObservationEncoder()
         # PBRS bookkeeping: previous potential Phi(s) and the enemy-HP
         # depletion value carried between combats (see RewardConfig).
         self._phi_prev: float = 0.0
         self._enemy_down: float = 0.0
+        #: Cumulative HP lost this episode (the ratchet) and the hp reading it
+        #: was last compared against. Reset in :meth:`reset`.
+        self._damage_taken: float = 0.0
+        self._hp_watch: int = 0
+        #: Elites defeated this episode; paid once each at the terminal.
+        self._elites_beaten: int = 0
         # Legacy-shaping bookkeeping: player HP when the current combat began.
         self._combat_hp_start: int | None = None
 
@@ -143,9 +154,30 @@ class RichSTS2RunEnv(STS2RunEnv):
         self._enemy_down = (
             self.reward_config.enemy_down(combat) if combat is not None else 0.0
         )
-        self._phi_prev = self.reward_config.potential(self._mgr, self._enemy_down)
+        # Damage ratchet: cumulative HP lost this episode. Only ever grows, so
+        # healing cannot reduce it and therefore cannot be rewarded.
+        self._damage_taken = 0.0
+        self._elites_beaten = 0
+        self._hp_watch, _ = self.reward_config.current_hp(self._mgr)
+        self._phi_prev = self.reward_config.potential(
+            self._mgr, self._enemy_down, self._damage_taken)
         self._combat_hp_start = None
         return obs, info
+
+    def _accrue_damage(self) -> None:
+        """Add any HP lost since the last observation to the ratchet.
+
+        Reads through ``RewardConfig.current_hp`` so this and the potential
+        agree on which hp is being watched; disagreeing at a combat boundary
+        would double-count a fight's damage.
+        """
+        assert self._mgr is not None
+        hp_now, _ = self.reward_config.current_hp(self._mgr)
+        if hp_now < self._hp_watch:
+            self._damage_taken += self._hp_watch - hp_now
+        # Healing raises _hp_watch without touching _damage_taken, which is
+        # exactly the asymmetry being bought: damage charged, healing free.
+        self._hp_watch = hp_now
 
     def step(
         self, action: int,
@@ -156,6 +188,11 @@ class RichSTS2RunEnv(STS2RunEnv):
         cfg = self.reward_config
 
         was_in_combat = mgr.phase == RunManager.PHASE_COMBAT
+        # Capture the room type BEFORE stepping: the manager clears the
+        # current room as the phase advances, so reading it after the combat
+        # resolves would miss every elite.
+        was_elite = was_in_combat and getattr(
+            mgr.current_room, "room_type", None) == RoomType.ELITE
         prev_act = rs.current_act_index
         prev_floor = rs.total_floor
         if cfg.legacy_shaping and was_in_combat and self._combat_hp_start is None:
@@ -169,6 +206,14 @@ class RichSTS2RunEnv(STS2RunEnv):
         obs, _, terminated, truncated, info = super().step(action)
 
         reward = 0.0
+
+        # --- elite kills: counted here, paid once at the terminal ---
+        if (was_elite and mgr.phase != RunManager.PHASE_COMBAT
+                and not rs.player.is_dead):
+            self._elites_beaten += 1
+
+        # --- PBRS bookkeeping: cumulative damage ratchet ---
+        self._accrue_damage()
 
         # --- PBRS bookkeeping: enemy-HP depletion, carried between combats ---
         combat_now = mgr.get_combat_state()
@@ -210,7 +255,7 @@ class RichSTS2RunEnv(STS2RunEnv):
             # --- PBRS shaping: F = gamma_shape*Phi(s') - Phi(s), Phi=0 at terminal ---
             phi_next = (
                 0.0 if (terminated or truncated)
-                else cfg.potential(mgr, self._enemy_down)
+                else cfg.potential(mgr, self._enemy_down, self._damage_taken)
             )
             reward += cfg.shaping_reward(self._phi_prev, phi_next)
             self._phi_prev = phi_next
@@ -221,14 +266,22 @@ class RichSTS2RunEnv(STS2RunEnv):
                 # Forced loss from a simulator bug: do not score as death.
                 reward += 0.0
             else:
-                reward += cfg.terminal_reward(won)
+                # Grade a loss by how far the fight got. self._enemy_down is
+                # the depletion carried from the last combat, which is
+                # exactly the "how close did we come" signal -- and it must
+                # be read HERE, because Phi is 0 at terminal.
+                reward += cfg.terminal_reward(
+                    won, self._enemy_down, self._elites_beaten)
         elif truncated:
-            # Step-limit timeout is NOT a death; bootstrap instead.
-            reward += cfg.truncation
+            # Step-limit timeout is NOT a death; bootstrap instead. Elites
+            # already cleared are still credited -- the bonus prices what the
+            # run achieved, and a stall should not erase it.
+            reward += cfg.truncation + cfg.elite_bonus * self._elites_beaten
             info["truncated"] = True
 
         if terminated or truncated:
             info["won"] = won
+            info["elites_beaten"] = self._elites_beaten
         return obs, float(reward), terminated, truncated, info
 
     # ------------------------------------------------------------------

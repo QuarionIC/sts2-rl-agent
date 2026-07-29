@@ -104,34 +104,173 @@ class _StubMgr:
 class TestRewardConfig:
     def test_terminal_never_annealed(self):
         cfg = RewardConfig(shaping_scale=0.0)
-        assert cfg.terminal_reward(True) == 1.0
-        assert cfg.terminal_reward(False) == -1.0
-        assert cfg.truncation == -1.0  # stalling is not safer than fighting
+        assert cfg.terminal_reward(True) == cfg.win
+        assert cfg.terminal_reward(False) == cfg.death
+        # Stalling must not be safer than fighting: truncation scores as a
+        # death, i.e. the UNGRADED floor of the loss band.
+        assert cfg.truncation == cfg.death
 
-    def test_gamma_matches_training(self):
-        assert RewardConfig().gamma_shape == pytest.approx(0.997)
+    def test_gamma_shape_is_one_so_summed_shaping_telescopes_exactly(self):
+        """gamma_shape must be 1.0, and the reason is not cosmetic.
+
+        The hierarchical env sums the parent's per-step F across an
+        auto-played combat without discounting the interior terms, so the
+        block sums to
+
+            gamma_shape*Phi(end) - Phi(start)
+                + (gamma_shape - 1)*sum(Phi_interior)
+
+        Any value below 1.0 leaves that third term as a path-dependent
+        residual proportional to how long Phi is held high -- a standing
+        penalty for long fights and for surviving deep into the act. It
+        scales with Phi, so it grew 5.7x when w_progress went 0.45 -> 6.0.
+        """
+        cfg = RewardConfig()
+        assert cfg.gamma_shape == pytest.approx(1.0)
+
+        # The property the value actually buys: an undiscounted sum of F over
+        # ANY trajectory telescopes to exactly -Phi(s0) once Phi hits 0 at the
+        # terminal -- independent of the path taken to get there.
+        for path in ([0.30, 2.0, 4.5, 6.1, 0.0],        # climbing
+                     [0.30, 5.9, 1.2, 3.3, 0.0],        # thrashing
+                     [0.30, 0.31, 0.32, 0.33, 0.0]):    # stalling
+            total = sum(cfg.shaping_reward(p, n) for p, n in zip(path, path[1:]))
+            assert total == pytest.approx(-path[0], abs=1e-12)
 
     def test_potential_hand_built_states(self):
-        cfg = RewardConfig()
-        # Act 0, floor 0, full HP: Phi = 0.30 (effective_hp only).
-        phi0 = cfg.potential(_StubMgr(0, 0, 80, 80))
-        assert phi0 == pytest.approx(0.30)
-        # Act 0, floor 8, full HP.
-        phi8 = cfg.potential(_StubMgr(0, 8, 80, 80))
-        assert phi8 == pytest.approx(0.45 * (8 / 17) / 4 + 0.30)
-        # An act-1 death at floor 9 vs floor 8 differs by a visible amount.
-        phi9 = cfg.potential(_StubMgr(0, 9, 80, 80))
-        assert phi9 - phi8 == pytest.approx(0.45 / 17 / 4)
+        # target_acts defaults to 1 (the act-1 goal); the run env overwrites it
+        # from max_act_count. Pin it explicitly so this test does not silently
+        # change meaning when the goal moves.
+        cfg = RewardConfig(target_acts=4.0)
+        wp, wh = cfg.w_progress, cfg.w_hp_damage
+        # Act 0, floor 0, ZERO damage taken: Phi = 0 exactly. This is what
+        # makes the shaping cancel over an episode (see Phi(s0)==0 in the
+        # module docstring), so it is load-bearing, not incidental.
+        phi0 = cfg.potential(_StubMgr(0, 0, 80, 80), damage_taken=0.0)
+        assert phi0 == 0.0
+        # Act 0, floor 8, undamaged: progress only.
+        phi8 = cfg.potential(_StubMgr(0, 8, 80, 80), damage_taken=0.0)
+        assert phi8 == pytest.approx(wp * (8 / 17) / 4)
+        # A floor is worth a visible amount of potential.
+        phi9 = cfg.potential(_StubMgr(0, 9, 80, 80), damage_taken=0.0)
+        assert phi9 - phi8 == pytest.approx(wp / 17 / 4)
         assert phi9 - phi8 > 0.005
-        # Act 2, floor 5, half HP, enemies half down.
-        phi = cfg.potential(_StubMgr(2, 5, 40, 80), enemy_down=0.5)
-        expected = 0.45 * (2 + 5 / 17) / 4 + 0.30 * 0.5 + 0.20 * 0.5
-        assert phi == pytest.approx(expected)
-        # act_floor clips at 17; enemy_down clips at 1.
+        # The hp term SUBTRACTS cumulative damage as a fraction of max_hp.
+        phi8_hurt = cfg.potential(_StubMgr(0, 8, 40, 80), damage_taken=40.0)
+        assert phi8_hurt == pytest.approx(phi8 - wh * (40 / 80))
+        # enemy_down is weighted 0: moved out of Phi into terminal_reward,
+        # because Phi := 0 at terminal erases it exactly when it should score.
+        assert cfg.w_enemy_down == 0.0
+        assert cfg.potential(_StubMgr(2, 5, 40, 80), enemy_down=0.5) == pytest.approx(
+            cfg.potential(_StubMgr(2, 5, 40, 80), enemy_down=0.0))
+        # act_floor clips at 17; progress clips at 1.
         phi_cap = cfg.potential(_StubMgr(3, 99, 80, 80), enemy_down=7.0)
-        assert phi_cap == pytest.approx(0.45 * (3 + 1) / 4 + 0.30 + 0.20)
-        # Phi is bounded in [0, 1].
-        assert 0.0 <= phi_cap <= 1.0
+        assert phi_cap == pytest.approx(wp * (3 + 1) / 4)
+        # Phi is bounded above by phi_max(); the hp term only subtracts.
+        assert phi_cap <= cfg.phi_max()
+
+    def test_healing_is_not_rewarded_but_damage_is_penalised(self):
+        """The asymmetry the damage ratchet exists to create.
+
+        A potential written over CURRENT hp cannot express this: it pays for
+        healing exactly as much as it charges for damage, being one term read
+        in two directions. That made a heal option dominate an equally
+        survivable upgrade option, which is the wrong call often enough to
+        matter.
+        """
+        cfg = RewardConfig()
+        # Same floor throughout, so only the hp term can move Phi.
+        hurt_state = cfg.potential(_StubMgr(0, 8, 30, 80), damage_taken=50.0)
+        # Heal 30 HP. The ratchet does not move, so neither does Phi.
+        healed = cfg.potential(_StubMgr(0, 8, 60, 80), damage_taken=50.0)
+        assert cfg.shaping_reward(hurt_state, healed) == 0.0
+        # Take 10 more damage. The ratchet moves, and Phi drops.
+        hurt_more = cfg.potential(_StubMgr(0, 8, 20, 80), damage_taken=60.0)
+        assert cfg.shaping_reward(hurt_state, hurt_more) == pytest.approx(
+            -cfg.w_hp_damage * (10 / 80))
+        # Damage stays charged no matter how much total has accrued: no clip.
+        deep = cfg.potential(_StubMgr(0, 8, 5, 80), damage_taken=200.0)
+        deeper = cfg.potential(_StubMgr(0, 8, 5, 80), damage_taken=210.0)
+        assert cfg.shaping_reward(deep, deeper) == pytest.approx(
+            -cfg.w_hp_damage * (10 / 80))
+
+    def test_advancing_a_floor_is_always_net_positive(self):
+        """The explicit design requirement behind w_progress = 6.0.
+
+        A floor must be worth more potential than the worst survivable HP
+        loss, so climbing while hurt can never score negative. At the old
+        0.45 a floor was worth 0.0265 and any loss above ~5.8 HP outweighed
+        it -- measured -0.028 on floor 7 of a real run.
+        """
+        cfg = RewardConfig()  # target_acts = 1 (act-1 goal)
+        floor_gain = cfg.w_progress / 17.0
+        # Surviving a floor means losing strictly less than max_hp on it, so
+        # this bounds the per-floor hp charge from above.
+        worst_hp_penalty = cfg.w_hp_damage * 1.0
+        assert floor_gain > worst_hp_penalty
+        # Concretely: advance one floor while taking 79 of 80 HP in damage.
+        before = cfg.potential(_StubMgr(0, 7, 80, 80), damage_taken=0.0)
+        after = cfg.potential(_StubMgr(0, 8, 1, 80), damage_taken=79.0)
+        assert cfg.shaping_reward(before, after) > 0.0
+
+    def test_elite_bonus_paid_on_every_ending(self):
+        """+1.0 per elite, at the terminal, win or lose.
+
+        This term is NOT policy-invariant and is not meant to be: it is a
+        deliberate push toward fighting elites rather than routing around
+        them. The check that matters is that it never inverts the win/loss
+        ordering.
+        """
+        cfg = RewardConfig()
+        assert cfg.elite_bonus == 1.0
+        # Wins scale with elites.
+        assert cfg.terminal_reward(True, None, 0) == pytest.approx(cfg.win)
+        assert cfg.terminal_reward(True, None, 2) == pytest.approx(cfg.win + 2.0)
+        # Losses do too: dying past 2 elites beats dying past none.
+        assert cfg.terminal_reward(False, 0.0, 2) > cfg.terminal_reward(False, 0.0, 0)
+        assert cfg.terminal_reward(False, 0.0, 2) == pytest.approx(cfg.death + 2.0)
+        # Negative / non-integer counts cannot pay out.
+        assert cfg.terminal_reward(False, 0.0, -3) == pytest.approx(cfg.death)
+        # No number of elites reachable in a run makes losing beat winning.
+        # Act 1 holds at most a handful; 10 is far past any real ceiling.
+        assert cfg.terminal_reward(False, 1.0, 10) < cfg.terminal_reward(True, None, 0)
+
+    def test_death_grading_stays_legible_against_the_death_magnitude(self):
+        """death_progress_credit must scale WITH death, not stay absolute.
+
+        At death=-10 with credit=0.4 the entire 0%-to-100%-depleted spread was
+        0.4 of a 20-point terminal range -- 2%, which is not a signal. Pinning
+        the RATIO is what keeps "died having nearly killed it" distinguishable.
+        """
+        cfg = RewardConfig()
+        assert cfg.death_progress_credit == pytest.approx(abs(cfg.death) * 0.4)
+        spread = cfg.terminal_reward(False, 1.0) - cfg.terminal_reward(False, 0.0)
+        terminal_range = cfg.win - cfg.death
+        assert spread / terminal_range > 0.15
+        # Strictly monotone in depletion, and never above a win.
+        vals = [cfg.terminal_reward(False, d) for d in (0.0, 0.25, 0.5, 0.8, 1.0)]
+        assert vals == sorted(vals)
+        assert max(vals) < cfg.win
+
+    def test_win_beats_the_last_floor_cumulatively(self):
+        """Beating the boss must RAISE the running total, not drop it.
+
+        Phi(s0) = 0, so the cumulative after floor n is exactly Phi(n) and the
+        cumulative after the win is exactly ``win``. At win=1.0 a hypothetical
+        Act-1 win ran the total to +5.63 by floor 16 and then finished at
+        +0.70 -- the trace read as though winning were a setback.
+        """
+        cfg = RewardConfig()
+        assert cfg.win_beats_last_floor()
+        assert cfg.win_total_return(0.0) > cfg.phi_max()
+        assert cfg.win_total_return(0.0) > 1.0  # the weaker earlier ask
+
+        # Simulate the last two steps directly: floor 16 at its highest
+        # reachable Phi, then the terminal.
+        phi_last = cfg.phi_max()
+        cum_last_floor = phi_last                       # telescoped from Phi(s0)=0
+        cum_after_win = cum_last_floor + cfg.shaping_reward(phi_last, 0.0) + cfg.win
+        assert cum_after_win > cum_last_floor
 
     def test_pbrs_telescoping_synthetic_trajectory(self):
         """sum_t gamma^t F_t == gamma^T Phi_T - Phi_0 (policy invariance)."""
@@ -216,7 +355,11 @@ class TestRichCombatEnv:
             steps += 1
         assert done
         assert "won" in info
-        assert reward in (-1.0, 1.0) or reward > 1.0 or reward < -0.9  # terminal +/- shaping
+        # Terminal +/- shaping. A loss is graded by enemy depletion, so the
+        # floor is death (-1.0) and the ceiling on a loss is
+        # death + death_progress_credit (-0.6), before shaping.
+        cfg = env.reward_config
+        assert reward > 1.0 or reward == pytest.approx(cfg.win) or reward < 0.0
 
     def test_progressive_deck_sampler(self):
         env = RichSTS2CombatEnv(deck_sampler="progressive")
@@ -254,6 +397,45 @@ class TestRichRunEnv:
         env = RichSTS2RunEnv()
         assert env.observation_space.shape == (ro.RICH_OBS_SIZE,)
         assert env.action_space.n == TOTAL_ACTIONS
+
+    def test_damage_ratchet_across_a_real_heal(self):
+        """Env-level integration for the ratchet.
+
+        Random rollouts do not cover this: a random agent dies on floor 1-2
+        and never reaches a rest site, so the heal branch of _accrue_damage
+        goes unexercised by every episode-level test in this file. Drive the
+        hp directly instead.
+        """
+        env = RichSTS2RunEnv(max_act_count=1)
+        env.reset(seed=17)
+        cfg = env.reward_config
+        player = env._mgr.run_state.player
+        start_hp = player.current_hp
+        assert env._damage_taken == 0.0
+        assert env._phi_prev == 0.0  # Phi(s0) == 0
+
+        # Take 20 damage.
+        player.current_hp = start_hp - 20
+        env._accrue_damage()
+        assert env._damage_taken == 20.0
+
+        # Heal it all back. The ratchet must NOT move, so a potential taken
+        # before and after is unchanged -- healing earns exactly nothing.
+        phi_hurt = cfg.potential(env._mgr, 0.0, env._damage_taken)
+        player.current_hp = start_hp
+        env._accrue_damage()
+        assert env._damage_taken == 20.0
+        phi_healed = cfg.potential(env._mgr, 0.0, env._damage_taken)
+        assert cfg.shaping_reward(phi_hurt, phi_healed) == 0.0
+
+        # Take damage again from full: still charged, not "free" down to the
+        # previous low. This is the hole a min-HP ratchet would have left.
+        player.current_hp = start_hp - 5
+        env._accrue_damage()
+        assert env._damage_taken == 25.0
+        phi_again = cfg.potential(env._mgr, 0.0, env._damage_taken)
+        assert cfg.shaping_reward(phi_healed, phi_again) == pytest.approx(
+            -cfg.w_hp_damage * (5 / player.max_hp))
 
     def test_invalid_act_count(self):
         with pytest.raises(ValueError):
@@ -367,7 +549,7 @@ class TestRichRunEnv:
         env = RichSTS2RunEnv(max_act_count=1, reward_config=cfg)
         obs, info = env.reset(seed=11)
         phi_0 = env._phi_prev
-        assert 0.0 < phi_0 <= 1.0
+        assert phi_0 == 0.0  # floor 0, zero damage taken
         gamma = cfg.gamma_shape
         rng = np.random.default_rng(11)
         telescoped = 0.0
@@ -384,7 +566,13 @@ class TestRichRunEnv:
                 if info.get("sim_error"):
                     f -= 0.0
                 elif terminated:
-                    f -= cfg.terminal_reward(bool(info.get("won", False)))
+                    # A LOSS is graded by enemy depletion, so the terminal
+                    # being subtracted must carry the same enemy_down the env
+                    # used. Passing None here leaves +death_progress_credit *
+                    # enemy_down behind and the telescoping identity fails for
+                    # a reason that has nothing to do with the shaping.
+                    f -= cfg.terminal_reward(
+                        bool(info.get("won", False)), env._enemy_down)
                 else:
                     f -= cfg.truncation
             telescoped += gamma ** t * f
@@ -408,7 +596,15 @@ class TestRichRunEnv:
                 assert reward == 0.0
             steps += 1
         assert done
-        assert reward in (1.0, -1.0)
+        # Terminal is win (+1), truncation (-1), or a GRADED loss in
+        # [death, death + death_progress_credit] = [-1.0, -0.6].
+        cfg = env.reward_config
+        if info.get("won"):
+            assert reward == pytest.approx(cfg.win)
+        else:
+            assert cfg.death <= reward <= cfg.death + cfg.death_progress_credit
+            assert reward == pytest.approx(
+                cfg.terminal_reward(False, env._enemy_down))
 
     def test_obs_layout_identical_to_combat_env(self):
         """Combat and run envs must share the exact observation layout so

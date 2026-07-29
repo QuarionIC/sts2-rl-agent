@@ -124,7 +124,11 @@ def collect_episode(
             steps += 1
             continue
 
-        phi_before = float(cfg.potential(mgr, 0.0))
+        # Read the env's damage ratchet, not a fresh 0: Phi's HP term is now
+        # cumulative damage taken, so passing 0.0 would price every state as
+        # undamaged and silently drop the HP signal from these rollouts.
+        phi_before = float(
+            cfg.potential(mgr, 0.0, getattr(env, "_damage_taken", 0.0)))
         chosen, reply = ask_fn(decision.prompt, decision.options)
         parse_ok = chosen is not None
 
@@ -137,7 +141,8 @@ def collect_episode(
 
         obs, r, done, trunc, info = env.step(int(action))
         steps += 1
-        phi_after = 0.0 if (done or trunc) else float(cfg.potential(mgr, 0.0))
+        phi_after = 0.0 if (done or trunc) else float(
+            cfg.potential(mgr, 0.0, getattr(env, "_damage_taken", 0.0)))
 
         rollout.decisions.append(DecisionRecord(
             phase=decision.phase,

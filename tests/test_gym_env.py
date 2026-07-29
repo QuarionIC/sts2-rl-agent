@@ -236,7 +236,7 @@ class TestFullEpisode:
             final_reward = reward
             steps += 1
         if done:
-            assert final_reward == 1.0 or final_reward == -1.0
+            assert final_reward > 1.0 or final_reward < 0.0
 
     def test_multiple_seeds_terminate(self, env):
         """Episodes with different seeds should all terminate."""

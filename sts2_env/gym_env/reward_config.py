@@ -11,19 +11,49 @@ change the optimal policy and no reward-farming loop exists.
 
 The potential is
 
-    Phi(s) = w_progress * progress + w_effective_hp * effective_hp
+    Phi(s) = w_progress * progress - w_hp_damage * hp_damage_cost
              + w_enemy_down * enemy_down + w_deck_quality * deck_quality
 
-with every component in [0, 1]:
+* ``progress = (current_act_index + clip(act_floor / 17, 0, 1)) / target_acts``
+  -- monotone run progress; path-independent, so no take-more-rooms bias.
+* ``hp_damage_cost = cumulative_damage_taken / max_hp`` -- a RATCHET, and the
+  only term entering Phi with a minus sign. It counts HP actually lost and
+  never decreases, so damage is penalised and healing is NOT rewarded.
 
-* ``progress = (current_act_index + clip(act_floor / 17, 0, 1)) / 4`` --
-  monotone run progress; path-independent, so no take-more-rooms bias.
-* ``effective_hp = clip((hp + 0.5*block + 0.3*osty_hp) / max_hp, 0, 1)`` --
-  run-long HP economy (combat values while in combat, run values outside;
-  spending HP/Osty for tempo is a transient dip refunded when it resolves).
+  The previous form, ``+ w * clip(hp / max_hp, 0, 1)``, could not express
+  that: any potential written as a function of CURRENT hp necessarily pays
+  for healing exactly as much as it charges for damage, because it is the
+  same term read in two directions. That made a heal option strictly
+  dominate an upgrade option of equal survival value at the same room, which
+  is wrong -- upgrading or a stronger event outcome is often the better pick.
+
+  Ratcheting on cumulative damage rather than on min-HP-seen is deliberate.
+  A min-HP ratchet makes every point of damage back down to a previous low
+  free, so an agent that once dipped to 20 HP could take 40 more damage at
+  no cost. Cumulative damage charges for every point, always.
+
+  It is deliberately NOT clipped to 1. Clipping would make all damage free
+  once a run had lost max_hp in total, reintroducing the same hole. Left
+  uncapped, the per-floor guarantee still holds: surviving a floor means
+  losing less than max_hp on it, so the worst per-floor charge is under
+  w_hp_damage (0.30) and stays below the per-floor progress gain (0.353).
+
+  Block and Osty HP were removed earlier and stay out: block was credited
+  the instant it was gained with no reference to whether an attack was
+  incoming, so the agent was paid for blocking a sleeping enemy. Block is a
+  means, not an end -- used well it shows up here as damage never taken.
 * ``enemy_down = 1 - sum(enemy_hp) / sum(enemy_max_hp)`` while in combat,
   carried at its last value between combats (1.0 after a cleared combat) --
   densifies long fights; only gained by actually reducing real enemy HP.
+  Weighted 0 by default (moved to ``terminal_reward``).
+
+Phi(s0) == 0
+------------
+At reset progress is 0 and cumulative damage is 0, so ``Phi(s0) = 0``. Since
+PBRS shaping over a whole episode telescopes to ``-Phi(s0)``, the shaping
+contributes EXACTLY ZERO to every episode's total return: a run is worth its
+terminal reward and nothing else. That is what lets ``win`` be read directly
+as the realised value of a win (see ``win`` below).
 
 ``shaping_scale`` is a constant multiplier knob on F (1.0 during training,
 0.0 for pure-sparse eval). It is never annealed.
@@ -59,7 +89,10 @@ class RewardConfig:
 
     Attributes
     ----------
-    win : terminal reward for winning the episode (never annealed).
+    win : terminal reward for winning the episode (never annealed). Because
+        Phi(s0) == 0 the shaping cancels over a full episode, so this is
+        literally the total return of a win; it is set above 1.0 so a win is
+        always strictly greater than 1 after shaping.
     death : terminal reward for dying (never annealed).
     truncation : terminal reward when the episode is truncated (step-limit
         timeout). With the 30-turn combat cap scoring in-combat stalls as
@@ -68,10 +101,11 @@ class RewardConfig:
         like a death (-1). (0.0 previously let the value function learn
         truncation(0) > death(-1), biasing eval-time argmax toward
         absorbing dither loops.)
-    gamma_shape : discount used inside the PBRS term; MUST match the
-        training gamma so the shaping stays policy-invariant.
-    w_progress / w_effective_hp / w_enemy_down / w_deck_quality : Phi
-        component weights. w_deck_quality defaults to 0.0 (off).
+    gamma_shape : discount inside the PBRS term; 1.0 (see the field comment
+        -- the hierarchical env sums F across a combat undiscounted).
+    w_progress / w_hp_damage / w_enemy_down / w_deck_quality : Phi component
+        weights. w_hp_damage multiplies a COST and enters Phi NEGATIVELY.
+        w_deck_quality defaults to 0.0 (off).
     shaping_scale : global multiplier in [0, 1] applied to the PBRS term F.
         1.0 = full shaping, 0.0 = pure sparse reward. Constant during
         training (no anneal -- PBRS is invariant and needs none).
@@ -83,17 +117,87 @@ class RewardConfig:
         multiplied by ``shaping_scale``).
     """
 
-    win: float = 1.0
-    death: float = -1.0
-    truncation: float = -1.0
-    gamma_shape: float = 0.997
-    w_progress: float = 0.45
-    w_effective_hp: float = 0.30
-    w_enemy_down: float = 0.20
+    #: Sized so the CUMULATIVE reward still RISES when the boss dies.
+    #:
+    #: Because Phi(s0) = 0, the running total after any floor n is exactly
+    #: Phi(n), and the total after the win is exactly ``win`` -- the shaping
+    #: telescopes away. So "beating the boss must beat the previous floor"
+    #: is the condition ``win > Phi(last floor)``, and since Phi is capped by
+    #: ``w_progress + w_deck_quality`` (progress <= 1, the hp term only
+    #: subtracts) it is sufficient that ``win > w_progress + w_deck_quality``.
+    #:
+    #: At win=1.0 this failed badly: a hypothetical Act-1 win ran the
+    #: cumulative up to +5.63 by floor 16, then the boss floor dropped it to
+    #: +0.70 -- Phi collapsing to 0 at the terminal swamped the +1. The trace
+    #: read as though winning were a setback.
+    #:
+    #: 10.0 clears the 6.0 cap with margin and also satisfies the weaker
+    #: earlier requirement (a win is worth strictly more than 1 after
+    #: shaping). Checked by :meth:`win_beats_last_floor`, asserted in tests.
+    win: float = 10.0
+    death: float = -10.0
+    truncation: float = -10.0
+    #: Paid at the terminal, once per elite defeated during the run, on ANY
+    #: ending. Unlike everything else in this file it is NOT policy-invariant:
+    #: it is a deliberate thumb on the scale toward fighting elites, so the
+    #: agent trades HP for the relic/deck payoff instead of routing around
+    #: them. It also grades losses -- dying having cleared 2 elites (-8.0)
+    #: beats dying having cleared none (-10.0).
+    #:
+    #: Terminal rather than per-floor on purpose: an immediate bonus would be
+    #: collectable and then thrown away, whereas paying at the end prices the
+    #: elite by what the run actually did with it.
+    elite_bonus: float = 1.0
+    #: MUST be 1.0 here, not the PPO gamma, because the hierarchical env sums
+    #: the parent's per-step F across an auto-played combat WITHOUT
+    #: discounting the interior terms. That sum is
+    #:     gamma_shape*Phi(end) - Phi(start) + (gamma_shape - 1)*sum(Phi_interior)
+    #: so anything below 1.0 leaves a path-dependent residual proportional to
+    #: how long Phi is held high -- i.e. a standing penalty for long fights and
+    #: for surviving deep into the act, which is the opposite of the goal.
+    #: Measured on 8 real episodes: at 0.997 with w_progress=6.0 the residual
+    #: is -0.2099 (10.5% of the +1/-1 terminal gap); at 1.0 it is exactly
+    #: 0.0000. The residual scales with Phi, so raising w_progress 0.45 -> 6.0
+    #: had inflated it 5.7x (-0.0370 -> -0.2099) before this fix.
+    gamma_shape: float = 1.0
+    #: Sized so ADVANCING A FLOOR IS ALWAYS NET POSITIVE. A floor is worth
+    #: w_progress / ACT_FLOOR_SCALE = 6.0/17 = 0.353 of potential, which
+    #: exceeds the worst survivable HP charge (w_hp_damage * 1.0 = 0.30;
+    #: surviving a floor means losing under max_hp on it).
+    #: At the old 0.45 a floor was worth 0.027 and a 6 HP loss outweighed it,
+    #: so climbing while hurt scored NEGATIVE -- measured -0.028 on floor 7
+    #: of a real run.
+    w_progress: float = 6.0
+    #: Coefficient on the cumulative-damage COST. Enters Phi with a MINUS.
+    #: Was ``w_effective_hp``, a coefficient on current hp/max_hp; renamed
+    #: rather than reinterpreted because the sign and the semantics both
+    #: changed and a silent swap would have been invisible at the call sites.
+    w_hp_damage: float = 0.30
+    #: Removed from the potential (0.0). Enemy depletion is now credited ONLY
+    #: on a LOSS, via death_progress_credit below, so that losing having dealt
+    #: 80% of enemy HP beats losing having dealt 60%. It cannot live in the
+    #: potential: PBRS sets Phi := 0 at terminal states, so whatever depletion
+    #: had been achieved is erased exactly when it should be scored.
+    w_enemy_down: float = 0.0
+    #: Scales the death penalty by damage dealt: death + credit * enemy_down,
+    #: so a 100%-depleted loss scores -6.0 and a 0%-depleted loss the full
+    #: -10.0. Never enough to make losing preferable to winning (+10.0).
+    #:
+    #: Held at 40% of |death| deliberately. When death moved -1.0 -> -10.0 this
+    #: stayed at 0.4 for one revision, which silently crushed the grading it
+    #: exists to provide: the whole 0%-to-100%-depleted spread was 0.4 out of a
+    #: 20-point terminal range (2%), so "died having nearly killed it" and
+    #: "died without scratching it" were all but the same number. Scaling with
+    #: death keeps the ratio that made the signal legible.
+    death_progress_credit: float = 4.0
     #: Upgrade-density term. Default 0.0 keeps every existing result
     #: reproducible; the hierarchical run agent opts in explicitly so
     #: the change can be A/B'd rather than silently altering Phi.
     w_deck_quality: float = 0.0
+    #: Acts the episode is scored against; the progress denominator. 1 = the
+    #: current goal (beat act 1). Must match the env's max_act_count or the
+    #: potential saturates early or never reaches 1.0.
+    target_acts: float = 1.0
     shaping_scale: float = 1.0
     legacy_shaping: bool = False
     act_completion: float = 0.25
@@ -106,8 +210,41 @@ class RewardConfig:
         """Clamp shaping_scale into [0, 1]."""
         self.shaping_scale = min(1.0, max(0.0, self.shaping_scale))
 
-    def terminal_reward(self, won: bool) -> float:
-        return self.win if won else self.death
+    def terminal_reward(self, won: bool, enemy_down: float | None = None,
+                        elites_beaten: int = 0) -> float:
+        """Terminal payout. A LOSS is graded by how far the fight got.
+
+        Wins are flat (+1.0): HP retained deliberately does not change a
+        win's value.
+
+        Losses are not flat. ``death + death_progress_credit * enemy_down``
+        makes losing having dealt 80% of enemy HP (-0.68) rank above losing
+        having dealt 60% (-0.76), which is the requested ordering. This has
+        to be terminal: the potential is defined as 0 at terminal states, so
+        an enemy_down term inside Phi is erased at exactly the moment it
+        would matter.
+
+        The credit is capped well below the win/loss gap, so no amount of
+        damage dealt makes a loss preferable to a win (-0.60 worst case vs
+        +1.00).
+
+        An HP-retention bonus was tried here and removed by request. Note
+        the consequence, because it is not obvious: with a flat terminal and
+        potential-based shaping, the TOTAL return of a win does not depend
+        on how much HP it cost. PBRS telescopes to
+        ``gamma^T*Phi(terminal) - Phi(s0)`` with Phi := 0 at terminal --
+        measured, a clean win totals -0.3027 of shaping and a bloody one
+        -0.3016. So HP loss shapes intermediate credit and learning speed,
+        but a 0-damage win and a 10-damage win are worth the same at the
+        end of the episode.
+        """
+        elites = self.elite_bonus * max(0, int(elites_beaten))
+        if won:
+            return self.win + elites
+        credit = 0.0
+        if enemy_down is not None:
+            credit = self.death_progress_credit * min(1.0, max(0.0, float(enemy_down)))
+        return self.death + credit + elites
 
     # ------------------------------------------------------------------
     # Legacy event shaping (attempt-6 era; only when legacy_shaping=True)
@@ -130,37 +267,50 @@ class RewardConfig:
     # Potential Phi and its components
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def progress(mgr: RunManager) -> float:
-        """Monotone run progress in [0, 1]."""
+    def progress(self, mgr: RunManager) -> float:
+        """Monotone progress in [0, 1], normalised to the TARGET act count.
+
+        Dividing by a fixed 4 acts made each floor worth 1/(17*4) of the
+        progress term -- 0.0066 of shaping after the 0.45 weight. With an
+        act-1 goal that is 4x smaller than it should be, and per-floor
+        progress is the densest signal this agent has. Normalising by
+        ``target_acts`` makes a floor worth 1/17 of progress (0.0265), and
+        reaching the goal put Phi's progress component at exactly 1.0.
+        """
         rs = mgr.run_state
         act_frac = min(1.0, max(0.0, rs.act_floor / ACT_FLOOR_SCALE))
-        return min(1.0, max(0.0, (rs.current_act_index + act_frac) / NUM_ACTS))
+        denom = max(1.0, float(self.target_acts))
+        return min(1.0, max(0.0, (rs.current_act_index + act_frac) / denom))
 
     @staticmethod
-    def effective_hp(mgr: RunManager) -> float:
-        """clip((hp + 0.5*block + 0.3*osty_hp) / max_hp, 0, 1).
+    def current_hp(mgr: RunManager) -> tuple[int, int]:
+        """(hp, max_hp), read from combat when a fight is live.
 
-        Uses live combat values (block, Osty) while in combat; outside
-        combat block/osty contribute 0 and run-state HP is used.
+        The env's damage ratchet and this module must agree on WHICH hp they
+        are watching, or the ratchet double-counts at every combat boundary.
+        Single source of truth.
         """
         combat = mgr.get_combat_state()
-        if combat is not None:
-            player = combat.primary_player
-            hp = player.current_hp
-            max_hp = player.max_hp
-            block = player.block
-            osty = combat.get_osty(player)
-            osty_hp = osty.current_hp if (osty is not None and osty.is_alive) else 0
-        else:
-            player = mgr.run_state.player
-            hp = player.current_hp
-            max_hp = player.max_hp
-            block = 0
-            osty_hp = 0
+        player = (combat.primary_player if combat is not None
+                  else mgr.run_state.player)
+        return player.current_hp, player.max_hp
+
+    @staticmethod
+    def hp_damage_cost(mgr: RunManager, damage_taken: float) -> float:
+        """Cumulative HP lost this episode, as a fraction of max_hp.
+
+        A COST: :meth:`potential` subtracts it. ``damage_taken`` is the
+        env-tracked ratchet -- it only ever increases, so healing cannot
+        reduce it and therefore cannot be rewarded. Damage still is
+        penalised, every point of it.
+
+        Not clipped to 1: see the module docstring. Clipping would make
+        damage free once a run had cumulatively lost max_hp.
+        """
+        _, max_hp = RewardConfig.current_hp(mgr)
         if max_hp <= 0:
             return 0.0
-        return min(1.0, max(0.0, (hp + 0.5 * block + 0.3 * osty_hp) / max_hp))
+        return max(0.0, float(damage_taken) / max_hp)
 
     @staticmethod
     def enemy_down(combat: CombatState) -> float:
@@ -175,19 +325,55 @@ class RewardConfig:
             return 0.0
         return min(1.0, max(0.0, 1.0 - total_cur / total_max))
 
-    def potential(self, mgr: RunManager, enemy_down: float = 0.0) -> float:
+    def potential(self, mgr: RunManager, enemy_down: float = 0.0,
+                  damage_taken: float = 0.0) -> float:
         """Phi(s) for a live (non-terminal) state.
 
         ``enemy_down`` is the carried enemy-depletion value tracked by the
-        env (recomputed while in combat, held between combats). Callers must
-        use Phi = 0 at terminal states.
+        env (recomputed while in combat, held between combats).
+        ``damage_taken`` is the env's cumulative-damage ratchet, in HP.
+        Callers must use Phi = 0 at terminal states.
+
+        Note the sign on the HP term: it is SUBTRACTED. Phi is therefore not
+        bounded below by 0, which is fine -- PBRS places no constraint on
+        Phi's range, only that it is a function of state and that Phi := 0
+        at terminal.
         """
         return (
             self.w_progress * self.progress(mgr)
-            + self.w_effective_hp * self.effective_hp(mgr)
+            - self.w_hp_damage * self.hp_damage_cost(mgr, damage_taken)
             + self.w_enemy_down * min(1.0, max(0.0, enemy_down))
             + self.w_deck_quality * self.deck_quality(mgr)
         )
+
+    def win_total_return(self, phi_start: float = 0.0) -> float:
+        """Realised total return of a winning episode, shaping included.
+
+        PBRS over a whole episode telescopes to ``-Phi(s0)`` (Phi := 0 at
+        terminal), so the total is ``win - Phi(s0)``. With the damage-ratchet
+        potential ``Phi(s0) = 0`` at reset -- floor 0, zero damage -- and this
+        is just ``win``. Exposed so the "a win is always > 1 after shaping"
+        requirement is a checkable property rather than a claim in a comment.
+        """
+        return self.win - phi_start
+
+    def phi_max(self) -> float:
+        """Upper bound on Phi over all non-terminal states.
+
+        progress and deck_quality are both in [0, 1]; enemy_down is weighted
+        0; the hp term only ever subtracts. So Phi can never exceed this.
+        """
+        return self.w_progress + self.w_deck_quality + self.w_enemy_down
+
+    def win_beats_last_floor(self) -> bool:
+        """Does the cumulative reward still RISE on the winning step?
+
+        With Phi(s0) = 0 the running total after floor n is Phi(n) and the
+        total after the win is ``win``, so this is exactly
+        ``win > max Phi``. False means the reward trace shows beating the
+        boss as a drop, which is what win=1.0 did.
+        """
+        return self.win_total_return(0.0) > self.phi_max()
 
     def deck_quality(self, mgr: RunManager) -> float:
         """Upgrade density of the owned deck, in [0, 1].

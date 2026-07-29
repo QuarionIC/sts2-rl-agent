@@ -359,7 +359,8 @@ def main() -> int:
     ap.add_argument("--eval-freq", type=int, default=500_000)
     ap.add_argument("--eval-episodes", type=int, default=200)
     ap.add_argument("--ascension", type=int, default=0)
-    ap.add_argument("--max-act-count", type=int, default=2)
+    ap.add_argument("--max-act-count", type=int, default=1,
+                    help="Acts the episode must clear to WIN. 1 = current goal: beat act 1.")
     ap.add_argument("--pools", nargs="*", default=["act1"])
     ap.add_argument("--deck-file", default=None,
                     help="Pickle of decks harvested from a run agent; replaces the "

@@ -339,7 +339,9 @@ class RichSTS2CombatEnv(gymnasium.Env):
         won = False
         if terminated:
             won = combat.player_won
-            reward = cfg.terminal_reward(won)
+            _cb = self.combat
+            _down = cfg.enemy_down(_cb) if _cb is not None else None
+            reward = cfg.terminal_reward(won, _down)
         elif truncated:
             reward = cfg.death
 
