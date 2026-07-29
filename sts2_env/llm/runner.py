@@ -247,3 +247,150 @@ class LLMRunPolicy:
             "llm_total_s": round(self.llm.total_s, 1),
             "s_per_decision": round(self.llm.total_s / max(self.asked, 1), 2),
         }
+
+
+class LLMFullPolicy(LLMRunPolicy):
+    """The LLM makes EVERY decision, combat included.
+
+    ``LLMRunPolicy`` leaves fights to the deterministic planner, so its result
+    (13.1 floors) measures out-of-combat play alone. This subclass routes
+    combat to the model too, which is the configuration the live bridge
+    already runs and whose combat quality was never measured -- see the
+    "combat quality is unmeasured" note in ``sts2_env/bridge/llm_policy.py``.
+
+    Two things are tracked separately from the parent's totals, because
+    combat is where nearly all the decisions are and mixing them hides
+    everything interesting:
+
+    * per-arena counts (asked / parsed / seconds), so a combat parse
+      collapse cannot hide behind a healthy out-of-combat rate;
+    * combat outcomes (fights entered, won, HP lost), so a bad floors number
+      can be attributed to losing fights vs routing badly.
+
+    A combat parse failure falls back to a RANDOM legal action, never to the
+    planner and never to option 0. The planner would contaminate exactly the
+    thing being measured; option 0 is END TURN, which is the failure that
+    cost a live run. Random is neutral and counted -- read ``parse_rate``
+    before reading any outcome number.
+    """
+
+    def __init__(self, env, llm: LocalLLM, fallback: str = "knowledge",
+                 log_path: str | None = None):
+        super().__init__(env, llm, fallback=fallback, log_path=log_path)
+        self.arena = {
+            "combat": {"asked": 0, "parsed": 0, "failed": 0, "s": 0.0},
+            "noncombat": {"asked": 0, "parsed": 0, "failed": 0, "s": 0.0},
+        }
+        self.combats_entered = 0
+        self.combats_won = 0
+        self._in_combat = False
+        self._combat_hp_start: int | None = None
+        self.combat_hp_lost: list[int] = []
+
+    def act(self, obs, mask) -> int:
+        import time as _time
+
+        from sts2_env.llm.state_text import (
+            COMBAT_SYSTEM_PROMPT,
+            SYSTEM_PROMPT,
+            parse_choice,
+            render_combat_decision,
+            render_run_decision_masked,
+        )
+        from sts2_env.run.run_manager import RunManager
+
+        mask = np.asarray(mask, dtype=bool)
+        legal = np.flatnonzero(mask)
+        if not legal.size:
+            return 0
+        mgr = self.env._mgr
+        if mgr is None:
+            return int(legal[0])
+
+        in_combat = mgr.phase == RunManager.PHASE_COMBAT
+        self._track_combat_boundary(mgr, in_combat)
+
+        if in_combat:
+            decision = render_combat_decision(mgr, mask)
+            system = COMBAT_SYSTEM_PROMPT
+            key = "combat"
+        else:
+            # Masked variant: only offers options the env can actually take,
+            # and carries env_action. See its docstring for the three bugs
+            # this closes (20% of out-of-combat choices were being discarded).
+            decision = render_run_decision_masked(mgr, mask)
+            system = SYSTEM_PROMPT
+            key = "noncombat"
+
+        if decision is None:
+            self.no_decision += 1
+            return self._fallback_action(obs, mask)
+
+        self.asked += 1
+        self.arena[key]["asked"] += 1
+        t0 = _time.time()
+        reply = self.llm.ask(system, decision.prompt)
+        self.arena[key]["s"] += _time.time() - t0
+        idx = parse_choice(reply, len(decision.options))
+
+        action = None
+        if idx is not None:
+            # BOTH arenas now carry env_action, validated against the mask when
+            # the menu was built, so there is one resolution path and no
+            # inverse lookup anywhere. Re-check the bit regardless: cheap, and
+            # it turns any future encoding drift into a counted parse failure
+            # rather than an illegal step.
+            cand = decision.options[idx].get("env_action")
+            if cand is not None and 0 <= cand < mask.size and mask[cand]:
+                action = int(cand)
+
+        if action is None:
+            self.parse_failures += 1
+            self.arena[key]["failed"] += 1
+            # Combat must not fall back to the knowledge policy (it is
+            # out-of-combat only) nor to option 0 (END TURN).
+            action = (int(self.rng.choice(legal)) if in_combat
+                      else self._fallback_action(obs, mask))
+        else:
+            self.parsed += 1
+            self.arena[key]["parsed"] += 1
+
+        if self.log_path is not None:
+            self.transcript.append({
+                "phase": decision.phase,
+                "arena": key,
+                "prompt": decision.prompt,
+                "reply": reply.strip()[:400],
+                "chosen_index": idx,
+                "action": int(action),
+            })
+        return int(action)
+
+    def _track_combat_boundary(self, mgr, in_combat: bool) -> None:
+        """Count fights entered/won and HP paid, at the phase transitions."""
+        if in_combat and not self._in_combat:
+            self.combats_entered += 1
+            self._combat_hp_start = mgr.run_state.player.current_hp
+        elif self._in_combat and not in_combat:
+            if not mgr.run_state.player.is_dead:
+                self.combats_won += 1
+            if self._combat_hp_start is not None:
+                self.combat_hp_lost.append(
+                    max(0, self._combat_hp_start - mgr.run_state.player.current_hp))
+            self._combat_hp_start = None
+        self._in_combat = in_combat
+
+    def stats(self) -> dict:
+        st = super().stats()
+        for key, a in self.arena.items():
+            st[f"{key}_asked"] = a["asked"]
+            st[f"{key}_parse_rate"] = a["parsed"] / max(a["asked"], 1)
+            st[f"{key}_s_per_decision"] = round(a["s"] / max(a["asked"], 1), 2)
+            st[f"{key}_total_s"] = round(a["s"], 1)
+        st["combats_entered"] = self.combats_entered
+        st["combats_won"] = self.combats_won
+        st["combat_win_rate"] = self.combats_won / max(self.combats_entered, 1)
+        st["mean_combat_hp_lost"] = (
+            round(float(np.mean(self.combat_hp_lost)), 2)
+            if self.combat_hp_lost else 0.0)
+        return st
