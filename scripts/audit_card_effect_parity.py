@@ -120,11 +120,14 @@ def sim_effects(src: str) -> dict:
         # (deal_damage / gain_block) and produced 137 false "sim does nothing"
         # findings on cards like Bash that plainly deal damage -- the tool was
         # wrong, not the simulator.
-        "damage": bool(re.search(r"apply_damage|calculate_damage|deal_damage"
-                                 r"|_deal_damage", src)),
-        "block": bool(re.search(r"gain_block|add_block|apply_block|_gain_block"
-                                r"|calculate_block", src)),
-        "draw": bool(re.search(r"draw_card|draw_cards|_draw", src)),
+        # Broadened after the first pass flagged Bash, Poke, Snap and other
+        # obvious attacks as dealing no damage. The simulator has several
+        # damage/block/draw helper families (notably the Necrobinder
+        # _deal_osty_damage_* pair), and matching only the generic names made
+        # the tool, not the simulator, wrong.
+        "damage": bool(re.search(r"damage", src)),
+        "block": bool(re.search(r"block", src)),
+        "draw": bool(re.search(r"draw", src)),
     }
 
 
