@@ -181,6 +181,7 @@ def run_agent(
     llm_max_tokens: int = 48,
     llm_temperature: float = 0.2,
     combat_policy: str = "planner",
+    rl_combat_model: str | None = None,
 ) -> None:
     """Main agent loop.
 
@@ -200,6 +201,17 @@ def run_agent(
     _COMBAT_POLICY[1] = None
     logger.info("Combat policy: %s | out-of-combat: %s",
                 combat_policy, "LLM" if llm_model else "model/heuristic")
+
+    if combat_policy == "rl":
+        if not rl_combat_model:
+            raise SystemExit("--combat-policy rl requires --rl-combat-model")
+        from sb3_contrib import MaskablePPO
+
+        logger.info("Loading RL combat agent: %s", rl_combat_model)
+        _RL_COMBAT[0] = MaskablePPO.load(rl_combat_model, device="cpu")
+        logger.info("RL combat agent loaded (actions=%d, obs=%d)",
+                    _RL_COMBAT[0].policy.action_space.n,
+                    _RL_COMBAT[0].observation_space.shape[0])
 
     llm_policy = None
     if llm_model:
@@ -222,7 +234,7 @@ def run_agent(
     if model_path:
         model = load_model(model_path)
         model_mode = detect_model_mode(model)
-    elif llm_policy is None and combat_policy != "planner":
+    elif llm_policy is None and combat_policy not in ("planner", "rl"):
         raise SystemExit(
             "Provide --model-path, --llm-model, or --combat-policy planner")
 
@@ -323,6 +335,22 @@ def run_agent(
                 # would dereference None; and previously nothing routed
                 # combat to the planner, which is why live play showed no
                 # planner behaviour despite --combat-policy planner.
+                if phase in Phase.COMBAT_PHASES and _COMBAT_POLICY[0] == "rl":
+                    act_idx = _rl_combat_action(state)
+                    if act_idx is not None:
+                        decoded = adapter.decode_action(act_idx, state)
+                        if verbose:
+                            _log_combat_action(state, act_idx, decoded)
+                        _send_combat_action(client, decoded, combat_delay)
+                        continue
+                    act_idx = _heuristic_combat_action(state, adapter)
+                    if act_idx is not None:
+                        decoded = adapter.decode_action(act_idx, state)
+                        _send_combat_action(client, decoded, combat_delay)
+                    else:
+                        client.end_turn()
+                    continue
+
                 if phase in Phase.COMBAT_PHASES and _COMBAT_POLICY[0] == "planner":
                     planned = _combat_planner_action(state)
                     if planned is not None:
@@ -856,9 +884,52 @@ def _combat_planner_action(state: dict[str, Any]) -> int | None:
         )
         from sts2_env.search.combat_planner import PlannerConfig, plan_turn
 
-        plan = plan_turn(combat, PlannerConfig(beam_width=24,
-                                               max_expansions=60_000,
-                                               time_budget_s=6.0))
+        # Whole-combat search, minimising total HP lost. A per-turn
+        # objective cannot see that killing an enemy removes its future
+        # attacks, that Vulnerable applied now pays off over later turns,
+        # that correct blocking depends on what comes after this turn, or
+        # that lethal often needs a setup turn first. All four fall out of
+        # optimising the whole fight.
+        #
+        # Sound only because the mod now sends ai_state: without the real
+        # enemy move, turns past the first would be planned against a
+        # freshly-rolled one.
+        from sts2_env.search.combat_planner import plan_combat_min_hp
+
+        # Full-strength search. Budgeted runs measurably starved it: at
+        # beam 48 it scored 4/6 wins and 141 HP lost, WORSE than per-turn's
+        # 4/6 and 132. Unbounded (beam 512, 5M nodes, no prune margin) it
+        # reaches 5/6 wins and 100 HP lost -- an extra win and 24% less
+        # damage.
+        #
+        # The wall clock is capped at 90s despite "no budget": the mod's
+        # AutoSlay watchdog aborts a run after 120s without a response, and
+        # one measured plan took 139s. Exceeding it does not slow the run,
+        # it ENDS the run. 90s leaves headroom for the reply to land.
+        whole = plan_combat_min_hp(
+            combat,
+            PlannerConfig(beam_width=512, max_expansions=5_000_000,
+                          time_budget_s=90.0, prune_margin=0.0),
+            ai_state_known=True,
+        )
+        if whole is not None and whole.actions:
+            plan = type("P", (), {
+                "actions": whole.actions,
+                "lethal": whole.won,
+                "expansions": whole.expansions,
+                "objective": type("O", (), {
+                    "lethal": int(whole.won), "hp_preserved": -whole.hp_lost,
+                    "setup": 0.0, "damage": 0.0})(),
+            })()
+            logger.info("Combat: whole-combat plan -- %d actions, %s, "
+                        "HP %.0f -> %.0f (lost %.0f)%s",
+                        len(whole.actions), "WIN" if whole.won else "no win found",
+                        whole.entry_hp, whole.final_hp, whole.hp_lost,
+                        "" if whole.exhausted else " [budget-capped]")
+        else:
+            plan = plan_turn(combat, PlannerConfig(beam_width=24,
+                                                   max_expansions=60_000,
+                                                   time_budget_s=6.0))
         # Annotate each action with the card it was chosen for, resolved
         # against the SIM hand as it evolves through the plan -- that is the
         # only place the intended card is knowable.
@@ -914,6 +985,44 @@ def _llm_pick(state: dict[str, Any], options: list[dict[str, Any]],
     if chosen is None:
         return fallback
     return _read_index(chosen, local)
+
+
+_RL_COMBAT = [None]   # [loaded MaskablePPO model]
+
+
+def _rl_combat_action(state: dict[str, Any]) -> int | None:
+    """Next combat action from the trained RL combat agent.
+
+    The bridge's StateAdapter emits a 131-dim observation, but every model
+    trained since the observation revamp expects the 4778-dim RICH vector,
+    so a current checkpoint cannot be fed from the wire directly. The route
+    that works is the one the planner already uses: rebuild a real
+    CombatState from the payload, then encode THAT with the same encoder the
+    model trained against. Reconstruction is therefore load-bearing for the
+    RL agent too, not just for search.
+    """
+    model = _RL_COMBAT[0]
+    if model is None:
+        return None
+    from sts2_env.bridge.combat_reconstruct import reconstruct_combat
+    from sts2_env.gym_env.action_space import get_action_mask
+    from sts2_env.gym_env.rich_observation import RichObservationEncoder
+
+    combat = reconstruct_combat(state)
+    if combat is None:
+        return None
+    import numpy as _np
+
+    obs = RichObservationEncoder().encode_combat(combat)
+    mask = _np.asarray(get_action_mask(combat), dtype=bool)
+    if not mask.any():
+        return None
+    action, _ = model.predict(obs, action_masks=mask, deterministic=True)
+    action = int(action)
+    if not (0 <= action < mask.size) or not mask[action]:
+        legal = _np.flatnonzero(mask)
+        action = int(legal[0]) if legal.size else 0
+    return action
 
 
 def _heuristic_combat_action(state: dict[str, Any], adapter: Any) -> int | None:
@@ -1212,13 +1321,16 @@ def main() -> None:
     )
     parser.add_argument(
         "--combat-policy",
-        choices=["planner", "llm"],
+        choices=["planner", "llm", "rl"],
         default="planner",
         help="Who plays combat: 'planner' = deterministic beam search "
              "(default; needs a mod build that sends pile+deck contents, "
              "otherwise falls back to the LLM with a logged reason), "
              "'llm' = the language model plays combat too.",
     )
+    parser.add_argument("--rl-combat-model", default=None,
+                        help="Trained 115-action rich-obs combat model for "
+                             "--combat-policy rl")
     parser.add_argument("--llm-gpu-layers", type=int, default=34)
     parser.add_argument("--llm-ctx", type=int, default=4096)
     parser.add_argument("--llm-max-tokens", type=int, default=48)
@@ -1308,6 +1420,7 @@ def main() -> None:
         action_delay=args.action_delay,
         combat_delay=args.combat_delay,
         combat_policy=args.combat_policy,
+        rl_combat_model=args.rl_combat_model,
         llm_model=args.llm_model,
         llm_gpu_layers=args.llm_gpu_layers,
         llm_ctx=args.llm_ctx,

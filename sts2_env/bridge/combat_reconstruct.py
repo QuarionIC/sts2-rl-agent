@@ -168,6 +168,42 @@ def _monster_factories() -> dict[str, Any]:
     return reg
 
 
+def _rebuild_potions(state: dict[str, Any]) -> list:
+    """Rebuild the player's potion belt from the wire.
+
+    This was missing entirely: reconstruct_combat never passed potions to
+    CombatState, so every rebuilt fight had empty slots. get_action_mask
+    then marked all 54 potion actions illegal, and both the RL agent and the
+    planner searched a game in which potions did not exist. The agent was
+    not declining to drink -- it was never offered the option.
+
+    Slots are positional, so a consumed or automatic potion must leave a
+    HOLE rather than shift the ones after it; the action space indexes by
+    slot number.
+    """
+    from sts2_env.potions import create_potion
+
+    wire = state.get("potions") or []
+    if not wire:
+        return []
+    size = max(int(p.get("slot", i) or 0) for i, p in enumerate(wire)) + 1
+    belt: list = [None] * max(size, 3)
+    for i, spec in enumerate(wire):
+        slot = int(spec.get("slot", i) or 0)
+        pid = spec.get("id") or spec.get("potion_id")
+        if not pid or not (0 <= slot < len(belt)):
+            continue
+        # Automatic potions fire on their own; the agent cannot spend them,
+        # and offering them as actions would produce moves the game rejects.
+        if spec.get("can_use") is False:
+            continue
+        try:
+            belt[slot] = create_potion(str(pid), slot=slot)
+        except Exception:
+            logger.debug("unknown potion id %r", pid)
+    return belt
+
+
 def _restore_ai_state(ai: Any, spec: dict[str, Any]) -> bool:
     """Point the monster's state machine at the move it is actually on.
 
@@ -361,6 +397,7 @@ def reconstruct_combat(state: dict[str, Any]) -> Any | None:
         gold=int(state.get("gold", 0) or 0),
         character_id=_character_from(state),
         ascension_level=int(state.get("ascension_level", 0) or 0),
+        potions=_rebuild_potions(state),
     )
 
     # --- enemies -----------------------------------------------------------

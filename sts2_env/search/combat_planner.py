@@ -418,13 +418,15 @@ class PlannedCombatController:
 
     def __init__(self, env, config: PlannerConfig | None = None,
                  ladder: tuple[PlannerConfig, ...] | None = (),
-                 per_turn: bool = True):
+                 per_turn: bool = False):
         self._env = env
-        #: Plan one turn at a time with the lexicographic objective
-        #: (lethal > HP preserved > setup > damage) instead of searching the
-        #: whole combat to a terminal. Whole-combat search missed lethal
-        #: lines -- a kill several plies deep lost the beam to shallower,
-        #: better-looking lines -- and let damage dealt outweigh HP lost.
+        #: Per-turn planning is now OPT-IN. A turn-local objective cannot
+        #: see the four things that decide fights: killing an enemy removes
+        #: its future attacks, Vulnerable applied early pays off over later
+        #: turns, correct blocking depends on what is coming after this
+        #: turn, and lethal often needs a setup turn first. Whole-combat
+        #: min-HP-loss captures all four without special-casing any of them
+        #: -- a dead enemy simply stops dealing damage in the search.
         self.per_turn = per_turn
         self.turn_plans = 0
         self.turn_lethals = 0
@@ -584,24 +586,18 @@ class TurnObjective:
     setup: float = 0.0
     damage: float = 0.0
 
-    #: HP-loss bucket width. Strict lexicographic ordering on raw HP made
-    #: the planner TURTLE: because HP loss outranks damage absolutely, a
-    #: turn that blocked everything for 0 damage always beat one that
-    #: conceded 1 HP to deal 20, so it stalled and never closed fights
-    #: (observed live: consecutive turns planning dmg=0). Comparing HP loss
-    #: in buckets keeps "take less damage" as the higher priority while
-    #: letting damage decide between turns that are near-equally safe.
-    hp_bucket: float = 5.0
-
     def key(self) -> tuple:
-        import math
+        """Exact HP, no bucketing.
 
-        # hp_preserved is <= 0 (negative HP lost). ceil groups small losses
-        # with zero: 0 and -4 both land in bucket 0, -6 falls to -1. floor
-        # would put -1 in its own worse bucket, which is the turtling
-        # behaviour this is meant to remove.
-        bucket = math.ceil(self.hp_preserved / self.hp_bucket)
-        return (self.lethal, bucket, self.setup, self.damage)
+        Bucketing existed to stop a PER-TURN planner from turtling: with a
+        turn-local objective, conceding 1 HP to deal 20 looked strictly
+        worse than blocking everything for 0. That tradeoff is an artifact
+        of optimising one turn in isolation. Optimising the WHOLE combat
+        removes it -- spending HP now to end the fight a turn earlier shows
+        up as less total HP lost, so exact comparison is correct and the
+        bucket only blurred real differences.
+        """
+        return (self.lethal, self.hp_preserved, self.setup, self.damage)
 
 
 @dataclass
@@ -909,3 +905,125 @@ def plan_combat_min_hp(
         best.exhausted = not truncated_by_budget and not frontier
         best.expansions = expansions
     return best
+
+
+def plan_turn_lookahead(
+    root_combat,
+    config: PlannerConfig | None = None,
+    horizon_turns: int = 3,
+    ai_state_known: bool = True,
+) -> TurnPlan:
+    """Search ``horizon_turns`` ahead, minimising HP lost; return THIS turn.
+
+    Receding horizon, and it is the right shape for this problem.
+
+    A one-turn objective cannot see the four things that decide fights:
+    killing an enemy removes its future attacks, Vulnerable applied now pays
+    off on later turns, correct blocking depends on what is coming after
+    this turn, and lethal often needs a setup turn first. All four need
+    lookahead.
+
+    But planning the ENTIRE combat once is worse in practice, measured: the
+    beam that fits in budget is too shallow to solve a whole fight, and a
+    single stale plan loses to per-turn replanning that re-searches from the
+    true state each turn (4/6 wins and 141 HP lost vs 132 for per-turn over
+    six seeded combats).
+
+    Looking a few turns ahead and replanning each turn keeps the multi-turn
+    signal while retaining fresh information. HP is compared EXACTLY -- no
+    bucketing -- because over a horizon, conceding HP to end the fight
+    sooner shows up as less total HP lost rather than as a turn-local
+    tradeoff the bucket had to paper over.
+    """
+    cfg = config or PlannerConfig(beam_width=32, max_expansions=150_000,
+                                  time_budget_s=10.0)
+    if not ai_state_known:
+        return plan_turn(root_combat, cfg)
+
+    root = clone_combat(root_combat)
+    entry_hp = float(max(0, root.primary_player.current_hp))
+    start_turn = int(getattr(root, "turn_count", 0))
+    deadline = (time.monotonic() + cfg.time_budget_s) if cfg.time_budget_s > 0 else None
+
+    # (state, full path, actions belonging to THIS turn, powers played)
+    frontier: list[tuple[Any, list[int], list[int], float]] = [(root, [], [], 0.0)]
+    seen: set[tuple] = set()
+    best: tuple[tuple, list[int]] | None = None   # (score key, this-turn actions)
+    expansions = 0
+
+    def score(state, setup: float) -> tuple:
+        p = state.primary_player
+        alive = _living_enemy_hp(state)
+        won = alive <= 0 and p is not None and p.is_alive
+        dead = p is None or not p.is_alive
+        if dead:
+            return (-1, -1e9, 0.0, 0.0)
+        hp_lost = entry_hp - float(max(0, p.current_hp))
+        # Won > HP preserved (exact) > setup > enemy HP removed.
+        return (1 if won else 0, -hp_lost, setup, -float(alive))
+
+    for _ in range(cfg.max_depth):
+        if not frontier:
+            break
+        if deadline is not None and time.monotonic() > deadline:
+            break
+        children: list[tuple[float, Any, list[int], list[int], float]] = []
+
+        for state, path, this_turn, setup in frontier:
+            mask = get_action_mask(state).astype(bool)
+            legal = np.flatnonzero(mask)
+            if not legal.size:
+                continue
+            for action in legal:
+                if expansions >= cfg.max_expansions:
+                    break
+                expansions += 1
+                action = int(action)
+                is_power = _is_power_card(state, action)
+                child = clone_combat(state)
+                try:
+                    apply_combat_action(child, action)
+                except Exception:
+                    continue
+                new_path = path + [action]
+                # Only actions before the FIRST end-of-turn belong to this turn.
+                still_this_turn = int(getattr(state, "turn_count", 0)) == start_turn
+                new_this = this_turn + [action] if still_this_turn else this_turn
+                new_setup = setup + (1.0 if is_power else 0.0)
+                cp = child.primary_player
+                if cp is None:
+                    continue
+
+                turns_done = int(getattr(child, "turn_count", 0)) - start_turn
+                terminal = child.is_over or not cp.is_alive
+                if terminal or turns_done >= horizon_turns:
+                    k = score(child, new_setup)
+                    if best is None or k > best[0]:
+                        best = (k, new_this or [ACTION_END_TURN])
+                    continue
+
+                sig = (_signature(child), turns_done)
+                if sig in seen:
+                    continue
+                seen.add(sig)
+                children.append((_heuristic(child, cfg), child, new_path,
+                                 new_this, new_setup))
+            if expansions >= cfg.max_expansions:
+                break
+
+        if not children:
+            break
+        # Same split-beam rationale as plan_turn: ranking only by a safety
+        # heuristic prunes kill lines before the kill lands.
+        trimmed = _select_beam([(c, p, s) for _, c, p, _t, s in children], cfg)
+        keep = {tuple(p) for _c, p, _s in trimmed}
+        frontier = [(c, p, t, s) for _h, c, p, t, s in children if tuple(p) in keep]
+        frontier = frontier[: cfg.beam_width]
+
+    if best is None:
+        return TurnPlan([ACTION_END_TURN], TurnObjective(), expansions)
+    k, actions = best
+    return TurnPlan(actions,
+                    TurnObjective(lethal=max(0, k[0]), hp_preserved=k[1],
+                                  setup=k[2], damage=-k[3]),
+                    expansions, lethal=k[0] == 1)
