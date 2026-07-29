@@ -67,6 +67,26 @@ class LLMConfig:
     #: reopened, so generation starts at the answer. Measured 4/4 parse at
     #: ~6.5s per decision.
     answer_prefill: str = "<think>\n\n</think>\n\nCHOICE:"
+    #: GBNF grammar constraining the reply to exactly "CHOICE: <int>".
+    #:
+    #: The prefill alone does not hold. Measured on the Spark with Q8_0: the
+    #: model emits the closed think block it was handed and then opens a NEW
+    #: one -- "<think>\nThe user wants me to play one card..." -- reasoning past
+    #: max_tokens, so the parser sees an unterminated block and correctly
+    #: refuses to guess. Out of combat it closes the block immediately and
+    #: answers (100% parse); in combat, where the decision is genuinely harder,
+    #: it reasoned every time (0/2 parsed).
+    #:
+    #: A grammar removes the possibility rather than discouraging it, and it is
+    #: also the single biggest speed lever: the reply becomes ~5 tokens instead
+    #: of the full token budget. At the ~7.6 tok/s this 28GB Q8_0 sustains
+    #: (memory-bandwidth-bound on GB10) that is the difference between ~21s and
+    #: ~1s per decision -- a 40-hour evaluation versus a 4-hour one.
+    #:
+    #: The cost is real and must be stated with any result: the model can no
+    #: longer reason in the open before answering. Set to None (and raise
+    #: max_tokens) to measure the thinking configuration instead.
+    grammar: str | None = 'root ::= "CHOICE: " [0-9]+'
     seed: int = 0
     verbose: bool = False
 
@@ -92,6 +112,11 @@ class LocalLLM:
             **kw,
         )
         self.load_s = time.time() - t0
+        self._grammar = None
+        if cfg.grammar:
+            from llama_cpp import LlamaGrammar
+
+            self._grammar = LlamaGrammar.from_string(cfg.grammar, verbose=False)
         self.calls = 0
         self.total_s = 0.0
         self.total_out_tokens = 0
@@ -103,10 +128,14 @@ class LocalLLM:
         prefill = "" if self.cfg.enable_thinking else self.cfg.answer_prefill
         if prefill:
             messages.append({"role": "assistant", "content": prefill})
+        kw2 = {}
+        if self._grammar is not None:
+            kw2["grammar"] = self._grammar
         out = self.llm.create_chat_completion(
             messages=messages,
             max_tokens=self.cfg.max_tokens,
             temperature=self.cfg.temperature,
+            **kw2,
         )
         self.calls += 1
         self.total_s += time.time() - t0

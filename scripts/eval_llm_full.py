@@ -110,7 +110,10 @@ def main() -> int:
     ap.add_argument("--n-ctx", type=int, default=8192)
     ap.add_argument("--n-gpu-layers", type=int, default=-1)
     ap.add_argument("--temperature", type=float, default=0.3)
-    ap.add_argument("--max-tokens", type=int, default=160)
+    ap.add_argument("--max-tokens", type=int, default=16,
+                    help="Grammar-constrained replies are ~5 tokens, so the old "
+                         "160 default just paid for truncated reasoning. Raise "
+                         "it (e.g. 512) together with --enable-thinking.")
     ap.add_argument("--enable-thinking", action="store_true",
                     help="Let the model emit a <think> block. Hundreds of "
                          "tokens per decision; only with throughput to spare")
@@ -159,6 +162,7 @@ def main() -> int:
             model_path=args.model, n_ctx=args.n_ctx,
             n_gpu_layers=args.n_gpu_layers, max_tokens=args.max_tokens,
             temperature=args.temperature, enable_thinking=args.enable_thinking,
+            grammar=None if args.enable_thinking else LLMConfig.grammar,
         ))
         print(f"loaded in {llm.load_s:.0f}s\n", flush=True)
 
