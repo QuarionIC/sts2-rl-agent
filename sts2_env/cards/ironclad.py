@@ -885,8 +885,18 @@ def make_dismantle(upgraded: bool = False) -> CardInstance:
 # --- Dominate ---
 @register_effect(CardId.DOMINATE)
 def dominate(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
+    """Apply Vulnerable, then gain Strength equal to the target's Vulnerable.
+
+    Order is load-bearing and was previously wrong: this read the target's
+    Vulnerable WITHOUT applying any first, so on a clean target it did
+    nothing at all. Decompiled ``Dominate.OnPlay`` applies VulnerablePower
+    and only then reads ``GetPower<VulnerablePower>().Amount`` to size the
+    Strength gain, so the card's own debuff always counts toward it.
+    """
     assert target is not None
-    # Gain strength per vulnerable on target
+    vuln_apply = card.effect_vars.get("vulnerable", 1)
+    if vuln_apply > 0:
+        combat.apply_power_to(target, PowerId.VULNERABLE, vuln_apply)
     strength_per = card.effect_vars.get("strength_per_vulnerable", 1)
     vuln = target.get_power_amount(PowerId.VULNERABLE)
     if vuln > 0:
@@ -894,15 +904,17 @@ def dominate(card: CardInstance, combat: CombatState, target: Creature | None) -
 
 
 def make_dominate(upgraded: bool = False) -> CardInstance:
-    kw = frozenset() if upgraded else frozenset({"exhaust"})
+    # Exhaust is a CanonicalKeyword in the decompile -- it is NOT removed by
+    # upgrading. OnUpgrade raises the Vulnerable applied by 1.
     return CardInstance(
         card_id=CardId.DOMINATE,
         cost=1,
         card_type=CardType.SKILL,
         target_type=TargetType.ANY_ENEMY,
-        rarity=CardRarity.UNCOMMON,
-        effect_vars={"strength_per_vulnerable": 1},
-        keywords=kw,
+        rarity=CardRarity.RARE,
+        effect_vars={"strength_per_vulnerable": 1,
+                     "vulnerable": 2 if upgraded else 1},
+        keywords=frozenset({"exhaust"}),
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )

@@ -582,6 +582,24 @@ public class RlCombatHandler : IRoomHandler, IHandler
             try
             {
                 var nextMove = enemy.Monster.NextMove;
+
+                // Enemy AI state. The Python planner rebuilds this fight in
+                // the simulator and searches it; without the move the monster
+                // is actually on, the reconstruction rolls a FRESH move and
+                // every turn planned past the first is against a different
+                // enemy than the one on screen. ai_state is emitted even when
+                // the move carries no intents, which is exactly the case
+                // (sleep, buff wind-ups) where guessing goes wrong.
+                if (nextMove != null)
+                {
+                    data["ai_state"] = nextMove.Id;
+                    try
+                    {
+                        data["ai_intent_count"] = nextMove.Intents?.Count ?? 0;
+                    }
+                    catch { }
+                }
+
                 if (nextMove?.Intents != null && nextMove.Intents.Count > 0)
                 {
                     AbstractIntent firstIntent = nextMove.Intents[0];

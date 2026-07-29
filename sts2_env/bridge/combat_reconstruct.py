@@ -168,6 +168,47 @@ def _monster_factories() -> dict[str, Any]:
     return reg
 
 
+def _restore_ai_state(ai: Any, spec: dict[str, Any]) -> bool:
+    """Point the monster's state machine at the move it is actually on.
+
+    Without this the reconstruction rolls a FRESH move, so the simulated
+    enemy does something different from the one on screen -- and every turn
+    planned past the first is against a fiction. The mod sends the move id
+    it is about to perform; the simulator's state ids are the same move
+    names (JAW_WORM: BELLOW / CHOMP / THRASH), so the id maps directly.
+
+    Returns whether the state was recognised, so callers can decline to plan
+    rather than plan blind.
+    """
+    raw = (spec.get("ai_state") or spec.get("intent_move_id")
+           or spec.get("next_move_id") or spec.get("move_id"))
+    states = getattr(ai, "states", None)
+    if not raw or not isinstance(states, dict):
+        return False
+    def _is_move(key: Any) -> bool:
+        """Only MOVE states are valid here.
+
+        The state machine also holds BRANCH nodes (LAGAVULIN_AWAKE_BRANCH),
+        which route between moves and have no intents -- assigning one makes
+        ``current_move`` assert. A wire id that lands on a branch must be
+        rejected, not set.
+        """
+        st = states.get(key)
+        return bool(getattr(st, "is_move", False))
+
+    want = str(raw).strip().upper().replace("-", "_")
+    if want in states and _is_move(want):
+        ai._current_state_id = want
+        return True
+    flat = want.replace("_", "")
+    for k in states:
+        if str(k).upper().replace("_", "") == flat and _is_move(k):
+            ai._current_state_id = k
+            return True
+    logger.debug("unmapped AI move id %r (known: %s)", raw, sorted(states)[:6])
+    return False
+
+
 def _character_from(state: dict[str, Any]) -> str:
     """Character for the reconstructed combat.
 
@@ -351,6 +392,7 @@ def reconstruct_combat(state: dict[str, Any]) -> Any | None:
         creature.max_hp = int(spec.get("max_hp", creature.max_hp) or creature.max_hp)
         creature.current_hp = int(spec.get("hp", creature.current_hp) or 0)
         creature.block = int(spec.get("block", 0) or 0)
+        _restore_ai_state(ai, spec)
         combat.add_enemy(creature, ai)
         built += 1
     if not built:

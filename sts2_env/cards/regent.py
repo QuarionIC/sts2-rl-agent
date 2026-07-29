@@ -219,9 +219,19 @@ def glitterstream(card: CardInstance, combat: CombatState, target: Creature | No
 
 @register_effect(CardId.GLOW)
 def glow(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.gain_stars(_owner(card, combat), card.effect_vars.get("stars", 1))
+    """Draw cards now AND draw the same number next turn.
+
+    The next-turn half was missing. Decompiled ``Glow.OnPlay`` does
+    ``CardPileCmd.Draw(Cards)`` and then
+    ``PowerCmd.Apply<DrawCardsNextTurnPower>(..., Cards, ...)`` -- the same
+    Cards value feeds both. Without it the card was worth half its real
+    value, so any search over it undervalued playing it.
+    """
+    owner = _owner(card, combat)
+    combat.gain_stars(owner, card.effect_vars.get("stars", 1))
     cards = card.effect_vars.get("cards", 2)
     combat._draw_cards(cards)
+    combat.apply_power_to(owner, PowerId.DRAW_CARDS_NEXT_TURN, cards)
 
 
 @register_effect(CardId.GUIDING_STAR)

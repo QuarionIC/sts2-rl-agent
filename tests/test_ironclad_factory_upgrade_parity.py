@@ -30,7 +30,8 @@ IRONCLAD_FACTORY_UPGRADE_CARD_IDS = (
     CardId.DARK_EMBRACE_CARD,
     CardId.DEFEND_IRONCLAD,
     CardId.DISMANTLE,
-    CardId.DOMINATE,
+    # DOMINATE excluded: v0.109.0 keeps Exhaust on upgrade and raises
+    # Vulnerable, while the pre-patch reference removes Exhaust.
     CardId.DRUM_OF_BATTLE_CARD,
     CardId.EVIL_EYE,
     CardId.EXPECT_A_FIGHT,

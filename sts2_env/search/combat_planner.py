@@ -772,3 +772,140 @@ def plan_turn(root_combat, config: PlannerConfig | None = None) -> TurnPlan:
     if best is None:
         best = TurnPlan([ACTION_END_TURN], TurnObjective(), expansions)
     return best
+
+
+# ---------------------------------------------------------------------------
+# Whole-combat search for the minimum-HP-loss line
+# ---------------------------------------------------------------------------
+#
+# plan_turn optimises ONE turn at a time. That is the right default against the
+# live client, because a per-turn plan resynchronises with the real game every
+# turn. But a turn-greedy line can be globally worse: spending block now to
+# take zero damage can cost the tempo that would have ended the fight a turn
+# earlier, and every extra turn is another enemy attack.
+#
+# plan_combat_min_hp searches the WHOLE combat for the line that finishes it
+# with the most HP intact. It is only sound when the enemy AI state is known --
+# otherwise turns past the first are planned against a freshly-rolled move
+# rather than the real one -- so it refuses to run unless told the state was
+# restored.
+#
+# "Exhaustive" is bounded by construction. Combat branching is large enough
+# that true exhaustion is not reachable, so this is a wide beam with
+# transposition dedup and an admissible-ish prune: any line already down more
+# HP than the best completed win is abandoned, since HP never comes back
+# except through healing, which the prune margin covers.
+
+
+@dataclass
+class CombatPlan:
+    """A whole-combat line."""
+
+    actions: list[int]
+    won: bool
+    entry_hp: float
+    final_hp: float
+    turns: int
+    expansions: int
+    exhausted: bool = False   # True when the search space was fully covered
+
+    @property
+    def hp_lost(self) -> float:
+        return max(0.0, self.entry_hp - self.final_hp)
+
+
+def plan_combat_min_hp(
+    root_combat,
+    config: PlannerConfig | None = None,
+    ai_state_known: bool = True,
+    max_turns: int = 30,
+) -> CombatPlan | None:
+    """Search the whole combat for the line that ends it with the most HP.
+
+    Returns None when ``ai_state_known`` is False: planning multiple turns
+    ahead without the enemy's real move state produces a confident plan for
+    a fight that is not the one being played, which is worse than declining.
+    """
+    if not ai_state_known:
+        logger.warning("whole-combat planning declined: enemy AI state unknown, "
+                       "so turns past the first would be planned against a "
+                       "freshly-rolled move rather than the real one")
+        return None
+
+    cfg = config or PlannerConfig(beam_width=48, max_expansions=400_000,
+                                  time_budget_s=30.0)
+    root = clone_combat(root_combat)
+    entry_hp = float(max(0, root.primary_player.current_hp))
+    deadline = (time.monotonic() + cfg.time_budget_s) if cfg.time_budget_s > 0 else None
+
+    frontier: list[tuple[Any, list[int]]] = [(root, [])]
+    seen: set[tuple] = {_signature(root)}
+    best: CombatPlan | None = None
+    expansions = 0
+    truncated_by_budget = False
+
+    for _depth in range(cfg.max_depth * max(1, max_turns // 4)):
+        if not frontier:
+            break
+        if deadline is not None and time.monotonic() > deadline:
+            truncated_by_budget = True
+            break
+
+        children: list[tuple[float, Any, list[int]]] = []
+        for state, path in frontier:
+            mask = get_action_mask(state).astype(bool)
+            legal = np.flatnonzero(mask)
+            if not legal.size:
+                continue
+            for action in legal:
+                if expansions >= cfg.max_expansions:
+                    truncated_by_budget = True
+                    break
+                expansions += 1
+                child = clone_combat(state)
+                try:
+                    apply_combat_action(child, int(action))
+                except Exception:
+                    continue
+                new_path = path + [int(action)]
+                cp = child.primary_player
+                if cp is None:
+                    continue
+
+                if child.is_over or not cp.is_alive:
+                    if cp.is_alive:
+                        cand = CombatPlan(
+                            actions=new_path, won=True, entry_hp=entry_hp,
+                            final_hp=float(max(0, cp.current_hp)),
+                            turns=int(getattr(child, "turn_count", 0)),
+                            expansions=expansions,
+                        )
+                        if best is None or cand.final_hp > best.final_hp:
+                            best = cand
+                    continue
+
+                if int(getattr(child, "turn_count", 0)) > max_turns:
+                    continue
+                # Prune lines that cannot beat the best completed win. HP is
+                # only recoverable through in-combat healing, which prune_margin
+                # allows for.
+                if best is not None and cp.current_hp + cfg.prune_margin <= best.final_hp:
+                    continue
+
+                sig = _signature(child)
+                if sig in seen:
+                    continue
+                seen.add(sig)
+                children.append((_heuristic(child, cfg), child, new_path))
+            if expansions >= cfg.max_expansions:
+                break
+
+        if not children:
+            break
+        children.sort(key=lambda t: -t[0])
+        frontier = [(c, p) for _, c, p in children[: cfg.beam_width]]
+
+    if best is not None:
+        best.exhausted = not truncated_by_budget and not frontier
+        best.expansions = expansions
+    return best

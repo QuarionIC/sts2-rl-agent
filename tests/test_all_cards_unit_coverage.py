@@ -64,6 +64,10 @@ _PATCHED_NECROBINDER_CARD_IDS = {
     CardId.BANSHEES_CRY,
     CardId.BORROWED_TIME,
     CardId.DANSE_MACABRE,
+    # v0.109.0 raises Dominate Uncommon -> Rare and keeps Exhaust canonical
+    # (pre-patch removed it on upgrade). Verified by diffing decompiled/ vs
+    # decompiled_v0.109.0/.
+    CardId.DOMINATE,
     CardId.DEATH_MARCH,
     CardId.DEBILITATE_CARD,
     CardId.DIRGE,

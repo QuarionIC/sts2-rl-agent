@@ -19,14 +19,20 @@ from sts2_env.core.enums import CardId
 
 RUNTIME_ONLY_CARD_IDS = frozenset({CardId.GENERIC})
 
-# Necrobinder cards whose factories were intentionally updated to match the
-# v0.109.0 patch (see decompiled_v0.109.0/), while decompiled/ (parsed by
+# Cards whose factories were intentionally updated to match the v0.109.0
+# patch (see decompiled_v0.109.0/), while decompiled/ (parsed by
 # reference_static_metadata) still reflects the pre-patch decompile. These
 # are deliberate deviations from the stale reference source, not bugs.
+#
+# DOMINATE was added 2026-07-29: v0.109.0 raises it Uncommon -> Rare, keeps
+# Exhaust as a canonical keyword (the pre-patch factory removed Exhaust on
+# upgrade), and makes OnUpgrade raise the Vulnerable applied by 1. Verified
+# by diffing decompiled/Dominate.cs against decompiled_v0.109.0/Dominate.cs.
 PATCHED_NECROBINDER_CARD_IDS = frozenset({
     CardId.BANSHEES_CRY,
     CardId.BORROWED_TIME,
     CardId.DIRGE,
+    CardId.DOMINATE,
     CardId.EIDOLON,
     CardId.SEANCE,
 })

@@ -72,7 +72,12 @@ COLOSSUS_BLOCK = 5
 COLOSSUS_UPGRADED_BLOCK = 8
 COLOSSUS_POWER_AMOUNT = 1
 DOMINATE_TARGET_VULNERABLE = 3
-DOMINATE_STRENGTH_GAIN = DOMINATE_TARGET_VULNERABLE
+#: v0.109.0 Dominate APPLIES 1 Vulnerable and only then reads the stack to
+#: size the Strength gain, so a target already on 3 ends at 4 and the player
+#: gains 4. The pre-patch card read the stack without applying, which made it
+#: a dead card against a clean target.
+DOMINATE_VULNERABLE_APPLIED = 1
+DOMINATE_STRENGTH_GAIN = DOMINATE_TARGET_VULNERABLE + DOMINATE_VULNERABLE_APPLIED
 FIGHT_ME_DAMAGE_PER_HIT = 5
 FIGHT_ME_HITS = 2
 FIGHT_ME_SELF_STRENGTH = 2
@@ -134,7 +139,7 @@ class TestIroncladCombatEdgeCardModelParity:
         assert upgraded_combat.player.block == COLOSSUS_UPGRADED_BLOCK
         assert upgraded_combat.player.get_power_amount(PowerId.COLOSSUS) == COLOSSUS_POWER_AMOUNT
 
-    def test_dominate_gains_strength_equal_to_target_vulnerable_and_upgrade_removes_exhaust(self):
+    def test_dominate_applies_vulnerable_then_gains_strength_and_keeps_exhaust(self):
         combat = _make_combat()
         enemy = combat.enemies[0]
         enemy.apply_power(PowerId.VULNERABLE, DOMINATE_TARGET_VULNERABLE, applier=combat.player)
@@ -143,9 +148,14 @@ class TestIroncladCombatEdgeCardModelParity:
         combat.energy = 1
 
         assert combat.play_card(0, 0)
+        assert enemy.get_power_amount(PowerId.VULNERABLE) == (
+            DOMINATE_TARGET_VULNERABLE + DOMINATE_VULNERABLE_APPLIED
+        )
         assert combat.player.get_power_amount(PowerId.STRENGTH) == DOMINATE_STRENGTH_GAIN
         assert card in combat.exhaust_pile
-        assert EXHAUST_KEYWORD not in make_dominate(upgraded=True).keywords
+        # Exhaust is a CanonicalKeyword in v0.109.0 and is NOT removed by
+        # upgrading; OnUpgrade raises the Vulnerable applied instead.
+        assert EXHAUST_KEYWORD in make_dominate(upgraded=True).keywords
 
     def test_fight_me_deals_two_hits_and_applies_reference_strength(self):
         combat = _make_combat()
