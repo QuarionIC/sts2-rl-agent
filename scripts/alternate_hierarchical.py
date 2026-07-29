@@ -204,6 +204,12 @@ def main() -> int:
                    "--ascension", str(args.ascension),
                    "--gamma", "0.99", "--device", args.device,
                    "--output-dir", str(cdir)]
+            # Warm start from the previous round's combat agent so the
+            # alternation COMPOUNDS. Without it each round retrained from
+            # scratch and the loop only ever transferred the deck
+            # distribution, never the policy.
+            if combat_model:
+                cmd += ["--init-from", combat_model]
             if run_model:
                 # Refit on the decks the run agent actually produces.
                 decks = root / f"r{rnd}" / "harvested_decks.pkl"
@@ -238,6 +244,8 @@ def main() -> int:
                "--combat-model", combat_model,
                "--gamma", "0.99", "--device", args.device,
                "--output-dir", str(rdir)]
+        if run_model:
+            cmd += ["--init-from", run_model]
         rc = launch(cmd, root / f"r{rnd}_run.log")
         if rc != 0:
             print(f"[r{rnd}] run training FAILED (rc={rc})", flush=True)

@@ -374,6 +374,10 @@ def main() -> int:
     ap.add_argument("--n-steps", type=int, default=1024)
     ap.add_argument("--batch-size", type=int, default=4096)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--init-from", default=None,
+                    help="Warm-start from this .zip instead of a fresh policy. "
+                         "Must be the SAME phase (the run and combat action "
+                         "spaces differ, 157 vs 115).")
     ap.add_argument("--output-dir", default=None)
     ap.add_argument("--tensorboard", action="store_true")
     ap.add_argument("--device", default="cuda")
@@ -429,9 +433,7 @@ def main() -> int:
     print(f"[{args.phase}] vec mode: {vec_mode} ({args.n_envs} envs)", flush=True)
     train_env = make_vec(factory, args.n_envs, vec_mode)
 
-    model = MaskablePPO(
-        "MlpPolicy",
-        train_env,
+    ppo_kwargs = dict(
         learning_rate=args.lr,
         n_steps=args.n_steps,
         batch_size=args.batch_size,
@@ -442,12 +444,35 @@ def main() -> int:
         ent_coef=args.ent_coef,
         vf_coef=0.5,
         target_kl=args.target_kl,
-        policy_kwargs=rich_policy_kwargs(hand_encoding="perslot"),
-        seed=args.seed,
         device=args.device,
         verbose=1,
         tensorboard_log=str(out_dir / "tb") if args.tensorboard else None,
     )
+
+    if args.init_from:
+        # WARM START. Without this every alternation round retrained both
+        # agents from scratch, so the loop compounded only through the
+        # harvested deck distribution and never through policy weights -- and
+        # "more rounds, fewer steps each" made each round strictly weaker
+        # instead of building on the last.
+        #
+        # Note when the init model predates a reward change: the POLICY
+        # transfers (that is the expensive part) but the value head is
+        # calibrated to the old return scale and has to recalibrate, which
+        # shows up as a large value_loss for the first few hundred k steps.
+        # That is expected, not a failure.
+        print(f"[{args.phase}] warm start from {args.init_from}", flush=True)
+        model = MaskablePPO.load(args.init_from, env=train_env,
+                                 custom_objects=ppo_kwargs, **ppo_kwargs)
+        model.set_random_seed(args.seed)
+    else:
+        model = MaskablePPO(
+            "MlpPolicy",
+            train_env,
+            policy_kwargs=rich_policy_kwargs(hand_encoding="perslot"),
+            seed=args.seed,
+            **ppo_kwargs,
+        )
 
     print(f"[{args.phase}] training {args.total_steps:,} steps, {args.n_envs} envs, "
           f"gamma {args.gamma}, device {args.device}", flush=True)
