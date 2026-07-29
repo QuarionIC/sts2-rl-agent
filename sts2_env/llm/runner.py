@@ -310,6 +310,11 @@ class LLMFullPolicy(LLMRunPolicy):
         in_combat = mgr.phase == RunManager.PHASE_COMBAT
         self._track_combat_boundary(mgr, in_combat)
 
+        # Non-LLM arm for this arena: no prompt, no parse, no LLM stats.
+        arm = self._arm_action(obs, mask, in_combat)
+        if arm is not None:
+            return arm
+
         if in_combat:
             decision = render_combat_decision(mgr, mask)
             system = COMBAT_SYSTEM_PROMPT
@@ -394,3 +399,41 @@ class LLMFullPolicy(LLMRunPolicy):
             round(float(np.mean(self.combat_hp_lost)), 2)
             if self.combat_hp_lost else 0.0)
         return st
+
+    # -- policy arms ---------------------------------------------------------
+    #
+    # Set by the eval script so every arm (llm / planner / random / knowledge)
+    # runs through THIS class, on the same env, seeds and metrics. Necessary
+    # because the simulator is not bit-identical across CPU architectures --
+    # card draw order diverges after a reshuffle -- so a baseline measured on
+    # another machine is not a valid reference and each arm has to be measured
+    # where the LLM arm is measured.
+    run_policy_kind: str = "llm"
+    combat_policy_kind: str = "llm"
+
+    def install_arms(self) -> None:
+        """Materialise the non-LLM arms named by ``*_policy_kind``."""
+        self._planner = None
+        self._knowledge = None
+        if self.combat_policy_kind == "planner":
+            from sts2_env.search.combat_planner import (
+                EVAL_LADDER,
+                PlannedCombatController,
+            )
+            self._planner = PlannedCombatController(self.env, ladder=EVAL_LADDER)
+        if self.run_policy_kind == "knowledge":
+            from sts2_env.knowledge.policy import KnowledgeRunPolicy
+            self._knowledge = KnowledgeRunPolicy(self.env)
+
+    def _arm_action(self, obs, mask, in_combat: bool):
+        """Action from a non-LLM arm, or None when this arm IS the LLM."""
+        kind = self.combat_policy_kind if in_combat else self.run_policy_kind
+        if kind == "llm":
+            return None
+        if kind == "random":
+            return int(self.rng.choice(np.flatnonzero(mask)))
+        if kind == "planner" and self._planner is not None:
+            return int(self._planner.act(obs, mask))
+        if kind == "knowledge" and self._knowledge is not None:
+            return int(self._knowledge.act(obs, mask))
+        return int(self.rng.choice(np.flatnonzero(mask)))

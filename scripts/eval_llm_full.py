@@ -116,12 +116,25 @@ def main() -> int:
                          "tokens per decision; only with throughput to spare")
     ap.add_argument("--max-steps", type=int, default=4000,
                     help="Hard per-episode decision cap (safety valve)")
+    ap.add_argument("--run-policy", choices=["llm", "random", "knowledge"],
+                    default="llm",
+                    help="Who makes OUT-OF-COMBAT decisions")
+    ap.add_argument("--combat-policy", choices=["llm", "planner", "random"],
+                    default="llm",
+                    help="Who plays COMBAT. Same env and seed block for every "
+                         "combination, so arms are directly comparable -- "
+                         "necessary because the simulator is NOT bit-identical "
+                         "across CPU architectures (draw order diverges), so "
+                         "numbers measured on another machine are not a valid "
+                         "reference.")
     ap.add_argument("--transcript", default="output/llm_full_transcript.jsonl")
     ap.add_argument("--json-out", default="output/llm_full_eval.json")
     args = ap.parse_args()
 
-    if not args.stub and not args.model:
-        ap.error("--model is required unless --stub is given")
+    needs_model = "llm" in (args.run_policy, args.combat_policy)
+    if needs_model and not args.stub and not args.model:
+        ap.error("--model is required unless --stub is given, or unless neither "
+                 "--run-policy nor --combat-policy is 'llm'")
 
     import sts2_env.events  # noqa: F401
 
@@ -131,7 +144,11 @@ def main() -> int:
     rev, dirty = git_rev()
     print(f"code version : {rev}{' (DIRTY)' if dirty else ''}")
 
-    if args.stub:
+    print(f"arms         : run={args.run_policy}  combat={args.combat_policy}")
+    if not needs_model:
+        print("model        : none needed for these arms")
+        llm = _StubLLM()
+    elif args.stub:
         print("model        : STUB (harness validation, no model loaded)")
         llm = _StubLLM()
     else:
@@ -153,6 +170,9 @@ def main() -> int:
     env.set_shaping_scale(0.0)  # pure-sparse eval, as everywhere else
     policy = LLMFullPolicy(env, llm, fallback="knowledge",
                            log_path=args.transcript)
+    policy.run_policy_kind = args.run_policy
+    policy.combat_policy_kind = args.combat_policy
+    policy.install_arms()
 
     floors, decks, ups, wins, acts, steps_used = [], [], [], [], [], []
     t0 = time.time()
@@ -220,14 +240,19 @@ def main() -> int:
 
     print(f"\n=== LLM PLAYING EVERYTHING ({n_ep} eps, asc {args.ascension}, "
           f"act-{args.max_act_count} goal) ===")
-    print(f"  parse rate     : overall {st['parse_rate']:.1%}  |  "
-          f"combat {st['combat_parse_rate']:.1%} "
-          f"({st['combat_asked']} asked)  |  "
-          f"out-of-combat {st['noncombat_parse_rate']:.1%} "
-          f"({st['noncombat_asked']} asked)")
-    if st["combat_parse_rate"] < 0.9 or st["noncombat_parse_rate"] < 0.9:
-        print("  >> LOW PARSE RATE: outcomes below reflect the random/knowledge "
-              "fallback as much as the model. Fix parsing before reading them.")
+    # Only report/warn on parse rates for arenas the LLM actually drove: a
+    # non-LLM arm asks nothing, and a bare "0%" there reads as a failure.
+    llm_arenas = ([("combat", args.combat_policy)] if args.combat_policy == "llm" else [])         + ([("noncombat", args.run_policy)] if args.run_policy == "llm" else [])
+    if llm_arenas:
+        parts = [f"{name} {st[f'{name}_parse_rate']:.1%} "
+                 f"({st[f'{name}_asked']} asked)" for name, _ in llm_arenas]
+        print(f"  parse rate     : overall {st['parse_rate']:.1%}  |  "
+              + "  |  ".join(parts))
+        if any(st[f"{name}_parse_rate"] < 0.9 for name, _ in llm_arenas):
+            print("  >> LOW PARSE RATE: outcomes below reflect the fallback as "
+                  "much as the model. Fix parsing before reading them.")
+    else:
+        print("  parse rate     : n/a (no LLM arm)")
     print(f"  floors         : {res['mean_floors']:.2f} +/- {res['se_floors']:.2f}")
     print(f"  win rate       : {res['win_rate']:.1%}  "
           f"95% CI [{lo:.1%}, {hi:.1%}]")
