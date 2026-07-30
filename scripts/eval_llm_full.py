@@ -130,6 +130,10 @@ def main() -> int:
                          "across CPU architectures (draw order diverges), so "
                          "numbers measured on another machine are not a valid "
                          "reference.")
+    ap.add_argument("--verbose-decisions", action="store_true",
+                    help="Print one line per decision. Essential for slow "
+                         "configurations: --enable-thinking runs at ~100s per "
+                         "decision, so an episode yields no signal for hours.")
     ap.add_argument("--transcript", default="output/llm_full_transcript.jsonl")
     ap.add_argument("--json-out", default="output/llm_full_eval.json")
     args = ap.parse_args()
@@ -180,6 +184,13 @@ def main() -> int:
 
     floors, decks, ups, wins, acts, steps_used = [], [], [], [], [], []
     ep_fights_won, ep_fights_entered, ep_hp = [], [], []
+    # Stream the transcript rather than buffering to the end: a thinking-mode
+    # run takes hours, and a kill or crash used to lose every decision. The
+    # first thinking smoke test was unreadable for exactly this reason.
+    tfh = None
+    if args.transcript:
+        Path(args.transcript).parent.mkdir(parents=True, exist_ok=True)
+        tfh = open(args.transcript, "w", encoding="utf-8")
     t0 = time.time()
     for i in range(args.episodes):
         obs, info = env.reset(seed=args.seed_base + i)
@@ -190,6 +201,16 @@ def main() -> int:
             mask = np.asarray(env.action_masks(), dtype=bool)
             obs, r, done, tr, info = env.step(int(policy.act(obs, mask)))
             n += 1
+            if policy.transcript:
+                if tfh is not None:
+                    tfh.write(json.dumps(policy.transcript[-1]) + "\n")
+                    tfh.flush()
+                if args.verbose_decisions:
+                    d = policy.transcript[-1]
+                    print(f"      [{d['arena']:<9}] chose {d['chosen_index']} "
+                          f"| {llm.tokens_per_s:.1f} tok/s "
+                          f"| {llm.total_s / max(llm.calls, 1):.1f}s/decision avg",
+                          flush=True)
         # Close the fight the run ended in. Without this the fatal combat is
         # never scored, and the stale in-combat flag makes the NEXT episode's
         # first decision score it as a win -- 99% combat win rate on runs that
@@ -292,12 +313,10 @@ def main() -> int:
 
     Path(args.json_out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.json_out).write_text(json.dumps(res, indent=2), encoding="utf-8")
-    if args.transcript and policy.transcript:
-        Path(args.transcript).parent.mkdir(parents=True, exist_ok=True)
-        Path(args.transcript).write_text(
-            "\n".join(json.dumps(t) for t in policy.transcript), encoding="utf-8")
+    if tfh is not None:
+        tfh.close()
         print(f"\n  transcript: {args.transcript} "
-              f"({len(policy.transcript)} decisions)")
+              f"({len(policy.transcript)} decisions, streamed)")
     print(f"  results   : {args.json_out}")
     return 0
 
