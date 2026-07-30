@@ -41,7 +41,39 @@ public class RlMapHandler : IScreenHandler, IHandler
     {
         Logger.Log("[RlMap] Handling map screen");
         Node root = ((SceneTree)Engine.GetMainLoop()).Root;
-        NRun runNode = root.GetNode<NRun>("/root/Game/RootSceneContainer/Run");
+
+        // GetNode<T> THROWS when the path is absent, and the Run node is absent
+        // in two very different situations: the run has genuinely ended, or the
+        // scene is still loading. The hard lookup threw NullReferenceException
+        // and killed the run ("Run N/8 FAILED: Object reference not set to an
+        // instance of an object" on every run of the first multi-run sessions).
+        //
+        // But returning immediately on null is equally wrong, and measurably
+        // worse: it silently SKIPS the map choice, so no node is selected, the
+        // next room never starts, and the run dies with "Combat not started" --
+        // observed at Act 1 Floor 9 while the log showed asset loading in
+        // progress, i.e. the run was alive and the node was merely late.
+        //
+        // So poll for it, and only conclude the run has ended if it never
+        // arrives. The watchdog is reset each iteration because this wait can
+        // legitimately outlast its 30s no-progress window during asset loads.
+        NRun? runNode = null;
+        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+        while (DateTime.UtcNow < deadline)
+        {
+            ct.ThrowIfCancellationRequested();
+            runNode = root.GetNodeOrNull<NRun>("/root/Game/RootSceneContainer/Run");
+            if (runNode?.GlobalUi?.MapScreen != null)
+                break;
+            RlAutoSlayer.CurrentWatchdog?.Reset("Waiting for the map screen to load");
+            await Task.Delay(250, ct);
+        }
+        if (runNode?.GlobalUi?.MapScreen == null)
+        {
+            Logger.Log("[RlMap] Run node / map screen never appeared after 30s "
+                       + "-- treating the run as ended; nothing to choose");
+            return;
+        }
 
         await WaitHelper.Until(
             () => runNode.GlobalUi.MapScreen.IsVisibleInTree(), ct,

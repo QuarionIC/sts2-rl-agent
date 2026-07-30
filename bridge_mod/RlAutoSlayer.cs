@@ -80,6 +80,16 @@ public class RlAutoSlayer
     private const string DefaultCharacterId = "Ironclad";
     private const int DefaultAscension = 0;
 
+    private const int DefaultRunCount = 1;
+
+    /// <summary>
+    /// Set by RlGameOverScreenHandler when the run ends (death or victory).
+    /// PlayRunAsync's room loop checks it each iteration; cleared per run in
+    /// RunAsync. This is the only reliable end-of-run signal -- the game-over
+    /// screen is gone by the time the loop next looks.
+    /// </summary>
+    public static bool RunEnded { get; set; }
+
     private static string PreferredCharacterId => ReadConfig("character", DefaultCharacterId);
     private static int PreferredAscension
     {
@@ -87,6 +97,23 @@ public class RlAutoSlayer
         {
             string raw = ReadConfig("ascension", DefaultAscension.ToString());
             return int.TryParse(raw, out int v) ? v : DefaultAscension;
+        }
+    }
+
+    /// <summary>
+    /// How many runs to play back-to-back before stopping (config key "runs").
+    ///
+    /// Previously the slayer played exactly ONE run per game launch, so any
+    /// win-rate measurement needed a human to restart the game between runs --
+    /// and a death aborted the session outright. Defaults to 1 so existing
+    /// behaviour is unchanged unless asked for.
+    /// </summary>
+    private static int PreferredRunCount
+    {
+        get
+        {
+            string raw = ReadConfig("runs", DefaultRunCount.ToString());
+            return int.TryParse(raw, out int v) && v > 0 ? v : DefaultRunCount;
         }
     }
 
@@ -128,8 +155,23 @@ public class RlAutoSlayer
     private const int RunStateTimeoutSeconds = 60;
     private const int RoomAssignmentTimeoutSeconds = 60;
     private const int NonCombatSettleDelayMs = 500;
-    private const int BossTransitionTimeoutSeconds = 10;
-    private const int ActTransitionTimeoutSeconds = 5;
+    // Post-boss transitions were 10s and 5s -- far tighter than every sibling
+    // timeout in this class (run state 60, room assignment 60, main menu 30),
+    // and too tight for the real thing: the boss death animation, reward
+    // screens and the act-change sequence together routinely exceed 10s.
+    // Measured live 2026-07-30: a run that CLEARED the Act 1 boss then failed
+    // with "Act transition did not start after boss", so beating the boss was
+    // scored as a failed run and Act 2 was never reached.
+    //
+    // Capped at 25s rather than raised to 60: the watchdog is reset
+    // immediately before these waits and fires at 30s of no progress, so a
+    // longer timeout would simply trade this failure for a watchdog abort.
+    private const int BossTransitionTimeoutSeconds = 25;
+    private const int ActTransitionTimeoutSeconds = 25;
+    // Long enough for an overlay's intro tween to finish and enable its
+    // buttons (NWheelSpinScreen bounces in over ~1s then enables), short
+    // enough to stay inside the watchdog window, which is reset each poll.
+    private const int UnknownScreenDismissTimeoutSeconds = 10;
     private const int OverlayCloseRetryLimit = 3;
     private const int OverlayDrainSettleDelayMs = 100;
     private const int EventProceedTimeoutSeconds = 5;
@@ -225,18 +267,66 @@ public class RlAutoSlayer
 
     private async Task RunAsync(string seed, CancellationToken ct)
     {
-        Logger.Log($"[RlAutoSlayer] Run started with seed: {seed}");
+        // PLAY N RUNS BACK-TO-BACK.
+        //
+        // This used to play exactly one run and then tear everything down, so
+        // a win-rate measurement needed a human to restart the game between
+        // runs -- and because a single failure propagated straight to the
+        // outer teardown, ONE death ended the whole session. Both together
+        // made unattended measurement impossible, which is the thing a 50%
+        // win-rate target actually requires.
+        //
+        // Each run is isolated: its own seed, its own completion signal, and
+        // its own catch so a failed run costs one run rather than the session.
+        int runs = PreferredRunCount;
+        int completed = 0, failed = 0;
+        Logger.Log($"[RlAutoSlayer] Session starting: {runs} run(s), base seed {seed}");
         try
         {
-            await WaitHelper.WithTimeout(
-                (CancellationToken token) => PlayRunAsync(seed, token),
-                TimeSpan.FromMinutes(RunTimeoutMinutes),
-                ct);
-            Logger.Log($"[RlAutoSlayer] Run completed with seed: {seed}");
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"[RlAutoSlayer] Run failed: {ex}");
+            for (int i = 0; i < runs; i++)
+            {
+                if (ct.IsCancellationRequested) break;
+                string runSeed = i == 0 ? seed : $"{seed}-{i}";
+                _completionSignalSent = false;
+                RunEnded = false;
+                Logger.Log($"[RlAutoSlayer] === Run {i + 1}/{runs} starting, seed: {runSeed} ===");
+                try
+                {
+                    await WaitHelper.WithTimeout(
+                        (CancellationToken token) => PlayRunAsync(runSeed, token),
+                        TimeSpan.FromMinutes(RunTimeoutMinutes),
+                        ct);
+                    completed++;
+                    Logger.Log($"[RlAutoSlayer] === Run {i + 1}/{runs} completed, seed: {runSeed} ===");
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    failed++;
+                    Logger.Log($"[RlAutoSlayer] === Run {i + 1}/{runs} FAILED: {ex.Message} -- "
+                               + "continuing to the next run ===");
+                }
+                finally
+                {
+                    // Per-run teardown only. The card selector scope is
+                    // re-installed by PlayRunAsync, so it must be released
+                    // between runs or the next run stacks another one.
+                    _cardSelectorScope?.Dispose();
+                    _cardSelectorScope = null;
+
+                    // Exactly one completion signal per run, so the Python
+                    // side sees a clean run boundary rather than silence.
+                    if (!_completionSignalSent)
+                    {
+                        BridgeServer.Instance.SendState(RunCompleteState(
+                            NonCombatBridgeProtocol.TerminatedResult));
+                        _completionSignalSent = true;
+                    }
+                }
+            }
         }
         finally
         {
@@ -248,14 +338,8 @@ public class RlAutoSlayer
             _cardSelectorScope?.Dispose();
             _cardSelectorScope = null;
             AutoSlayLog.CloseLogFile();
-
-            // Notify Python that the run is over
-            if (!_completionSignalSent)
-            {
-                BridgeServer.Instance.SendState(RunCompleteState(
-                    NonCombatBridgeProtocol.TerminatedResult));
-                _completionSignalSent = true;
-            }
+            Logger.Log($"[RlAutoSlayer] Session finished: {completed} completed, "
+                       + $"{failed} failed, of {runs} requested.");
         }
     }
 
@@ -283,10 +367,16 @@ public class RlAutoSlayer
         // Install our RL card selector for deck upgrade/transform/card selection screens
         _cardSelectorScope = CardSelectCmd.UseSelector(new RlCardSelector());
 
+        RaiseWatchdogTimeout(TimeSpan.FromSeconds(120));
+
         _watchdog = new Watchdog();
         CurrentWatchdog = _watchdog;
         SetSharedCurrentWatchdog(_watchdog);
         _watchdog.Reset("Playing main menu");
+
+        // Runs after the first inherit whatever state the previous run left
+        // behind, so get back to a known screen before assuming one.
+        await RecoverToMainMenuAsync(ct);
 
         await PlayMainMenuAsync(ct);
 
@@ -310,6 +400,34 @@ public class RlAutoSlayer
         while (runState.TotalFloor < FinalRunFloor)
         {
             ct.ThrowIfCancellationRequested();
+
+            // THE RUN CAN END INSIDE THE LOOP, and a dead run has no current
+            // room. Reading CurrentRoom.RoomType then throws
+            // NullReferenceException, which is what failed run 1 of the first
+            // multi-run session: the death-path fix let
+            // WaitForRewardsScreenAsync return on NGameOverScreen, and control
+            // fell straight back to here with CurrentRoom already null.
+            //
+            // A game-over screen means this run is over -- leave the loop
+            // cleanly so RunAsync records a completed run and starts the next
+            // one, instead of unwinding through an exception.
+            if (RunEnded)
+            {
+                Logger.Log("[RlAutoSlayer] Run ended (game over handled) -- "
+                           + "leaving the room loop");
+                break;
+            }
+            if (NOverlayStack.Instance?.Peek() is NGameOverScreen)
+            {
+                Logger.Log("[RlAutoSlayer] Game over screen up -- ending this run");
+                break;
+            }
+            if (runState.CurrentRoom == null)
+            {
+                Logger.Log("[RlAutoSlayer] No current room (run ended) -- ending this run");
+                break;
+            }
+
             RoomType roomType = runState.CurrentRoom.RoomType;
             _watchdog.Reset(
                 $"Entering {roomType} room (Act {runState.CurrentActIndex + 1}, Floor {runState.ActFloor})");
@@ -330,6 +448,23 @@ public class RlAutoSlayer
             }
 
             await DrainOverlayScreensAsync(ct);
+
+            // THE RUN CAN END MID-ITERATION -- check here, not just at the top.
+            //
+            // Dying to a room's combat sets RunEnded while the game-over screen
+            // is handled inside the rewards wait / screen drain above. The
+            // loop-top check has already run by then, so without this the rest
+            // of the body executes against a run that no longer exists. Dying
+            // to a BOSS was the visible case: the boss branch below sat waiting
+            // the full BossTransitionTimeoutSeconds for an act transition that
+            // could never come, and an ordinary boss death was scored as
+            // "Act transition did not start after boss".
+            if (RunEnded)
+            {
+                Logger.Log("[RlAutoSlayer] Run ended during this room -- "
+                           + "leaving the room loop");
+                break;
+            }
 
             if (roomType == RoomType.RestSite)
             {
@@ -383,6 +518,20 @@ public class RlAutoSlayer
 
             _watchdog.Reset("Navigating map");
             await _mapHandler.HandleAsync(_random, ct);
+        }
+
+        // The room loop now exits for three reasons, and only ONE of them
+        // leaves a run to abandon: reaching FinalRunFloor. If the run already
+        // ended (death or victory), the Run node and its whole GlobalUi
+        // subtree are gone, so AbandonRunAsync's UI lookups throw --
+        // "Node /root/Game/RootSceneContainer/Run/GlobalUi/TopBar/
+        // RightAlignedStuff/Options of type NButton not found", which scored
+        // an ordinary death as a FAILED run.
+        if (RunEnded)
+        {
+            Logger.Log("[RlAutoSlayer] Run already ended (game over handled) "
+                       + "-- nothing to abandon");
+            return;
         }
 
         Logger.Log("[RlAutoSlayer] Run completed (max floor reached). Abandoning");
@@ -446,7 +595,27 @@ public class RlAutoSlayer
 
             if (!_screenHandlers.TryGetValue(type, out IScreenHandler handler))
             {
-                Logger.Log($"[RlAutoSlayer] No handler for screen type: {type.Name}");
+                // NO DEDICATED HANDLER -- TRY A GENERIC DISMISSAL.
+                //
+                // Breaking here leaves the screen on the stack forever: the
+                // room never finishes, the watchdog fires at 30s and the run
+                // is scored FAILED. Measured live 2026-07-30 on
+                // NWheelSpinScreen (an ActsFromThePast minigame) -- 6 of 8
+                // runs in one session died to a screen whose only requirement
+                // was one click on a proceed button.
+                //
+                // Deliberately generic rather than a per-screen handler: the
+                // mods add screens we do not know about, and a screen that
+                // needs one click should never cost a run. A dedicated
+                // handler is still preferable wherever the CHOICE matters --
+                // this only exists to keep the run alive.
+                if (await TryDismissUnknownScreenAsync(node, type, ct))
+                {
+                    await Task.Delay(OverlayDrainSettleDelayMs, ct);
+                    continue;
+                }
+                Logger.Log($"[RlAutoSlayer] No handler for screen type: "
+                           + $"{type.Name}, and nothing clickable on it");
                 break;
             }
 
@@ -464,6 +633,52 @@ public class RlAutoSlayer
 
             await Task.Delay(OverlayDrainSettleDelayMs, ct);
         }
+    }
+
+    /// <summary>
+    /// Click something -- anything enabled -- on a screen we have no handler
+    /// for, so an unknown overlay costs a click instead of the whole run.
+    ///
+    /// Polls rather than checking once: these screens animate in, and their
+    /// buttons are typically created disabled and enabled at the end of the
+    /// intro tween (NWheelSpinScreen does exactly that). A single check on
+    /// arrival finds nothing enabled and gives up a few hundred milliseconds
+    /// too early.
+    /// </summary>
+    private async Task<bool> TryDismissUnknownScreenAsync(
+        Node screen, Type type, CancellationToken ct)
+    {
+        DateTime deadline = DateTime.UtcNow
+            + TimeSpan.FromSeconds(UnknownScreenDismissTimeoutSeconds);
+        while (DateTime.UtcNow < deadline)
+        {
+            ct.ThrowIfCancellationRequested();
+            _watchdog?.Reset($"Dismissing unhandled screen {type.Name}");
+
+            // Prefer an explicit proceed button; it is what these screens
+            // expect and is unambiguous when several controls are present.
+            NProceedButton proceed = UiHelper.FindFirst<NProceedButton>(screen);
+            if (proceed != null && proceed.IsEnabled
+                    && ((Control)proceed).IsVisibleInTree())
+            {
+                Logger.Log($"[RlAutoSlayer] {type.Name}: clicking its proceed button");
+                await UiHelper.Click(proceed);
+                return true;
+            }
+
+            NButton button = UiHelper.FindAll<NButton>(screen)
+                .FirstOrDefault(b => b.IsEnabled && ((Control)b).IsVisibleInTree());
+            if (button != null)
+            {
+                Logger.Log($"[RlAutoSlayer] {type.Name}: no handler, clicking "
+                           + $"its first enabled button");
+                await UiHelper.Click(button);
+                return true;
+            }
+
+            await Task.Delay(250, ct);
+        }
+        return false;
     }
 
     private async Task ClickRestSiteProceedIfNeeded(CancellationToken ct)
@@ -514,10 +729,139 @@ public class RlAutoSlayer
     {
         Logger.Log("[RlAutoSlayer] Waiting for rewards screen");
         await WaitHelper.Until(
-            () => NOverlayStack.Instance?.Peek() is NRewardsScreen ||
-                  (NMapScreen.Instance?.IsOpen ?? false),
+            // A LOST combat shows NGameOverScreen -- never a rewards screen and
+            // never the map. Without it in this predicate a death timed out
+            // here and threw AutoSlayTimeoutException("Rewards screen did not
+            // appear after combat"), which aborted RunAsync entirely. That was
+            // not cosmetic: RunAsync does not start another run, so after ANY
+            // death the game had to be restarted by hand, making unattended
+            // multi-run win-rate measurement impossible. Observed live
+            // 2026-07-30 after a death to ACTSFROMTHEPAST-SENTRY.
+            //
+            // NGameOverScreen already has a handler (RlGameOverScreenHandler in
+            // the screen-handler table), so satisfying the wait is all that is
+            // needed -- the normal dispatch then drives the game-over flow.
+            // FOURTH CONDITION: the game is already back at the main menu.
+            //
+            // The game-over screen is transient. On a death the game can run
+            // the whole game-over -> main-menu sequence before this predicate
+            // is first evaluated, and then NONE of the three conditions above
+            // will EVER become true -- the screen we were told to wait for has
+            // been and gone. The wait then burns its full timeout and throws,
+            // scoring an ordinary death as a FAILED run.
+            //
+            // Measured live 2026-07-30 (session 10): runs 2, 3 and 4 each died
+            // and each failed with "Neither rewards screen, map, nor game-over
+            // screen appeared after combat", with "[Startup] Time to main menu"
+            // logged BEFORE the combat-finished line in every case. Run 1 died
+            // too and passed -- the only difference was that its game-over
+            // screen was still up when we looked. A race, not a state.
+            //
+            // Being at the main menu means the run is over, so set RunEnded the
+            // way RlGameOverScreenHandler would have: downstream code keys off
+            // that flag to skip the abandon path and to leave the room loop.
+            () => {
+                if (NOverlayStack.Instance?.Peek() is NRewardsScreen) return true;
+                if (NOverlayStack.Instance?.Peek() is NGameOverScreen) return true;
+                if (NMapScreen.Instance?.IsOpen ?? false) return true;
+                if (IsAtMainMenu())
+                {
+                    Logger.Log("[RlAutoSlayer] Back at the main menu after "
+                               + "combat -- the run ended and the game-over "
+                               + "screen was missed");
+                    RunEnded = true;
+                    return true;
+                }
+                return false;
+            },
             ct, TimeSpan.FromSeconds(RewardsScreenTimeoutSeconds),
-            "Rewards screen did not appear after combat");
+            "Neither rewards screen, map, nor game-over screen appeared after combat");
+    }
+
+    /// <summary>
+    /// True when the main menu node exists and is visible. Deliberately
+    /// GetNodeOrNull: the node is absent (not merely hidden) for the whole
+    /// duration of a run, and a hard lookup would throw rather than answer.
+    /// </summary>
+    private static bool IsAtMainMenu()
+    {
+        Node root = ((SceneTree)Engine.GetMainLoop()).Root;
+        return root.GetNodeOrNull<Control>(MainMenuPath)?.IsVisibleInTree() ?? false;
+    }
+
+    /// <summary>
+    /// Put the game back at the main menu before starting a run.
+    ///
+    /// PlayMainMenuAsync assumes the main menu is already up, which is true
+    /// for the first run of a session and false after any run that ended
+    /// badly. When a run FAILS mid-run the game is left wherever it was --
+    /// usually still inside the run, where the MainMenu node does not exist at
+    /// all -- so the next run's PlayMainMenuAsync waits the full 30s for a
+    /// node that cannot appear and fails too. That is self-sustaining: one bad
+    /// run poisons every run after it.
+    ///
+    /// Measured live 2026-07-30 (session 10): 1 completed, 7 failed. After the
+    /// first three deaths, runs 5 and 7 failed with "Node /root/Game/
+    /// RootSceneContainer/MainMenu of type Control not found" and runs 6 and 8
+    /// with "Watchdog timeout: No progress for 30.0s. Last activity: Playing
+    /// main menu" -- four failures that were purely inherited state.
+    ///
+    /// Best effort by design: if recovery cannot get us there, say so and let
+    /// PlayMainMenuAsync produce the real error.
+    /// </summary>
+    private async Task RecoverToMainMenuAsync(CancellationToken ct)
+    {
+        if (IsAtMainMenu())
+            return;
+
+        Logger.Log("[RlAutoSlayer] Not at the main menu -- recovering before "
+                   + "starting the run");
+
+        // Recovery legitimately outlasts the watchdog's 30s no-progress
+        // window (an abandon has its own confirmation popup and settle
+        // delays), so keep it fed rather than letting it abort the run we are
+        // in the middle of rescuing.
+        _watchdog?.Reset("Recovering to the main menu");
+
+        // Overlays and modals sit on top of everything and swallow clicks.
+        try
+        {
+            await DrainOverlayScreensAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[RlAutoSlayer] Overlay drain during recovery failed: {ex.Message}");
+        }
+
+        if (IsAtMainMenu())
+            return;
+
+        // Still not there: a run is very likely still live. Abandon it, which
+        // is the only route from inside a run back to the menu.
+        if (RunManager.Instance?.DebugOnlyGetState() != null)
+        {
+            Logger.Log("[RlAutoSlayer] A run is still active -- abandoning it");
+            _watchdog?.Reset("Abandoning the previous run");
+            try
+            {
+                await AbandonRunAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[RlAutoSlayer] Abandon during recovery failed: {ex.Message}");
+            }
+        }
+
+        _watchdog?.Reset("Waiting for the main menu after recovery");
+        try
+        {
+            await WaitForMainMenuAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[RlAutoSlayer] Recovery could not reach the main menu: "
+                       + $"{ex.Message}");
+        }
     }
 
     private async Task WaitForMainMenuAsync(CancellationToken ct)
@@ -701,6 +1045,55 @@ public class RlAutoSlayer
             Logger.Log($"[RlAutoSlayer] Could not mirror watchdog: {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// Raise AutoSlayConfig.watchdogTimeout from its stock 30s.
+    ///
+    /// The watchdog measures NO PROGRESS, not response latency, so a long
+    /// agent decision counts against the same window as the game's own
+    /// serialize and animation work. The deterministic combat planner is
+    /// budgeted at 90s per whole-combat search, which the stock 30s cannot
+    /// accommodate: measured live 2026-07-30, a 28s plan tripped the
+    /// watchdog at 39.9s and RlAutoSlayer aborted the run one card into the
+    /// first fight.
+    ///
+    /// watchdogTimeout is a public static READONLY TimeSpan, not a const,
+    /// so reflection can set it -- the value is read at each Check(), so a
+    /// one-time write before the Watchdog is constructed applies for the
+    /// whole run. Failure is non-fatal and logged: the run still plays, it
+    /// just keeps the stock 30s window and will abort on a long plan.
+    /// </summary>
+    private static void RaiseWatchdogTimeout(TimeSpan timeout)
+    {
+        try
+        {
+            FieldInfo? field = typeof(AutoSlayConfig).GetField(
+                "watchdogTimeout",
+                BindingFlags.Public | BindingFlags.Static);
+            if (field == null)
+            {
+                Logger.Log("[RlAutoSlayer] watchdogTimeout field not found -- "
+                           + "keeping stock timeout");
+                return;
+            }
+            TimeSpan before = (TimeSpan)(field.GetValue(null) ?? TimeSpan.Zero);
+            field.SetValue(null, timeout);
+            TimeSpan after = (TimeSpan)(field.GetValue(null) ?? TimeSpan.Zero);
+            if (after != timeout)
+            {
+                Logger.Log($"[RlAutoSlayer] watchdogTimeout write did not take "
+                           + $"(still {after.TotalSeconds:F0}s) -- long plans "
+                           + "will abort the run");
+                return;
+            }
+            Logger.Log($"[RlAutoSlayer] watchdogTimeout raised "
+                       + $"{before.TotalSeconds:F0}s -> {after.TotalSeconds:F0}s");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[RlAutoSlayer] Could not raise watchdogTimeout: {ex.Message}");
+        }
+    }
 }
 
 /// <summary>
@@ -720,6 +1113,19 @@ public class RlGameOverScreenHandler : IScreenHandler, IHandler
     public async Task HandleAsync(Rng random, CancellationToken ct)
     {
         Logger.Log("[RlGameOver] Game over screen appeared");
+
+        // TELL THE ROOM LOOP THE RUN IS OVER.
+        //
+        // Reaching this screen IS the end of the run, and it is the only
+        // moment the fact is observable: by the time PlayRunAsync's loop comes
+        // round again the screen has been dismissed and the game is back at
+        // the main menu, so a "is the game-over screen up?" test there always
+        // reads false. Without this flag the loop kept iterating rooms after a
+        // death -- entering an Elite on a run that no longer existed, finding
+        // no map screen, and failing with "Combat not started". Every death
+        // was scored as a failed run for that reason.
+        RlAutoSlayer.RunEnded = true;
+
         NGameOverScreen screen =
             (NGameOverScreen)NOverlayStack.Instance.Peek();
 
