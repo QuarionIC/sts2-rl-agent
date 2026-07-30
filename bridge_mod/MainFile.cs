@@ -153,11 +153,69 @@ public partial class MainFile : Node
             cts.Token, TimeSpan.FromSeconds(60), "Main menu not visible");
         Logger.Log("[RlAutoSlay] Main menu visible. Creating RL AutoSlayer...");
 
+        // ARM-FILE GATE: the agent must never take over a launch the human
+        // started. Launching the game from Steam to play it yourself used to
+        // hand the controls straight to the RL agent, which is both useless
+        // and destructive -- it abandons whatever run is in progress.
+        //
+        // The agent only plays when an "autoslay.arm" file sits beside the
+        // mod, which the automation writes immediately before launching. The
+        // file is CONSUMED here, so it fails closed: a crash-and-restart, a
+        // second launch, or anything the human starts later gets a normal
+        // interactive game.
+        if (!ConsumeAutoSlayArmFile())
+        {
+            Logger.Log("[RlAutoSlay] No autoslay.arm file -- leaving the game "
+                       + "to the player. (The bridge server is still up; the "
+                       + "automation arms a run by writing that file before "
+                       + "launching.)");
+            return;
+        }
+
         // Create and start the RL-driven AutoSlayer
         _autoSlayer = new RlAutoSlayer();
         string seed = SeedHelper.GetRandomSeed();
         Logger.Log($"[RlAutoSlay] Starting RL run with seed: {seed}");
         _autoSlayer.Start(seed);
+    }
+
+    /// <summary>
+    /// True when the arm file was present; deletes it so the next launch is
+    /// interactive again. Searched beside the mod assembly and in the game
+    /// directory, matching how sts2_agent_config.txt is resolved.
+    /// </summary>
+    private static bool ConsumeAutoSlayArmFile()
+    {
+        try
+        {
+            string asmDir = System.IO.Path.GetDirectoryName(
+                System.Reflection.Assembly.GetExecutingAssembly().Location) ?? ".";
+            foreach (string dir in new[] { asmDir, System.AppContext.BaseDirectory })
+            {
+                if (string.IsNullOrEmpty(dir)) continue;
+                string path = System.IO.Path.Combine(dir, "autoslay.arm");
+                if (!System.IO.File.Exists(path)) continue;
+                try
+                {
+                    System.IO.File.Delete(path);
+                }
+                catch (Exception ex)
+                {
+                    // Could not consume it -- refuse rather than risk arming
+                    // every subsequent launch forever.
+                    Logger.Log($"[RlAutoSlay] Found {path} but could not delete "
+                               + $"it ({ex.Message}); not auto-starting.");
+                    return false;
+                }
+                Logger.Log($"[RlAutoSlay] Armed by {path} (now consumed).");
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[RlAutoSlay] Arm-file check failed: {ex.Message}");
+        }
+        return false;
     }
 }
 
