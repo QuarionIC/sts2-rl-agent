@@ -197,9 +197,21 @@ def _camel_to_snake(name: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
+#: Resolved from THIS FILE, never from the working directory.
+#:
+#: A bare Path("docs/...") only works when the process happens to be started
+#: from the repo root. Live 2026-07-30 the bridge runner was launched from a
+#: parent directory and every create_card() raised FileNotFoundError, which
+#: combat_reconstruct reported as "unresolvable card id" for cards as ordinary
+#: as STRIKE_NECROBINDER. Reconstruction then declined every payload, so the
+#: combat planner AND the RL run agent silently fell back to heuristics for a
+#: whole session while the logs still said both were engaged.
+_CARDS_REFERENCE = Path(__file__).resolve().parents[2] / "docs" / "CARDS_REFERENCE.md"
+
+
 @lru_cache(maxsize=1)
 def _reference_cards() -> dict[str, ReferenceCardDefinition]:
-    text = Path("docs/CARDS_REFERENCE.md").read_text()
+    text = _CARDS_REFERENCE.read_text()
     entries = re.split(r"^### ", text, flags=re.MULTILINE)[1:]
     result: dict[str, ReferenceCardDefinition] = {}
     for entry in entries:

@@ -340,8 +340,13 @@ _SIMPLE_CLAUSES: dict[str, str] = {
 def _reference_effects() -> dict[str, str]:
     """Parse ``docs/CARDS_REFERENCE.md`` into ``{CARD_ID_NAME: effect_text}``."""
     result: dict[str, str] = {}
+    # Resolved from this file, not the working directory -- see
+    # sts2_env.cards.factory._CARDS_REFERENCE for what a cwd-relative path
+    # cost in live play. This site swallows OSError, so a wrong path here
+    # degrades to empty descriptions with no error at all.
+    reference = Path(__file__).resolve().parents[2] / "docs" / "CARDS_REFERENCE.md"
     try:
-        text = Path("docs/CARDS_REFERENCE.md").read_text(encoding="utf-8")
+        text = reference.read_text(encoding="utf-8")
     except OSError:
         return result
     for entry in re.split(r"^### ", text, flags=re.MULTILINE)[1:]:
