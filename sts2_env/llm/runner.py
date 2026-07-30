@@ -113,6 +113,7 @@ class LocalLLM:
         )
         self.load_s = time.time() - t0
         self._grammar = None
+        self._answer_grammar = None
         if cfg.grammar:
             from llama_cpp import LlamaGrammar
 
@@ -122,6 +123,24 @@ class LocalLLM:
         self.total_out_tokens = 0
 
     def ask(self, system: str, user: str) -> str:
+        """One decision. In thinking mode this is TWO calls (budget forcing).
+
+        Letting the model reason freely does not terminate in a usable answer.
+        Measured on the Spark, thinking mode with a 1024-token budget: the model
+        spends the whole budget restating the state and analysing, and 2 of the
+        first 4 combat decisions never emitted a CHOICE at all -- so the parser
+        correctly refused them and they fell back to a random legal action. At
+        ~130s per decision that is unaffordable to fix by simply raising the
+        budget (2048 tokens would be ~260s per decision, ~9h per episode).
+
+        So: think within the budget, then CLOSE the block and force the answer
+        under the grammar. The second call generates ~5 tokens, so it costs
+        almost nothing, and the reply is guaranteed parseable while the
+        reasoning is preserved. This is the standard budget-forcing trick and
+        it is what makes the thinking arm measurable at all.
+        """
+        if self.cfg.enable_thinking:
+            return self._ask_thinking(system, user)
         t0 = time.time()
         messages = [{"role": "system", "content": system},
                     {"role": "user", "content": user}]
@@ -146,6 +165,56 @@ class LocalLLM:
         text = out["choices"][0]["message"]["content"] or ""
         # Re-attach the prefill so the parser sees the full "CHOICE: n" form.
         return (prefill + text) if prefill else text
+
+    def _ask_thinking(self, system: str, user: str) -> str:
+        """Reason within a budget, then force a grammar-constrained answer."""
+        import re
+
+        from llama_cpp import LlamaGrammar
+
+        t0 = time.time()
+        base = [{"role": "system", "content": system},
+                {"role": "user", "content": user}]
+
+        # Stage 1: open reasoning, bounded by max_tokens.
+        out = self.llm.create_chat_completion(
+            messages=base, max_tokens=self.cfg.max_tokens,
+            temperature=self.cfg.temperature,
+        )
+        self.calls += 1
+        think = out["choices"][0]["message"]["content"] or ""
+        try:
+            self.total_out_tokens += int(out["usage"]["completion_tokens"])
+        except Exception:
+            pass
+
+        # Already answered inside the budget? Then stage 2 is unnecessary.
+        closed = "</think>" in think
+        answered = re.search(r"choice\s*[:\-]?\s*\**\s*\d+",
+                             think.split("</think>")[-1] if closed else "",
+                             re.IGNORECASE)
+        if closed and answered:
+            self.total_s += time.time() - t0
+            return think
+
+        # Stage 2: close the block and force the choice. ~5 tokens.
+        if self._answer_grammar is None:
+            self._answer_grammar = LlamaGrammar.from_string(
+                'root ::= "CHOICE: " [0-9]+', verbose=False)
+        stub = think if closed else think + "\n</think>\n\n"
+        out2 = self.llm.create_chat_completion(
+            messages=base + [{"role": "assistant", "content": stub}],
+            max_tokens=8, temperature=self.cfg.temperature,
+            grammar=self._answer_grammar,
+        )
+        self.calls += 1
+        tail = out2["choices"][0]["message"]["content"] or ""
+        try:
+            self.total_out_tokens += int(out2["usage"]["completion_tokens"])
+        except Exception:
+            pass
+        self.total_s += time.time() - t0
+        return stub + tail
 
     @property
     def tokens_per_s(self) -> float:
@@ -224,7 +293,7 @@ class LLMRunPolicy:
             self.transcript.append({
                 "phase": decision.phase,
                 "prompt": decision.prompt,
-                "reply": reply.strip()[:400],
+                "reply": reply.strip()[:4000],
                 "chosen_index": idx,
                 "action": int(action),
             })
@@ -400,7 +469,7 @@ class LLMFullPolicy(LLMRunPolicy):
                 "phase": decision.phase,
                 "arena": key,
                 "prompt": decision.prompt,
-                "reply": reply.strip()[:400],
+                "reply": reply.strip()[:4000],
                 "chosen_index": idx,
                 "action": int(action),
             })
