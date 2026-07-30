@@ -127,6 +127,17 @@ def snapshot(mgr) -> dict:
             "cb_enemy_powers": [len(getattr(e, "powers", {}) or {})
                                 for e in cb.enemies],
             "cb_hand_ids": [c.card_id.name for c in st.hand],
+            # PILE ORDER, not just length. The first version recorded only
+            # len(draw/discard/exhaust), so a search that REORDERED a pile
+            # without changing its size was invisible -- and that is exactly
+            # the shape of the remaining leak: predict_reproducibility.py showed
+            # the forward pass is reproducible (0 flips in 25 checks, min top-2
+            # logit gap 0.158), so seed 10000013's divergence is state, and the
+            # cross-architecture divergence was also pile order.
+            "cb_draw_ids": [c.card_id.name for c in st.draw],
+            "cb_discard_ids": [c.card_id.name for c in st.discard],
+            "cb_exhaust_ids": [c.card_id.name for c in st.exhaust],
+            "cb_deck_ids": [c.card_id.name for c in getattr(st, "starting_deck", [])],
         })
     return snap
 
