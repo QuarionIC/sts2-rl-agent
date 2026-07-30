@@ -151,7 +151,7 @@ _WALK_ATOMIC = (
 
 
 def _rebind_function(fn: types.FunctionType, memo: dict,
-                     recurse=None) -> types.FunctionType:
+                     recurse=None, register=None) -> types.FunctionType:
     """A copy of ``fn`` whose closure cells point at the deepcopy'd
     counterparts of their contents (unchanged cells are shared).
 
@@ -163,13 +163,39 @@ def _rebind_function(fn: types.FunctionType, memo: dict,
     player's hand and removed cards from the live draw pile). Passing the
     walker in makes the rebinding transitive.
     """
+    cells = fn.__closure__ or ()
+    if not cells:
+        return fn
+
+    # BUILD THE REPLACEMENT FIRST, THEN FILL ITS CELLS.
+    #
+    # Closures can form CYCLES -- a function whose cell leads, directly or
+    # through other closures, back to itself. The walker pre-registers
+    # containers before descending ("pre-register for cycles") but used to
+    # register functions only AFTER _rebind_function returned, so a cyclic
+    # closure re-entered with nothing registered and recursed until Python
+    # gave up. That killed the live runner mid-session with RecursionError,
+    # twice, after ~2800 log lines of ordinary play.
+    #
+    # Creating the function up front and registering it via `register`
+    # closes the cycle: re-entry finds the replacement already in `seen` and
+    # returns it, and because cell contents are writable the cells can be
+    # filled afterwards -- including with the replacement itself, which is
+    # what a self-referential closure actually wants.
+    new_cells = tuple(types.CellType() for _ in cells)
+    rebound = types.FunctionType(
+        fn.__code__, fn.__globals__, fn.__name__, fn.__defaults__, new_cells
+    )
+    rebound.__kwdefaults__ = fn.__kwdefaults__
+    rebound.__dict__.update(fn.__dict__)
+    if register is not None:
+        register(rebound)
+
     changed = False
-    new_cells = []
-    for cell in fn.__closure__ or ():
+    for cell, new_cell in zip(cells, new_cells):
         try:
             contents = cell.cell_contents
-        except ValueError:  # empty cell
-            new_cells.append(cell)
+        except ValueError:  # empty cell -- leave the replacement empty too
             continue
         replacement = memo.get(id(contents), contents)
         if replacement is contents and recurse is not None:
@@ -180,16 +206,12 @@ def _rebind_function(fn: types.FunctionType, memo: dict,
                 replacement = recurse(contents)
         if replacement is not contents:
             changed = True
-            new_cells.append(types.CellType(replacement))
-        else:
-            new_cells.append(cell)
-    if not changed:
+        new_cell.cell_contents = replacement
+
+    if not changed and register is None:
+        # Nothing needed rebinding and nobody has seen the replacement, so
+        # hand back the original and let it stay shared.
         return fn
-    rebound = types.FunctionType(
-        fn.__code__, fn.__globals__, fn.__name__, fn.__defaults__, tuple(new_cells)
-    )
-    rebound.__kwdefaults__ = fn.__kwdefaults__
-    rebound.__dict__.update(fn.__dict__)
     return rebound
 
 
@@ -202,11 +224,25 @@ def _fix_leaked_closures(root: Any, memo: dict) -> None:
     def fix(obj: Any) -> Any:
         if isinstance(obj, _WALK_ATOMIC):
             return obj
+        # OPAQUE OBJECTS: nothing inside can hold a leaked closure, so
+        # descending is pure cost -- and on a deep combat it is the cost that
+        # pushed this walk past Python's recursion limit. The reconstructed
+        # shuffle-RNG chain (GameRng / MegaRandom / the run-state shim) holds
+        # only integers and each other; it appeared in the graph the moment
+        # live combats started carrying the game's real RNG, and clone_combat
+        # runs millions of times during a beam search.
+        if getattr(type(obj), "_CLONE_OPAQUE", False):
+            return obj
         oid = id(obj)
         if oid in seen:
             return seen[oid]
         if isinstance(obj, types.FunctionType):
-            fixed = _rebind_function(obj, memo, fix)
+            # Register the replacement the moment it exists, BEFORE its cells
+            # are walked, so a cyclic closure resolves instead of recursing.
+            def register(replacement, _oid=oid):
+                seen[_oid] = replacement
+
+            fixed = _rebind_function(obj, memo, fix, register)
             seen[oid] = fixed
             return fixed
         if isinstance(obj, types.MethodType):
