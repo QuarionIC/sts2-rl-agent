@@ -56,6 +56,7 @@ API
 from __future__ import annotations
 
 import copy
+import functools
 import hashlib
 import math
 import types
@@ -149,9 +150,19 @@ _WALK_ATOMIC = (
 )
 
 
-def _rebind_function(fn: types.FunctionType, memo: dict) -> types.FunctionType:
+def _rebind_function(fn: types.FunctionType, memo: dict,
+                     recurse=None) -> types.FunctionType:
     """A copy of ``fn`` whose closure cells point at the deepcopy'd
-    counterparts of their contents (unchanged cells are shared)."""
+    counterparts of their contents (unchanged cells are shared).
+
+    ``recurse`` is the walker's own fix function. It matters: a closure cell
+    can itself hold ANOTHER closure, and mapping only through ``memo`` leaves
+    that inner function untouched -- still bound to the ORIGINAL combat. That
+    hole let simulated card generation write into the live hand (measured:
+    3 of 60 searches added DISCOVERY/VOLLEY/SECRET_TECHNIQUE to the live
+    player's hand and removed cards from the live draw pile). Passing the
+    walker in makes the rebinding transitive.
+    """
     changed = False
     new_cells = []
     for cell in fn.__closure__ or ():
@@ -161,6 +172,12 @@ def _rebind_function(fn: types.FunctionType, memo: dict) -> types.FunctionType:
             new_cells.append(cell)
             continue
         replacement = memo.get(id(contents), contents)
+        if replacement is contents and recurse is not None:
+            # Not a deepcopied object -- but it may be a function, method or
+            # partial that itself closes over originals.
+            if isinstance(contents, (types.FunctionType, types.MethodType)) \
+                    or isinstance(contents, functools.partial):
+                replacement = recurse(contents)
         if replacement is not contents:
             changed = True
             new_cells.append(types.CellType(replacement))
@@ -189,9 +206,34 @@ def _fix_leaked_closures(root: Any, memo: dict) -> None:
         if oid in seen:
             return seen[oid]
         if isinstance(obj, types.FunctionType):
-            fixed = _rebind_function(obj, memo)
+            fixed = _rebind_function(obj, memo, fix)
             seen[oid] = fixed
             return fixed
+        if isinstance(obj, types.MethodType):
+            # A BOUND METHOD carries its receiver in __self__, which the
+            # attribute walk below cannot reach (a method's __dict__ is the
+            # underlying function's). If __self__ is an original, every call
+            # through this method mutates the LIVE object.
+            recv = memo.get(id(obj.__self__), obj.__self__)
+            func = fix(obj.__func__)
+            if recv is not obj.__self__ or func is not obj.__func__:
+                rebuilt = types.MethodType(func, recv)
+                seen[oid] = rebuilt
+                return rebuilt
+            return obj
+        if isinstance(obj, functools.partial):
+            # partial.func/args/keywords are read-only attributes, NOT entries
+            # in __dict__, so the attribute walk cannot see or replace them.
+            nf = fix(obj.func)
+            na = tuple(fix(a) for a in obj.args)
+            nk = {k: fix(v) for k, v in (obj.keywords or {}).items()}
+            if (nf is not obj.func
+                    or any(n is not o for n, o in zip(na, obj.args))
+                    or any(nk[k] is not v for k, v in (obj.keywords or {}).items())):
+                rebuilt = functools.partial(nf, *na, **nk)
+                seen[oid] = rebuilt
+                return rebuilt
+            return obj
         seen[oid] = obj  # pre-register for cycles; tuples overwrite below
         if isinstance(obj, dict):
             for k, v in list(obj.items()):
