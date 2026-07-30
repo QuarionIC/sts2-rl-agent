@@ -111,6 +111,28 @@ def collect(model, args) -> dict:
             if in_combat and legal.size > 1:
                 t0 = time.time()
                 try:
+                    # FORCE A FRESH PLAN FOR THIS EXACT STATE.
+                    #
+                    # PlannedCombatController.act pops from a queue and only
+                    # replans when the queue empties, the combat changes, or
+                    # the queued action is illegal. But the POLICY chooses what
+                    # happens here, not the planner -- so the moment they
+                    # differ, the queue describes a trajectory that was never
+                    # followed, and the "expert label" becomes the next action
+                    # of a plan for a different state.
+                    #
+                    # That is a labelling bug, not a modelling one: it
+                    # corrupts both the BC targets and the agreement statistic
+                    # (the previously reported 26.6% policy/planner agreement
+                    # was measured this way and does not mean what it says).
+                    # Clearing the queue makes every label a real expert
+                    # decision for the visited state. It costs a full ladder
+                    # search per combat decision -- that is the true price of
+                    # a correct oracle.
+                    planner._queue = []
+                    planner._combat_key = None
+                    planner._last_turn = None
+                    planner._stuck_replans = 0
                     expert = int(planner.act(obs, mask))
                 except Exception:
                     expert = None
