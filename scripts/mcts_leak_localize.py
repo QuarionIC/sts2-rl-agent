@@ -138,6 +138,31 @@ def snapshot(mgr) -> dict:
             "cb_discard_ids": [c.card_id.name for c in st.discard],
             "cb_exhaust_ids": [c.card_id.name for c in st.exhaust],
             "cb_deck_ids": [c.card_id.name for c in getattr(st, "starting_deck", [])],
+            # POWER AMOUNTS, not counts. len(powers) misses Strength 2 -> 3
+            # entirely, and power amounts feed the observation directly.
+            "cb_powers_amt": sorted(
+                (str(k), int(getattr(v, "amount", 0) or 0))
+                for k, v in (getattr(me, "powers", {}) or {}).items()),
+            "cb_enemy_powers_amt": [
+                sorted((str(k), int(getattr(v, "amount", 0) or 0))
+                       for k, v in (getattr(e, "powers", {}) or {}).items())
+                for e in cb.enemies],
+            # ENEMY AI MOVE STATE -- the intent the player sees. determinize()
+            # reseeds the clone's streams, but if move selection advances on the
+            # LIVE ai object the live intent changes, the observation changes,
+            # and the policy legitimately picks differently with no state field
+            # above ever moving. Nothing in the snapshot covered this.
+            "cb_intents": [
+                [(getattr(getattr(i, "intent_type", None), "name", "?"),
+                  int(getattr(i, "damage", 0) or 0),
+                  int(getattr(i, "hits", 1) or 1))
+                 for i in (getattr(getattr(cb.enemy_ais.get(e.combat_id),
+                                           "current_move", None),
+                                   "intents", None) or [])]
+                for e in cb.enemies],
+            "cb_ai_repr": [
+                repr(getattr(cb.enemy_ais.get(e.combat_id), "current_move", None))[:120]
+                for e in cb.enemies],
         })
     return snap
 
