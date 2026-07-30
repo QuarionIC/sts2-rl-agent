@@ -188,6 +188,11 @@ def main() -> int:
             mask = np.asarray(env.action_masks(), dtype=bool)
             obs, r, done, tr, info = env.step(int(policy.act(obs, mask)))
             n += 1
+        # Close the fight the run ended in. Without this the fatal combat is
+        # never scored, and the stale in-combat flag makes the NEXT episode's
+        # first decision score it as a win -- 99% combat win rate on runs that
+        # died 15 times out of 16.
+        policy.finish_episode(env._mgr)
         floors.append(int(info.get("floor", 0)))
         wins.append(bool(info.get("won", False)))
         acts.append(int(info.get("act", 0)))

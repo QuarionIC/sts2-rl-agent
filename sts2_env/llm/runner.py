@@ -406,13 +406,36 @@ class LLMFullPolicy(LLMRunPolicy):
             self.combats_entered += 1
             self._combat_hp_start = mgr.run_state.player.current_hp
         elif self._in_combat and not in_combat:
-            if not mgr.run_state.player.is_dead:
-                self.combats_won += 1
-            if self._combat_hp_start is not None:
-                self.combat_hp_lost.append(
-                    max(0, self._combat_hp_start - mgr.run_state.player.current_hp))
-            self._combat_hp_start = None
+            self._close_combat(mgr, survived=not mgr.run_state.player.is_dead)
         self._in_combat = in_combat
+
+    def _close_combat(self, mgr, survived: bool) -> None:
+        if survived:
+            self.combats_won += 1
+        if self._combat_hp_start is not None:
+            self.combat_hp_lost.append(
+                max(0, self._combat_hp_start - mgr.run_state.player.current_hp))
+        self._combat_hp_start = None
+
+    def finish_episode(self, mgr) -> None:
+        """Close out the episode's LAST combat. Callers MUST call this.
+
+        Boundaries are otherwise only observed on the next ``act()``, and after
+        a fatal step there is no next ``act()`` -- so the combat the run died
+        in was never closed. Because ``_in_combat`` also persisted across
+        episodes, the first (out-of-combat, full-HP) decision of the NEXT
+        episode was then read as "that fight ended and the player is alive" and
+        the fatal fight was scored as a WIN.
+
+        Measured effect before this fix: 16 episodes with 15 deaths reported
+        97/98 fights won (99%) when the true figure is ~83/98 (~85%). floors,
+        won, deck and parse rates were unaffected -- they come from ``info``
+        and the sim -- but every combat-level statistic was inflated.
+        """
+        if self._in_combat:
+            self._close_combat(mgr, survived=not mgr.run_state.player.is_dead)
+        self._in_combat = False
+        self._combat_hp_start = None
 
     def stats(self) -> dict:
         st = super().stats()
