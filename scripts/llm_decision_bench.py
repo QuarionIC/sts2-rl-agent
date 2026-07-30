@@ -164,6 +164,17 @@ def main() -> int:
                         p_act = None      # a planner failure must not be scored
                     p_s = time.time() - t0
 
+                    if p_act is None:
+                        # No referee for this state, so it cannot be scored.
+                        # Scoring it anyway would record BOTH configs as
+                        # disagreeing, understating both absolute agreement
+                        # rates (McNemar survives it -- both are concordantly
+                        # wrong -- but the reported percentages would not).
+                        # Drive on without spending two LLM calls on it.
+                        obs, r, done, tr, info = env.step(int(legal[0]))
+                        n += 1
+                        continue
+
                     g_reply, g_s = ask(COMBAT_SYSTEM_PROMPT, dec.prompt, False)
                     g_idx = parse_choice(g_reply, len(dec.options))
                     t_reply, t_s = ask(COMBAT_SYSTEM_PROMPT, dec.prompt, True)
