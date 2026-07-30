@@ -232,8 +232,29 @@ class RunStateAdapter:
             mask[layout.card_reward_extra_start: layout.card_reward_extra_start + extra] = 1
         elif msg_type == BridgeStateType.REWARD_SCREEN:
             options = _enabled_options(state)
-            has_pick = any(_action_of(o) == _REWARD_PICK_ACTION for o in options)
-            has_proceed = any(_action_of(o) == _REWARD_PROCEED_ACTION for o in options)
+            # COMPARE CANONICAL TO CANONICAL.
+            #
+            # _action_of canonicalises (it strips underscores and spaces and
+            # casefolds), but these constants are raw, so
+            # _action_of(o) == _REWARD_PICK_ACTION was comparing "pickreward"
+            # against "pick_reward" -- never equal, for any payload. has_pick
+            # was therefore ALWAYS False and the reward_screen mask contained
+            # only the proceed index, so a model-driven agent was forced to
+            # walk past every post-combat reward it was ever offered.
+            #
+            # _REWARD_PROCEED_ACTION has no underscore, which is why proceed
+            # matched and the failure looked like a policy that just never
+            # wanted rewards rather than like a masking bug.
+            #
+            # The decode path was never affected: _first_matching_option
+            # canonicalises both sides already (see its action_set), so only
+            # this mask comparison was wrong. Latent until now -- it needs a
+            # model driving the run phases to bite, and every current
+            # checkpoint was being rejected before it got here.
+            has_pick = any(
+                _action_of(o) == _canonical(_REWARD_PICK_ACTION) for o in options)
+            has_proceed = any(
+                _action_of(o) == _canonical(_REWARD_PROCEED_ACTION) for o in options)
             if has_pick:
                 mask[layout.card_reward_start] = 1
             if has_proceed:
