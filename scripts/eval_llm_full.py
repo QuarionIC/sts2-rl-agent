@@ -179,9 +179,11 @@ def main() -> int:
     policy.install_arms()
 
     floors, decks, ups, wins, acts, steps_used = [], [], [], [], [], []
+    ep_fights_won, ep_fights_entered, ep_hp = [], [], []
     t0 = time.time()
     for i in range(args.episodes):
         obs, info = env.reset(seed=args.seed_base + i)
+        policy.begin_episode()   # zero the per-run fight counters
         done = tr = False
         n = 0
         while not (done or tr) and n < args.max_steps:
@@ -197,6 +199,9 @@ def main() -> int:
         wins.append(bool(info.get("won", False)))
         acts.append(int(info.get("act", 0)))
         steps_used.append(n)
+        ep_fights_won.append(policy.ep_won)
+        ep_fights_entered.append(policy.ep_entered)
+        ep_hp.append(sum(policy.ep_hp_lost))
         rs = env._mgr.run_state
         decks.append(len(rs.player.deck))
         ups.append(sum(1 for c in rs.player.deck if c.upgraded))
@@ -205,7 +210,8 @@ def main() -> int:
               f"won={str(wins[-1]):<5} deck {decks[-1]} upgr {ups[-1]} | "
               f"combat parse {st['combat_parse_rate']:.0%} "
               f"@{st['combat_s_per_decision']:.1f}s | "
-              f"fights {st['combats_won']}/{st['combats_entered']} | "
+              f"fights won {policy.ep_won} of {policy.ep_entered} | "
+              f"hp lost {sum(policy.ep_hp_lost)} | "
               f"{time.time()-t0:.0f}s elapsed", flush=True)
 
     st = policy.stats()
@@ -243,6 +249,11 @@ def main() -> int:
         "mean_upgrades": float(np.mean(ups)),
         "floors": floors,
         "mean_decisions_per_episode": float(np.mean(steps_used)),
+        "fights_won_per_run": ep_fights_won,
+        "fights_entered_per_run": ep_fights_entered,
+        "hp_lost_per_run": ep_hp,
+        "mean_fights_won_per_run": float(np.mean(ep_fights_won)) if ep_fights_won else 0.0,
+        "mean_fights_entered_per_run": float(np.mean(ep_fights_entered)) if ep_fights_entered else 0.0,
         "llm": st,
         "wall_s": round(time.time() - t0, 1),
     }
@@ -265,9 +276,12 @@ def main() -> int:
     print(f"  floors         : {res['mean_floors']:.2f} +/- {res['se_floors']:.2f}")
     print(f"  win rate       : {res['win_rate']:.1%}  "
           f"95% CI [{lo:.1%}, {hi:.1%}]")
-    print(f"  fights         : {st['combats_won']}/{st['combats_entered']} won "
-          f"({st['combat_win_rate']:.1%}), "
-          f"mean {st['mean_combat_hp_lost']:.1f} HP lost per fight")
+    print(f"  fights per run : {np.mean(ep_fights_won):.1f} won of "
+          f"{np.mean(ep_fights_entered):.1f} entered  "
+          f"(totals {st['combats_won']}/{st['combats_entered']}, "
+          f"{st['combat_win_rate']:.1%})")
+    print(f"  hp lost        : {np.mean(ep_hp):.1f} per run, "
+          f"{st['mean_combat_hp_lost']:.1f} per fight")
     print(f"  deck / upgrades: {res['mean_deck']:.1f} / {res['mean_upgrades']:.2f}")
     print(f"  speed          : combat {st['combat_s_per_decision']:.2f}s/decision, "
           f"out-of-combat {st['noncombat_s_per_decision']:.2f}s, "

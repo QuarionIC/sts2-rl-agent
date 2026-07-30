@@ -315,6 +315,12 @@ class LLMFullPolicy(LLMRunPolicy):
         self._in_combat = False
         self._combat_hp_start: int | None = None
         self.combat_hp_lost: list[int] = []
+        #: Per-EPISODE fight counts. The cumulative pair was unreadable in the
+        #: log: "fights 65/76" is a running total, so the value for one run is
+        #: only recoverable by differencing consecutive lines.
+        self.ep_entered = 0
+        self.ep_won = 0
+        self.ep_hp_lost: list[int] = []
 
     def act(self, obs, mask) -> int:
         import time as _time
@@ -404,6 +410,7 @@ class LLMFullPolicy(LLMRunPolicy):
         """Count fights entered/won and HP paid, at the phase transitions."""
         if in_combat and not self._in_combat:
             self.combats_entered += 1
+            self.ep_entered += 1
             self._combat_hp_start = mgr.run_state.player.current_hp
         elif self._in_combat and not in_combat:
             self._close_combat(mgr, survived=not mgr.run_state.player.is_dead)
@@ -412,9 +419,19 @@ class LLMFullPolicy(LLMRunPolicy):
     def _close_combat(self, mgr, survived: bool) -> None:
         if survived:
             self.combats_won += 1
+            self.ep_won += 1
         if self._combat_hp_start is not None:
-            self.combat_hp_lost.append(
-                max(0, self._combat_hp_start - mgr.run_state.player.current_hp))
+            lost = max(0, self._combat_hp_start - mgr.run_state.player.current_hp)
+            self.combat_hp_lost.append(lost)
+            self.ep_hp_lost.append(lost)
+        self._combat_hp_start = None
+
+    def begin_episode(self) -> None:
+        """Zero the per-episode fight counters. Call right after env.reset()."""
+        self.ep_entered = 0
+        self.ep_won = 0
+        self.ep_hp_lost = []
+        self._in_combat = False
         self._combat_hp_start = None
 
     def finish_episode(self, mgr) -> None:
