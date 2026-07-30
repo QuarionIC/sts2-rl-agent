@@ -351,7 +351,8 @@ def _eval_worker(args: dict) -> list[dict]:
     from sts2_env.search.combat_mcts import MCTSConfig, SB3PolicyEvaluator
 
     model = _load_cpu_model(args["checkpoint"])
-    env = _make_env(args["ascension"], args["max_act_count"])
+    # No shared env here on purpose -- each arm builds its own below, so the
+    # comparison is controlled.
     evaluator = SB3PolicyEvaluator(model)
     cfg = MCTSConfig(
         n_simulations=args["sims"],
