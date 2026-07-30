@@ -187,17 +187,36 @@ median      : 7.5   range 5-16
 act-1 wins  : 1/18 = 5.6%   95% CI [1.0%, 25.8%]
 ```
 
-Same-platform reference arms (30 episodes each, measured on the Spark because
-the simulator is **not** bit-identical across architectures — see §4):
+All arms measured on the Spark, because the simulator is **not** bit-identical
+across architectures (§4) — laptop numbers are not a valid reference.
+
+| arm | floors | act-1 wins | 95% CI |
+|---|---|---|---|
+| random × random | 4.37 ± 0.29 | 0/30 | [0.0%, 11.4%] |
+| knowledge × random | 4.00 ± 0.31 | 0/30 | [0.0%, 11.4%] |
+| **random × PLANNER** | **11.80 ± 0.67** | **3/30** | [3.5%, 25.6%] |
+| LLM × LLM (grammar) | 8.94 ± 0.77 | 1/18 | [1.0%, 25.8%] |
 
 ```
-random x random    : 4.37 +/- 0.29 floors, 0/30 wins
-knowledge x random : 4.00 +/- 0.31 floors, 0/30 wins
+LLM-combat    vs random-combat : +4.57 floors  (SE 0.82, z = 5.6)
+planner-combat vs LLM-combat   : +2.86 floors  (SE 1.02, z = 2.8)
 ```
 
-LLM vs random×random: **+4.57 floors** (pooled SE 0.82, z = 5.6).
+Two conclusions, both clean:
 
-Caveat to carry with any of these: the grammar-constrained arm cannot reason
+1. **The LLM genuinely plays combat.** +4.57 floors over random combat at
+   z = 5.6 is not noise; it is not just following the option list.
+2. **The planner is still clearly better.** And note *which* arm beats the LLM:
+   `random × planner` has **random** out-of-combat routing and still reaches
+   11.80 floors with a 10% win rate. So the planner's combat is worth more than
+   the LLM's routing *and* combat combined — combat quality dominates run
+   outcome at this stage, and out-of-combat policy barely moves it (4.00 vs 4.37
+   for knowledge vs random against the same combat arm).
+
+That is also the strongest argument for planner-distillation (§2): the thing that
+matters most is exactly the thing the planner does best.
+
+Caveat to carry with the LLM numbers: the grammar-constrained arm cannot reason
 before answering, so this measures "Qwen3.6-27B, forced-format, no visible
 deliberation", not the model's ceiling. The thinking arm exists to size that gap.
 
