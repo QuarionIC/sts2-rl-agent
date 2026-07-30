@@ -250,8 +250,20 @@ def main() -> int:
         if "error" in rb:
             print(f"{rb['seed']:>10} {'':>8} {'CRASH':>8}  {rb['error'][:40]}")
             continue
-        ok = (ra["hp"] == rb["hp"] and ra["survived"] == rb["survived"]
-              and ra["enemy_hp"] == rb["enemy_hp"])
+        # Compare EVERY recorded outcome field, floor and won included.
+        #
+        # The first version compared only hp, survived and enemy_hp -- and at
+        # run level enemy_hp is hardcoded 0 while almost every run ends dead at
+        # hp 0, so the test was nearly vacuous: two runs ending on floor 16 and
+        # floor 4 both scored "identical". That produced a false 4/4 clean
+        # verdict which was reported as verification of the clone fix. Floors
+        # are the whole point of a run-level comparison.
+        keys = [k for k in ("hp", "survived", "enemy_hp", "floor", "won")
+                if k in ra and k in rb]
+        ok = all(ra[k] == rb[k] for k in keys)
+        if not ok:
+            diff = {k: [ra[k], rb[k]] for k in keys if ra[k] != rb[k]}
+            print(f"    seed {ra['seed']} differs: {diff}")
         same += ok
         print(f"{ra['seed']:>10} {ra['hp']:>6} {rb['hp']:>6} "
               f"{str(ra['survived']):>7} {str(rb['survived']):>7} "
