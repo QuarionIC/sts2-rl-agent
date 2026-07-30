@@ -149,7 +149,10 @@ def main() -> int:
                 break
             in_combat = mgr.phase == RunManager.PHASE_COMBAT
 
+            # Reset per step so the END-TURN-avoiding fallback below can never
+            # reuse a previous decision's answer.
             drive = None
+            g_act = t_act = p_act = None
             if in_combat and legal.size > 1:
                 dec = render_combat_decision(mgr, mask)
                 if dec is not None:
@@ -158,7 +161,7 @@ def main() -> int:
                     try:
                         p_act = int(planner.act(obs, mask))
                     except Exception:
-                        p_act = None
+                        p_act = None      # a planner failure must not be scored
                     p_s = time.time() - t0
 
                     g_reply, g_s = ask(COMBAT_SYSTEM_PROMPT, dec.prompt, False)
@@ -194,7 +197,17 @@ def main() -> int:
 
             if drive is None:
                 if in_combat:
-                    drive = int(legal[0])
+                    # NOT legal[0] -- that is END TURN, and an END-TURN fallback
+                    # is what lost a live run earlier in this project. Prefer
+                    # whichever config did answer this step; only then give up
+                    # the turn. g_act/t_act are reset per step below, so a stale
+                    # value from the previous decision can never be used here.
+                    for cand in (t_act, g_act):
+                        if cand is not None and 0 <= cand < mask.size and mask[cand]:
+                            drive = int(cand)
+                            break
+                    if drive is None:
+                        drive = int(legal[0])
                 else:
                     d2 = render_run_decision_masked(mgr, mask)
                     if d2 is None:
