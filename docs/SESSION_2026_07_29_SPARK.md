@@ -105,20 +105,38 @@ alone, and gates iteration 1 on "does search beat the raw policy".
 * 20 CPU cores for search (MCTS and the planner are CPU-bound), GPU for
   training — a good fit, better than the laptop
 
-### Early gate results (post-fix, 16 seeds, 48 sims × 8 determinizations)
+### Gate run 1 (post clone-fix, 16 seeds) — STILL NOT TRUSTWORTHY
+
+Full result: `policy 12.75 ± 1.03` vs `search 12.19 ± 1.16`, **paired delta
+−0.56 ± 1.15**, 4 improved / 9 equal / 3 worse, wins 3 vs 4. The curriculum
+correctly **STOPPED** on that rather than distilling from a search it could not
+show was an improvement operator.
+
+But the same invariant that exposed the original bug is still violated:
 
 ```
-seed 10000006: policy 16 | mcts 16  (0 overrides)
-seed 10000001: policy  7 | mcts  7  (1 override)
-seed 10000002: policy  7 | mcts 16  won=True  (1 override)   <- loss -> ACT-1 WIN
-seed 10000005: policy 13 | mcts 14  (2 overrides)
-seed 10000003: policy 12 | mcts 12  (2 overrides)
-seed 10000007: policy 13 | mcts 11  (2 overrides)
+seed 10000013:  0 overrides,  policy floor 16,  mcts floor 4   (delta -12)
+seed 10000012:  2 overrides,  policy floor 16,  mcts floor 7   (delta  -9)
+seed 10000002:  1 override,   policy floor  7,  mcts floor 16  (delta  +9, WIN)
 ```
 
-Preliminary and small, but the search now looks like it may genuinely help —
-which is the opposite of the invalidated NO-GO. Cost is ~250 s per seed at this
-budget.
+Zero overrides cannot produce a 12-floor gap. Cause found, and it is **not** the
+search: `_eval_worker` created ONE env and reused it for both arms and every
+seed, with the mcts arm always second, so each arm inherited whatever the
+previous left behind. `mcts_purity_check --level run`, which builds a fresh env
+per arm, is identical on **5/5 seeds including 10000013** — so the search is
+side-effect free after the clone fix, and the harness was the remaining confound.
+
+Which field survives `reset()` is not pinned down (reset does rebuild the
+RunManager and re-seed `np_random`, and the `_steps_in_combat` guard self-heals
+because `_steps_combat_ref` holds a strong reference, so address reuse is not
+possible). Rather than keep guessing, the gate now builds a fresh env per arm
+per seed — what an A/B must do regardless — and is being re-run.
+
+**So the honest state of the AlphaZero question: still unmeasured.** Two harness
+bugs have been found and fixed in the measurement path; neither the old NO-GO nor
+the −0.56 supersedes the other, because both were measured on uncontrolled
+comparisons. Cost is ~250 s per seed at this budget.
 
 ### Second expert: the beam planner
 
