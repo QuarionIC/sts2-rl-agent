@@ -182,6 +182,9 @@ def run_agent(
     llm_temperature: float = 0.2,
     combat_policy: str = "planner",
     rl_combat_model: str | None = None,
+    run_policy: str = "heuristic",
+    rl_run_model: str | None = None,
+    rl_run_phases: str | None = None,
 ) -> None:
     """Main agent loop.
 
@@ -199,8 +202,53 @@ def run_agent(
     """
     _COMBAT_POLICY[0] = combat_policy
     _COMBAT_POLICY[1] = None
-    logger.info("Combat policy: %s | out-of-combat: %s",
-                combat_policy, "LLM" if llm_model else "model/heuristic")
+    logger.info(
+        "Combat policy: %s | out-of-combat: %s",
+        combat_policy,
+        "LLM" if llm_model else ("RL run agent" if run_policy == "rl"
+                                 else "model/heuristic"),
+    )
+
+    _RUN_POLICY[0] = run_policy
+    _RL_RUN[0] = None
+    if rl_run_phases:
+        requested = {p.strip().upper() for p in rl_run_phases.split(",") if p.strip()}
+        allowed = {getattr(Phase, name) for name in requested
+                   if isinstance(getattr(Phase, name, None), str)}
+        unknown = {name for name in requested
+                   if not isinstance(getattr(Phase, name, None), str)}
+        if unknown:
+            raise SystemExit(f"--rl-run-phases: unknown phase(s) {sorted(unknown)}")
+        _RL_RUN_PHASES_ACTIVE[0] = frozenset(allowed) & _RL_RUN_PHASES
+    else:
+        _RL_RUN_PHASES_ACTIVE[0] = _RL_RUN_PHASES
+    if run_policy == "rl":
+        logger.info("RL run agent will drive: %s | heuristics keep: %s",
+                    sorted(_RL_RUN_PHASES_ACTIVE[0]) or "(nothing)",
+                    sorted(_RL_RUN_PHASES - _RL_RUN_PHASES_ACTIVE[0]) or "(nothing)")
+    if run_policy == "rl":
+        if not rl_run_model:
+            raise SystemExit("--run-policy rl requires --rl-run-model")
+        from sb3_contrib import MaskablePPO
+
+        logger.info("Loading RL run agent: %s", rl_run_model)
+        _RL_RUN[0] = MaskablePPO.load(rl_run_model, device="cpu")
+        obs_n = int(_RL_RUN[0].observation_space.shape[0])
+        act_n = int(_RL_RUN[0].policy.action_space.n)
+        logger.info("RL run agent loaded (actions=%d, obs=%d)", act_n, obs_n)
+
+        # Fail loudly at startup rather than silently at the first decision.
+        # A checkpoint of the wrong shape cannot be fed and would spend the
+        # whole session falling back to the heuristics while the log said
+        # "run policy: rl".
+        from sts2_env.gym_env.rich_observation import RICH_OBS_SIZE
+
+        if obs_n != RICH_OBS_SIZE or act_n != FULL_RUN_ACTION_SPACE_SIZE:
+            raise SystemExit(
+                f"--rl-run-model has {act_n} actions / {obs_n} obs dims; the "
+                f"bridge run path requires {FULL_RUN_ACTION_SPACE_SIZE} / "
+                f"{RICH_OBS_SIZE}. This is a hierarchical run agent slot -- "
+                f"a combat-only checkpoint will not fit it.")
 
     if combat_policy == "rl":
         if not rl_combat_model:
@@ -278,6 +326,7 @@ def run_agent(
         logger.info("Connected. Starting agent loop.")
 
         step_count = 0
+        runs_seen = 0
         combat_count = 0
 
         try:
@@ -312,8 +361,21 @@ def run_agent(
                 if phase == MSG_TYPE_PONG:
                     continue
                 if phase in TERMINAL_PHASES:
-                    logger.info("Run finished: %s", state.get("result", state.get("message", "unknown")))
-                    break
+                    runs_seen += 1
+                    logger.info("Run finished: %s (run %d this session)",
+                                state.get("result", state.get("message", "unknown")),
+                                runs_seen)
+                    # DO NOT EXIT. The mod plays N runs back-to-back
+                    # (RlAutoSlayer.RunAsync loops over PreferredRunCount), so a
+                    # terminal message is a RUN boundary, not a session
+                    # boundary. Exiting here left every run after the first
+                    # with no agent attached -- the mod would fall back to
+                    # playing random cards and the "measurement" would be of
+                    # nothing. Reset per-run state and keep serving.
+                    _COMBAT_POLICY[1] = None      # re-probe the next payload
+                    _COMBAT_QUEUE[0] = []
+                    _COMBAT_QUEUE[1] = None
+                    continue
                 if phase == MSG_TYPE_ERROR:
                     logger.warning("Game error: %s", state.get("message", ""))
                     continue
@@ -392,6 +454,18 @@ def run_agent(
                     else:
                         client.end_turn()
                     continue
+
+                # ---- Out of combat: trained hierarchical run agent ----
+                # Placed after the combat branches (which all `continue`) and
+                # before the heuristics, so combat stays with the planner and
+                # only the run-level decisions change hands. Falling through
+                # on a False return is the point: every unusable payload,
+                # unresolvable card id or mask disagreement degrades to the
+                # heuristic rather than to a guess.
+                if (_RUN_POLICY[0] == "rl"
+                        and phase in (_RL_RUN_PHASES_ACTIVE[0] or _RL_RUN_PHASES)):
+                    if _try_rl_run_action(client, state, verbose):
+                        continue
 
                 if run_state_adapter is not None:
                     # ---- Full-run model: trained policy drives every phase ----
@@ -859,20 +933,68 @@ def _combat_planner_action(state: dict[str, Any]) -> int | None:
             return str(c.get("id") or c.get("card_id") or "")
         return None
 
-    # Drop a stale plan: new turn, or the next action no longer matches the
-    # card it was planned for.
-    if _COMBAT_QUEUE[0] and _COMBAT_QUEUE[1] == turn:
+    # PLAY THE WHOLE LINE, ACROSS TURN BOUNDARIES.
+    #
+    # plan_combat_min_hp returns a complete combat solution, computed on an
+    # exact reconstruction. Combat is deterministic given the draw order, so
+    # the simulated post-END-TURN hand matches the game's and the queue stays
+    # valid past the turn boundary. Requiring _COMBAT_QUEUE[1] == turn threw
+    # the rest of that solution away every turn and paid a fresh 90s search
+    # to re-derive it -- and worse, each re-search started from a shallower
+    # remaining fight, so later turns were planned with the same budget
+    # spent on less game.
+    #
+    # Card identity is now the ONLY correctness guard, and it is the right
+    # one: if the live hand no longer holds the card an action was planned
+    # for, the determinism assumption broke and we replan from real state.
+    # _COMBAT_QUEUE[1] tracks the last seen round purely to notice a NEW
+    # combat -- round numbers increase within a fight and reset on the next
+    # one, so a decrease means a different fight and the queue must go.
+    last_round = _COMBAT_QUEUE[1]
+    if _COMBAT_QUEUE[0] and isinstance(last_round, int) and turn < last_round:
+        logger.info("Combat: round went %s -> %s, new combat -- dropping plan",
+                    last_round, turn)
+        _COMBAT_QUEUE[0] = []
+    if _COMBAT_QUEUE[0]:
         nxt = _COMBAT_QUEUE[0][0]
         want = nxt.get("card_id")
         idx = nxt.get("card_index")
-        if want is not None and idx is not None:
+        if nxt.get("unvalidatable"):
+            # The annotator could not resolve a hand slot for this action, so
+            # there is nothing to check it against. Replanning is strictly
+            # safer than replaying an action we cannot validate -- an
+            # unchecked replay is how a stale plan reaches the live game.
+            logger.info("Combat: next queued action is unvalidatable -- replanning")
+            _COMBAT_QUEUE[0] = []
+        elif want is not None and idx is not None:
             live = _live_card(idx)
             if live is None or _norm_card(live) != _norm_card(want):
-                logger.info("Combat: plan diverged (slot %s holds %s, planned "
-                            "%s) -- replanning", idx, live, want)
+                # Full diff, not just the one slot. Same length + same multiset
+                # => pure ORDERING (draw/shuffle order). Different length =>
+                # a draw-count or card-movement difference. Different multiset
+                # => cards appearing or vanishing (status cards, retain,
+                # unmodelled effects). Each points at a different subsystem.
+                sim_hand = list(nxt.get("sim_hand") or [])
+                live_hand = [str(c.get("id") or c.get("card_id") or "")
+                             for c in hand]
+                same_len = len(sim_hand) == len(live_hand)
+                same_multiset = (sorted(_norm_card(c) for c in sim_hand)
+                                 == sorted(_norm_card(c) for c in live_hand))
+                if same_len and same_multiset:
+                    kind = "ORDER-ONLY (same cards, different order)"
+                elif same_multiset:
+                    kind = "COUNT (same multiset, different length)"
+                else:
+                    kind = "CONTENTS (different cards)"
+                logger.info("Combat: plan diverged [%s] slot %s holds %s, "
+                            "planned %s\n    sim  hand: %s (energy %s)\n"
+                            "    live hand: %s (energy %s)",
+                            kind, idx, live, want,
+                            sim_hand, nxt.get("sim_energy"),
+                            live_hand,
+                            (state.get("player") or {}).get("energy"))
                 _COMBAT_QUEUE[0] = []
-    else:
-        _COMBAT_QUEUE[0] = []
+    _COMBAT_QUEUE[1] = turn
 
     if not _COMBAT_QUEUE[0]:
         combat = reconstruct_combat(state)
@@ -896,19 +1018,30 @@ def _combat_planner_action(state: dict[str, Any]) -> int | None:
         # freshly-rolled one.
         from sts2_env.search.combat_planner import plan_combat_min_hp
 
-        # Full-strength search. Budgeted runs measurably starved it: at
-        # beam 48 it scored 4/6 wins and 141 HP lost, WORSE than per-turn's
-        # 4/6 and 132. Unbounded (beam 512, 5M nodes, no prune margin) it
-        # reaches 5/6 wins and 100 HP lost -- an extra win and 24% less
-        # damage.
+        # NARROW AND DEEP, not wide and shallow. plan_combat_min_hp returns
+        # a plan ONLY if it reaches a winning terminal, else None -- so
+        # depth, not breadth, is what decides whether it returns anything.
         #
-        # The wall clock is capped at 90s despite "no budget": the mod's
-        # AutoSlay watchdog aborts a run after 120s without a response, and
-        # one measured plan took 139s. Exceeding it does not slow the run,
-        # it ENDS the run. 90s leaves headroom for the reply to land.
+        # One beam level costs about 20 * beam_width expansions, and at
+        # ~140 nodes/s a 90s budget buys ~12600. Beam 12 is therefore ~52
+        # levels deep (deeper than a whole fight, so terminals are
+        # reachable); beam 512 is ~1.2 levels and returns None on anything
+        # with a real branching factor. Measured: at beam 512 an A10 opener
+        # returned "no win in budget" at both 5s and 15s. It only appeared
+        # to work live on a 1-energy 3-card A0 opener.
+        #
+        # 90s is viable ONLY because the mod raises the watchdog to 120s
+        # (RlAutoSlayer.RaiseWatchdogTimeout). The stock
+        # AutoSlayConfig.watchdogTimeout is 30s, and it measures NO
+        # PROGRESS rather than response latency, so the mod's serialize and
+        # animation work shares the window with our search. Blowing it does
+        # not slow the run, it ENDS the run -- Watchdog.Check() throws
+        # AutoSlayTimeoutException and Python gets run_complete/terminated.
+        # Measured live 2026-07-30 against the stock 30s: a 28s plan tripped
+        # it at 39.9s and killed the run one card in.
         whole = plan_combat_min_hp(
             combat,
-            PlannerConfig(beam_width=512, max_expansions=5_000_000,
+            PlannerConfig(beam_width=12, max_expansions=5_000_000,
                           time_budget_s=90.0, prune_margin=0.0),
             ai_state_known=True,
         )
@@ -927,27 +1060,125 @@ def _combat_planner_action(state: dict[str, Any]) -> int | None:
                         whole.entry_hp, whole.final_hp, whole.hp_lost,
                         "" if whole.exhausted else " [budget-capped]")
         else:
+            # Reached only when the whole-combat search found no win. Its
+            # budget STACKS on the 10s above, so the pair must stay well
+            # inside the 30s watchdog window: 10 + 5 = 15s worst case,
+            # leaving ~15s for the mod's own work.
             plan = plan_turn(combat, PlannerConfig(beam_width=24,
                                                    max_expansions=60_000,
-                                                   time_budget_s=6.0))
-        # Annotate each action with the card it was chosen for, resolved
-        # against the SIM hand as it evolves through the plan -- that is the
-        # only place the intended card is knowable.
-        sim_hand = [str(getattr(c, "card_id", "")).replace("CardId.", "")
-                    for c in combat.combat_player_states[0].hand]
+                                                   time_budget_s=5.0))
+        # Annotate each action with the card it was chosen for by STEPPING A
+        # CLONE of the reconstruction through the plan.
+        #
+        # This used to keep a flat list[str] snapshot of the plan-time hand and
+        # mutate it only with pop() on card plays. That cannot cross a turn
+        # boundary: ACTION_END_TURN was skipped by the guard, so nothing
+        # discarded the hand or drew the next one, and every post-boundary
+        # action was labelled with a LEFTOVER card from an earlier turn. The
+        # identity check below then compared a stale label against the live
+        # hand and reported "plan diverged" at every single turn boundary --
+        # 9 of 9 live, and reproducibly so even against a perfectly faithful
+        # simulator. It was an instrument fault, not a simulation fault.
+        #
+        # The silent half was worse: when the stale label happened to match the
+        # real card (common with 4 Strikes + 4 Defends in deck) no warning
+        # fired and the stale plan replayed into the live game unchecked.
+        #
+        # Stepping the clone with the planner's own transition makes the label
+        # exact by construction, so a divergence line now means what it says.
+        from sts2_env.search.combat_mcts import apply_combat_action, clone_combat
+
+        shadow = clone_combat(combat)
         queued = []
         for a in plan.actions:
             entry: dict[str, Any] = {"action": int(a)}
-            if a != 0 and not is_potion_action(int(a)):
+            # During a pending card choice the action indexes CHOICE OPTIONS,
+            # not the hand, so a hand-slot label would be meaningless.
+            if (a != 0 and not is_potion_action(int(a))
+                    and getattr(shadow, "pending_choice", None) is None):
                 try:
                     hidx, _ = action_to_card_and_target(int(a))
                 except Exception:
                     hidx = None
-                if hidx is not None and 0 <= hidx < len(sim_hand):
+                shand = shadow.combat_player_states[0].hand
+                # Snapshot the WHOLE simulated hand (and energy) alongside the
+                # single card, so a divergence can be diagnosed instead of just
+                # detected: whether the hand differs in order, in count, or in
+                # contents tells you which subsystem is wrong.
+                entry["sim_hand"] = [
+                    str(getattr(c, "card_id", "")).replace("CardId.", "")
+                    for c in shand
+                ]
+                entry["sim_energy"] = int(
+                    getattr(shadow.combat_player_states[0], "energy", -1))
+                if hidx is not None and 0 <= hidx < len(shand):
                     entry["card_index"] = hidx
-                    entry["card_id"] = sim_hand[hidx]
-                    sim_hand.pop(hidx)
+                    entry["card_id"] = str(
+                        getattr(shand[hidx], "card_id", "")).replace("CardId.", "")
+                else:
+                    # Unvalidatable: mark it so the guard REFUSES to replay
+                    # blind rather than falling through unchecked.
+                    entry["card_index"] = hidx
+                    entry["card_id"] = None
+                    entry["unvalidatable"] = True
+            draw_before = len(shadow.combat_player_states[0].draw)
+            try:
+                apply_combat_action(shadow, int(a))
+            except Exception:
+                # The clone could not follow its own plan; everything after
+                # this point is unlabelled, so stop the queue here rather than
+                # emitting actions we cannot check.
+                logger.warning("Combat: plan annotation aborted at action %s -- "
+                               "truncating queue (%d/%d actions kept)",
+                               a, len(queued), len(plan.actions))
+                queued.append(entry)
+                break
             queued.append(entry)
+
+            # TRUNCATE AT THE FIRST RESHUFFLE.
+            #
+            # When the draw pile cannot satisfy a draw, the discard is folded
+            # back in and shuffled. The simulator's shuffle RNG has no relation
+            # to the game's (and the game sorts first via StableShuffle, which
+            # the simulator does not), so from that point on the two decks are
+            # genuinely different -- not merely reordered.
+            #
+            # Measured live: sim hand [BODYGUARD, STRIKE, DEFEND, STRIKE,
+            # UNLEASH] against live [DEFEND, DEFEND, STRIKE, DEFEND, UNLEASH]
+            # -- same length, same energy, different cards.
+            #
+            # The plan is sound up to the reshuffle and fiction after it, so
+            # keep the sound prefix and let the next decision replan from real
+            # state. That is strictly better than replaying actions chosen for
+            # a deck the game does not have.
+            if len(shadow.combat_player_states[0].draw) > draw_before:
+                # ONLY TRUNCATE WHEN THE RESHUFFLE IS ACTUALLY UNPREDICTABLE.
+                #
+                # The comment above described the state of the world before
+                # shuffle parity existed: the simulator drew from a .NET
+                # Random stream while the game drew from xoshiro256**, and it
+                # skipped the sort that the game's StableShuffle performs. Both
+                # are fixed now, and combat_reconstruct marks a combat that
+                # carries the game's real stream with _force_stable_reshuffle.
+                #
+                # For such a combat the post-reshuffle deck is predictable, so
+                # truncating throws away good plan for nothing -- 8 of 12 plans
+                # were still being cut short after the parity fix landed.
+                #
+                # Keep going and let the divergence detector adjudicate: if
+                # parity is imperfect, the very next validated action reports a
+                # CONTENTS mismatch and we learn it from data instead of
+                # assuming it either way.
+                if getattr(shadow, "_force_stable_reshuffle", False):
+                    logger.info("Combat: plan crosses a draw-pile reshuffle -- "
+                                "shuffle parity is active, keeping the full "
+                                "%d-action plan", len(plan.actions))
+                else:
+                    logger.info("Combat: plan crosses a draw-pile reshuffle -- "
+                                "keeping the %d sound action(s) and replanning "
+                                "after (dropped %d)",
+                                len(queued), len(plan.actions) - len(queued))
+                    break
         _COMBAT_QUEUE[0] = queued
         _COMBAT_QUEUE[1] = turn
         logger.info("Combat turn %s: planned %d actions%s (obj lethal=%d "
@@ -988,6 +1219,137 @@ def _llm_pick(state: dict[str, Any], options: list[dict[str, Any]],
 
 
 _RL_COMBAT = [None]   # [loaded MaskablePPO model]
+
+_RUN_POLICY = ["heuristic"]   # "heuristic" | "rl"
+_RL_RUN = [None]              # [loaded hierarchical run-agent model]
+
+# The phases the run agent is allowed to drive. Combat is deliberately absent:
+# these checkpoints were trained in HierarchicalRunEnv, which resolves every
+# combat through a separate controller before the run policy is asked to act,
+# so the run policy has never once emitted a combat action. Letting it try
+# would be sampling a slice of its action space that got no gradient.
+_RL_RUN_PHASES_ACTIVE = [None]   # [frozenset] -- the subset actually in use
+
+_RL_RUN_PHASES = frozenset({
+    Phase.MAP_SELECT, Phase.CARD_REWARD, Phase.REST,
+    Phase.SHOP, Phase.EVENT, Phase.TREASURE, Phase.BOSS_RELIC,
+})
+
+
+def _rl_run_action(state: dict[str, Any]) -> int | None:
+    """Next out-of-combat action from the trained run agent, or None.
+
+    Same shape as _rl_combat_action, and for the same reason: the bridge's
+    own RunStateAdapter emits a 151-dim vector while every trained run agent
+    expects the 4778-dim RICH vector, so the payload has to be turned back
+    into real simulator objects and encoded with the encoder the model
+    trained against. The ACTION side still goes through RunStateAdapter --
+    the 157-action layout is shared, and run_env.py is authoritative for both
+    the env and the bridge.
+
+    Returns None on any doubt at all (no model, unusable payload, empty or
+    disagreeing mask); the caller then plays the heuristic. A wrong action
+    here is worse than a heuristic one, because it looks deliberate.
+    """
+    model = _RL_RUN[0]
+    if model is None:
+        return None
+
+    import numpy as _np
+
+    from sts2_env.bridge.run_reconstruct import encode_run_observation
+    from sts2_env.bridge.run_state_adapter import RunStateAdapter
+
+    obs = encode_run_observation(state)
+    if obs is None:
+        return None
+
+    mask = _np.asarray(RunStateAdapter().compute_action_mask(state), dtype=bool)
+    if not mask.any():
+        return None
+
+    action, _ = model.predict(obs, action_masks=mask, deterministic=True)
+    action = int(action)
+    if not (0 <= action < mask.size) or not mask[action]:
+        # predict() should never return a masked-out index; if it does, the
+        # mask and the model disagree about the layout and we should not
+        # guess which one is right.
+        logger.error(
+            "run agent returned action %d which the mask forbids -- falling "
+            "back to the heuristic for this decision.", action,
+        )
+        return None
+    return action
+
+
+def _try_rl_run_action(client: Any, state: dict[str, Any], verbose: bool) -> bool:
+    """Play one out-of-combat action with the run agent. False = not handled."""
+    action = _rl_run_action(state)
+    if action is None:
+        return False
+
+    from sts2_env.bridge.run_state_adapter import RunStateAdapter
+
+    decoded = RunStateAdapter().decode_action(action, state)
+    if decoded.get("phase") == "combat":
+        # Should be unreachable: _RL_RUN_PHASES excludes combat. Refuse
+        # rather than dispatch a combat action from the run policy.
+        logger.error("run agent decoded a COMBAT action in phase %r -- "
+                     "refusing; using the heuristic.", state.get("type"))
+        return False
+
+    # Log what the HEURISTIC would have done next to what the agent did.
+    #
+    # The option ORDERING between the training env (which indexes internal sim
+    # lists) and the bridge decoder (which indexes wire payload arrays) is
+    # only proven aligned for shop and non-first map moves; rest, event, boss
+    # relic, treasure and the first map move of each act are unproven. A
+    # positionally-trained policy reading a differently-ordered list picks the
+    # wrong option while looking perfectly healthy, and nothing in the game
+    # would say so.
+    #
+    # This does not detect that on its own -- agreement is not correctness --
+    # but a phase where the two NEVER agree, or where the agent always picks
+    # index 0, is the signature of exactly that failure, and it is free to
+    # collect.
+    heuristic = _heuristic_choice_for_log(state)
+    logger.info("RUN-RL (%s): action %d -> %s(%s) | heuristic would pick %s",
+                state.get("type"), action, decoded.get("method"),
+                decoded.get("args"), heuristic)
+    _send_noncombat_action(client, decoded)
+    return True
+
+
+def _heuristic_choice_for_log(state: dict[str, Any]) -> Any:
+    """What the hand-written rules would have chosen. Logging only."""
+    phase = _phase_for_state(state)
+    msg_type = state.get("type", "")
+    try:
+        if phase == Phase.MAP_SELECT:
+            return _pick_map_node(state)
+        if phase == Phase.CARD_REWARD:
+            if msg_type == BridgeStateType.CARD_BUNDLE:
+                return _pick_card_bundle_index(state)
+            if msg_type == BridgeStateType.CARD_SELECT:
+                return _pick_card_select_indexes(state)
+            if msg_type == BridgeStateType.REWARD_SCREEN:
+                return _pick_reward_screen_option(state)
+            return _pick_card_reward_index(state)
+        if phase == Phase.REST:
+            return _pick_rest_option(state)
+        if phase == Phase.SHOP:
+            return _pick_shop_option(state)
+        if phase == Phase.EVENT:
+            if msg_type == BridgeStateType.CRYSTAL_SPHERE:
+                return _pick_crystal_sphere_option(state)
+            return _pick_event_option(state)
+        if phase == Phase.TREASURE:
+            return _pick_treasure_option(state)
+        if phase == Phase.BOSS_RELIC:
+            return _pick_boss_relic_option(state)
+    except Exception as exc:  # logging must never break a decision
+        return f"<error {type(exc).__name__}>"
+    return None
 
 
 def _rl_combat_action(state: dict[str, Any]) -> int | None:
@@ -1331,6 +1693,30 @@ def main() -> None:
     parser.add_argument("--rl-combat-model", default=None,
                         help="Trained 115-action rich-obs combat model for "
                              "--combat-policy rl")
+    parser.add_argument(
+        "--run-policy",
+        choices=["heuristic", "rl"],
+        default="heuristic",
+        help="Who makes the OUT-OF-COMBAT decisions (map, card rewards, "
+             "rest, shop, event, treasure, boss relic): 'heuristic' = the "
+             "hand-written _pick_* rules (default), 'rl' = a trained "
+             "hierarchical run agent via --rl-run-model. Combat is "
+             "unaffected either way; it stays with --combat-policy.",
+    )
+    parser.add_argument("--rl-run-model", default=None,
+                        help="Trained hierarchical run agent (157 actions / "
+                             "4778-dim rich obs) for --run-policy rl.")
+    parser.add_argument(
+        "--rl-run-phases", default=None,
+        help="Comma-separated subset of out-of-combat phases the RL run "
+             "agent may drive; the rest fall back to the heuristics. "
+             "Choices: MAP_SELECT, CARD_REWARD, REST, SHOP, EVENT, "
+             "TREASURE, BOSS_RELIC. Default: all of them. "
+             "Measured live 2026-07-30 (session 12, 81 decisions): the run "
+             "agent picked card-reward slot 2 on 11 of 11 offers -- a "
+             "collapsed policy on the primary deck-building decision -- "
+             "while map choices varied sensibly. Use this to keep RL where "
+             "it is choosing and heuristics where it is not.")
     parser.add_argument("--llm-gpu-layers", type=int, default=34)
     parser.add_argument("--llm-ctx", type=int, default=4096)
     parser.add_argument("--llm-max-tokens", type=int, default=48)
@@ -1421,6 +1807,9 @@ def main() -> None:
         combat_delay=args.combat_delay,
         combat_policy=args.combat_policy,
         rl_combat_model=args.rl_combat_model,
+        run_policy=args.run_policy,
+        rl_run_model=args.rl_run_model,
+        rl_run_phases=args.rl_run_phases,
         llm_model=args.llm_model,
         llm_gpu_layers=args.llm_gpu_layers,
         llm_ctx=args.llm_ctx,
