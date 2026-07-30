@@ -361,9 +361,20 @@ def _eval_worker(args: dict) -> list[dict]:
     )
     records = []
     for seed in args["seeds"]:
-        pol = _play_episode(env, model, seed)
+        # A FRESH env per arm per seed. Sharing one env across both arms (and
+        # across seeds) makes this an uncontrolled A/B: each arm inherits
+        # whatever the previous one left behind, with the mcts arm always
+        # second. It showed up as a violated invariant -- seed 10000013 gave
+        # policy floor 16 vs mcts floor 4 with ZERO action overrides, which is
+        # impossible for two runs taking identical actions. The same comparison
+        # with fresh envs (scripts/mcts_purity_check.py --level run) is
+        # identical on every seed tested, including that one, so the search
+        # itself is side-effect free and the harness was the confound.
+        pol = _play_episode(_make_env(args["ascension"], args["max_act_count"]),
+                            model, seed)
         pol["arm"] = "policy"
-        mcts = _play_episode(env, model, seed, mcts_cfg=cfg, evaluator=evaluator)
+        mcts = _play_episode(_make_env(args["ascension"], args["max_act_count"]),
+                             model, seed, mcts_cfg=cfg, evaluator=evaluator)
         mcts["arm"] = "mcts"
         records.extend([pol, mcts])
         print(
