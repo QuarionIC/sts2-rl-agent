@@ -13,6 +13,7 @@ using MegaCrit.Sts2.Core.AutoSlay.Helpers;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Merchant;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Map;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.Events;
@@ -144,6 +145,50 @@ internal static class RunStateBridgeFields
                     }
                     payload["potions"] = potions;
                 }
+
+                // ---- Fields for the RL run agent's rich observation ----
+                //
+                // The trained run agents consume a 4778-dim vector whose
+                // largest single block is a per-card deck bag, plus seven
+                // Necrobinder archetype scalars (summon / soul-generator /
+                // soul-payoff / doom / ethereal / Osty-attack / zero-cost)
+                // and a 3-row map lookahead. Together those are 628 dims --
+                // 13% of the observation -- and NONE of them can be derived
+                // from the deck_size and relic_count scalars above. Sending
+                // zeros there does not degrade the policy gracefully; it
+                // hands it an observation it never saw in training.
+                //
+                // KEY NAMING: deliberately "run_deck", NOT "deck". Apply is
+                // called on COMBAT payloads too (RlCombatHandler.cs:569), and
+                // those already carry ["deck"] as fully serialized combat
+                // cards -- which combat_reconstruct.py lists in
+                // REQUIRED_FOR_PLANNING. Writing a differently-shaped deck to
+                // that key would have silently broken combat planning, which
+                // is the one thing in this system that currently works well.
+                //
+                // Skipped entirely for combat payloads: the run agent only
+                // ever acts out of combat, so there is no reason to add a
+                // ~50-point map graph to every single combat action message.
+                if (!payload.ContainsKey("deck"))
+                {
+                    payload["run_deck"] = player.Deck.Cards
+                        .Select(card => new Dictionary<string, object>
+                        {
+                            ["id"] = card.Id.Entry,
+                            ["upgraded"] = card.IsUpgraded,
+                            ["upgrade_level"] = card.CurrentUpgradeLevel,
+                            // Instance-applied keywords; see SerializeCard.
+                            // These feed the ethereal / zero-cost archetype
+                            // scalars, which are deck-composition features the
+                            // run agent uses to judge card rewards.
+                            ["keywords"] = card.Keywords
+                                .Select(k => k.ToString())
+                                .ToList(),
+                        })
+                        .ToList();
+
+                    AddMapGraph(payload, runState);
+                }
             }
         }
         catch (Exception ex)
@@ -152,6 +197,54 @@ internal static class RunStateBridgeFields
         }
 
         return payload;
+    }
+
+    /// <summary>
+    /// Serialize the current act's map graph and the visited path.
+    ///
+    /// GetAllMapPoints() walks the Grid ONLY. The starting point and the
+    /// boss point(s) are separate MapPoint objects that live outside the
+    /// grid, which is why NMapScreen adds them explicitly rather than
+    /// relying on the enumeration. Omitting them would silently truncate
+    /// the graph at both ends -- and the boss end is precisely what the
+    /// map-lookahead segment is for.
+    /// </summary>
+    private static void AddMapGraph(Dictionary<string, object> payload, RunState runState)
+    {
+        ActMap map = runState.Map;
+        if (map == null)
+            return;
+
+        var points = new List<MapPoint>(map.GetAllMapPoints());
+        if (map.StartingMapPoint != null) points.Add(map.StartingMapPoint);
+        if (map.BossMapPoint != null) points.Add(map.BossMapPoint);
+        if (map.SecondBossMapPoint != null) points.Add(map.SecondBossMapPoint);
+
+        payload["act_map"] = points
+            .Select(point => new Dictionary<string, object>
+            {
+                ["row"] = point.coord.row,
+                ["col"] = point.coord.col,
+                ["type"] = point.PointType.ToString(),
+                // MapCoord is a struct with public FIELDS; hand-serialize it
+                // rather than letting System.Text.Json reflect over it.
+                ["children"] = point.Children
+                    .Select(child => new Dictionary<string, object>
+                    {
+                        ["row"] = child.coord.row,
+                        ["col"] = child.coord.col,
+                    })
+                    .ToList(),
+            })
+            .ToList();
+
+        payload["visited_coords"] = runState.VisitedMapCoords
+            .Select(coord => new Dictionary<string, object>
+            {
+                ["row"] = coord.row,
+                ["col"] = coord.col,
+            })
+            .ToList();
     }
 }
 

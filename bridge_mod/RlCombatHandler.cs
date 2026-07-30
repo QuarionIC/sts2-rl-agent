@@ -33,12 +33,59 @@ using MegaCrit.Sts2.Core.MonsterMoves.Intents;
 using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
+using MegaCrit.Sts2.Core.Saves;
 
 namespace STS2BridgeMod;
 
 public class RlCombatHandler : IRoomHandler, IHandler
 {
-    private static readonly TimeSpan AgentTimeout = TimeSpan.FromSeconds(30);
+    /// How long to wait for one agent decision before giving up and playing a
+    /// random card. Must exceed the planner's own budget
+    /// (PlannerConfig.time_budget_s, 90s for the whole-combat search in
+    /// agent_runner._combat_planner_action) or a long plan is discarded and
+    /// the mod plays randomly instead -- silently throwing away the search.
+    private static readonly TimeSpan AgentTimeout = TimeSpan.FromSeconds(150);
+
+    /// How often to tell the watchdog we are alive while the agent thinks.
+    /// The watchdog measures NO PROGRESS, so without this a long plan looks
+    /// identical to a hung game and AutoSlayTimeoutException kills the run.
+    private static readonly TimeSpan WatchdogHeartbeat = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Await one agent decision, keeping the watchdog alive while it thinks.
+    ///
+    /// The AutoSlay watchdog measures NO PROGRESS rather than response
+    /// latency, so a long deterministic plan is indistinguishable from a hung
+    /// game. Measured live 2026-07-30 at the stock 30s threshold: a 28s plan
+    /// tripped it at 39.9s and RlAutoSlayer aborted the run one card into the
+    /// first fight.
+    ///
+    /// Heartbeating is preferable to raising the global timeout, for two
+    /// reasons. First, it is the only option that works:
+    /// AutoSlayConfig.watchdogTimeout is a static readonly (initonly) field
+    /// and .NET 9 rejects FieldInfo.SetValue on it once the type is
+    /// initialized ("Cannot set initonly static field"). Second, it is
+    /// narrower -- genuine stuck-detection stays intact everywhere else, and
+    /// only the interval where we KNOW the agent is working is excused.
+    /// AgentTimeout still bounds the wait, so a dead client cannot hang the
+    /// run forever.
+    /// </summary>
+    private static async Task<string?> AwaitAgentDecisionAsync(
+        string stateJson, CancellationToken ct)
+    {
+        Task<string?> pending = BridgeServer.Instance.SendStateAndWaitForActionAsync(
+            stateJson, AgentTimeout, ct);
+        while (true)
+        {
+            Task finished = await Task.WhenAny(
+                pending, Task.Delay(WatchdogHeartbeat, ct));
+            if (finished == pending)
+            {
+                return await pending;
+            }
+            RlAutoSlayer.CurrentWatchdog?.Reset("Waiting for agent decision");
+        }
+    }
     private const int MaxRlHandSlots = 10;
 
     public RoomType[] HandledTypes => new RoomType[]
@@ -104,9 +151,7 @@ public class RlCombatHandler : IRoomHandler, IHandler
                     try
                     {
                         Logger.Log("[RlCombat] State sent, waiting for agent response...");
-                        responseJson = await BridgeServer.Instance.SendStateAndWaitForActionAsync(
-                            stateJson,
-                            AgentTimeout, ct);
+                        responseJson = await AwaitAgentDecisionAsync(stateJson, ct);
                         Logger.Log($"[RlCombat] Agent response: {responseJson ?? "null"}");
                     }
                     catch (Exception ex)
@@ -506,8 +551,32 @@ public class RlCombatHandler : IRoomHandler, IHandler
                 ["deck"] = player?.Deck?.Cards?.Select(SerializeCard).ToList()
                     ?? new List<Dictionary<string, object>>(),
                 ["round"] = combatState?.RoundNumber ?? 0,
+                // THE GAME'S LIVE SHUFFLE RNG.
+                //
+                // The simulator cannot guess this: the game draws from
+                // MegaRandom (xoshiro256**, four 64-bit state words) while
+                // sts2_env.core.rng.Rng wraps a .NET System.Random clone.
+                // Different generators, so a reconstructed combat has never
+                // been able to reshuffle the way the game will.
+                //
+                // Measured live: 83 of 104 whole-combat plans truncated at
+                // the first reshuffle, and 100% of observed plan divergences
+                // were "different cards". Sending the four state words lets
+                // the simulation continue the SAME stream rather than start a
+                // parallel one that merely looks random.
+                ["shuffle_rng"] = SerializeShuffleRng(runState),
                 ["floor"] = runState?.TotalFloor ?? 0,
                 ["act"] = (runState?.CurrentActIndex ?? 0) + 1,
+                // PETS (Osty). Osty is a Creature in CombatState.Allies with
+                // PetOwner set, and it was never serialized at all -- so the
+                // planner searched every Necrobinder fight with no Osty, while
+                // the damage pipeline redirects player damage to it and
+                // several cards scale off its HP. For a Necrobinder agent that
+                // is not a detail; it is most of the character.
+                ["pets"] = (combatState?.Allies ?? new List<Creature>())
+                    .Where(c => c.IsPet)
+                    .Select(SerializePet)
+                    .ToList(),
             };
 
             // Run-level fields (gold, deck_size, relic_count, ...). Keeps the
@@ -520,6 +589,36 @@ public class RlCombatHandler : IRoomHandler, IHandler
         {
             Logger.Log($"[RlCombat] Error serializing combat state: {ex.Message}");
             return "{\"type\":\"combat_action\",\"error\":\"serialization_failed\"}";
+        }
+    }
+
+    /// <summary>
+    /// The Shuffle stream's live state, or null when unavailable.
+    /// RunState.Rng is a public RunRngSet; RunRngSet.Shuffle is the stream
+    /// the game documents as "how your draw pile gets shuffled, both at the
+    /// start of combat and when you run out of cards in it" -- exactly the
+    /// event the planner keeps mispredicting.
+    /// </summary>
+    private static Dictionary<string, object>? SerializeShuffleRng(RunState? runState)
+    {
+        try
+        {
+            SerializableRng ser = runState?.Rng?.Shuffle?.ToSerializable();
+            if (ser == null)
+                return null;
+            return new Dictionary<string, object>
+            {
+                ["counter"] = ser.counter,
+                ["state0"] = ser.state0,
+                ["state1"] = ser.state1,
+                ["state2"] = ser.state2,
+                ["state3"] = ser.state3,
+            };
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[RlCombat] Could not read shuffle RNG: {ex.Message}");
+            return null;
         }
     }
 
@@ -544,12 +643,47 @@ public class RlCombatHandler : IRoomHandler, IHandler
             ["type"] = card.Type.ToString(),
             ["target"] = card.TargetType.ToString(),
             ["playable"] = card.CanPlay(out reason, out preventer),
+            // KEYWORDS, including globally-granted ones (Ethereal from Hex,
+            // etc). Without these the simulator rebuilds each card from its
+            // id alone and loses every instance-applied keyword: an Ethereal
+            // card was planned as if it would survive the turn. Measured
+            // against real runs, a DEFEND_NECROBINDER carrying a runtime
+            // 'ethereal' keyword reconstructed with no keywords at all.
+            ["keywords"] = card.Keywords.Select(k => k.ToString()).ToList(),
         };
 
         if (card.IsUpgraded)
             result["upgraded"] = true;
 
         return result;
+    }
+
+    /// <summary>
+    /// Serialize a pet (Osty) so the planner can reconstruct it. Same shape as
+    /// SerializeEnemy, minus the intent block -- pets act via the owner's
+    /// cards, not via a monster move.
+    /// </summary>
+    private Dictionary<string, object> SerializePet(Creature pet)
+    {
+        var data = new Dictionary<string, object>
+        {
+            ["hp"] = pet.CurrentHp,
+            ["max_hp"] = pet.MaxHp,
+            ["block"] = pet.Block,
+            ["is_alive"] = pet.IsAlive,
+        };
+        var powers = new List<Dictionary<string, object>>();
+        foreach (PowerModel power in pet.Powers)
+        {
+            powers.Add(new Dictionary<string, object>
+            {
+                ["id"] = power.Id.Entry,
+                ["amount"] = power.Amount,
+            });
+        }
+        if (powers.Count > 0)
+            data["powers"] = powers;
+        return data;
     }
 
     private Dictionary<string, object> SerializeEnemy(Creature enemy)
