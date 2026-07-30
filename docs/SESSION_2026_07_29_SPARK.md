@@ -133,10 +133,50 @@ because `_steps_combat_ref` holds a strong reference, so address reuse is not
 possible). Rather than keep guessing, the gate now builds a fresh env per arm
 per seed — what an A/B must do regardless — and is being re-run.
 
-**So the honest state of the AlphaZero question: still unmeasured.** Two harness
-bugs have been found and fixed in the measurement path; neither the old NO-GO nor
-the −0.56 supersedes the other, because both were measured on uncontrolled
-comparisons. Cost is ~250 s per seed at this budget.
+### Gate run 2 — controlled A/B, fresh env per arm (16 seeds)
+
+```
+arm      wins  win_rate  mean_floor
+policy      3     18.8%      12.75
+mcts        4     25.0%      12.19
+
+paired delta: -0.56 +/- 1.15      excluding seed 10000013: +0.20 +/- 0.92
+MCTS: 2552 searched decisions, 24 overrides (1%), 1364 ms/decision
+```
+
+**Identical to the uncontrolled run**, so env sharing was not the confound
+either. Delta is indistinguishable from zero in both directions.
+
+### What the gate is actually telling us: the search budget is far too small
+
+**24 overrides in 2552 searched decisions is 1%.** The search almost never
+disagrees with the policy, so it cannot move the outcome in either direction.
+That is not evidence that search does not help — it is evidence that **48
+simulations is not a search**. AlphaZero used ~800 simulations per move; 48 sims
+spread over 10–30 legal actions is barely one visit each, so PUCT never
+accumulates enough evidence to overcome the policy prior (c_puct 1.5).
+
+So the correct next experiment is a **budget sweep**, not another 48-sim gate:
+run the gate at 48 / 200 / 800 sims on the same seeds and plot override rate and
+paired delta against budget. If override rate stays near 1% as the budget grows
+20×, the priors dominate and MCTS is genuinely the wrong operator here. If it
+climbs, the earlier NO-GO was a budget artifact. At 1364 ms/decision for 48 sims,
+800 sims is ~23 s/decision — roughly 1 h per seed, so a 6-seed sweep is the
+affordable version.
+
+### Still unexplained: seed 10000013
+
+`0 overrides` yet policy floor 16 vs search floor 4. `gate_action_trace.py`
+settled part of it: the arms **did** take different actions (step 57, policy 1 vs
+search 29), and the gate's override counter could not see it because it compares
+`argmax(visits)` against a policy evaluation made AFTER the search rather than
+against the policy-only arm's action. So the counter is **broken as an
+arm-divergence metric**.
+
+But that leaves the deeper question open: at step 57 the two arms had taken
+identical actions for 57 steps, and arm B's own policy returned 29 where arm A's
+returned 1. Either state diverged with no action differing, or the policy forward
+pass is not reproducible across the two contexts. Not yet resolved.
 
 ### Second expert: the beam planner
 
