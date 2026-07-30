@@ -116,6 +116,77 @@ def play(make_env, model, seeds, run_search: bool, n_sims: int,
     return out
 
 
+def play_run(make_env, model, seeds, run_search: bool, n_sims: int,
+             max_steps: int = 4000):
+    """Same experiment at the RUN level -- the configuration the gate used.
+
+    The combat-level check passing does not clear the gate's setup. The gate
+    calls ``mcts_action_distribution(env, ...)`` with a RichSTS2RunEnv, which
+    additionally builds run-level observations from the live env
+    (``make_run_obs_builder``) and takes its root mask from the env's combat
+    slice. That extra coupling to the live env is untested by the combat-level
+    check, and it is precisely where "0 overrides yet floor 16 vs floor 1"
+    would come from. A 157-action policy is required.
+    """
+    from sts2_env.run.run_manager import RunManager
+
+    if run_search:
+        from sts2_env.search.combat_mcts import (
+            MCTSConfig,
+            mcts_action_distribution,
+        )
+
+    out = []
+    for seed in seeds:
+        env = make_env()
+        obs, info = env.reset(seed=seed)
+        mgr = env._mgr
+        done = tr = False
+        n = searched = 0
+        t0 = time.time()
+        err = None
+        while not (done or tr) and n < max_steps:
+            mask = np.asarray(env.action_masks(), dtype=bool)
+            legal = np.flatnonzero(mask)
+            if not legal.size:
+                break
+            action, _ = model.predict(obs, action_masks=mask, deterministic=True)
+            action = int(action)
+
+            if (run_search and mgr.phase == RunManager.PHASE_COMBAT
+                    and legal.size > 1):
+                combat = mgr.get_combat_state()
+                if combat is not None and not combat.is_over:
+                    try:
+                        mcts_action_distribution(
+                            env, model, n_sims=n_sims,
+                            config=MCTSConfig(seed=seed * 1000 + n),
+                            base_seed=seed * 1000 + n,
+                        )
+                        searched += 1
+                    except Exception as exc:
+                        err = repr(exc)[:220]
+                        break
+
+            obs, r, done, tr, info = env.step(action)
+            n += 1
+        rec = {
+            "seed": seed,
+            "hp": int(mgr.run_state.player.current_hp),
+            "survived": not bool(mgr.run_state.player.is_dead),
+            "floor": int(info.get("floor", 0)),
+            "won": bool(info.get("won", False)),
+            "enemy_hp": 0,
+            "steps": n,
+            "searched": searched,
+            "wall_s": round(time.time() - t0, 1),
+        }
+        if err:
+            rec["error"] = err
+        out.append(rec)
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -126,23 +197,40 @@ def main() -> int:
     ap.add_argument("--ascension", type=int, default=0)
     ap.add_argument("--max-act-count", type=int, default=1)
     ap.add_argument("--device", default="cpu")
+    ap.add_argument("--level", choices=["combat", "run"], default="combat",
+                    help="combat: bare CombatState search (needs a 115-action "
+                         "model). run: search via the run env, the exact "
+                         "configuration the failing ExIt gate used (needs a "
+                         "157-action model).")
     ap.add_argument("--json-out", default="output/mcts_purity.json")
     args = ap.parse_args()
 
     import sts2_env.events  # noqa: F401
     from sb3_contrib import MaskablePPO
 
-    from sts2_env.gym_env.rich_combat_env import RichSTS2CombatEnv
-
     seeds = [args.seed_base + i for i in range(args.seeds)]
 
-    def fresh_env():
-        e = RichSTS2CombatEnv(character_id="Necrobinder",
-                              ascension_level=args.ascension,
-                              encounter_pools=("act1",),
-                              deck_sampler="progressive")
-        e.set_shaping_scale(0.0)
-        return e
+    if args.level == "run":
+        from sts2_env.gym_env.rich_run_env import RichSTS2RunEnv
+
+        def fresh_env():
+            e = RichSTS2RunEnv(character_id="Necrobinder",
+                               ascension_level=args.ascension,
+                               max_act_count=args.max_act_count)
+            e.set_shaping_scale(0.0)
+            return e
+        runner = play_run
+    else:
+        from sts2_env.gym_env.rich_combat_env import RichSTS2CombatEnv
+
+        def fresh_env():
+            e = RichSTS2CombatEnv(character_id="Necrobinder",
+                                  ascension_level=args.ascension,
+                                  encounter_pools=("act1",),
+                                  deck_sampler="progressive")
+            e.set_shaping_scale(0.0)
+            return e
+        runner = play
 
     model = MaskablePPO.load(args.model, device=args.device)
 
@@ -150,9 +238,9 @@ def main() -> int:
     print(f"seeds  : {seeds[0]}..{seeds[-1]}  n_sims={args.n_sims}\n")
 
     print("arm A: policy only ...", flush=True)
-    a = play(fresh_env, model, seeds, run_search=False, n_sims=args.n_sims)
+    a = runner(fresh_env, model, seeds, run_search=False, n_sims=args.n_sims)
     print("arm B: policy + search-then-discard ...", flush=True)
-    b = play(fresh_env, model, seeds, run_search=True, n_sims=args.n_sims)
+    b = runner(fresh_env, model, seeds, run_search=True, n_sims=args.n_sims)
 
     print(f"\n{'seed':>10} {'A hp':>6} {'B hp':>6} {'A surv':>7} {'B surv':>7} "
           f"{'A enHP':>7} {'B enHP':>7} {'searches':>9} {'same?':>6}")

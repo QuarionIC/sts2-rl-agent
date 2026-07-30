@@ -50,16 +50,31 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
 def git_rev() -> tuple[str, bool]:
+    """Code version for the result file.
+
+    Falls back to a GIT_REV stamp file when git is unavailable. The Spark runs
+    from a synced tarball rather than a clone, so `git rev-parse` found nothing
+    there and every remote result recorded "code version : unknown" -- weaker
+    provenance than any other result in this repo, and the exact gap that let a
+    mid-flight patch confound an earlier verification run.
+    """
     root = Path(__file__).resolve().parent.parent
     try:
         rev = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
                              capture_output=True, text=True, cwd=root).stdout.strip()
-        dirty = bool(subprocess.run(["git", "status", "--porcelain"],
-                                    capture_output=True, text=True,
-                                    cwd=root).stdout.strip())
-        return rev or "unknown", dirty
+        if rev:
+            dirty = bool(subprocess.run(["git", "status", "--porcelain"],
+                                        capture_output=True, text=True,
+                                        cwd=root).stdout.strip())
+            return rev, dirty
     except Exception:
-        return "unknown", False
+        pass
+    stamp = root / "GIT_REV"
+    if stamp.exists():
+        txt = stamp.read_text(encoding="utf-8").strip()
+        rev, _, flag = txt.partition(" ")
+        return (rev or "unknown"), (flag.strip() == "dirty")
+    return "unknown", False
 
 
 class _StubLLM:
