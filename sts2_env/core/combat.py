@@ -8,9 +8,18 @@ hooks, and hook-driven relic/power dispatch.
 
 from __future__ import annotations
 
+import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Sequence
+
+#: Use the game's order-INDEPENDENT reshuffle (sort, then shuffle) instead of a
+#: raw shuffle when the discard pile is folded back into the draw pile.
+#:
+#: See the parity note in CombatState._shuffle_if_needed. Defaults to False so
+#: existing seeded results are unchanged; enabling it is a deliberate, breaking
+#: re-baseline that buys client parity.
+STABLE_RESHUFFLE: bool = os.environ.get("STS2_STABLE_RESHUFFLE", "") == "1"
 
 # Import the powers package (not just sts2_env.powers.base) so every Power
 # subclass's registration decorator runs before any Creature.apply_power /
@@ -1844,7 +1853,45 @@ class CombatState:
 
             state.draw[:] = list(state.discard)
             state.discard.clear()
-            self.shuffle_rng.shuffle(state.draw)
+            # PARITY NOTE -- reshuffle is order-dependent here, and the game's
+            # is not.
+            #
+            # The client reshuffles with StableShuffle
+            # (decompiled/MegaCrit.Sts2.Core.Commands/CardPileCmd.cs:798),
+            # which SORTS before shuffling and is therefore independent of the
+            # incoming discard order. A raw shuffle is not: the result depends
+            # on the order the discard pile happened to accumulate, i.e. on
+            # play order. So even with identical RNG state the simulated
+            # post-reshuffle draw order can differ from the game's, which
+            # breaks multi-turn plan replay across the bridge.
+            #
+            # This module already has an order-independent shuffle
+            # (stable_shuffle_cards, used by several card effects), so the
+            # inconsistency is internal as well as cross-client.
+            #
+            # DEFAULT IS THE OLD BEHAVIOUR ON PURPOSE. Switching it changes
+            # every seeded outcome in the project -- training baselines, eval
+            # numbers and the published floor baseline all move. Set
+            # STABLE_RESHUFFLE = True (or STS2_STABLE_RESHUFFLE=1) to adopt
+            # game parity, and re-baseline everything seeded when you do.
+            # A RECONSTRUCTED LIVE COMBAT ALWAYS USES GAME PARITY.
+            #
+            # The global flag above governs the SIMULATION, where flipping it
+            # would move every seeded baseline. But when we are mirroring an
+            # actual game -- combat_reconstruct sets _force_stable_reshuffle
+            # alongside the game's real RNG stream -- there is no baseline to
+            # protect and only one correct answer: the game reshuffles with
+            # StableShuffle (ListExtensions.cs:22 -- sort a copy by
+            # (Id, CurrentUpgradeLevel), copy back, then Fisher-Yates), via
+            # CardPileCmd.Shuffle -> list.StableShuffle(RunState.Rng.Shuffle).
+            #
+            # Getting the RNG right without this is not enough: the same
+            # stream applied to a differently-ordered list yields a different
+            # deal, which is the whole point of "unstable".
+            if STABLE_RESHUFFLE or getattr(self, "_force_stable_reshuffle", False):
+                self.stable_shuffle_cards(state.draw, self.shuffle_rng)
+            else:
+                self.shuffle_rng.shuffle(state.draw)
             apply_enchantment_shuffle_order(state.draw, is_initial_shuffle=False)
             fire_after_shuffle(self, state.creature)
 
@@ -2641,7 +2688,23 @@ class CombatState:
         )
 
     def stable_shuffle_cards(self, cards: list[CardInstance], rng: Rng) -> None:
-        cards.sort(key=lambda card: (card.card_id.name, card.upgraded))
+        """Sort, then shuffle -- the game's ListExtensions.StableShuffle.
+
+        The sort key is the game's ModelId ordering: Category (uniform across
+        cards) then Entry, ordinal. ``_wire_entry`` is that Entry verbatim,
+        recorded by combat_reconstruct; it is preferred wherever present
+        because our CardId enum name is not always the same string (the wire
+        says COUNTDOWN where the simulator registers COUNTDOWN_CARD, and mod
+        namespaces are stripped). Sorting a reconstructed pile by the enum
+        name orders it differently from the game and therefore deals
+        different cards even when the RNG stream matches exactly.
+
+        Pure-simulation callers have no ``_wire_entry`` and keep the previous
+        key, so seeded simulation results are unaffected.
+        """
+        cards.sort(key=lambda card: (
+            getattr(card, "_wire_entry", None) or card.card_id.name,
+            card.upgraded))
         rng.shuffle(cards)
 
     def move_card_to_discard(self, card: CardInstance | None) -> None:

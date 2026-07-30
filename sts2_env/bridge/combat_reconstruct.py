@@ -188,6 +188,7 @@ def _rebuild_potions(state: dict[str, Any]) -> list:
         return []
     size = max(int(p.get("slot", i) or 0) for i, p in enumerate(wire)) + 1
     belt: list = [None] * max(size, 3)
+    unknown: list[str] = []
     for i, spec in enumerate(wire):
         slot = int(spec.get("slot", i) or 0)
         pid = spec.get("id") or spec.get("potion_id")
@@ -197,11 +198,59 @@ def _rebuild_potions(state: dict[str, Any]) -> list:
         # and offering them as actions would produce moves the game rejects.
         if spec.get("can_use") is False:
             continue
-        try:
-            belt[slot] = create_potion(str(pid), slot=slot)
-        except Exception:
-            logger.debug("unknown potion id %r", pid)
+        inst = _make_potion(str(pid), slot)
+        if inst is None:
+            unknown.append(str(pid))
+            continue
+        belt[slot] = inst
+    if unknown:
+        # LOUD, not debug. An unresolved potion silently leaves its slot empty,
+        # get_action_mask then marks every potion action illegal, and the
+        # planner searches a game where that potion does not exist -- so the
+        # agent looks like it is "choosing not to drink" when it was never
+        # offered the option. This is the same silent id-mismatch that dropped
+        # COUNTDOWN from the deck and FRAIL_POWER from the powers; it was
+        # logged at DEBUG, i.e. invisible in every run so far.
+        logger.warning("potions: %d id(s) unresolved (%s) -- those slots are "
+                       "EMPTY, so the planner cannot use them",
+                       len(unknown), ", ".join(sorted(set(unknown))[:4]))
     return belt
+
+
+def _make_potion(raw: str, slot: int):
+    """Build a potion from a wire id, tolerating naming-convention drift.
+
+    ``create_potion`` expects the simulator's own spelling (PascalCase, e.g.
+    ``AttackPotion``) while the wire sends ``potion.Id.Entry``. Try the raw id
+    first, then a flattened match against the registered models, so a
+    ``ATTACK_POTION`` / ``attack potion`` / ``AttackPotion`` mismatch resolves
+    instead of silently emptying the slot.
+    """
+    from sts2_env.potions import all_potion_models, create_potion
+
+    try:
+        return create_potion(raw, slot=slot)
+    except Exception:
+        pass
+
+    def _flat(s: str) -> str:
+        return "".join(ch for ch in str(s).upper() if ch.isalnum())
+
+    want = _flat(raw)
+    variants = {want, want + "POTION"}
+    if want.endswith("POTION"):
+        variants.add(want[: -len("POTION")])
+
+    for model in all_potion_models():
+        pid = getattr(model, "potion_id", None) or getattr(model, "id", None)
+        if pid is None:
+            continue
+        if _flat(pid) in variants:
+            try:
+                return create_potion(pid, slot=slot)
+            except Exception:
+                return None
+    return None
 
 
 def _restore_ai_state(ai: Any, spec: dict[str, Any]) -> bool:
@@ -271,26 +320,251 @@ def _character_from(state: dict[str, Any]) -> str:
     return "Ironclad"
 
 
+class _RngChain:
+    """Minimal attribute holder for the shuffle-RNG resolution chain."""
+
+    # See MegaRandom._CLONE_OPAQUE -- this chain contains only RNG objects.
+    _CLONE_OPAQUE = True
+
+    __slots__ = ("player_state", "run_state", "rng", "shuffle")
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
+def _install_game_shuffle_rng(combat, raw) -> bool:
+    """Point the combat's shuffle stream at the GAME's live RNG.
+
+    CombatState.shuffle_rng resolves
+    ``_primary_player_state.player_state.run_state.rng.shuffle`` and falls
+    back to the combat's own Rng. In a reconstruction none of that chain
+    exists, so every reshuffle used a .NET-Random-derived stream seeded from
+    the ROUND NUMBER -- guaranteed to differ from the game, which uses
+    xoshiro256** (see sts2_env.core.mega_random).
+
+    That is the measured cause of the reshuffle divergence: 83 of 104
+    whole-combat plans truncated at the first reshuffle, and every observed
+    plan divergence was "different cards".
+
+    Only the ``shuffle`` stream is installed. Every other stream still
+    getattr-misses on this chain and falls back exactly as before, so this
+    change cannot alter monster AI, targeting or card generation.
+
+    Returns True when the game's stream was installed.
+    """
+    if not isinstance(raw, dict):
+        return False
+    try:
+        words = [int(raw[f"state{i}"]) for i in range(4)]
+    except (KeyError, TypeError, ValueError):
+        logger.warning(
+            "shuffle_rng present but unusable (%r); reshuffles will diverge "
+            "from the game as before.", raw)
+        return False
+
+    from sts2_env.core.mega_random import GameRng, MegaRandom
+
+    game_rng = GameRng(MegaRandom.from_state(*words),
+                       counter=int(raw.get("counter", 0) or 0))
+
+    holder = getattr(combat, "_primary_player_state", None)
+    if holder is None:
+        return False
+    player_state = getattr(holder, "player_state", None)
+    if player_state is None:
+        player_state = _RngChain()
+        try:
+            holder.player_state = player_state
+        except Exception:
+            return False
+    run_state = getattr(player_state, "run_state", None)
+    if run_state is None:
+        run_state = _RngChain()
+        try:
+            player_state.run_state = run_state
+        except Exception:
+            return False
+    rng_set = getattr(run_state, "rng", None)
+    if rng_set is None:
+        rng_set = _RngChain()
+        try:
+            run_state.rng = rng_set
+        except Exception:
+            return False
+    try:
+        rng_set.shuffle = game_rng
+    except Exception:
+        return False
+
+    # The RNG alone is not enough. The game reshuffles the discard pile with
+    # StableShuffle -- it SORTS the combined pile by (Id, upgrade level)
+    # before dealing -- so an identical RNG stream applied to our
+    # differently-ordered pile still produces a different draw order. That is
+    # exactly what "unstable" means in the game's own doc comment.
+    combat._force_stable_reshuffle = True
+    return True
+
+
 def _to_card_id(raw: str):
     """Wire card-id string -> CardId enum, or None if unrecognised.
 
-    Tried in order: exact name, upper-snake, and a normalised form that
-    strips non-alphanumerics, so wire spellings like "Strike_Ironclad" or
-    "strike ironclad" all resolve to STRIKE_IRONCLAD.
+    Tried in order: exact name, upper-snake, mod-namespace stripped, then a
+    normalised alphanumeric match that also tolerates a ``_CARD`` suffix on
+    either side.
+
+    The ``_CARD`` tolerance is not cosmetic. Live 2026-07-30 the wire sent
+    ``COUNTDOWN`` while the simulator registers ``COUNTDOWN_CARD``; the card
+    resolved to None and was DROPPED from every pile, so the planner searched
+    an 11-card deck against the game's 12. Turn 1 still looked plausible, but
+    from the first redraw the simulated hand was permanently off by one --
+    every one of 10 turn boundaries diverged.
     """
     from sts2_env.core.enums import CardId
 
     name = raw.replace("CardId.", "").strip()
-    for cand in (name, name.upper(), name.upper().replace(" ", "_").replace("-", "_")):
+    upper = name.upper().replace(" ", "_").replace("-", "_")
+    # Same mod-namespace handling as _normalize_monster_id: the wire qualifies
+    # modded content (ACTSFROMTHEPAST-X) that the simulator registers bare.
+    for pref in (p.replace("-", "_") for p in _MOD_PREFIXES):
+        if upper.startswith(pref):
+            upper = upper[len(pref):]
+            break
+
+    for cand in (name, name.upper(), upper):
         try:
             return CardId[cand]
         except KeyError:
             continue
-    flat = "".join(ch for ch in name.upper() if ch.isalnum())
-    for member in CardId:
-        if "".join(ch for ch in member.name if ch.isalnum()) == flat:
-            return member
-    return None
+
+    def _flat(s: str) -> str:
+        return "".join(ch for ch in s.upper() if ch.isalnum())
+
+    flat = _flat(upper)
+    variants = {flat, flat + "CARD"}
+    if flat.endswith("CARD"):
+        variants.add(flat[: -len("CARD")])
+
+    matches = [m for m in CardId if _flat(m.name) in variants]
+    # Prefer an exact match; only accept a suffix-variant when it is
+    # UNAMBIGUOUS, so this can never silently map one card onto another.
+    for m in matches:
+        if _flat(m.name) == flat:
+            return m
+    return matches[0] if len(matches) == 1 else None
+
+
+def _to_power_id(raw: str):
+    """Wire power-id string -> PowerId enum, or None if unrecognised.
+
+    Same normalisation ladder as :func:`_to_card_id`: exact, upper-snake,
+    mod-namespace stripped, then an alphanumeric-flattened unique match.
+    """
+    from sts2_env.core.enums import PowerId
+
+    name = str(raw).replace("PowerId.", "").strip()
+    upper = name.upper().replace(" ", "_").replace("-", "_")
+    for pref in (p.replace("-", "_") for p in _MOD_PREFIXES):
+        if upper.startswith(pref):
+            upper = upper[len(pref):]
+            break
+    for cand in (name, name.upper(), upper):
+        try:
+            return PowerId[cand]
+        except KeyError:
+            continue
+
+    def _flat(s: str) -> str:
+        return "".join(ch for ch in s.upper() if ch.isalnum())
+
+    flat = _flat(upper)
+    # Tolerate a _POWER suffix on either side, unambiguously. The wire sends
+    # FRAIL_POWER / RAVENOUS_POWER / THORNS_POWER where the simulator
+    # registers FRAIL / RAVENOUS / THORNS -- observed live 2026-07-30, and
+    # without this those powers were dropped, so the planner searched fights
+    # with no Frail and no Thorns on anyone. The simulator ALSO has genuine
+    # *_POWER names (GRAPPLE_POWER, MANGLE_POWER, FREE_POWER), so an exact
+    # match must win and a variant is accepted only when it is unique.
+    variants = {flat, flat + "POWER"}
+    if flat.endswith("POWER"):
+        variants.add(flat[: -len("POWER")])
+    matches = [m for m in PowerId if _flat(m.name) in variants]
+    for m in matches:
+        if _flat(m.name) == flat:
+            return m
+    return matches[0] if len(matches) == 1 else None
+
+
+def _restore_powers(creature, entries, label: str) -> None:
+    """Put the live powers back on a reconstructed creature.
+
+    The mod serialises powers for the player and every enemy
+    (RlCombatHandler.cs, ``["powers"] = [{id, amount}]``) and this module
+    consumed NONE of them. The planner therefore searched every fight with no
+    Strength, Vulnerable, Weak, Poison or Necrobinder power on anybody --
+    mispricing every attack and every incoming hit, in a search whose entire
+    objective is HP.
+
+    Instances are constructed directly rather than via
+    ``CombatState.apply_power_to`` on purpose: applying would fire on-apply
+    hooks and the player-debuff "skip first tick" rule, which are turn-time
+    behaviours, not restoration. We want the state as it already is.
+    """
+    from sts2_env.core.creature import get_power_class
+    from sts2_env.powers.base import PowerInstance
+
+    unknown: list[str] = []
+    behaviourless: list[str] = []
+    for entry in (entries or []):
+        raw = entry.get("id") or entry.get("power_id")
+        if not raw:
+            continue
+        pid = _to_power_id(str(raw))
+        if pid is None:
+            unknown.append(str(raw))
+            continue
+        try:
+            amount = int(entry.get("amount", 0) or 0)
+        except Exception:
+            amount = 0
+        if amount == 0:
+            continue
+        # Registered subclasses take (amount) only -- power_id is a CLASS
+        # attribute. Calling cls(pid, amount) raises TypeError, and falling
+        # back to a bare PowerInstance yields a power with the right amount
+        # and NO BEHAVIOUR: Strength that adds no damage, Vulnerable that
+        # increases nothing. That is worse than useless in an HP-objective
+        # search, so a behaviourless fallback is reported rather than hidden.
+        cls = get_power_class(pid)
+        inst = None
+        if cls is not None:
+            for args in ((amount,), (pid, amount)):
+                try:
+                    inst = cls(*args)
+                    break
+                except TypeError:
+                    continue
+                except Exception:
+                    break
+        if inst is None:
+            try:
+                inst = PowerInstance(pid, amount)
+                if cls is not None:
+                    behaviourless.append(pid.name)
+            except Exception:
+                unknown.append(str(raw))
+                continue
+        creature.powers[pid] = inst
+    if unknown:
+        logger.warning("%s: %d power id(s) unrecognised (e.g. %s) -- the "
+                       "planner will search without them",
+                       label, len(unknown), ", ".join(sorted(set(unknown))[:4]))
+    if behaviourless:
+        logger.error("%s: %d power(s) restored WITHOUT behaviour (%s) -- a "
+                     "registered class exists but could not be constructed, "
+                     "so the amount is right and the effect is missing",
+                     label, len(behaviourless),
+                     ", ".join(sorted(set(behaviourless))[:4]))
 
 
 @dataclass
@@ -353,6 +627,60 @@ def reconstruct_combat(state: dict[str, Any]) -> Any | None:
     combat_block = state.get("combat_state") or state
     player = combat_block.get("player") or {}
 
+    def _apply_wire_cost(card, raw_cost) -> None:
+        """Adopt the game's CURRENT cost for this card instance.
+
+        SerializeCard sends ``card.EnergyCost.GetWithModifiers(CostModifiers
+        .All)`` -- the cost the player would actually pay right now -- but
+        reconstruction rebuilt every card with create_card(), which yields the
+        card's BASE cost and threw the modifier away. A card discounted to 0
+        by an effect was therefore simulated at full price, so the planner
+        could not afford a line the game would have allowed and ended the turn
+        with energy unspent. That is the "ends turn with extra energy" symptom
+        seen live, from the search side rather than the objective side.
+
+        Only ``cost`` is written, never ``original_cost``: end_of_turn_cleanup
+        restores cost from original_cost, which is exactly right for the
+        common case of a modifier that expires this turn. A permanent
+        reduction will revert at the turn boundary in simulation -- a smaller
+        error than ignoring the discount outright.
+        """
+        if raw_cost is None:
+            return
+        try:
+            cost = int(raw_cost)
+        except (TypeError, ValueError):
+            return
+        # X-cost cards encode as a negative cost, and is_unplayable keys off
+        # cost < 0. Adopting a negative here could flip a playable card to
+        # unplayable, so leave those to the factory.
+        if cost < 0 or getattr(card, "has_energy_cost_x", False):
+            return
+        card.cost = cost
+
+    def _apply_wire_keywords(card, raw_keywords) -> None:
+        """Union the game's current keywords onto a reconstructed card.
+
+        create_card() rebuilds a card from its id, so any keyword applied to
+        the INSTANCE at runtime -- Ethereal granted by Hex, for example -- is
+        lost, and the planner simulates a card that behaves differently from
+        the one on screen.
+
+        UNION rather than replace, deliberately. The game's set includes its
+        canonical keywords, but the two vocabularies are maintained
+        independently; replacing would let any naming mismatch silently strip
+        a canonical keyword like "exhaust" or "unplayable" and change how the
+        card plays. Adding can only ever restore something that was missing.
+        """
+        if not raw_keywords:
+            return
+        try:
+            extra = {str(k).strip().lower() for k in raw_keywords if k}
+        except TypeError:
+            return
+        if extra:
+            card.keywords = set(card.keywords) | extra
+
     def _cards(key: str) -> list:
         """Materialise wire card entries into CardInstances.
 
@@ -373,14 +701,36 @@ def reconstruct_combat(state: dict[str, Any]) -> Any | None:
                 unknown.append(str(raw))
                 continue
             try:
-                out.append(create_card(enum_id, upgraded=bool(c.get("upgraded"))))
+                card = create_card(enum_id, upgraded=bool(c.get("upgraded")))
             except Exception:
                 unknown.append(str(raw))
+                continue
+            _apply_wire_cost(card, c.get("cost"))
+            _apply_wire_keywords(card, c.get("keywords"))
+            # Remember the GAME's own id string. StableShuffle sorts by
+            # ModelId (Category, then Entry, ordinal) and Category is uniform
+            # across cards, so Entry -- this exact string -- is the sort key
+            # that decides the post-reshuffle deal. Our CardId enum name is
+            # NOT always the same string: _to_card_id deliberately tolerates
+            # a missing/extra _CARD suffix (the wire says COUNTDOWN where the
+            # simulator registers COUNTDOWN_CARD) and strips mod namespaces.
+            # Sorting by the enum name would order the pile differently from
+            # the game and deal different cards even with a perfect RNG.
+            card._wire_entry = str(raw)
+            out.append(card)
         if unknown:
             logger.warning("%s: %d/%d card ids unrecognised (e.g. %s)",
                            key, len(unknown), len(unknown) + len(out),
                            ", ".join(sorted(set(unknown))[:4]))
+            unresolved.update(unknown)
         return out
+
+    #: Card ids the simulator could not resolve. A DROPPED card is not a
+    #: cosmetic loss: the sim then holds fewer cards than the game, so every
+    #: simulated draw pulls the wrong card and the plan describes a fight that
+    #: is not being played. Refusing is strictly better than planning
+    #: confidently on the wrong deck -- the caller falls back and says why.
+    unresolved: set[str] = set()
 
     deck = _cards("deck")
     if not deck:
@@ -390,8 +740,10 @@ def reconstruct_combat(state: dict[str, Any]) -> Any | None:
         player_hp=int(player.get("hp", state.get("hp", 1))),
         player_max_hp=int(player.get("max_hp", state.get("max_hp", 1))),
         deck=deck,
-        # Any seed: pile ORDER is imposed explicitly below, so the RNG only
-        # matters for effects that draw randomly mid-fight.
+        # Fallback seed only. The pile ORDER is imposed explicitly below, so
+        # this matters for mid-fight random effects and -- critically -- for
+        # RESHUFFLES, which _install_game_shuffle_rng replaces with the
+        # game's own stream when the payload carries it.
         rng_seed=int(state.get("round", 0)) or 1,
         relics=list(state.get("relics", []) or []),
         gold=int(state.get("gold", 0) or 0),
@@ -437,6 +789,52 @@ def reconstruct_combat(state: dict[str, Any]) -> Any | None:
 
     combat.start_combat()
 
+    # --- round: start_combat() hard-resets round_number to 1 (combat.py:842),
+    # so every reconstruction claimed to be on turn 1 no matter what the wire
+    # said. Anything gated on round number -- monster move progressions,
+    # scaling powers, "first turn" card effects -- was evaluated for the wrong
+    # turn on every replan after turn 1.
+    wire_round = int(state.get("round", 0) or 0)
+    if wire_round > 0:
+        combat.round_number = wire_round
+
+    # --- powers: restore AFTER start_combat, which deals a fresh combat -----
+    # Applied here (not before add_enemy) so start_combat cannot clear them.
+    # Enemies are added in wire order, so combat.enemies aligns with
+    # wire_enemies positionally.
+    _restore_powers(combat.primary_player, player.get("powers"), "player powers")
+    for creature, spec in zip(combat.enemies, wire_enemies):
+        _restore_powers(creature, spec.get("powers"),
+                        f"enemy {spec.get('id', '?')} powers")
+
+    # --- Osty ---------------------------------------------------------------
+    # Osty lives in combat.allies, not combat.enemies, and was never
+    # transmitted OR reconstructed. The damage pipeline redirects player damage
+    # to it (core/damage.py modify_hp_lost_before_osty) and Necrobinder cards
+    # scale off its HP, so planning without it mispriced both incoming damage
+    # and the character's own damage output.
+    pets = [p for p in (state.get("pets") or []) if p]
+    live_pets = [p for p in pets if p.get("is_alive", True)
+                 and int(p.get("hp", 0) or 0) > 0]
+    if live_pets:
+        spec = live_pets[0]
+        try:
+            osty = combat.summon_osty(combat.primary_player,
+                                      int(spec.get("max_hp", 0) or 0))
+        except Exception as exc:
+            osty = None
+            logger.warning("could not summon Osty for reconstruction: %s", exc)
+        if osty is not None:
+            try:
+                osty.max_hp = int(spec.get("max_hp", osty.max_hp) or osty.max_hp)
+                osty.current_hp = int(spec.get("hp", osty.current_hp) or 0)
+                osty.block = int(spec.get("block", 0) or 0)
+            except Exception:
+                pass
+            _restore_powers(osty, spec.get("powers"), "osty powers")
+    elif pets:
+        logger.debug("payload reports %d pet(s), none alive", len(pets))
+
     # --- piles: impose the REAL contents over whatever start_combat dealt ---
     # start_combat shuffles and draws; the live game has a specific hand and
     # a specific draw order, and planning against a different one would be
@@ -446,6 +844,24 @@ def reconstruct_combat(state: dict[str, Any]) -> Any | None:
     draw = _cards("draw_pile")
     disc = _cards("discard_pile")
     exh = _cards("exhaust_pile")
+
+    # DECLINE rather than plan on a deck the game does not have. This check
+    # must sit AFTER every _cards() call: an earlier version ran it straight
+    # after _cards("deck") and so only ever caught deck-level failures, while
+    # an unresolved card in hand/draw/discard was still dropped silently --
+    # which is the case that actually desynchronises the draw.
+    #
+    # A dropped card is not cosmetic: the simulator then holds fewer cards
+    # than the game, so every simulated draw pulls the wrong card and the plan
+    # describes a fight that is not being played. Live 2026-07-30 a single
+    # unresolved COUNTDOWN did exactly that while turn 1 still looked correct.
+    if unresolved:
+        logger.error("combat planner declining: %d unresolvable card id(s) "
+                     "(%s). The simulator would hold a different deck than the "
+                     "game, so every simulated draw would be wrong.",
+                     len(unresolved), ", ".join(sorted(unresolved)[:6]))
+        return None
+
     if hand or draw:
         st.hand[:] = hand
         st.draw[:] = draw
@@ -459,4 +875,18 @@ def reconstruct_combat(state: dict[str, Any]) -> Any | None:
             st.energy = int(energy)
         except Exception:
             pass
+
+    # INSTALL THE GAME'S SHUFFLE STREAM LAST.
+    #
+    # Deliberately after every other step. Building the CombatState and
+    # imposing the pile order consume draws of their own, and the state the
+    # mod sent was captured at serialization time -- so installing earlier
+    # left the stream one draw ahead of the game before planning even
+    # started, and every later reshuffle inherited that offset. Caught by
+    # test_installed_shuffle_stream_reproduces_the_game_sequence, which saw
+    # [7,1,4,7,9] where the game's next draws were [6,7,1,4,7].
+    #
+    # Installing here means the first draw the PLANNER takes is the first
+    # draw the game would take.
+    _install_game_shuffle_rng(combat, state.get("shuffle_rng"))
     return combat
