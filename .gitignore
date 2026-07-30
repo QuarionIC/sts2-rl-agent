@@ -54,3 +54,9 @@ extracted_pck/
 nuget.config
 bridge_mod/sts2_who_plays.txt
 bridge_mod/sts2_agent_config.txt
+
+# Local LLM weights (multi-GB GGUF files)
+models/
+
+# Written by sync_spark.sh to stamp remote runs with a code revision
+GIT_REV
