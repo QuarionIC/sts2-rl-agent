@@ -8,6 +8,7 @@ using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Extensions;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -34,11 +35,21 @@ namespace MegaCrit.Sts2.Core.Commands;
 
 public static class CardPileCmd
 {
+	/// <summary>
+	/// Remove a card from the deck and play an animation.
+	/// </summary>
+	/// <param name="card">Card to remove.</param>
+	/// <param name="showPreview">Whether to show a preview of the card being removed.</param>
 	public static async Task RemoveFromDeck(CardModel card, bool showPreview = true)
 	{
 		await RemoveFromDeck(new global::_003C_003Ez__ReadOnlySingleElementList<CardModel>(card), showPreview);
 	}
 
+	/// <summary>
+	/// Remove cards from the deck and play an animation.
+	/// </summary>
+	/// <param name="cards">Cards to remove.</param>
+	/// <param name="showPreview">Whether to show a preview of the card being removed.</param>
 	public static async Task RemoveFromDeck(IReadOnlyList<CardModel> cards, bool showPreview = true)
 	{
 		foreach (CardModel card in cards)
@@ -52,38 +63,59 @@ public static class CardPileCmd
 			card.RemoveFromCurrentPile();
 			if (showPreview && LocalContext.IsMine(card))
 			{
-				NCard nCard = NCard.Create(card);
-				if (nCard != null)
+				NCard cardNode = NCard.Create(card);
+				if (cardNode != null)
 				{
-					NRun.Instance.GlobalUi.CardPreviewContainer.AddChildSafely(nCard);
-					nCard.UpdateVisuals(PileType.None, CardPreviewMode.Normal);
-					Tween tween = nCard.CreateTween();
-					tween.TweenProperty(nCard, "scale", Vector2.One * 1f, 0.25).From(Vector2.Zero).SetEase(Tween.EaseType.Out)
+					NRun.Instance.GlobalUi.CardPreviewContainer.AddChildSafely(cardNode);
+					cardNode.UpdateVisuals(PileType.None, CardPreviewMode.Normal);
+					Tween tween = cardNode.CreateTween();
+					tween.TweenProperty(cardNode, "scale", Vector2.One * 1f, 0.25).From(Vector2.Zero).SetEase(Tween.EaseType.Out)
 						.SetTrans(Tween.TransitionType.Cubic);
-					tween.TweenProperty(nCard, "scale:y", 0, 0.30000001192092896).SetDelay(1.5);
-					tween.Parallel().TweenProperty(nCard, "scale:x", 1.5f, 0.3).SetDelay(1.5);
-					tween.Parallel().TweenProperty(nCard, "modulate", Colors.Black, 0.2).SetDelay(1.5);
-					tween.TweenCallback(Callable.From(nCard.QueueFreeSafely));
+					if (!TestMode.IsOn)
+					{
+						tween.TweenInterval(0.25);
+						tween.TweenCallback(Callable.From(delegate
+						{
+							NCardRemoveVfx child = NCardRemoveVfx.Create(cardNode);
+							NRun.Instance.GlobalUi.AboveTopBarVfxContainer.AddChildSafely(child);
+						}));
+						tween.TweenInterval(0.4000000059604645);
+					}
+					tween.TweenCallback(Callable.From(cardNode.QueueFreeSafely));
 				}
 			}
 			card.RemoveFromState();
 		}
 	}
 
-	public static async Task RemoveFromCombat(CardModel card, bool isBeingPlayed, bool skipVisuals = false)
+	/// <summary>
+	/// Remove a card from combat and play an animation.
+	/// This will remove the card from any combat pile (<see cref="M:MegaCrit.Sts2.Core.Entities.Cards.PileTypeExtensions.IsCombatPile(MegaCrit.Sts2.Core.Entities.Cards.PileType)" />) it's in,
+	/// but not from the player's deck.
+	/// </summary>
+	/// <param name="card">Card to remove.</param>
+	/// <param name="skipVisuals">Skip card pile visuals (tween to/from pile, smoke puff VFX, etc).</param>
+	public static async Task RemoveFromCombat(CardModel card, bool skipVisuals = false)
 	{
-		await RemoveFromCombat(new global::_003C_003Ez__ReadOnlySingleElementList<CardModel>(card), isBeingPlayed, skipVisuals);
+		await RemoveFromCombat(new global::_003C_003Ez__ReadOnlySingleElementList<CardModel>(card), skipVisuals);
 	}
 
-	public static async Task RemoveFromCombat(IEnumerable<CardModel> cards, bool isBeingPlayed, bool skipVisuals = false)
+	/// <summary>
+	/// Remove cards from combat and play an animation.
+	/// This will remove the cards from any combat pile (<see cref="M:MegaCrit.Sts2.Core.Entities.Cards.PileTypeExtensions.IsCombatPile(MegaCrit.Sts2.Core.Entities.Cards.PileType)" />) they're
+	/// in, but not from the player's deck.
+	/// </summary>
+	/// <param name="cards">Cards to remove.</param>
+	/// <param name="skipVisuals">Skip card pile visuals (tween to/from pile, smoke puff VFX, etc).</param>
+	public static async Task RemoveFromCombat(IEnumerable<CardModel> cards, bool skipVisuals = false)
 	{
 		if (!cards.Any())
 		{
 			return;
 		}
-		CombatState combatState = cards.First().CombatState;
+		ICombatState combatState = cards.First().CombatState;
 		IRunState runState = cards.First().Owner.RunState;
-		List<NCard> cardNodes = new List<NCard>();
+		List<NCard> list = new List<NCard>();
 		Dictionary<CardModel, CardPile> oldPiles = new Dictionary<CardModel, CardPile>();
 		CardPile value;
 		foreach (CardModel card in cards)
@@ -93,75 +125,81 @@ public static class CardPileCmd
 			{
 				throw new InvalidOperationException("Card must be in a combat pile for it to be removed");
 			}
-			if ((!isBeingPlayed || card.Type != CardType.Power) && !skipVisuals)
+			if ((card.Pile.Type != PileType.Play || card.Type != CardType.Power) && !skipVisuals)
 			{
 				NCard nCard = NCard.FindOnTable(card);
 				if (nCard != null)
 				{
-					cardNodes.Add(nCard);
+					list.Add(nCard);
 				}
 			}
 			oldPiles.Add(card, card.Pile);
 			card.RemoveFromCurrentPile();
 		}
-		if (cardNodes.Count != 0)
+		if (list.Count != 0)
 		{
-			NPlayerHand hand = NCombatRoom.Instance.Ui.Hand;
-			NCardPlayQueue playQueue = NCombatRoom.Instance.Ui.PlayQueue;
-			Control playContainer = NCombatRoom.Instance.Ui.PlayContainer;
+			NPlayerHand nPlayerHand = NCombatRoom.Instance?.Ui.Hand;
+			NCardPlayQueue nCardPlayQueue = NCombatRoom.Instance?.Ui.PlayQueue;
 			Tween tween = null;
-			for (int i = 0; i < cardNodes.Count; i++)
+			for (int i = 0; i < list.Count; i++)
 			{
-				NCard node = cardNodes[i];
+				NCard node = list[i];
 				Vector2 globalPosition = node.GlobalPosition;
 				CardModel model = node.Model;
 				CardPile cardPile = oldPiles[model];
-				if (playQueue.IsAncestorOf(node))
+				bool isInPlayQueue = nCardPlayQueue?.IsAncestorOf(node) ?? false;
+				if (isInPlayQueue)
 				{
-					playQueue.RemoveCardFromQueueForCancellation(node);
+					nCardPlayQueue.RemoveCardFromQueueForCancellation(node);
 				}
-				if (cardPile.Type == PileType.Hand && !NodeUtil.IsDescendant(playContainer, node))
+				if (nPlayerHand != null && nPlayerHand.IsAncestorOf(node))
 				{
-					hand.Remove(model);
+					nPlayerHand.Remove(model);
 				}
 				else
 				{
 					node.GetParent()?.RemoveChildSafely(node);
 				}
-				NCombatRoom.Instance.Ui.AddChildSafely(node);
+				NCombatRoom.Instance?.Ui.AddChildSafely(node);
 				node.GlobalPosition = globalPosition;
 				if (tween == null)
 				{
-					tween = NCombatRoom.Instance.CreateTween();
-					tween.SetParallel();
+					tween = NCombatRoom.Instance?.CreateTween();
+					tween?.SetParallel();
 				}
 				model.Pile?.InvokeCardAddFinished();
 				if (cardPile.Type != PileType.Hand && cardPile.Type != PileType.Play)
 				{
-					AppendPileLerpTween(tween, node, PileType.Play, cardPile);
+					AppendPileLerpTween(tween, node, PileType.Play, cardPile.Type);
 				}
-				tween.Chain().TweenCallback(Callable.From(delegate
+				tween?.Chain().TweenCallback(Callable.From(delegate
 				{
-					NCombatRoom.Instance.Ui.AddChildSafely(NExhaustVfx.Create(node));
+					NCombatRoom instance = NCombatRoom.Instance;
+					NCardExhaustVfx nCardExhaustVfx = ((instance != null) ? NCardExhaustVfx.Create(node) : null);
+					if (nCardExhaustVfx != null)
+					{
+						instance?.Ui.AddChildSafely(nCardExhaustVfx);
+						NDebugAudioManager.Instance?.Play("card_exhaust.mp3");
+						TaskHelper.RunSafely(nCardExhaustVfx.PlayAnimation());
+					}
+					else if (!isInPlayQueue)
+					{
+						node.QueueFreeSafely();
+					}
 				}));
-				tween.Parallel().TweenProperty(node, "modulate", StsColors.exhaustGray, (SaveManager.Instance.PrefsSave.FastMode == FastModeType.Fast) ? 0.2f : 0.3f);
 			}
 			if (tween != null)
 			{
 				tween.Play();
-				if (tween.IsValid() && tween.IsRunning())
+				if (NCombatRoom.Instance != null)
 				{
-					await NCombatRoom.Instance.ToSignal(tween, Tween.SignalName.Finished);
+					await tween.AwaitFinished(NCombatRoom.Instance);
 				}
 			}
-			foreach (NCard item in cardNodes)
-			{
-				item.QueueFreeSafely();
-			}
 		}
-		foreach (KeyValuePair<CardModel, CardPile> item2 in oldPiles)
+		foreach (KeyValuePair<CardModel, CardPile> item in oldPiles)
 		{
-			item2.Deconstruct(out var key, out value);
+			item.Deconstruct(out var key, out value);
 			CardModel oldCard = key;
 			CardPile cardPile2 = value;
 			await Hook.AfterCardChangedPiles(runState, combatState, oldCard, cardPile2.Type, null);
@@ -169,12 +207,74 @@ public static class CardPileCmd
 		}
 	}
 
-	public static async Task<CardPileAddResult> AddGeneratedCardToCombat(CardModel card, PileType newPileType, bool addedByPlayer, CardPilePosition position = CardPilePosition.Bottom)
+	/// <summary>
+	/// Change the owner of the card, placing it in <paramref name="player" />'s card pile.
+	/// In most cases, you DO NOT want to call this directly. Calling this method during <see cref="M:MegaCrit.Sts2.Core.Models.CardModel.OnPlay(MegaCrit.Sts2.Core.GameActions.Multiplayer.PlayerChoiceContext,MegaCrit.Sts2.Core.Entities.Cards.CardPlay)" />
+	/// will cause post-play hooks like <see cref="M:MegaCrit.Sts2.Core.Models.AbstractModel.AfterCardPlayed(MegaCrit.Sts2.Core.GameActions.Multiplayer.PlayerChoiceContext,MegaCrit.Sts2.Core.Entities.Cards.CardPlay)" /> to trigger on the receiving player,
+	/// not the owning player. Instead, override <see cref="M:MegaCrit.Sts2.Core.Models.CardModel.GetResultLocationForCardPlay" /> or use the hook
+	/// <see cref="M:MegaCrit.Sts2.Core.Hooks.Hook.ModifyCardPlayResultLocation(MegaCrit.Sts2.Core.Combat.ICombatState,MegaCrit.Sts2.Core.Models.CardModel,System.Boolean,MegaCrit.Sts2.Core.Entities.Cards.ResourceInfo,MegaCrit.Sts2.Core.Entities.Cards.CardLocation,System.Collections.Generic.IEnumerable{MegaCrit.Sts2.Core.Models.AbstractModel}@)" /> to change the result player, which will call this after the
+	/// card play is fully complete.
+	/// </summary>
+	/// <param name="card">The card to change owners.</param>
+	/// <param name="player">The new owner of the card.</param>
+	/// <param name="pileType">The new pile where the card will be placed.</param>
+	/// <param name="position">The position within the new pile where the card will be placed.</param>
+	/// <param name="clonedBy">The model that cloned this card, if applicable. Used to prevent copy effects from
+	/// recursing. TODO is this necessary?</param>
+	public static async Task GiveToAnotherPlayer(CardModel card, Player player, PileType pileType, CardPilePosition position = CardPilePosition.Bottom, AbstractModel? clonedBy = null)
 	{
-		return (await AddGeneratedCardsToCombat(new global::_003C_003Ez__ReadOnlySingleElementList<CardModel>(card), newPileType, addedByPlayer, position))[0];
+		NCard cardNode = NCard.FindOnTable(card);
+		PileType? oldPileType = card.Pile?.Type;
+		card.RemoveFromCurrentPile(silent: true);
+		card.GiveToAnotherPlayer(player);
+		bool islocalPlayerTheReceivingPlayer = LocalContext.IsMine(card);
+		await Add(new global::_003C_003Ez__ReadOnlySingleElementList<CardModel>(card), pileType.GetPile(player), position, clonedBy, skipVisuals: true, isChangingOwners: true);
+		if (cardNode == null || !cardNode.IsValid())
+		{
+			return;
+		}
+		Node vfxContainer = card.Owner.Creature.GetVfxContainer();
+		cardNode.Reparent(vfxContainer);
+		if (islocalPlayerTheReceivingPlayer)
+		{
+			Tween tweenForCardsChangingPiles = GetTweenForCardsChangingPiles(new global::_003C_003Ez__ReadOnlySingleElementList<(NCard, PileType?)>((cardNode, oldPileType)));
+			if (tweenForCardsChangingPiles != null)
+			{
+				tweenForCardsChangingPiles.Play();
+				await tweenForCardsChangingPiles.AwaitFinished(NCombatRoom.Instance);
+			}
+		}
+		else
+		{
+			NCardFlyVfx child = NCardFlyVfx.Create(cardNode, player.Creature, card.Owner.Character.TrailPath);
+			vfxContainer?.AddChildSafely(child);
+		}
 	}
 
-	public static async Task<IReadOnlyList<CardPileAddResult>> AddGeneratedCardsToCombat(IEnumerable<CardModel> cards, PileType newPileType, bool addedByPlayer, CardPilePosition position = CardPilePosition.Bottom)
+	/// <summary>
+	/// Adds a new card into one of the combat piles.
+	/// Card must have just been generated (ie shivs, infernal blade generation, attack potion).
+	/// We do this, instead of a regular add, because this adds the generated card entry to the combat history.
+	/// </summary>
+	/// <param name="card">Card to add.</param>
+	/// <param name="newPileType">Type of pile to add the card to.</param>
+	/// <param name="creator">Player that created this card if there is one</param>
+	/// <param name="position">Optional position in the pile to add the cards to. Defaults to bottom.</param>
+	public static async Task<CardPileAddResult> AddGeneratedCardToCombat(CardModel card, PileType newPileType, Player? creator, CardPilePosition position = CardPilePosition.Bottom)
+	{
+		return (await AddGeneratedCardsToCombat(new global::_003C_003Ez__ReadOnlySingleElementList<CardModel>(card), newPileType, creator, position))[0];
+	}
+
+	/// <summary>
+	/// Adds a new card into one of the combat piles.
+	/// Card must have just been generated (ie shivs, infernal blade generation, attack potion).
+	/// We do this, instead of a regular add, because this adds the generated card entry to the combat history.
+	/// </summary>
+	/// <param name="cards">Cards to add.</param>
+	/// <param name="newPileType">Type of pile to add the card to.</param>
+	/// <param name="creator">Player that created this card if there is one</param>
+	/// <param name="position">Optional position in the pile to add the cards to. Defaults to bottom.</param>
+	public static async Task<IReadOnlyList<CardPileAddResult>> AddGeneratedCardsToCombat(IEnumerable<CardModel> cards, PileType newPileType, Player? creator, CardPilePosition position = CardPilePosition.Bottom)
 	{
 		List<CardModel> list = cards.ToList();
 		if (list.Count == 0)
@@ -193,42 +293,80 @@ public static class CardPileCmd
 		{
 			throw new InvalidOperationException("You are not allowed to added generated cards to a non combat pile");
 		}
-		CombatState combatState = list[0].Owner.Creature.CombatState;
+		ICombatState combatState = list[0].Owner.Creature.CombatState;
+		if (combatState == null)
+		{
+			return Array.Empty<CardPileAddResult>();
+		}
 		List<CardPileAddResult> results = new List<CardPileAddResult>();
 		foreach (CardModel card in list)
 		{
-			CombatManager.Instance.History.CardGenerated(combatState, card, addedByPlayer);
+			CombatManager.Instance.History.CardGenerated(combatState, card, creator);
 			List<CardPileAddResult> list2 = results;
 			list2.Add(await Add(card, newPileType.GetPile(card.Owner), position));
-			await Hook.AfterCardGeneratedForCombat(combatState, card, addedByPlayer);
+			await Hook.AfterCardGeneratedForCombat(combatState, card, creator);
 		}
 		return results;
 	}
 
-	public static async Task<CardPileAddResult> Add(CardModel card, PileType newPileType, CardPilePosition position = CardPilePosition.Bottom, AbstractModel? source = null, bool skipVisuals = false)
+	/// <summary>
+	/// Add a card to a pile.
+	/// </summary>
+	/// <param name="card">Card to add.</param>
+	/// <param name="newPileType">Type of pile to add the card to.</param>
+	/// <param name="position">Optional position in the pile to add the cards to. Defaults to bottom.</param>
+	/// <param name="clonedBy">The model that cloned this card, if applicable. Used to prevent copy effects from recursing.</param>
+	/// <param name="skipVisuals">Skip card pile visuals (tween to/from pile, smoke puff VFX, etc).</param>
+	public static async Task<CardPileAddResult> Add(CardModel card, PileType newPileType, CardPilePosition position = CardPilePosition.Bottom, AbstractModel? clonedBy = null, bool skipVisuals = false)
 	{
 		if (card.Owner == null)
 		{
 			throw new InvalidOperationException($"Attempted to add card {card} to pile, but it has no owner!");
 		}
-		return await Add(card, newPileType.GetPile(card.Owner), position, source, skipVisuals);
+		return await Add(card, newPileType.GetPile(card.Owner), position, clonedBy, skipVisuals);
 	}
 
-	public static async Task<CardPileAddResult> Add(CardModel card, CardPile newPile, CardPilePosition position = CardPilePosition.Bottom, AbstractModel? source = null, bool skipVisuals = false)
+	/// <summary>
+	/// Add a card to a pile.
+	/// </summary>
+	/// <param name="card">Card to add.</param>
+	/// <param name="newPile">Pile to add the card to.</param>
+	/// <param name="position">Optional position in the pile to add the cards to. Defaults to bottom.</param>
+	/// <param name="clonedBy">The model that cloned this card, if applicable. Used to prevent copy effects from recursing.</param>
+	/// <param name="skipVisuals">Skip card pile visuals (tween to/from pile, smoke puff VFX, etc).</param>
+	public static async Task<CardPileAddResult> Add(CardModel card, CardPile newPile, CardPilePosition position = CardPilePosition.Bottom, AbstractModel? clonedBy = null, bool skipVisuals = false)
 	{
-		return (await Add(new global::_003C_003Ez__ReadOnlySingleElementList<CardModel>(card), newPile, position, source, skipVisuals))[0];
+		return (await Add(new global::_003C_003Ez__ReadOnlySingleElementList<CardModel>(card), newPile, position, clonedBy, skipVisuals))[0];
 	}
 
-	public static async Task<IReadOnlyList<CardPileAddResult>> Add(IEnumerable<CardModel> cards, PileType newPileType, CardPilePosition position = CardPilePosition.Bottom, AbstractModel? source = null, bool skipVisuals = false)
+	/// <summary>
+	/// Add multiple cards to a pile.
+	/// </summary>
+	/// <param name="cards">Cards to add.</param>
+	/// <param name="newPileType">Type of pile to add the cards to.</param>
+	/// <param name="position">Optional position in the pile to add the cards to. Defaults to bottom.</param>
+	/// <param name="clonedBy">The model that cloned this card, if applicable. Used to prevent copy effects from recursing.</param>
+	/// <param name="skipVisuals">Skip card pile visuals (tween to/from pile, smoke puff VFX, etc).</param>
+	public static async Task<IReadOnlyList<CardPileAddResult>> Add(IEnumerable<CardModel> cards, PileType newPileType, CardPilePosition position = CardPilePosition.Bottom, AbstractModel? clonedBy = null, bool skipVisuals = false)
 	{
 		if (!cards.Any())
 		{
 			return Array.Empty<CardPileAddResult>();
 		}
-		return await Add(cards, newPileType.GetPile(cards.First().Owner), position, source, skipVisuals);
+		return await Add(cards, newPileType.GetPile(cards.First().Owner), position, clonedBy, skipVisuals);
 	}
 
-	public static async Task<IReadOnlyList<CardPileAddResult>> Add(IEnumerable<CardModel> cards, CardPile newPile, CardPilePosition position = CardPilePosition.Bottom, AbstractModel? source = null, bool skipVisuals = false)
+	/// <summary>
+	/// Add multiple cards to a pile.
+	/// </summary>
+	/// <param name="cards">Cards to add.</param>
+	/// <param name="newPile">Pile to add the cards to.</param>
+	/// <param name="position">Optional position in the pile to add the cards to. Defaults to bottom.</param>
+	/// <param name="clonedBy">The model that cloned this card, if applicable. Used to prevent copy effects from recursing.</param>
+	/// <param name="skipVisuals">Skip card pile visuals (tween to/from pile, smoke puff VFX, etc).</param>
+	/// <param name="isChangingOwners">The card is being handed from one player to another. It was already in combat,
+	/// so it must not be treated as newly entering combat (which would re-fire AfterCardEnteredCombat).</param>
+	public static async Task<IReadOnlyList<CardPileAddResult>> Add(IEnumerable<CardModel> cards, CardPile newPile, CardPilePosition position = CardPilePosition.Bottom, AbstractModel? clonedBy = null, bool skipVisuals = false, bool isChangingOwners = false)
 	{
 		if (!cards.Any())
 		{
@@ -242,81 +380,75 @@ public static class CardPileCmd
 				success = false
 			}).ToList();
 		}
+		Player player = null;
 		List<CardPileAddResult> results = new List<CardPileAddResult>();
-		Player owningPlayer = null;
-		foreach (CardModel card5 in cards)
+		foreach (CardModel card3 in cards)
 		{
-			if (card5.Owner == null)
+			if (card3.Owner == null)
 			{
-				throw new InvalidOperationException(card5.Id.Entry + " has no owner.");
+				throw new InvalidOperationException(card3.Id.Entry + " has no owner.");
 			}
-			if (card5.Owner.Creature.IsDead)
+			Creature creature = card3.Owner.Creature;
+			if (card3.HasBeenRemovedFromState || creature.IsDead || (card3.IsInCombat && creature.CombatState == null))
 			{
 				CardPileAddResult item = new CardPileAddResult
 				{
 					success = false,
-					cardAdded = card5,
-					oldPile = card5.Pile,
+					cardAdded = card3,
+					oldPile = card3.Pile,
+					targetPile = newPile.Type,
 					modifyingModels = null
 				};
 				results.Add(item);
 				continue;
 			}
-			if (card5.HasBeenRemovedFromState)
-			{
-				throw new InvalidOperationException(card5.Id.Entry + " has already been removed from its containing state. If this is intentional, make sure to add it back to the state before adding it to a pile.");
-			}
 			if (newPile.Type == PileType.Deck)
 			{
-				if (!card5.Owner.RunState.ContainsCard(card5))
+				if (!card3.Owner.RunState.ContainsCard(card3))
 				{
-					if (card5.Owner.RunState is NullRunState)
+					if (card3.Owner.RunState is NullRunState)
 					{
-						throw new InvalidOperationException("Tried to add card " + card5.Id.Entry + " to deck for an owner with a NullRunState!");
+						throw new InvalidOperationException("Tried to add card " + card3.Id.Entry + " to deck for an owner with a NullRunState!");
 					}
-					throw new InvalidOperationException(card5.Id.Entry + " must be added to a RunState before adding it to your deck.");
+					throw new InvalidOperationException(card3.Id.Entry + " must be added to a RunState before adding it to your deck.");
 				}
 			}
-			else
+			else if (card3.IsInCombat && creature.CombatState != null && !creature.CombatState.ContainsCard(card3))
 			{
-				CombatState combatState = card5.Owner.Creature.CombatState;
-				if (combatState == null || !combatState.ContainsCard(card5))
-				{
-					throw new InvalidOperationException(card5.Id.Entry + " must be added to a CombatState before adding it to this pile.");
-				}
+				throw new InvalidOperationException(card3.Id.Entry + " must be added to a CombatState before adding it to this pile.");
 			}
-			if (card5.UpgradePreviewType.IsPreview())
+			if (card3.UpgradePreviewType.IsPreview())
 			{
 				throw new InvalidOperationException("A card preview cannot be added to a pile.");
 			}
 			CardPileAddResult item2 = new CardPileAddResult
 			{
 				success = true,
-				cardAdded = card5,
-				oldPile = card5.Pile,
+				cardAdded = card3,
+				oldPile = card3.Pile,
+				targetPile = newPile.Type,
 				modifyingModels = null
 			};
 			results.Add(item2);
-			if (owningPlayer == null)
+			if (player == null)
 			{
-				owningPlayer = card5.Owner;
+				player = card3.Owner;
 			}
-			if (owningPlayer == card5.Owner)
+			if (player == card3.Owner)
 			{
 				continue;
 			}
 			throw new InvalidOperationException("Tried to add cards with different owners to the same pile!");
 		}
-		bool owningPlayerIsLocal = LocalContext.IsMe(owningPlayer);
 		if (newPile.Type == PileType.Deck)
 		{
 			for (int i = 0; i < results.Count; i++)
 			{
 				CardPileAddResult result = results[i];
-				if (Hook.ShouldAddToDeck(owningPlayer.RunState, result.cardAdded, out AbstractModel preventer))
+				IRunState runState = result.cardAdded.RunState;
+				if (Hook.ShouldAddToDeck(runState, result.cardAdded, out AbstractModel preventer))
 				{
-					IRunState runState = owningPlayer.RunState;
-					runState.CurrentMapPointHistoryEntry?.GetEntry(owningPlayer.NetId).CardsGained.Add(result.cardAdded.ToSerializable());
+					runState.CurrentMapPointHistoryEntry?.GetEntry(result.cardAdded.Owner.NetId).CardsGained.Add(result.cardAdded.ToSerializable());
 					result.cardAdded.FloorAddedToDeck = runState.TotalFloor;
 				}
 				else
@@ -335,8 +467,6 @@ public static class CardPileCmd
 		{
 			return results;
 		}
-		List<NCard> cardNodes = new List<NCard>();
-		List<CardModel> cardsWithoutNodesChangingPiles = new List<CardModel>();
 		for (int i = 0; i < results.Count; i++)
 		{
 			CardPileAddResult value = results[i];
@@ -344,79 +474,20 @@ public static class CardPileCmd
 			{
 				continue;
 			}
-			NCard cardNode = null;
 			CardPile oldPile = value.oldPile;
 			CardModel card = value.cardAdded;
-			CardPile targetPile = newPile;
-			int num;
-			if (targetPile != null && targetPile.Type == PileType.Hand)
-			{
-				IReadOnlyList<CardModel> cards2 = targetPile.Cards;
-				if (cards2 != null)
-				{
-					num = ((cards2.Count >= 10) ? 1 : 0);
-					goto IL_0535;
-				}
-			}
-			num = 0;
-			goto IL_0535;
-			IL_0535:
-			bool isFullHandAdd = (byte)num != 0;
+			CardPile cardPile = newPile;
+			bool isFullHandAdd = cardPile.Type == PileType.Hand && cardPile.Cards.Count >= CardPile.MaxCardsInHand;
 			if (isFullHandAdd)
 			{
-				targetPile = CardPile.Get(PileType.Discard, card.Owner);
+				cardPile = CardPile.Get(PileType.Discard, card.Owner);
 			}
-			int num2;
-			if (!owningPlayerIsLocal && targetPile.Type != PileType.Play)
-			{
-				num2 = ((oldPile != null && oldPile.Type == PileType.Play) ? 1 : 0);
-			}
-			else
-			{
-				num2 = 1;
-			}
-			bool flag = (byte)num2 != 0;
-			bool flag2;
-			bool flag4;
-			bool flag5;
-			if (TestMode.IsOff && flag && !skipVisuals)
-			{
-				cardNode = NCard.FindOnTable(card);
-				flag2 = cardNode == null && targetPile.Type.IsCombatPile() && (isFullHandAdd || oldPile != null || targetPile.Type == PileType.Hand);
-				bool flag3 = cardNode == null;
-				flag4 = flag3;
-				if (flag4)
-				{
-					if (oldPile == null)
-					{
-						goto IL_064c;
-					}
-					switch (oldPile.Type)
-					{
-					case PileType.Draw:
-					case PileType.Discard:
-					case PileType.Exhaust:
-					case PileType.Deck:
-						break;
-					default:
-						goto IL_064c;
-					}
-					flag5 = true;
-					goto IL_064f;
-				}
-				goto IL_0653;
-			}
-			goto IL_06dd;
-			IL_064f:
-			flag4 = flag5;
-			goto IL_0653;
-			IL_06dd:
 			CardModel card2 = card;
 			if (oldPile != null)
 			{
-				card.RemoveFromCurrentPile();
+				card.RemoveFromCurrentPile(skipVisuals);
 			}
-			else if (targetPile.Type == PileType.Deck)
+			else if (cardPile.Type == PileType.Deck)
 			{
 				List<AbstractModel> modifyingModels;
 				CardModel cardModel = Hook.ModifyCardBeingAddedToDeck(card.Owner.RunState, card, out modifyingModels);
@@ -428,170 +499,314 @@ public static class CardPileCmd
 					results[i] = value;
 				}
 			}
-			targetPile.AddInternal(card2, position switch
+			cardPile.AddInternal(card2, position switch
 			{
 				CardPilePosition.Bottom => -1, 
 				CardPilePosition.Top => 0, 
-				CardPilePosition.Random => card.Owner.RunState.Rng.Shuffle.NextInt(targetPile.Cards.Count + 1), 
+				CardPilePosition.Random => card.Owner.RunState.Rng.Shuffle.NextInt(cardPile.Cards.Count + 1), 
 				_ => throw new ArgumentOutOfRangeException("position", position, null), 
 			});
-			if (oldPile == null && targetPile.IsCombatPile)
+			if (oldPile == null && cardPile.IsCombatPile && !isChangingOwners)
 			{
 				await Hook.AfterCardEnteredCombat(card.CombatState, card);
 			}
-			if (isFullHandAdd && owningPlayerIsLocal)
+			if (isFullHandAdd && LocalContext.IsMe(card.Owner))
 			{
-				ThinkCmd.Play(new LocString("combat_messages", "HAND_FULL"), owningPlayer.Creature, 2.0);
+				ThinkCmd.Play(new LocString("combat_messages", "HAND_FULL"), card.Owner.Creature, 2.0);
 			}
-			if (oldPile == null || oldPile.Type != PileType.Play || newPile.Type == PileType.Hand || card.IsDupe)
-			{
-				cardNode?.UpdateVisuals(targetPile.Type, CardPreviewMode.Normal);
-			}
-			continue;
-			IL_0653:
-			bool flag6 = flag4;
-			if (flag6)
-			{
-				PileType type = targetPile.Type;
-				flag5 = ((type == PileType.Draw || type == PileType.Discard || type == PileType.Deck) ? true : false);
-				flag6 = flag5;
-			}
-			if (flag6)
-			{
-				cardsWithoutNodesChangingPiles.Add(card);
-			}
-			else if (flag2)
-			{
-				cardNode = CreateCardNodeAndUpdateVisuals(card, targetPile.Type, owningPlayerIsLocal);
-			}
-			if (cardNode != null)
-			{
-				cardNodes.Add(cardNode);
-			}
-			goto IL_06dd;
-			IL_064c:
-			flag5 = false;
-			goto IL_064f;
 		}
-		Tween tween = null;
-		if (cardNodes.Count != 0)
+		if (!skipVisuals)
 		{
-			NPlayerHand handNode = NCombatRoom.Instance.Ui.Hand;
-			_ = NCombatRoom.Instance.Ui.PlayQueue;
-			_ = NCombatRoom.Instance.Ui.PlayContainer;
-			tween = NCombatRoom.Instance.CreateTween().SetParallel();
-			foreach (NCard cardNode2 in cardNodes)
+			Tween item3 = GetTweenForCardsChangingPiles(results).Item1;
+			if (item3 != null)
 			{
-				CardModel card3 = cardNode2.Model;
-				CardPile oldPile2 = results.Find((CardPileAddResult r) => r.cardAdded == card3).oldPile;
-				MoveCardNodeToNewPileBeforeTween(cardNode2, card3.Pile.Type);
-				bool flag7 = !owningPlayerIsLocal;
-				bool flag8 = flag7;
-				if (flag8)
+				item3.Play();
+				if (!(await item3.AwaitFinished(NCombatRoom.Instance)))
 				{
-					PileType type = card3.Pile.Type;
-					bool flag5 = (((uint)(type - 1) <= 2u || type == PileType.Deck) ? true : false);
-					flag8 = flag5;
+					return results;
 				}
-				if (flag8)
+			}
+		}
+		foreach (CardPileAddResult item4 in results)
+		{
+			if (item4.success)
+			{
+				CardModel cardAdded = item4.cardAdded;
+				if (item4.oldPile == null || item4.oldPile.Type != cardAdded.Pile?.Type)
 				{
-					tween.Parallel().TweenProperty(cardNode2, "position", cardNode2.Position + Vector2.Down * 25f, (SaveManager.Instance.PrefsSave.FastMode == FastModeType.Fast) ? 0.2f : 0.3f);
-					tween.Parallel().TweenProperty(cardNode2, "modulate", StsColors.exhaustGray, (SaveManager.Instance.PrefsSave.FastMode == FastModeType.Fast) ? 0.2f : 0.3f);
-					tween.Chain().TweenCallback(Callable.From(cardNode2.QueueFreeSafely));
-					continue;
+					await Hook.AfterCardChangedPiles(cardAdded.Owner.RunState, cardAdded.CombatState, cardAdded, item4.oldPile?.Type ?? PileType.None, clonedBy);
 				}
-				switch (card3.Pile.Type)
+			}
+		}
+		return results;
+	}
+
+	private static (Tween?, bool) GetTweenForCardsChangingPiles(IEnumerable<CardPileAddResult> results)
+	{
+		if (TestMode.IsOn)
+		{
+			return (null, false);
+		}
+		List<NCard> list = new List<NCard>();
+		List<CardModel> list2 = new List<CardModel>();
+		foreach (CardPileAddResult result in results)
+		{
+			if (!result.success)
+			{
+				continue;
+			}
+			CardModel cardAdded = result.cardAdded;
+			PileType? pileType = cardAdded.Pile?.Type;
+			PileType? pileType2 = result.oldPile?.Type;
+			bool flag = LocalContext.IsMe(result.cardAdded.Owner);
+			if (!flag && pileType != PileType.Play && pileType2 != PileType.Play)
+			{
+				continue;
+			}
+			NCard nCard = NCard.FindOnTable(cardAdded, pileType2);
+			int num;
+			if (result.targetPile == PileType.Hand)
+			{
+				CardPile? pile = result.cardAdded.Pile;
+				num = ((pile != null && pile.Type == PileType.Discard) ? 1 : 0);
+			}
+			else
+			{
+				num = 0;
+			}
+			bool flag2 = (byte)num != 0;
+			bool flag3 = nCard == null && pileType.HasValue && pileType.Value.IsCombatPile() && (flag2 || pileType2.HasValue || pileType == PileType.Hand);
+			bool flag4 = nCard == null;
+			bool flag5 = flag4;
+			if (flag5)
+			{
+				bool flag6;
+				switch (pileType2)
+				{
+				case PileType.Draw:
+				case PileType.Discard:
+				case PileType.Exhaust:
+				case PileType.Deck:
+					flag6 = true;
+					break;
+				default:
+					flag6 = false;
+					break;
+				}
+				flag5 = flag6;
+			}
+			bool flag7 = flag5;
+			if (flag7)
+			{
+				bool flag6;
+				switch (pileType)
+				{
+				case PileType.Draw:
+				case PileType.Discard:
+				case PileType.Deck:
+					flag6 = true;
+					break;
+				default:
+					flag6 = false;
+					break;
+				}
+				flag7 = flag6;
+			}
+			if (flag7)
+			{
+				list2.Add(cardAdded);
+			}
+			else if (flag3)
+			{
+				nCard = CreateCardNodeAndUpdateVisuals(cardAdded, pileType2, pileType.Value, flag);
+			}
+			if (pileType.HasValue && (pileType2 != PileType.Play || pileType == PileType.Hand || cardAdded.IsDupe))
+			{
+				nCard?.UpdateVisuals(pileType.Value, CardPreviewMode.Normal);
+			}
+			if (nCard != null)
+			{
+				list.Add(nCard);
+			}
+		}
+		IEnumerable<PileType?> second = list.Select((NCard c) => results.First((CardPileAddResult r) => r.cardAdded == c.Model).oldPile?.Type);
+		Tween tweenForCardsChangingPiles = GetTweenForCardsChangingPiles(list.Zip(second));
+		if (list2.Count != 0)
+		{
+			foreach (CardModel card in list2)
+			{
+				CardPile oldPile = results.First((CardPileAddResult r) => r.cardAdded == card).oldPile;
+				Node vfxContainer = ((card.Pile.Type != PileType.Deck) ? card.Owner.Creature.GetVfxContainer() : NRun.Instance.GlobalUi.TopBar.TrailContainer);
+				if (tweenForCardsChangingPiles != null)
+				{
+					tweenForCardsChangingPiles.TweenCallback(Callable.From(delegate
+					{
+						NCardFlyShuffleVfx child2 = NCardFlyShuffleVfx.Create(oldPile, card.Pile, card.Owner.Character.TrailPath);
+						vfxContainer?.AddChildSafely(child2);
+					}));
+				}
+				else
+				{
+					NCardFlyShuffleVfx child = NCardFlyShuffleVfx.Create(oldPile, card.Pile, card.Owner.Character.TrailPath);
+					vfxContainer?.AddChildSafely(child);
+				}
+			}
+		}
+		return (tweenForCardsChangingPiles, list2.Count > 0);
+	}
+
+	private static Tween? GetTweenForCardsChangingPiles(IEnumerable<(NCard, PileType?)> cards)
+	{
+		if (!cards.Any())
+		{
+			return null;
+		}
+		NPlayerHand handNode = NCombatRoom.Instance?.Ui.Hand;
+		Tween tween = NCombatRoom.Instance?.CreateTween().SetParallel();
+		foreach (var card2 in cards)
+		{
+			NCard cardNode = card2.Item1;
+			PileType? item = card2.Item2;
+			CardModel card = cardNode.Model;
+			PileType? newPileType = card.Pile?.Type;
+			if (newPileType.HasValue)
+			{
+				MoveCardNodeToNewPileBeforeTween(cardNode, newPileType.Value);
+			}
+			bool flag = !LocalContext.IsMe(card.Owner);
+			bool flag2 = flag;
+			bool flag3;
+			if (flag2)
+			{
+				if (!newPileType.HasValue)
+				{
+					goto IL_0145;
+				}
+				switch (newPileType.GetValueOrDefault())
+				{
+				case PileType.Draw:
+				case PileType.Hand:
+				case PileType.Discard:
+				case PileType.Deck:
+					break;
+				default:
+					goto IL_0145;
+				}
+				flag3 = true;
+				goto IL_0148;
+			}
+			goto IL_014c;
+			IL_014c:
+			if (flag2)
+			{
+				tween?.Parallel().TweenProperty(cardNode, "position", cardNode.Position + Vector2.Down * 25f, (SaveManager.Instance.PrefsSave.FastMode == FastModeType.Fast) ? 0.2f : 0.3f);
+				tween?.Parallel().TweenProperty(cardNode, "modulate", StsColors.exhaustGray, (SaveManager.Instance.PrefsSave.FastMode == FastModeType.Fast) ? 0.2f : 0.3f);
+				tween?.Chain().TweenCallback(Callable.From(cardNode.QueueFreeSafely));
+				continue;
+			}
+			if (newPileType.HasValue)
+			{
+				switch (newPileType.GetValueOrDefault())
 				{
 				case PileType.Exhaust:
-					card3.Pile.InvokeCardAddFinished();
-					if (oldPile2 != null && oldPile2.Type != PileType.Hand && oldPile2.Type != PileType.Play)
+					card.Pile?.InvokeCardAddFinished();
+					if (item.HasValue && item != PileType.Hand && item != PileType.Play)
 					{
-						AppendPileLerpTween(tween, cardNode2, PileType.Play, oldPile2);
+						AppendPileLerpTween(tween, cardNode, PileType.Play, item);
 						FastModeType fastMode = SaveManager.Instance.PrefsSave.FastMode;
-						tween.Chain().TweenInterval(fastMode switch
+						tween?.Chain().TweenInterval(fastMode switch
 						{
 							FastModeType.Instant => 0.01f, 
 							FastModeType.Fast => 0.2f, 
 							_ => 0.5f, 
 						});
 					}
-					tween.Chain().TweenCallback(Callable.From(delegate
+					if (item == PileType.Hand)
 					{
-						NCombatRoom.Instance.Ui.AddChildSafely(NExhaustVfx.Create(cardNode2));
+						tween?.Chain().TweenCallback(Callable.From(delegate
+						{
+							NCardExhaustQuickVfx nCardExhaustQuickVfx = NCardExhaustQuickVfx.Create(cardNode);
+							if (nCardExhaustQuickVfx != null)
+							{
+								NDebugAudioManager.Instance?.Play("card_exhaust.mp3");
+								TaskHelper.RunSafely(nCardExhaustQuickVfx.PlayAnimation());
+							}
+							else
+							{
+								cardNode.QueueFreeSafely();
+							}
+						}));
+						continue;
+					}
+					tween?.Chain().TweenCallback(Callable.From(delegate
+					{
+						NCombatRoom instance = NCombatRoom.Instance;
+						NCardExhaustVfx nCardExhaustVfx = ((instance != null) ? NCardExhaustVfx.Create(cardNode) : null);
+						if (nCardExhaustVfx != null)
+						{
+							instance.Ui.AddChildSafely(nCardExhaustVfx);
+							NDebugAudioManager.Instance?.Play("card_exhaust.mp3");
+							TaskHelper.RunSafely(nCardExhaustVfx.PlayAnimation());
+						}
+						else
+						{
+							cardNode.QueueFreeSafely();
+						}
 					}));
-					tween.Parallel().TweenProperty(cardNode2, "modulate", StsColors.exhaustGray, (SaveManager.Instance.PrefsSave.FastMode == FastModeType.Fast) ? 0.2f : 0.3f);
-					tween.Chain().TweenCallback(Callable.From(cardNode2.QueueFreeSafely));
-					break;
+					continue;
 				case PileType.Hand:
-					AppendPileLerpTween(tween, cardNode2, card3.Pile.Type, oldPile2);
-					tween.Parallel().TweenCallback(Callable.From(delegate
+					if (item.HasValue)
 					{
-						handNode.Add(cardNode2);
-					}));
-					break;
+						AppendPileLerpTween(tween, cardNode, PileType.Hand, item);
+						tween?.Parallel().TweenCallback(Callable.From(delegate
+						{
+							handNode?.Add(cardNode);
+						}));
+					}
+					else
+					{
+						tween?.Chain().TweenCallback(Callable.From(delegate
+						{
+							handNode?.Add(cardNode);
+						}));
+					}
+					continue;
 				case PileType.Play:
-					AppendPlayPileLerpTween(tween, cardNode2, oldPile2);
-					break;
-				default:
-					tween.TweenCallback(Callable.From(delegate
-					{
-						Node node = ((card3.Pile.Type != PileType.Deck) ? NCombatRoom.Instance.CombatVfxContainer : NRun.Instance.GlobalUi.TopBar.TrailContainer);
-						cardNode2.Reparent(node);
-						Vector2 targetPosition = card3.Pile.Type.GetTargetPosition(cardNode2);
-						NCardFlyVfx child2 = NCardFlyVfx.Create(cardNode2, targetPosition, isAddingToPile: true, card3.Owner.Character.TrailPath);
-						node.AddChildSafely(child2);
-					}));
-					break;
+					AppendPlayPileLerpTween(tween, cardNode, item);
+					continue;
 				}
 			}
-		}
-		if (cardsWithoutNodesChangingPiles.Count != 0)
-		{
-			foreach (CardModel card4 in cardsWithoutNodesChangingPiles)
+			tween?.TweenCallback(Callable.From(delegate
 			{
-				CardPile oldPile3 = results.Find((CardPileAddResult r) => r.cardAdded == card4).oldPile;
-				Node vfxContainer = ((card4.Pile.Type != PileType.Deck) ? NCombatRoom.Instance.CombatVfxContainer : NRun.Instance.GlobalUi.TopBar.TrailContainer);
-				if (tween != null)
-				{
-					tween.TweenCallback(Callable.From(delegate
-					{
-						NCardFlyShuffleVfx child2 = NCardFlyShuffleVfx.Create(oldPile3, card4.Pile, card4.Owner.Character.TrailPath);
-						vfxContainer.AddChildSafely(child2);
-					}));
-				}
-				else
-				{
-					NCardFlyShuffleVfx child = NCardFlyShuffleVfx.Create(oldPile3, card4.Pile, card4.Owner.Character.TrailPath);
-					vfxContainer.AddChildSafely(child);
-				}
-			}
+				Node node = ((newPileType != PileType.Deck) ? card.Owner.Creature.GetVfxContainer() : NRun.Instance.GlobalUi.TopBar.TrailContainer);
+				cardNode.Reparent(node);
+				NCardFlyVfx child = NCardFlyVfx.Create(cardNode, card.Pile.Type, isAddingToPile: true, card.Owner.Character.TrailPath);
+				node?.AddChildSafely(child);
+			}));
+			continue;
+			IL_0148:
+			flag2 = flag3;
+			goto IL_014c;
+			IL_0145:
+			flag3 = false;
+			goto IL_0148;
 		}
-		if (tween != null)
-		{
-			tween.Play();
-			if (tween.IsValid() && tween.IsRunning())
-			{
-				await NCombatRoom.Instance.ToSignal(tween, Tween.SignalName.Finished);
-			}
-		}
-		foreach (CardPileAddResult item3 in results)
-		{
-			if (item3.success)
-			{
-				CardModel cardAdded = item3.cardAdded;
-				await Hook.AfterCardChangedPiles(cardAdded.Owner.RunState, cardAdded.CombatState, cardAdded, item3.oldPile?.Type ?? PileType.None, source);
-			}
-		}
-		return results;
+		return tween;
 	}
 
+	/// <summary>
+	/// Add a card to the play pile during manual card play.
+	/// This is a highly simplified version of <see cref="M:MegaCrit.Sts2.Core.Commands.CardPileCmd.Add(MegaCrit.Sts2.Core.Models.CardModel,MegaCrit.Sts2.Core.Entities.Cards.CardPile,MegaCrit.Sts2.Core.Entities.Cards.CardPilePosition,MegaCrit.Sts2.Core.Models.AbstractModel,System.Boolean)" />
+	/// that makes a bunch of assumptions, and also that doesn't wait on its tweens. This makes most card plays feel more responsive.
+	/// Autoplay from effects like <see cref="T:MegaCrit.Sts2.Core.Models.Cards.Havoc" /> don't use this, because they need to wait on their tweens.
+	/// </summary>
 	public static async Task AddDuringManualCardPlay(CardModel card)
 	{
 		if (CombatManager.Instance.IsOverOrEnding)
 		{
 			return;
 		}
-		CombatState combatState = card.Owner.Creature.CombatState;
+		ICombatState combatState = card.Owner.Creature.CombatState;
 		if (combatState == null || !combatState.ContainsCard(card))
 		{
 			throw new InvalidOperationException(card.Id.Entry + " must be added to a CombatState before playing it.");
@@ -604,7 +819,7 @@ public static class CardPileCmd
 			nCard = NCard.FindOnTable(card);
 			if (nCard == null)
 			{
-				nCard = CreateCardNodeAndUpdateVisuals(card, PileType.Play, owningPlayerIsLocal);
+				nCard = CreateCardNodeAndUpdateVisuals(card, card.Pile?.Type, PileType.Play, owningPlayerIsLocal);
 			}
 		}
 		card.RemoveFromCurrentPile();
@@ -613,18 +828,18 @@ public static class CardPileCmd
 		{
 			MoveCardNodeToNewPileBeforeTween(nCard, PileType.Play);
 			Tween tween = NCombatRoom.Instance.CreateTween().SetParallel();
-			AppendPlayPileLerpTween(tween, nCard, oldPile);
+			AppendPlayPileLerpTween(tween, nCard, oldPile?.Type);
 			nCard.PlayPileTween = tween;
 			tween.Play();
-			if (card.Type == CardType.Power && tween.IsValid() && tween.IsRunning())
+			if (card.Type == CardType.Power && !(await tween.AwaitFinished(NCombatRoom.Instance)))
 			{
-				await NCombatRoom.Instance.ToSignal(tween, Tween.SignalName.Finished);
+				return;
 			}
 		}
 		await Hook.AfterCardChangedPiles(card.Owner.RunState, card.CombatState, card, oldPile?.Type ?? PileType.None, null);
 	}
 
-	private static NCard CreateCardNodeAndUpdateVisuals(CardModel card, PileType targetPileType, bool owningPlayerIsLocal)
+	private static NCard CreateCardNodeAndUpdateVisuals(CardModel card, PileType? oldPileType, PileType targetPileType, bool owningPlayerIsLocal)
 	{
 		NCard nCard = NCard.Create(card);
 		NCombatRoom.Instance.Ui.AddChildSafely(nCard);
@@ -633,9 +848,9 @@ public static class CardPileCmd
 		{
 			nCard.Position = NCombatRoom.Instance.GetCreatureNode(card.Owner.Creature).IntentContainer.GlobalPosition;
 		}
-		else if (card.Pile != null)
+		else if (oldPileType.HasValue)
 		{
-			nCard.Position = card.Pile.Type.GetTargetPosition(nCard);
+			nCard.Position = oldPileType.Value.GetTargetPosition(nCard);
 		}
 		else
 		{
@@ -679,50 +894,92 @@ public static class CardPileCmd
 		cardNode.PlayPileTween?.FastForwardToCompletion();
 	}
 
-	private static void AppendPlayPileLerpTween(Tween tween, NCard cardNode, CardPile? oldPile)
+	private static void AppendPlayPileLerpTween(Tween? tween, NCard cardNode, PileType? oldPile)
 	{
 		AppendPileLerpTween(tween, cardNode, cardNode.Model.Pile.Type, oldPile);
-		tween.Parallel().TweenCallback(Callable.From(delegate
+		tween?.Parallel().TweenCallback(Callable.From(delegate
 		{
 			NCombatRoom.Instance.Ui.AddToPlayContainer(cardNode);
 		}));
 	}
 
-	private static void AppendPileLerpTween(Tween tween, NCard cardNode, PileType typePile, CardPile? oldPile)
+	private static void AppendPileLerpTween(Tween? tween, NCard cardNode, PileType typePile, PileType? oldPile)
 	{
-		Vector2 targetPosition = typePile.GetTargetPosition(cardNode);
-		float num = SaveManager.Instance.PrefsSave.FastMode switch
+		if (tween != null)
 		{
-			FastModeType.Instant => 0.01f, 
-			FastModeType.Fast => 0.1f, 
-			_ => 0.25f, 
-		};
-		if (typePile != PileType.Hand)
-		{
-			tween.TweenProperty(cardNode, "position", targetPosition, num).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Cubic);
-		}
-		if (typePile == PileType.Play)
-		{
-			tween.TweenProperty(cardNode, "scale", Vector2.One * 0.8f, 0.25).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Cubic);
-		}
-		else if (oldPile == null)
-		{
-			tween.TweenProperty(cardNode, "scale", Vector2.One, num).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Cubic)
-				.From(Vector2.Zero);
-		}
-		else
-		{
-			tween.Parallel().TweenProperty(cardNode, "scale", Vector2.One, num).SetEase(Tween.EaseType.Out)
-				.SetTrans(Tween.TransitionType.Cubic);
+			Vector2 targetPosition = typePile.GetTargetPosition(cardNode);
+			float num = SaveManager.Instance.PrefsSave.FastMode switch
+			{
+				FastModeType.Instant => 0.01f, 
+				FastModeType.Fast => 0.1f, 
+				_ => 0.25f, 
+			};
+			if (typePile != PileType.Hand)
+			{
+				tween.TweenProperty(cardNode, "position", targetPosition, num).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Cubic);
+			}
+			if (typePile == PileType.Play)
+			{
+				tween.TweenProperty(cardNode, "scale", Vector2.One * 0.8f, 0.25).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Cubic);
+			}
+			else if (!oldPile.HasValue)
+			{
+				tween.TweenProperty(cardNode, "scale", Vector2.One, num).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Cubic)
+					.From(Vector2.Zero);
+			}
+			else
+			{
+				tween.Parallel().TweenProperty(cardNode, "scale", Vector2.One, num).SetEase(Tween.EaseType.Out)
+					.SetTrans(Tween.TransitionType.Cubic);
+			}
 		}
 	}
 
+	/// <summary>
+	/// Draw a card.
+	/// </summary>
+	/// <param name="choiceContext">The context with which to handle player choices.</param>
+	/// <param name="player">Player who the hand and draw pile belongs to.</param>
+	/// <returns>Card that was drawn, or null if no cards were drawn.</returns>
 	public static async Task<CardModel?> Draw(PlayerChoiceContext choiceContext, Player player)
 	{
 		return (await Draw(choiceContext, 1m, player)).FirstOrDefault();
 	}
 
-	public static async Task<IEnumerable<CardModel>> Draw(PlayerChoiceContext choiceContext, decimal count, Player player, bool fromHandDraw = false)
+	/// <summary>
+	/// Draw cards.
+	/// </summary>
+	/// <param name="choiceContext">The context with which to handle player choices.</param>
+	/// <param name="count">Number of cards to draw.</param>
+	/// <param name="player">Player who the hand and draw pile belongs to.</param>
+	/// <param name="fromHandDraw">If this draw happened as part of the initial card draws at the start of your turn.</param>
+	/// <returns>Cards that were drawn.</returns>
+	public static Task<IEnumerable<CardModel>> Draw(PlayerChoiceContext choiceContext, decimal count, Player player, bool fromHandDraw = false)
+	{
+		return DrawInternal(choiceContext, count, player, fromHandDraw);
+	}
+
+	/// <summary>
+	/// Draw cards without needing to know the result.
+	/// This can be used as a shortcut when the target of the draw may be different than the owner of the action which
+	/// caused the draw, and you do not wish the draw to block the originating action.
+	/// If you must know the results of the draw, then you need to construct your own DelegatingPlayerChoiceContext and
+	/// pass it the full task of the draw + modifications.
+	/// </summary>
+	/// <param name="choiceContext">The context with which to handle player choices.</param>
+	/// <param name="count">Number of cards to draw.</param>
+	/// <param name="player">Player who the hand and draw pile belongs to.</param>
+	/// <param name="source">The source that is causing the draw.</param>
+	/// <param name="fromHandDraw">If this draw happened as part of the initial card draws at the start of your turn.</param>
+	/// <returns>Cards that were drawn.</returns>
+	public static Task DrawWithoutBlockingOnOtherPlayers(PlayerChoiceContext choiceContext, decimal count, Player player, CardModel source, bool fromHandDraw = false)
+	{
+		BranchingPlayerChoiceContext branchingPlayerChoiceContext = new BranchingPlayerChoiceContext(source, LocalContext.NetId.Value, GameActionType.Combat, choiceContext);
+		Task<IEnumerable<CardModel>> task = Draw(branchingPlayerChoiceContext, count, player, fromHandDraw);
+		return branchingPlayerChoiceContext.AssignTaskAndWaitForPauseOrCompletion(task);
+	}
+
+	private static async Task<IEnumerable<CardModel>> DrawInternal(PlayerChoiceContext choiceContext, decimal count, Player player, bool fromHandDraw = false)
 	{
 		if (CombatManager.Instance.IsOverOrEnding)
 		{
@@ -733,7 +990,7 @@ public static class CardPileCmd
 			await Hook.AfterPreventingDraw(player.Creature.CombatState, modifier);
 			return Array.Empty<CardModel>();
 		}
-		CombatState combatState = player.Creature.CombatState;
+		ICombatState combatState = player.Creature.CombatState;
 		List<CardModel> result = new List<CardModel>();
 		CardPile hand = PileType.Hand.GetPile(player);
 		CardPile drawPile = PileType.Draw.GetPile(player);
@@ -742,7 +999,7 @@ public static class CardPileCmd
 		{
 			return result;
 		}
-		int num = Math.Max(0, 10 - hand.Cards.Count);
+		int num = Math.Max(0, CardPile.MaxCardsInHand - hand.Cards.Count);
 		if (num == 0)
 		{
 			CheckIfDrawIsPossibleAndShowThoughtBubbleIfNot(player);
@@ -751,6 +1008,10 @@ public static class CardPileCmd
 		for (int i = 0; i < drawsRequested; i++)
 		{
 			if (num <= 0)
+			{
+				break;
+			}
+			if (CombatManager.Instance.IsOverOrEnding)
 			{
 				break;
 			}
@@ -764,7 +1025,7 @@ public static class CardPileCmd
 				break;
 			}
 			CardModel card = drawPile.Cards.FirstOrDefault();
-			if (card == null || hand.Cards.Count >= 10)
+			if (card == null || hand.Cards.Count >= CardPile.MaxCardsInHand)
 			{
 				break;
 			}
@@ -774,27 +1035,28 @@ public static class CardPileCmd
 			await Hook.AfterCardDrawn(combatState, choiceContext, card, fromHandDraw);
 			card.InvokeDrawn();
 			NDebugAudioManager.Instance?.Play("card_deal.mp3", 0.25f, PitchVariance.Small);
-			num = Math.Max(0, 10 - hand.Cards.Count);
+			num = Math.Max(0, CardPile.MaxCardsInHand - hand.Cards.Count);
 		}
 		return result;
 	}
 
+	/// <summary>
+	/// Shuffle the player's discard pile into their draw pile.
+	/// </summary>
+	/// <param name="choiceContext">The context that is signalled in the event of a player choice.</param>
+	/// <param name="player">Player whose piles we should shuffle.</param>
 	public static async Task Shuffle(PlayerChoiceContext choiceContext, Player player)
 	{
 		if (CombatManager.Instance.IsOverOrEnding)
 		{
 			return;
 		}
-		CardPile drawPile = PileType.Draw.GetPile(player);
+		CardPile pile = PileType.Draw.GetPile(player);
 		List<CardModel> list = PileType.Discard.GetPile(player).Cards.ToList();
 		float timeBetweenCardAdds = Mathf.Min(0.045f, 0.8f / (float)list.Count);
 		float randomTimeBetweenCardAdds = 1.11f * timeBetweenCardAdds;
-		HashSet<CardModel> drawPileCards = drawPile.Cards.ToHashSet();
-		foreach (CardModel item in drawPileCards)
-		{
-			drawPile.RemoveInternal(item, silent: true);
-			list.Add(item);
-		}
+		HashSet<CardModel> drawPileCards = pile.Cards.ToHashSet();
+		list.AddRange(drawPileCards);
 		list.StableShuffle(player.RunState.Rng.Shuffle);
 		Hook.ModifyShuffleOrder(player.Creature.CombatState, player, list, isInitialShuffle: false);
 		if (CombatManager.Instance.DebugForcedTopCardOnNextShuffle != null)
@@ -807,11 +1069,30 @@ public static class CardPileCmd
 			CombatManager.Instance.DebugClearForcedTopCardOnNextShuffle();
 		}
 		float waitTimeAccumulator = 0f;
-		foreach (CardModel item2 in list)
+		IReadOnlyList<CardPileAddResult> readOnlyList = await Add(list, pile, CardPilePosition.Bottom, null, skipVisuals: true);
+		List<Tween> tweens = new List<Tween>();
+		foreach (CardPile item in readOnlyList.SelectMany((CardPileAddResult r) => new global::_003C_003Ez__ReadOnlyArray<CardPile>(new CardPile[2]
 		{
-			if (!drawPileCards.Contains(item2))
+			r.oldPile,
+			r.cardAdded.Pile
+		})).Distinct())
+		{
+			item?.InvokeContentsChanged();
+		}
+		foreach (CardPileAddResult item2 in readOnlyList)
+		{
+			if (drawPileCards.Contains(item2.cardAdded))
 			{
-				await Add(item2, drawPile);
+				continue;
+			}
+			item2.oldPile?.InvokeCardRemoveFinished();
+			var (tween, flag) = GetTweenForCardsChangingPiles(new global::_003C_003Ez__ReadOnlySingleElementList<CardPileAddResult>(item2));
+			if (tween != null)
+			{
+				tweens.Add(tween);
+			}
+			if (tween != null || flag)
+			{
 				float num = timeBetweenCardAdds + Rng.Chaotic.NextFloat((0f - randomTimeBetweenCardAdds) * 0.5f, randomTimeBetweenCardAdds * 0.5f);
 				waitTimeAccumulator += num;
 				if ((double)waitTimeAccumulator >= ((SceneTree)Engine.GetMainLoop()).Root.GetProcessDeltaTime())
@@ -820,15 +1101,31 @@ public static class CardPileCmd
 					waitTimeAccumulator = 0f;
 				}
 			}
-			else
+		}
+		foreach (Tween item3 in tweens)
+		{
+			if (item3.IsRunning() && await item3.AwaitFinished(NCombatRoom.Instance))
 			{
-				drawPile.AddInternal(item2, -1, silent: true);
+				return;
 			}
 		}
 		await Cmd.CustomScaledWait(0.2f, 0.5f);
-		await Hook.AfterShuffle(player.Creature.CombatState, choiceContext, player);
+		if (!CombatManager.Instance.IsOverOrEnding)
+		{
+			await Hook.AfterShuffle(player.Creature.CombatState, choiceContext, player);
+		}
 	}
 
+	/// <summary>
+	/// Play cards directly from the draw pile.
+	/// If the draw pile becomes empty before the specified number of cards are played, the discard pile will
+	/// automatically be shuffled into it.
+	/// </summary>
+	/// <param name="choiceContext">The context that is signalled in the event of a player choice.</param>
+	/// <param name="player">Player whose draw pile we should play from.</param>
+	/// <param name="count">Number of cards to play.</param>
+	/// <param name="position">Position to play the cards from.</param>
+	/// <param name="forceExhaust">Whether or not to force the played cards to be exhausted after.</param>
 	public static async Task AutoPlayFromDrawPile(PlayerChoiceContext choiceContext, Player player, int count, CardPilePosition position, bool forceExhaust)
 	{
 		if (CombatManager.Instance.IsOverOrEnding)
@@ -856,11 +1153,20 @@ public static class CardPileCmd
 		}
 		foreach (CardModel item in cards)
 		{
-			item.ExhaustOnNextPlay = forceExhaust;
-			await CardCmd.AutoPlay(choiceContext, item, null);
+			if (!item.Owner.Creature.IsDead)
+			{
+				item.ExhaustOnNextPlay = forceExhaust;
+				await CardCmd.AutoPlay(choiceContext, item, null);
+				continue;
+			}
+			break;
 		}
 	}
 
+	/// <summary>
+	/// Shuffle the specified player's discard pile into their draw pile IF their draw pile is currently empty.
+	/// If their draw pile has at least one card in it OR their discard pile is empty, this method will do nothing.
+	/// </summary>
 	public static async Task ShuffleIfNecessary(PlayerChoiceContext choiceContext, Player player)
 	{
 		CardPile pile = PileType.Draw.GetPile(player);
@@ -872,6 +1178,9 @@ public static class CardPileCmd
 		}
 	}
 
+	/// <summary>
+	/// The first time the discard pile is shuffled into the draw pile, the Shuffle FTUE shows up
+	/// </summary>
 	private static async Task ShuffleFtueCheck()
 	{
 		if (!SaveManager.Instance.SeenFtue("shuffle_ftue") && NModalContainer.Instance != null)
@@ -883,15 +1192,15 @@ public static class CardPileCmd
 		}
 	}
 
-	public static async Task AddToCombatAndPreview<T>(IEnumerable<Creature> targets, PileType pileType, int count, bool addedByPlayer, CardPilePosition position = CardPilePosition.Bottom) where T : CardModel
+	public static async Task AddToCombatAndPreview<T>(IEnumerable<Creature> targets, PileType pileType, int count, Player? creator, CardPilePosition position = CardPilePosition.Bottom) where T : CardModel
 	{
 		foreach (Creature target in targets)
 		{
-			await AddToCombatAndPreview<T>(target, pileType, count, addedByPlayer, position);
+			await AddToCombatAndPreview<T>(target, pileType, count, creator, position);
 		}
 	}
 
-	public static async Task AddToCombatAndPreview<T>(Creature target, PileType pileType, int count, bool addedByPlayer, CardPilePosition position = CardPilePosition.Bottom) where T : CardModel
+	public static async Task AddToCombatAndPreview<T>(Creature target, PileType pileType, int count, Player? creator, CardPilePosition position = CardPilePosition.Bottom) where T : CardModel
 	{
 		Player player = target.Player ?? target.PetOwner;
 		if (player.Creature.IsDead)
@@ -901,10 +1210,14 @@ public static class CardPileCmd
 		CardPileAddResult[] statusCards = new CardPileAddResult[count];
 		for (int i = 0; i < count; i++)
 		{
-			CardModel card = target.CombatState.CreateCard<T>(player);
-			CardPileAddResult[] array = statusCards;
-			int num = i;
-			array[num] = await AddGeneratedCardToCombat(card, pileType, addedByPlayer, position);
+			ICombatState? combatState = target.CombatState;
+			CardModel cardModel = ((combatState != null) ? combatState.CreateCard<T>(player) : null);
+			if (cardModel != null)
+			{
+				CardPileAddResult[] array = statusCards;
+				int num = i;
+				array[num] = await AddGeneratedCardToCombat(cardModel, pileType, creator, position);
+			}
 		}
 		if (LocalContext.IsMe(player))
 		{
@@ -919,12 +1232,12 @@ public static class CardPileCmd
 		}
 	}
 
-	public static async Task AddCurseToDeck<T>(Player owner) where T : CardModel
+	public static async Task<CardModel?> AddCurseToDeck<T>(Player owner) where T : CardModel
 	{
-		await AddCursesToDeck(new global::_003C_003Ez__ReadOnlySingleElementList<CardModel>(ModelDb.Card<T>()), owner);
+		return (await AddCursesToDeck(new global::_003C_003Ez__ReadOnlySingleElementList<CardModel>(ModelDb.Card<T>()), owner)).FirstOrDefault().cardAdded;
 	}
 
-	public static async Task AddCursesToDeck(IEnumerable<CardModel> curses, Player owner)
+	public static async Task<IEnumerable<CardPileAddResult>> AddCursesToDeck(IEnumerable<CardModel> curses, Player owner)
 	{
 		List<CardPileAddResult> results = new List<CardPileAddResult>();
 		foreach (CardModel curse in curses)
@@ -937,6 +1250,7 @@ public static class CardPileCmd
 			results.Add(await Add(card, PileType.Deck));
 		}
 		CardCmd.PreviewCardPileAdd(results, 2f);
+		return results;
 	}
 
 	private static bool CheckIfDrawIsPossibleAndShowThoughtBubbleIfNot(Player player)
@@ -946,7 +1260,7 @@ public static class CardPileCmd
 			ThinkCmd.Play(new LocString("combat_messages", "NO_DRAW"), player.Creature, 2.0);
 			return false;
 		}
-		if (PileType.Hand.GetPile(player).Cards.Count >= 10)
+		if (PileType.Hand.GetPile(player).Cards.Count >= CardPile.MaxCardsInHand)
 		{
 			ThinkCmd.Play(new LocString("combat_messages", "HAND_FULL"), player.Creature, 2.0);
 			return false;

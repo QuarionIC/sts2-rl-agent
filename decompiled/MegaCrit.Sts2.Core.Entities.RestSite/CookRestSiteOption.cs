@@ -14,7 +14,7 @@ public sealed class CookRestSiteOption : RestSiteOption
 {
 	private const int _cardsToRemove = 2;
 
-	private const int _maxHpGain = 9;
+	private const int _maxHpGain = 5;
 
 	public override string OptionId => "COOK";
 
@@ -22,21 +22,22 @@ public sealed class CookRestSiteOption : RestSiteOption
 	{
 		get
 		{
-			if (base.IsEnabled)
+			if (IsEnabled)
 			{
 				LocString locString = new LocString("rest_site_ui", "OPTION_" + OptionId + ".description");
 				locString.Add("Cards", 2m);
-				locString.Add("MaxHp", 9m);
+				locString.Add("MaxHp", 5m);
 				return locString;
 			}
 			return new LocString("rest_site_ui", "OPTION_" + OptionId + ".descriptionDisabled");
 		}
 	}
 
+	public override bool IsEnabled => GetRemovableCardCount(base.Owner) >= 2;
+
 	public CookRestSiteOption(Player owner)
 		: base(owner)
 	{
-		base.IsEnabled = GetRemovableCardCount(owner) >= 2;
 	}
 
 	public override async Task<bool> OnSelect()
@@ -54,7 +55,7 @@ public sealed class CookRestSiteOption : RestSiteOption
 		{
 			await CardPileCmd.RemoveFromDeck(item);
 		}
-		await CreatureCmd.GainMaxHp(base.Owner.Creature, 9m);
+		await CreatureCmd.GainMaxHp(base.Owner.Creature, 5m);
 		return true;
 	}
 

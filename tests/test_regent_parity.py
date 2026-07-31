@@ -28,6 +28,7 @@ from sts2_env.cards.regent import (
     make_seeking_edge,
     make_solar_strike,
     make_spoils_of_battle,
+    make_strike_regent,
     make_summon_forth,
     make_the_smith,
     make_void_form,
@@ -57,7 +58,7 @@ def _make_combat() -> CombatState:
 
 
 class TestRegentParity:
-    def test_begone_transforms_selected_hand_card_into_upgraded_minion_dive_bomb(self):
+    def test_begone_transforms_selected_hand_card_into_upgraded_minion_strike(self):
         """Matches Begone.cs: a single eligible hand card is auto-transformed."""
         combat = _make_combat()
         enemy = combat.enemies[0]
@@ -66,12 +67,12 @@ class TestRegentParity:
         combat.hand = [make_begone(upgraded=True), target_card]
         combat.energy = 1
 
-        assert combat.play_card(0, 0)
-        assert enemy.current_hp == starting_hp - 5
+        assert combat.play_card(0)
+        assert enemy.current_hp == starting_hp
         assert combat.pending_choice is None
         assert target_card not in combat.hand
         transformed = combat.hand[0]
-        assert transformed.card_id == make_minion_dive_bomb(upgraded=True).card_id
+        assert transformed.card_id == make_minion_strike(upgraded=True).card_id
         assert transformed.upgraded is True
 
     def test_photon_cut_draws_then_puts_selected_hand_card_back_on_top_of_draw(self):
@@ -152,7 +153,7 @@ class TestRegentParity:
         assert combat.play_card(0)
         assert combat.player.get_power_amount(PowerId.ENERGY_NEXT_TURN) == 1
         blade = next(card for card in combat.hand if card.card_id.name == "SOVEREIGN_BLADE")
-        assert blade.base_damage == 16
+        assert blade.base_damage == 19
 
     def test_seeking_edge_forges_and_applies_seeking_edge_power(self):
         """Matches SeekingEdge.cs: forge immediately, then apply SeekingEdgePower."""
@@ -186,18 +187,23 @@ class TestRegentParity:
         combat.energy = 1
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == starting_hp - 8
+        assert enemy.current_hp == starting_hp - 9
         assert combat.stars == 1
 
-    def test_spoils_of_battle_forges_without_other_side_effects(self):
-        """Matches SpoilsOfBattle.cs: only forge by the card's forge amount."""
+    def test_spoils_of_battle_forges_then_draws(self):
+        """Matches SpoilsOfBattle.cs: forge by Forge, then draw Cards."""
         combat = _make_combat()
+        first_draw = make_strike_regent()
+        second_draw = make_strike_regent()
         combat.hand = [make_spoils_of_battle()]
+        combat.draw_pile = [first_draw, second_draw]
         combat.energy = 1
 
         assert combat.play_card(0)
         blade = next(card for card in combat.hand if card.card_id.name == "SOVEREIGN_BLADE")
-        assert blade.base_damage == 20
+        assert blade.base_damage == 15
+        assert first_draw in combat.hand
+        assert second_draw in combat.hand
 
     def test_wrought_in_war_deals_damage_then_forges(self):
         """Matches WroughtInWar.cs: attack the target, then forge."""
@@ -210,7 +216,7 @@ class TestRegentParity:
 
         assert combat.play_card(0, 0)
         assert enemy.current_hp == starting_hp - 7
-        assert blade.base_damage == 15
+        assert blade.base_damage == 17
 
     def test_knockout_blow_gains_stars_only_if_combat_continues_after_kill(self):
         """Matches KnockoutBlow.cs: GainStars is skipped once the final enemy kill makes combat ending."""
@@ -385,7 +391,7 @@ class TestRegentParity:
         combat.energy = 2
 
         assert combat.play_card(0)
-        assert combat.player.block == 13
+        assert combat.player.block == 12
         blade = next(card for card in combat.hand if card.card_id == CardId.SOVEREIGN_BLADE)
         assert blade.base_damage == 20
 
@@ -477,7 +483,7 @@ class TestRegentParity:
         combat.energy = 2
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == starting_hp - 17
+        assert enemy.current_hp == starting_hp - 20
         assert combat.pending_choice is None
         copies = [card for card in combat.hand if card.card_id == gem.card_id]
         assert len(copies) == 2
@@ -526,7 +532,7 @@ class TestRegentParity:
         combat.energy = 1
 
         assert combat.play_card(0)
-        assert combat.player.get_power_amount(PowerId.FURNACE) == card.effect_vars.get("furnace", 4)
+        assert combat.player.get_power_amount(PowerId.FURNACE) == card.effect_vars["forge"] == 5
 
     def test_orbit_applies_orbit_power(self):
         """Matches Orbit.cs: apply OrbitPower with the configured energy value."""

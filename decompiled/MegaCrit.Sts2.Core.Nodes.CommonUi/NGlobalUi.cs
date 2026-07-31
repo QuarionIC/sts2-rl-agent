@@ -18,51 +18,123 @@ using MegaCrit.Sts2.Core.Settings;
 
 namespace MegaCrit.Sts2.Core.Nodes.CommonUi;
 
+/// <summary>
+/// Container for run-level global UI elements.
+/// Also adjusts the Window size to meet aspect ratio requirements
+/// </summary>
 [ScriptPath("res://src/Core/Nodes/CommonUi/NGlobalUi.cs")]
 public class NGlobalUi : Control
 {
+	/// <summary>
+	/// Cached StringNames for the methods contained in this class, for fast lookup.
+	/// </summary>
 	public new class MethodName : Control.MethodName
 	{
+		/// <summary>
+		/// Cached name for the '_Ready' method.
+		/// </summary>
 		public new static readonly StringName _Ready = "_Ready";
 
+		/// <summary>
+		/// Cached name for the 'OnWindowChange' method.
+		/// </summary>
 		public static readonly StringName OnWindowChange = "OnWindowChange";
 
+		/// <summary>
+		/// Cached name for the 'ReparentCard' method.
+		/// </summary>
 		public static readonly StringName ReparentCard = "ReparentCard";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the properties and fields contained in this class, for fast lookup.
+	/// </summary>
 	public new class PropertyName : Control.PropertyName
 	{
+		/// <summary>
+		/// Cached name for the 'TopBar' property.
+		/// </summary>
 		public static readonly StringName TopBar = "TopBar";
 
+		/// <summary>
+		/// Cached name for the 'Overlays' property.
+		/// </summary>
 		public static readonly StringName Overlays = "Overlays";
 
+		/// <summary>
+		/// Cached name for the 'CapstoneContainer' property.
+		/// </summary>
 		public static readonly StringName CapstoneContainer = "CapstoneContainer";
 
+		/// <summary>
+		/// Cached name for the 'RelicInventory' property.
+		/// </summary>
 		public static readonly StringName RelicInventory = "RelicInventory";
 
+		/// <summary>
+		/// Cached name for the 'EventCardPreviewContainer' property.
+		/// </summary>
 		public static readonly StringName EventCardPreviewContainer = "EventCardPreviewContainer";
 
+		/// <summary>
+		/// Cached name for the 'CardPreviewContainer' property.
+		/// </summary>
 		public static readonly StringName CardPreviewContainer = "CardPreviewContainer";
 
+		/// <summary>
+		/// Cached name for the 'MessyCardPreviewContainer' property.
+		/// </summary>
 		public static readonly StringName MessyCardPreviewContainer = "MessyCardPreviewContainer";
 
+		/// <summary>
+		/// Cached name for the 'GridCardPreviewContainer' property.
+		/// </summary>
 		public static readonly StringName GridCardPreviewContainer = "GridCardPreviewContainer";
 
+		/// <summary>
+		/// Cached name for the 'AboveTopBarVfxContainer' property.
+		/// </summary>
 		public static readonly StringName AboveTopBarVfxContainer = "AboveTopBarVfxContainer";
 
+		/// <summary>
+		/// Cached name for the 'MapScreen' property.
+		/// </summary>
 		public static readonly StringName MapScreen = "MapScreen";
 
+		/// <summary>
+		/// Cached name for the 'MultiplayerPlayerContainer' property.
+		/// </summary>
 		public static readonly StringName MultiplayerPlayerContainer = "MultiplayerPlayerContainer";
 
+		/// <summary>
+		/// Cached name for the 'TimeoutOverlay' property.
+		/// </summary>
 		public static readonly StringName TimeoutOverlay = "TimeoutOverlay";
 
+		/// <summary>
+		/// Cached name for the 'SubmenuStack' property.
+		/// </summary>
 		public static readonly StringName SubmenuStack = "SubmenuStack";
 
+		/// <summary>
+		/// Cached name for the 'TargetManager' property.
+		/// </summary>
 		public static readonly StringName TargetManager = "TargetManager";
 
+		/// <summary>
+		/// Cached name for the 'DebugInfo' property.
+		/// </summary>
+		public static readonly StringName DebugInfo = "DebugInfo";
+
+		/// <summary>
+		/// Cached name for the '_window' field.
+		/// </summary>
 		public static readonly StringName _window = "_window";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the signals contained in this class, for fast lookup.
+	/// </summary>
 	public new class SignalName : Control.SignalName
 	{
 	}
@@ -101,6 +173,8 @@ public class NGlobalUi : Control
 
 	public NTargetManager TargetManager { get; private set; }
 
+	public Control DebugInfo { get; private set; }
+
 	public override void _Ready()
 	{
 		_window = GetTree().Root;
@@ -119,6 +193,7 @@ public class NGlobalUi : Control
 		TargetManager = GetNode<NTargetManager>("TargetManager");
 		TimeoutOverlay = GetNode<NMultiplayerTimeoutOverlay>("%MultiplayerTimeoutOverlay");
 		AboveTopBarVfxContainer = GetNode<Control>("%AboveTopBarVfxContainer");
+		DebugInfo = GetNode<Control>("%DebugInfo");
 	}
 
 	private void OnWindowChange()
@@ -161,6 +236,11 @@ public class NGlobalUi : Control
 		TimeoutOverlay.Initialize(RunManager.Instance.NetService, isGameLevel: false);
 	}
 
+	/// <summary>
+	/// Get the method information for all the methods declared in this class.
+	/// This method is used by Godot to register the available methods in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal static List<MethodInfo> GetGodotMethodList()
 	{
@@ -174,6 +254,7 @@ public class NGlobalUi : Control
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool InvokeGodotClassMethod(in godot_string_name method, NativeVariantPtrArgs args, out godot_variant ret)
 	{
@@ -198,6 +279,7 @@ public class NGlobalUi : Control
 		return base.InvokeGodotClassMethod(in method, args, out ret);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassMethod(in godot_string_name method)
 	{
@@ -216,6 +298,7 @@ public class NGlobalUi : Control
 		return base.HasGodotClassMethod(in method);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool SetGodotClassPropertyValue(in godot_string_name name, in godot_variant value)
 	{
@@ -289,6 +372,11 @@ public class NGlobalUi : Control
 			TargetManager = VariantUtils.ConvertTo<NTargetManager>(in value);
 			return true;
 		}
+		if (name == PropertyName.DebugInfo)
+		{
+			DebugInfo = VariantUtils.ConvertTo<Control>(in value);
+			return true;
+		}
 		if (name == PropertyName._window)
 		{
 			_window = VariantUtils.ConvertTo<Window>(in value);
@@ -297,6 +385,7 @@ public class NGlobalUi : Control
 		return base.SetGodotClassPropertyValue(in name, in value);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool GetGodotClassPropertyValue(in godot_string_name name, out godot_variant value)
 	{
@@ -374,6 +463,12 @@ public class NGlobalUi : Control
 			value = VariantUtils.CreateFrom<NTargetManager>(TargetManager);
 			return true;
 		}
+		if (name == PropertyName.DebugInfo)
+		{
+			from = DebugInfo;
+			value = VariantUtils.CreateFrom(in from);
+			return true;
+		}
 		if (name == PropertyName._window)
 		{
 			value = VariantUtils.CreateFrom(in _window);
@@ -382,6 +477,11 @@ public class NGlobalUi : Control
 		return base.GetGodotClassPropertyValue(in name, out value);
 	}
 
+	/// <summary>
+	/// Get the property information for all the properties declared in this class.
+	/// This method is used by Godot to register the available properties in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal static List<PropertyInfo> GetGodotPropertyList()
 	{
@@ -401,9 +501,11 @@ public class NGlobalUi : Control
 		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName.TimeoutOverlay, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName.SubmenuStack, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName.TargetManager, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
+		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName.DebugInfo, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void SaveGodotObjectData(GodotSerializationInfo info)
 	{
@@ -422,9 +524,11 @@ public class NGlobalUi : Control
 		info.AddProperty(PropertyName.TimeoutOverlay, Variant.From<NMultiplayerTimeoutOverlay>(TimeoutOverlay));
 		info.AddProperty(PropertyName.SubmenuStack, Variant.From<NCapstoneSubmenuStack>(SubmenuStack));
 		info.AddProperty(PropertyName.TargetManager, Variant.From<NTargetManager>(TargetManager));
+		info.AddProperty(PropertyName.DebugInfo, Variant.From<Control>(DebugInfo));
 		info.AddProperty(PropertyName._window, Variant.From(in _window));
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RestoreGodotObjectData(GodotSerializationInfo info)
 	{
@@ -485,9 +589,13 @@ public class NGlobalUi : Control
 		{
 			TargetManager = value14.As<NTargetManager>();
 		}
-		if (info.TryGetProperty(PropertyName._window, out var value15))
+		if (info.TryGetProperty(PropertyName.DebugInfo, out var value15))
 		{
-			_window = value15.As<Window>();
+			DebugInfo = value15.As<Control>();
+		}
+		if (info.TryGetProperty(PropertyName._window, out var value16))
+		{
+			_window = value16.As<Window>();
 		}
 	}
 }

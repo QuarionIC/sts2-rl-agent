@@ -635,7 +635,7 @@ class TestCardCleanup:
         combat = _make_combat()
         well_laid_plans = make_well_laid_plans()
         combat.hand = [well_laid_plans]
-        combat.energy = 1
+        combat.energy = 2
 
         combat.play_card(0)
 

@@ -1751,7 +1751,7 @@ class TestResolvedCardStubs:
 
         assert combat.play_card(0, 0)
 
-        assert enemy.current_hp == starting_hp - 8
+        assert enemy.current_hp == starting_hp - 9
         assert combat.stars == 1
 
     def test_bodyguard_summons_osty(self):
@@ -1786,7 +1786,7 @@ class TestResolvedCardStubs:
         combat.energy = 1
 
         assert combat.play_card(0)
-        assert combat.player.block == 7
+        assert combat.player.block == 8
         assert combat.stars == 1
 
     def test_glow_gains_star_and_draws_cards(self):
@@ -1797,7 +1797,7 @@ class TestResolvedCardStubs:
 
         assert combat.play_card(0)
         assert combat.stars == 1
-        assert len(combat.hand) == 2
+        assert len(combat.hand) == 1
 
 
 class TestPendingChoiceFlow:
@@ -1963,9 +1963,9 @@ class TestPendingChoiceFlow:
         combat.hand = [begone, strike]
         combat.energy = 1
 
-        assert combat.play_card(0, 0)
+        assert combat.play_card(0)
         assert combat.pending_choice is None
-        assert any(card.card_id == make_minion_dive_bomb().card_id for card in combat.hand)
+        assert any(card.card_id == make_minion_strike().card_id for card in combat.hand)
 
     def test_seance_auto_transforms_when_all_draw_cards_are_required(self):
         combat = _make_combat(create_necrobinder_starter_deck(), "Necrobinder")
@@ -2115,7 +2115,7 @@ class TestPendingChoiceFlow:
         combat.energy = 2
 
         assert combat.play_card(0)
-        assert combat.player.block == 13
+        assert combat.player.block == 12
         assert any(c.card_id == CardId.SOVEREIGN_BLADE for c in combat.hand)
 
     def test_conqueror_applies_power_and_forges(self):
@@ -2523,7 +2523,7 @@ class TestDynamicColorlessParity:
         assert combat.play_card(0, 0)
         ally_state = combat.combat_player_state_for(ally)
         assert ally_state is not None
-        assert ally_state.energy == 3
+        assert ally_state.energy == 2
         assert combat.energy == 0
 
     def test_lift_grants_block_to_selected_ally(self):
@@ -2882,7 +2882,7 @@ class TestStatusParity:
             ("Silent", create_ironclad_starter_deck(), make_survivor(), 8),
             ("Defect", create_defect_starter_deck(), make_charge_battery(), 7),
             ("Ironclad", create_ironclad_starter_deck(), make_stack(), 3),
-            ("Necrobinder", create_necrobinder_starter_deck(), make_sacrifice(), 10),
+            ("Necrobinder", create_necrobinder_starter_deck(), make_sacrifice(), 15),
         ]
         for character_id, deck, card, expected_block in cases:
             combat = _make_combat(deck, character_id)
@@ -3243,7 +3243,7 @@ class TestStatusParity:
         assert combat.play_card(0)
         assert combat.osty is not None
         assert not combat.osty.is_alive
-        assert combat.player.block == 10
+        assert combat.player.block == 15
 
     def test_end_of_days_immediately_kills_doomed_enemies(self):
         combat = _make_combat(create_necrobinder_starter_deck(), "Necrobinder")

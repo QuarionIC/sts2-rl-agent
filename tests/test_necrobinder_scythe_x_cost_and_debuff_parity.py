@@ -129,17 +129,18 @@ class TestNecrobinderScytheXCostAndDebuffParity:
         combat.hand = [card]
         combat.energy = 2
 
+        # v0.110.0 IntVar("Increase", 5m): 13 -> 18 -> 23 (v0.109.0 grew by 4).
         assert combat.play_card(0, 0)
         assert enemy.current_hp == 187
-        assert card.base_damage == 17
+        assert card.base_damage == 18
         assert card in combat.exhaust_pile
 
         combat.exhaust_pile.remove(card)
         combat.hand = [card]
         combat.energy = 2
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == 170
-        assert card.base_damage == 21
+        assert enemy.current_hp == 169
+        assert card.base_damage == 23
 
     def test_the_scythe_upgrade_preserves_grown_damage(self):
         combat = _make_combat()
@@ -148,10 +149,12 @@ class TestNecrobinderScytheXCostAndDebuffParity:
         combat.energy = 2
 
         assert combat.play_card(0, 0)
-        assert card.base_damage == 17
+        assert card.base_damage == 18
 
         combat.upgrade_card(card)
 
         assert card.upgraded is True
-        assert card.base_damage == 17
-        assert card.effect_vars["increase"] == 5
+        # Upgrading swaps in the upgraded Increase but keeps the damage already
+        # grown by play. v0.110.0 OnUpgrade raises Increase by 2 (was 1).
+        assert card.base_damage == 18
+        assert card.effect_vars["increase"] == 7

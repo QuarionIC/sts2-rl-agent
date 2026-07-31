@@ -201,7 +201,7 @@ class TestColorlessCardEffectsReferenceParity:
 
         assert combat.play_card(0)
 
-        assert combat.player.get_power_amount(PowerId.PLATING) == 7
+        assert combat.player.get_power_amount(PowerId.PLATING) == 9
 
     def test_jackpot_deals_damage_and_adds_three_zero_cost_cards(self):
         combat = _make_combat()
@@ -400,7 +400,9 @@ class TestColorlessCardEffectsReferenceParity:
         combat.deal_damage(enemy, combat.primary_player, 10, ValueProp.MOVE)
         assert combat.primary_player.current_hp == hp_before
 
-    def test_production_base_exhausts_and_upgrade_does_not(self):
+    def test_production_always_exhausts_and_upgrade_only_raises_energy(self):
+        # Production.cs: CanonicalKeywords is Exhaust and OnUpgrade only does
+        # Energy.UpgradeValueBy(1) -- the upgrade never removes Exhaust.
         combat = _make_combat()
         base = make_production()
         upgraded = make_production(upgraded=True)
@@ -412,8 +414,8 @@ class TestColorlessCardEffectsReferenceParity:
         assert any(card.card_id == base.card_id for card in combat.exhaust_pile)
 
         assert combat.play_card(0)
-        assert combat.energy == 4
-        assert any(card.card_id == upgraded.card_id for card in combat.discard_pile)
+        assert combat.energy == 5
+        assert upgraded in combat.exhaust_pile
 
     def test_prolong_carries_current_block_to_next_player_turn(self):
         combat = _make_combat()
@@ -526,7 +528,7 @@ class TestColorlessCardEffectsReferenceParity:
         )
         combat.hand = [make_beacon_of_hope(), make_finesse()]
         combat.draw_pile = []
-        combat.energy = 1
+        combat.energy = 2
 
         assert combat.play_card(0)
         assert combat.play_card(0)
@@ -542,7 +544,7 @@ class TestColorlessCardEffectsReferenceParity:
         enemy.max_hp = 100
         enemy.current_hp = 100
         combat.hand = [make_beacon_of_hope(), make_fisticuffs()]
-        combat.energy = 2
+        combat.energy = 3
 
         assert combat.play_card(0)
         assert combat.play_card(0, 0)

@@ -10,56 +10,142 @@ using MegaCrit.Sts2.Core.ControllerInput;
 using MegaCrit.Sts2.Core.Debug;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Nodes.Debug;
+using MegaCrit.Sts2.Core.Platform;
 using MegaCrit.Sts2.Core.Saves;
 
 namespace MegaCrit.Sts2.Core.Nodes.CommonUi;
 
+/// <summary>
+/// Listens for keyboard and controller inputs, and map them into input events that the UX
+/// can listen for (for navigation or hotkeys)
+/// That map can be edited to rebind different keyboard/controller inputs to different UX events
+/// </summary>
 [ScriptPath("res://src/Core/Nodes/CommonUi/NInputManager.cs")]
 public class NInputManager : Node
 {
 	[Signal]
 	public delegate void InputReboundEventHandler();
 
+	/// <summary>
+	/// Cached StringNames for the methods contained in this class, for fast lookup.
+	/// </summary>
 	public new class MethodName : Node.MethodName
 	{
+		/// <summary>
+		/// Cached name for the '_EnterTree' method.
+		/// </summary>
 		public new static readonly StringName _EnterTree = "_EnterTree";
 
+		/// <summary>
+		/// Cached name for the '_Ready' method.
+		/// </summary>
 		public new static readonly StringName _Ready = "_Ready";
 
+		/// <summary>
+		/// Cached name for the '_UnhandledKeyInput' method.
+		/// </summary>
 		public new static readonly StringName _UnhandledKeyInput = "_UnhandledKeyInput";
 
+		/// <summary>
+		/// Cached name for the 'ProcessDebugKeyInput' method.
+		/// </summary>
 		public static readonly StringName ProcessDebugKeyInput = "ProcessDebugKeyInput";
 
-		public static readonly StringName ProcessShortcutKeyInput = "ProcessShortcutKeyInput";
+		/// <summary>
+		/// Cached name for the 'ProcessHotkeyInput' method.
+		/// </summary>
+		public static readonly StringName ProcessHotkeyInput = "ProcessHotkeyInput";
 
+		/// <summary>
+		/// Cached name for the 'ProcessFkbInput' method.
+		/// </summary>
+		public static readonly StringName ProcessFkbInput = "ProcessFkbInput";
+
+		/// <summary>
+		/// Cached name for the '_UnhandledInput' method.
+		/// </summary>
 		public new static readonly StringName _UnhandledInput = "_UnhandledInput";
 
-		public static readonly StringName GetShortcutKey = "GetShortcutKey";
+		/// <summary>
+		/// Cached name for the 'GetCurrentHotkey' method.
+		/// </summary>
+		public static readonly StringName GetCurrentHotkey = "GetCurrentHotkey";
 
+		/// <summary>
+		/// Cached name for the 'GetMKbHotkey' method.
+		/// </summary>
+		public static readonly StringName GetMKbHotkey = "GetMKbHotkey";
+
+		/// <summary>
+		/// Cached name for the 'GetKbOnlyHotkey' method.
+		/// </summary>
+		public static readonly StringName GetKbOnlyHotkey = "GetKbOnlyHotkey";
+
+		/// <summary>
+		/// Cached name for the 'GetHotkeyIcon' method.
+		/// </summary>
 		public static readonly StringName GetHotkeyIcon = "GetHotkeyIcon";
 
-		public static readonly StringName ModifyShortcutKey = "ModifyShortcutKey";
+		/// <summary>
+		/// Cached name for the 'ModifyMKbKey' method.
+		/// </summary>
+		public static readonly StringName ModifyMKbKey = "ModifyMKbKey";
 
+		/// <summary>
+		/// Cached name for the 'ModifyKbOnlyKey' method.
+		/// </summary>
+		public static readonly StringName ModifyKbOnlyKey = "ModifyKbOnlyKey";
+
+		/// <summary>
+		/// Cached name for the 'ModifyControllerButton' method.
+		/// </summary>
 		public static readonly StringName ModifyControllerButton = "ModifyControllerButton";
 
+		/// <summary>
+		/// Cached name for the 'ResetToDefaults' method.
+		/// </summary>
 		public static readonly StringName ResetToDefaults = "ResetToDefaults";
 
-		public static readonly StringName ResetToDefaultControllerMapping = "ResetToDefaultControllerMapping";
-
+		/// <summary>
+		/// Cached name for the 'OnControllerTypeChanged' method.
+		/// </summary>
 		public static readonly StringName OnControllerTypeChanged = "OnControllerTypeChanged";
 
+		/// <summary>
+		/// Cached name for the 'SaveControllerInputMapping' method.
+		/// </summary>
 		public static readonly StringName SaveControllerInputMapping = "SaveControllerInputMapping";
 
-		public static readonly StringName SaveKeyboardInputMapping = "SaveKeyboardInputMapping";
+		/// <summary>
+		/// Cached name for the 'SaveMKbInputMapping' method.
+		/// </summary>
+		public static readonly StringName SaveMKbInputMapping = "SaveMKbInputMapping";
+
+		/// <summary>
+		/// Cached name for the 'SaveFKbInputMapping' method.
+		/// </summary>
+		public static readonly StringName SaveFKbInputMapping = "SaveFKbInputMapping";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the properties and fields contained in this class, for fast lookup.
+	/// </summary>
 	public new class PropertyName : Node.PropertyName
 	{
+		/// <summary>
+		/// Cached name for the 'ControllerManager' property.
+		/// </summary>
 		public static readonly StringName ControllerManager = "ControllerManager";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the signals contained in this class, for fast lookup.
+	/// </summary>
 	public new class SignalName : Node.SignalName
 	{
+		/// <summary>
+		/// Cached name for the 'InputRebound' signal.
+		/// </summary>
 		public static readonly StringName InputRebound = "InputRebound";
 	}
 
@@ -151,16 +237,17 @@ public class NInputManager : Node
 		}
 	};
 
-	public static readonly IReadOnlyList<StringName> remappableKeyboardInputs = new List<StringName>
+	public static readonly IReadOnlyList<StringName> remappableMKbInputs = new List<StringName>
 	{
-		MegaInput.select,
 		MegaInput.cancel,
 		MegaInput.viewMap,
+		MegaInput.topPanel,
 		MegaInput.viewDeckAndTabLeft,
 		MegaInput.viewDrawPile,
 		MegaInput.viewDiscardPile,
 		MegaInput.viewExhaustPileAndTabRight,
-		MegaInput.accept,
+		MegaInput.confirm,
+		MegaInput.endTurn,
 		MegaInput.peek,
 		MegaInput.up,
 		MegaInput.down,
@@ -175,8 +262,36 @@ public class NInputManager : Node
 		MegaInput.selectCard7,
 		MegaInput.selectCard8,
 		MegaInput.selectCard9,
-		MegaInput.selectCard10,
-		MegaInput.releaseCard
+		MegaInput.selectCard10
+	};
+
+	public static readonly IReadOnlyList<StringName> remappableKbOnlyInputs = new List<StringName>
+	{
+		MegaInput.select,
+		MegaInput.cancel,
+		MegaInput.viewMap,
+		MegaInput.topPanel,
+		MegaInput.viewDeckAndTabLeft,
+		MegaInput.viewDrawPile,
+		MegaInput.viewDiscardPile,
+		MegaInput.viewExhaustPileAndTabRight,
+		MegaInput.confirm,
+		MegaInput.endTurn,
+		MegaInput.peek,
+		MegaInput.up,
+		MegaInput.down,
+		MegaInput.left,
+		MegaInput.right,
+		MegaInput.selectCard1,
+		MegaInput.selectCard2,
+		MegaInput.selectCard3,
+		MegaInput.selectCard4,
+		MegaInput.selectCard5,
+		MegaInput.selectCard6,
+		MegaInput.selectCard7,
+		MegaInput.selectCard8,
+		MegaInput.selectCard9,
+		MegaInput.selectCard10
 	};
 
 	public static readonly IReadOnlyList<StringName> remappableControllerInputs = new List<StringName>
@@ -189,7 +304,8 @@ public class NInputManager : Node
 		MegaInput.viewDrawPile,
 		MegaInput.viewDiscardPile,
 		MegaInput.viewExhaustPileAndTabRight,
-		MegaInput.accept,
+		MegaInput.confirm,
+		MegaInput.endTurn,
 		MegaInput.peek,
 		MegaInput.up,
 		MegaInput.down,
@@ -197,9 +313,11 @@ public class NInputManager : Node
 		MegaInput.right
 	};
 
-	private Dictionary<StringName, Key> _keyboardInputMap = new Dictionary<StringName, Key>();
+	private Dictionary<StringName, Key> _mKbInputMap = new Dictionary<StringName, Key>();
 
 	private Dictionary<StringName, StringName> _controllerInputMap = new Dictionary<StringName, StringName>();
+
+	private Dictionary<StringName, Key> _fKbInputMap = new Dictionary<StringName, Key>();
 
 	private InputReboundEventHandler backing_InputRebound;
 
@@ -215,14 +333,14 @@ public class NInputManager : Node
 		}
 	}
 
-	private static Dictionary<StringName, Key> DefaultKeyboardInputMap => new Dictionary<StringName, Key>
+	private static Dictionary<StringName, Key> DefaultHotkeyInputMap => new Dictionary<StringName, Key>
 	{
 		{
-			MegaInput.accept,
+			MegaInput.endTurn,
 			Key.E
 		},
 		{
-			MegaInput.select,
+			MegaInput.confirm,
 			Key.Enter
 		},
 		{
@@ -312,15 +430,120 @@ public class NInputManager : Node
 		{
 			MegaInput.selectCard10,
 			Key.Key0
+		}
+	};
+
+	private static Dictionary<StringName, Key> DefaultKbOnlyInputMap => new Dictionary<StringName, Key>
+	{
+		{
+			MegaInput.confirm,
+			Key.Enter
 		},
 		{
-			MegaInput.releaseCard,
+			MegaInput.endTurn,
+			Key.E
+		},
+		{
+			MegaInput.select,
+			Key.Space
+		},
+		{
+			MegaInput.viewDiscardPile,
+			Key.D
+		},
+		{
+			MegaInput.viewDeckAndTabLeft,
+			Key.Q
+		},
+		{
+			MegaInput.viewExhaustPileAndTabRight,
+			Key.F
+		},
+		{
+			MegaInput.viewDrawPile,
+			Key.A
+		},
+		{
+			MegaInput.viewMap,
+			Key.Tab
+		},
+		{
+			MegaInput.cancel,
+			Key.Escape
+		},
+		{
+			MegaInput.peek,
+			Key.S
+		},
+		{
+			MegaInput.up,
+			Key.Up
+		},
+		{
+			MegaInput.down,
 			Key.Down
+		},
+		{
+			MegaInput.left,
+			Key.Left
+		},
+		{
+			MegaInput.right,
+			Key.Right
+		},
+		{
+			MegaInput.pauseAndBack,
+			Key.Escape
+		},
+		{
+			MegaInput.selectCard1,
+			Key.Key1
+		},
+		{
+			MegaInput.selectCard2,
+			Key.Key2
+		},
+		{
+			MegaInput.selectCard3,
+			Key.Key3
+		},
+		{
+			MegaInput.selectCard4,
+			Key.Key4
+		},
+		{
+			MegaInput.selectCard5,
+			Key.Key5
+		},
+		{
+			MegaInput.selectCard6,
+			Key.Key6
+		},
+		{
+			MegaInput.selectCard7,
+			Key.Key7
+		},
+		{
+			MegaInput.selectCard8,
+			Key.Key8
+		},
+		{
+			MegaInput.selectCard9,
+			Key.Key9
+		},
+		{
+			MegaInput.selectCard10,
+			Key.Key0
+		},
+		{
+			MegaInput.topPanel,
+			Key.W
 		}
 	};
 
 	public NControllerManager ControllerManager { get; private set; }
 
+	/// <inheritdoc cref="T:MegaCrit.Sts2.Core.Nodes.CommonUi.NInputManager.InputReboundEventHandler" />
 	public event InputReboundEventHandler InputRebound
 	{
 		add
@@ -350,41 +573,83 @@ public class NInputManager : Node
 		SettingsSave settingsSave = SaveManager.Instance.SettingsSave;
 		if (settingsSave.KeyboardMapping.Count > 0)
 		{
-			_keyboardInputMap = new Dictionary<StringName, Key>();
+			Dictionary<StringName, Key> defaultHotkeyInputMap = DefaultHotkeyInputMap;
+			_mKbInputMap = new Dictionary<StringName, Key>(defaultHotkeyInputMap);
 			foreach (KeyValuePair<string, string> item in settingsSave.KeyboardMapping)
 			{
-				_keyboardInputMap.Add(item.Key, Enum.Parse<Key>(item.Value));
+				if (Enum.TryParse<Key>(item.Value, out var result))
+				{
+					_mKbInputMap[item.Key] = result;
+				}
 			}
 		}
 		else
 		{
-			_keyboardInputMap = DefaultKeyboardInputMap;
-			SaveKeyboardInputMapping();
+			_mKbInputMap = DefaultHotkeyInputMap;
+			SaveMKbInputMapping();
+		}
+		if (settingsSave.KbOnlyMapping.Count > 0)
+		{
+			Dictionary<StringName, Key> defaultKbOnlyInputMap = DefaultKbOnlyInputMap;
+			_fKbInputMap = new Dictionary<StringName, Key>(defaultKbOnlyInputMap);
+			foreach (KeyValuePair<string, string> item2 in settingsSave.KbOnlyMapping)
+			{
+				if (Enum.TryParse<Key>(item2.Value, out var result2))
+				{
+					_fKbInputMap[item2.Key] = result2;
+				}
+			}
+		}
+		else
+		{
+			_fKbInputMap = DefaultKbOnlyInputMap;
+			SaveFKbInputMapping();
 		}
 		if (settingsSave.ControllerMapping.Count > 0 && settingsSave.ControllerMappingType == ControllerManager.ControllerMappingType)
 		{
-			_controllerInputMap = new Dictionary<StringName, StringName>();
-			{
-				foreach (KeyValuePair<string, string> item2 in settingsSave.ControllerMapping)
-				{
-					_controllerInputMap.Add(item2.Key, item2.Value);
-				}
-				return;
-			}
+			_controllerInputMap = MergeSavedControllerBindings(ControllerManager.GetDefaultControllerInputMap, settingsSave.ControllerMapping);
+			return;
 		}
 		_controllerInputMap = ControllerManager.GetDefaultControllerInputMap;
 		SaveControllerInputMapping();
 	}
 
+	/// <summary>
+	/// Overlays a saved controller mapping onto the defaults, ignoring any saved binding whose
+	/// value is not a registered InputMap action. A binding can point at a missing action when a
+	/// save was migrated forward by a newer build and then loaded by an older one, or when a save
+	/// was hand-edited. Applying it would make <see cref="M:MegaCrit.Sts2.Core.Nodes.CommonUi.NInputManager._UnhandledInput(Godot.InputEvent)" /> call
+	/// <c>IsActionPressed</c> on a nonexistent action and spam errors, so the default is kept.
+	/// </summary>
+	public static Dictionary<StringName, StringName> MergeSavedControllerBindings(Dictionary<StringName, StringName> defaults, Dictionary<string, string> savedMapping)
+	{
+		Dictionary<StringName, StringName> dictionary = new Dictionary<StringName, StringName>(defaults);
+		foreach (KeyValuePair<string, string> item in savedMapping)
+		{
+			if (InputMap.HasAction(item.Value))
+			{
+				dictionary[item.Key] = item.Value;
+			}
+		}
+		return dictionary;
+	}
+
 	public override void _UnhandledKeyInput(InputEvent inputEvent)
 	{
-		ProcessShortcutKeyInput(inputEvent);
+		if (ControllerManager.InputType == InputType.KeyboardOnlyMode)
+		{
+			ProcessFkbInput(inputEvent);
+		}
+		else
+		{
+			ProcessHotkeyInput(inputEvent);
+		}
 		ProcessDebugKeyInput(inputEvent);
 	}
 
 	private void ProcessDebugKeyInput(InputEvent inputEvent)
 	{
-		if (!(inputEvent is InputEventKey inputEventKey) || NDevConsole.Instance.Visible || !NGame.IsTrailerMode)
+		if (!(inputEvent is InputEventKey inputEventKey) || PlatformUtil.IsPlatformOverlayOpen() || !DisplayServer.WindowIsFocused() || NDevConsole.IsConsoleVisible || !NGame.IsTrailerMode)
 		{
 			return;
 		}
@@ -402,13 +667,33 @@ public class NInputManager : Node
 		}
 	}
 
-	private void ProcessShortcutKeyInput(InputEvent inputEvent)
+	private void ProcessHotkeyInput(InputEvent inputEvent)
 	{
-		if (NGame.Instance.Transition.InTransition || !(inputEvent is InputEventKey inputEventKey))
+		if (NGame.Instance.Transition.InTransition || !NGame.IsGameFocusedWindow() || !(inputEvent is InputEventKey inputEventKey))
 		{
 			return;
 		}
-		foreach (KeyValuePair<StringName, Key> item in _keyboardInputMap)
+		foreach (KeyValuePair<StringName, Key> item in _mKbInputMap)
+		{
+			if (inputEventKey.Keycode == item.Value && !inputEvent.IsEcho())
+			{
+				InputEventAction inputEventAction = new InputEventAction
+				{
+					Action = item.Key,
+					Pressed = inputEvent.IsPressed()
+				};
+				Input.ParseInputEvent(inputEventAction);
+			}
+		}
+	}
+
+	private void ProcessFkbInput(InputEvent inputEvent)
+	{
+		if (NGame.Instance.Transition.InTransition || !NGame.IsGameFocusedWindow() || !(inputEvent is InputEventKey inputEventKey))
+		{
+			return;
+		}
+		foreach (KeyValuePair<StringName, Key> item in _fKbInputMap)
 		{
 			if (inputEventKey.Keycode == item.Value && !inputEvent.IsEcho())
 			{
@@ -424,7 +709,7 @@ public class NInputManager : Node
 
 	public override void _UnhandledInput(InputEvent inputEvent)
 	{
-		if (NGame.Instance.Transition.InTransition)
+		if (NGame.Instance.Transition.InTransition || !NGame.IsGameFocusedWindow())
 		{
 			return;
 		}
@@ -451,9 +736,31 @@ public class NInputManager : Node
 		}
 	}
 
-	public Key GetShortcutKey(StringName input)
+	public Key GetCurrentHotkey(StringName input)
 	{
-		return _keyboardInputMap[input];
+		if (ControllerManager.InputType != InputType.KeyboardOnlyMode)
+		{
+			return GetMKbHotkey(input);
+		}
+		return GetKbOnlyHotkey(input);
+	}
+
+	public Key GetMKbHotkey(StringName input)
+	{
+		if (!_mKbInputMap.TryGetValue(input, out var value))
+		{
+			return Key.None;
+		}
+		return value;
+	}
+
+	public Key GetKbOnlyHotkey(StringName input)
+	{
+		if (!_fKbInputMap.TryGetValue(input, out var value))
+		{
+			return Key.None;
+		}
+		return value;
 	}
 
 	public Texture2D? GetHotkeyIcon(string hotkey)
@@ -465,16 +772,29 @@ public class NInputManager : Node
 		return null;
 	}
 
-	public void ModifyShortcutKey(StringName input, Key shortcutKey)
+	public void ModifyMKbKey(StringName input, Key shortcutKey)
 	{
-		KeyValuePair<StringName, Key> keyValuePair = _keyboardInputMap.FirstOrDefault<KeyValuePair<StringName, Key>>((KeyValuePair<StringName, Key> kvp) => kvp.Value == shortcutKey && remappableKeyboardInputs.Contains(kvp.Key));
+		KeyValuePair<StringName, Key> keyValuePair = _mKbInputMap.FirstOrDefault<KeyValuePair<StringName, Key>>((KeyValuePair<StringName, Key> kvp) => kvp.Value == shortcutKey && remappableMKbInputs.Contains(kvp.Key));
 		if (keyValuePair.Key != null)
 		{
-			Key value = _keyboardInputMap[input];
-			_keyboardInputMap[keyValuePair.Key] = value;
+			Key value = _mKbInputMap[input];
+			_mKbInputMap[keyValuePair.Key] = value;
 		}
-		_keyboardInputMap[input] = shortcutKey;
-		SaveKeyboardInputMapping();
+		_mKbInputMap[input] = shortcutKey;
+		SaveMKbInputMapping();
+		EmitSignalInputRebound();
+	}
+
+	public void ModifyKbOnlyKey(StringName input, Key shortcutKey)
+	{
+		KeyValuePair<StringName, Key> keyValuePair = _fKbInputMap.FirstOrDefault<KeyValuePair<StringName, Key>>((KeyValuePair<StringName, Key> kvp) => kvp.Value == shortcutKey && remappableKbOnlyInputs.Contains(kvp.Key));
+		if (keyValuePair.Key != null)
+		{
+			Key value = _fKbInputMap[input];
+			_fKbInputMap[keyValuePair.Key] = value;
+		}
+		_fKbInputMap[input] = shortcutKey;
+		SaveFKbInputMapping();
 		EmitSignalInputRebound();
 	}
 
@@ -487,23 +807,26 @@ public class NInputManager : Node
 			_controllerInputMap[keyValuePair.Key] = value;
 		}
 		_controllerInputMap[input] = controllerInput;
+		if (input == MegaInput.confirm)
+		{
+			_controllerInputMap[MegaInput.endTurn] = controllerInput;
+		}
+		else if (input == MegaInput.endTurn)
+		{
+			_controllerInputMap[MegaInput.confirm] = controllerInput;
+		}
 		SaveControllerInputMapping();
 		EmitSignalInputRebound();
 	}
 
 	public void ResetToDefaults()
 	{
-		_keyboardInputMap = DefaultKeyboardInputMap;
+		_mKbInputMap = DefaultHotkeyInputMap;
 		_controllerInputMap = ControllerManager.GetDefaultControllerInputMap;
+		_fKbInputMap = DefaultKbOnlyInputMap;
 		SaveControllerInputMapping();
-		SaveKeyboardInputMapping();
-		EmitSignalInputRebound();
-	}
-
-	public void ResetToDefaultControllerMapping()
-	{
-		_controllerInputMap = ControllerManager.GetDefaultControllerInputMap;
-		SaveControllerInputMapping();
+		SaveMKbInputMapping();
+		SaveFKbInputMapping();
 		EmitSignalInputRebound();
 	}
 
@@ -529,10 +852,10 @@ public class NInputManager : Node
 		SaveManager.Instance.SaveSettings();
 	}
 
-	private void SaveKeyboardInputMapping()
+	private void SaveMKbInputMapping()
 	{
 		Dictionary<string, string> dictionary = new Dictionary<string, string>();
-		foreach (KeyValuePair<StringName, Key> item in _keyboardInputMap)
+		foreach (KeyValuePair<StringName, Key> item in _mKbInputMap)
 		{
 			dictionary.Add(item.Key.ToString(), item.Value.ToString());
 		}
@@ -540,10 +863,26 @@ public class NInputManager : Node
 		SaveManager.Instance.SaveSettings();
 	}
 
+	private void SaveFKbInputMapping()
+	{
+		Dictionary<string, string> dictionary = new Dictionary<string, string>();
+		foreach (KeyValuePair<StringName, Key> item in _fKbInputMap)
+		{
+			dictionary.Add(item.Key.ToString(), item.Value.ToString());
+		}
+		SaveManager.Instance.SettingsSave.KbOnlyMapping = dictionary;
+		SaveManager.Instance.SaveSettings();
+	}
+
+	/// <summary>
+	/// Get the method information for all the methods declared in this class.
+	/// This method is used by Godot to register the available methods in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal static List<MethodInfo> GetGodotMethodList()
 	{
-		List<MethodInfo> list = new List<MethodInfo>(15);
+		List<MethodInfo> list = new List<MethodInfo>(19);
 		list.Add(new MethodInfo(MethodName._EnterTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName._Ready, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName._UnhandledKeyInput, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
@@ -554,7 +893,11 @@ public class NInputManager : Node
 		{
 			new PropertyInfo(Variant.Type.Object, "inputEvent", PropertyHint.None, "", PropertyUsageFlags.Default, new StringName("InputEvent"), exported: false)
 		}, null));
-		list.Add(new MethodInfo(MethodName.ProcessShortcutKeyInput, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		list.Add(new MethodInfo(MethodName.ProcessHotkeyInput, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		{
+			new PropertyInfo(Variant.Type.Object, "inputEvent", PropertyHint.None, "", PropertyUsageFlags.Default, new StringName("InputEvent"), exported: false)
+		}, null));
+		list.Add(new MethodInfo(MethodName.ProcessFkbInput, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
 		{
 			new PropertyInfo(Variant.Type.Object, "inputEvent", PropertyHint.None, "", PropertyUsageFlags.Default, new StringName("InputEvent"), exported: false)
 		}, null));
@@ -562,7 +905,15 @@ public class NInputManager : Node
 		{
 			new PropertyInfo(Variant.Type.Object, "inputEvent", PropertyHint.None, "", PropertyUsageFlags.Default, new StringName("InputEvent"), exported: false)
 		}, null));
-		list.Add(new MethodInfo(MethodName.GetShortcutKey, new PropertyInfo(Variant.Type.Int, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		list.Add(new MethodInfo(MethodName.GetCurrentHotkey, new PropertyInfo(Variant.Type.Int, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		{
+			new PropertyInfo(Variant.Type.StringName, "input", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
+		}, null));
+		list.Add(new MethodInfo(MethodName.GetMKbHotkey, new PropertyInfo(Variant.Type.Int, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		{
+			new PropertyInfo(Variant.Type.StringName, "input", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
+		}, null));
+		list.Add(new MethodInfo(MethodName.GetKbOnlyHotkey, new PropertyInfo(Variant.Type.Int, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
 		{
 			new PropertyInfo(Variant.Type.StringName, "input", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
 		}, null));
@@ -570,7 +921,12 @@ public class NInputManager : Node
 		{
 			new PropertyInfo(Variant.Type.String, "hotkey", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
 		}, null));
-		list.Add(new MethodInfo(MethodName.ModifyShortcutKey, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		list.Add(new MethodInfo(MethodName.ModifyMKbKey, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		{
+			new PropertyInfo(Variant.Type.StringName, "input", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false),
+			new PropertyInfo(Variant.Type.Int, "shortcutKey", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
+		}, null));
+		list.Add(new MethodInfo(MethodName.ModifyKbOnlyKey, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
 		{
 			new PropertyInfo(Variant.Type.StringName, "input", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false),
 			new PropertyInfo(Variant.Type.Int, "shortcutKey", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
@@ -581,13 +937,14 @@ public class NInputManager : Node
 			new PropertyInfo(Variant.Type.StringName, "controllerInput", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
 		}, null));
 		list.Add(new MethodInfo(MethodName.ResetToDefaults, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
-		list.Add(new MethodInfo(MethodName.ResetToDefaultControllerMapping, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.OnControllerTypeChanged, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.SaveControllerInputMapping, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
-		list.Add(new MethodInfo(MethodName.SaveKeyboardInputMapping, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
+		list.Add(new MethodInfo(MethodName.SaveMKbInputMapping, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
+		list.Add(new MethodInfo(MethodName.SaveFKbInputMapping, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool InvokeGodotClassMethod(in godot_string_name method, NativeVariantPtrArgs args, out godot_variant ret)
 	{
@@ -615,9 +972,15 @@ public class NInputManager : Node
 			ret = default(godot_variant);
 			return true;
 		}
-		if (method == MethodName.ProcessShortcutKeyInput && args.Count == 1)
+		if (method == MethodName.ProcessHotkeyInput && args.Count == 1)
 		{
-			ProcessShortcutKeyInput(VariantUtils.ConvertTo<InputEvent>(in args[0]));
+			ProcessHotkeyInput(VariantUtils.ConvertTo<InputEvent>(in args[0]));
+			ret = default(godot_variant);
+			return true;
+		}
+		if (method == MethodName.ProcessFkbInput && args.Count == 1)
+		{
+			ProcessFkbInput(VariantUtils.ConvertTo<InputEvent>(in args[0]));
 			ret = default(godot_variant);
 			return true;
 		}
@@ -627,9 +990,19 @@ public class NInputManager : Node
 			ret = default(godot_variant);
 			return true;
 		}
-		if (method == MethodName.GetShortcutKey && args.Count == 1)
+		if (method == MethodName.GetCurrentHotkey && args.Count == 1)
 		{
-			ret = VariantUtils.CreateFrom<Key>(GetShortcutKey(VariantUtils.ConvertTo<StringName>(in args[0])));
+			ret = VariantUtils.CreateFrom<Key>(GetCurrentHotkey(VariantUtils.ConvertTo<StringName>(in args[0])));
+			return true;
+		}
+		if (method == MethodName.GetMKbHotkey && args.Count == 1)
+		{
+			ret = VariantUtils.CreateFrom<Key>(GetMKbHotkey(VariantUtils.ConvertTo<StringName>(in args[0])));
+			return true;
+		}
+		if (method == MethodName.GetKbOnlyHotkey && args.Count == 1)
+		{
+			ret = VariantUtils.CreateFrom<Key>(GetKbOnlyHotkey(VariantUtils.ConvertTo<StringName>(in args[0])));
 			return true;
 		}
 		if (method == MethodName.GetHotkeyIcon && args.Count == 1)
@@ -637,9 +1010,15 @@ public class NInputManager : Node
 			ret = VariantUtils.CreateFrom<Texture2D>(GetHotkeyIcon(VariantUtils.ConvertTo<string>(in args[0])));
 			return true;
 		}
-		if (method == MethodName.ModifyShortcutKey && args.Count == 2)
+		if (method == MethodName.ModifyMKbKey && args.Count == 2)
 		{
-			ModifyShortcutKey(VariantUtils.ConvertTo<StringName>(in args[0]), VariantUtils.ConvertTo<Key>(in args[1]));
+			ModifyMKbKey(VariantUtils.ConvertTo<StringName>(in args[0]), VariantUtils.ConvertTo<Key>(in args[1]));
+			ret = default(godot_variant);
+			return true;
+		}
+		if (method == MethodName.ModifyKbOnlyKey && args.Count == 2)
+		{
+			ModifyKbOnlyKey(VariantUtils.ConvertTo<StringName>(in args[0]), VariantUtils.ConvertTo<Key>(in args[1]));
 			ret = default(godot_variant);
 			return true;
 		}
@@ -655,12 +1034,6 @@ public class NInputManager : Node
 			ret = default(godot_variant);
 			return true;
 		}
-		if (method == MethodName.ResetToDefaultControllerMapping && args.Count == 0)
-		{
-			ResetToDefaultControllerMapping();
-			ret = default(godot_variant);
-			return true;
-		}
 		if (method == MethodName.OnControllerTypeChanged && args.Count == 0)
 		{
 			OnControllerTypeChanged();
@@ -673,15 +1046,22 @@ public class NInputManager : Node
 			ret = default(godot_variant);
 			return true;
 		}
-		if (method == MethodName.SaveKeyboardInputMapping && args.Count == 0)
+		if (method == MethodName.SaveMKbInputMapping && args.Count == 0)
 		{
-			SaveKeyboardInputMapping();
+			SaveMKbInputMapping();
+			ret = default(godot_variant);
+			return true;
+		}
+		if (method == MethodName.SaveFKbInputMapping && args.Count == 0)
+		{
+			SaveFKbInputMapping();
 			ret = default(godot_variant);
 			return true;
 		}
 		return base.InvokeGodotClassMethod(in method, args, out ret);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassMethod(in godot_string_name method)
 	{
@@ -701,7 +1081,11 @@ public class NInputManager : Node
 		{
 			return true;
 		}
-		if (method == MethodName.ProcessShortcutKeyInput)
+		if (method == MethodName.ProcessHotkeyInput)
+		{
+			return true;
+		}
+		if (method == MethodName.ProcessFkbInput)
 		{
 			return true;
 		}
@@ -709,7 +1093,15 @@ public class NInputManager : Node
 		{
 			return true;
 		}
-		if (method == MethodName.GetShortcutKey)
+		if (method == MethodName.GetCurrentHotkey)
+		{
+			return true;
+		}
+		if (method == MethodName.GetMKbHotkey)
+		{
+			return true;
+		}
+		if (method == MethodName.GetKbOnlyHotkey)
 		{
 			return true;
 		}
@@ -717,7 +1109,11 @@ public class NInputManager : Node
 		{
 			return true;
 		}
-		if (method == MethodName.ModifyShortcutKey)
+		if (method == MethodName.ModifyMKbKey)
+		{
+			return true;
+		}
+		if (method == MethodName.ModifyKbOnlyKey)
 		{
 			return true;
 		}
@@ -729,10 +1125,6 @@ public class NInputManager : Node
 		{
 			return true;
 		}
-		if (method == MethodName.ResetToDefaultControllerMapping)
-		{
-			return true;
-		}
 		if (method == MethodName.OnControllerTypeChanged)
 		{
 			return true;
@@ -741,13 +1133,18 @@ public class NInputManager : Node
 		{
 			return true;
 		}
-		if (method == MethodName.SaveKeyboardInputMapping)
+		if (method == MethodName.SaveMKbInputMapping)
+		{
+			return true;
+		}
+		if (method == MethodName.SaveFKbInputMapping)
 		{
 			return true;
 		}
 		return base.HasGodotClassMethod(in method);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool SetGodotClassPropertyValue(in godot_string_name name, in godot_variant value)
 	{
@@ -759,6 +1156,7 @@ public class NInputManager : Node
 		return base.SetGodotClassPropertyValue(in name, in value);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool GetGodotClassPropertyValue(in godot_string_name name, out godot_variant value)
 	{
@@ -770,6 +1168,11 @@ public class NInputManager : Node
 		return base.GetGodotClassPropertyValue(in name, out value);
 	}
 
+	/// <summary>
+	/// Get the property information for all the properties declared in this class.
+	/// This method is used by Godot to register the available properties in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal static List<PropertyInfo> GetGodotPropertyList()
 	{
@@ -778,6 +1181,7 @@ public class NInputManager : Node
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void SaveGodotObjectData(GodotSerializationInfo info)
 	{
@@ -786,6 +1190,7 @@ public class NInputManager : Node
 		info.AddSignalEventDelegate(SignalName.InputRebound, backing_InputRebound);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RestoreGodotObjectData(GodotSerializationInfo info)
 	{
@@ -800,6 +1205,11 @@ public class NInputManager : Node
 		}
 	}
 
+	/// <summary>
+	/// Get the signal information for all the signals declared in this class.
+	/// This method is used by Godot to register the available signals in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal static List<MethodInfo> GetGodotSignalList()
 	{
@@ -813,6 +1223,7 @@ public class NInputManager : Node
 		EmitSignal(SignalName.InputRebound);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RaiseGodotClassSignalCallbacks(in godot_string_name signal, NativeVariantPtrArgs args)
 	{
@@ -826,6 +1237,7 @@ public class NInputManager : Node
 		}
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassSignal(in godot_string_name signal)
 	{

@@ -108,7 +108,7 @@ def test_ally_card_play_uses_acting_owner_for_player_and_resources():
     ally_combat_state.energy = 1
 
     assert combat.play_card_from_creature(ally, 0)
-    assert ally.block == 7
+    assert ally.block == 8
     assert ally.stars == 1
     assert ally_combat_state.stars == 1
     assert combat.primary_player.stars == 0

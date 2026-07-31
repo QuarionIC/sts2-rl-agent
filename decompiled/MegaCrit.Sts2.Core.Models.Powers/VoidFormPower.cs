@@ -1,9 +1,13 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
+using MegaCrit.Sts2.Core.Nodes.Vfx.Forms;
 
 namespace MegaCrit.Sts2.Core.Models.Powers;
 
@@ -14,9 +18,44 @@ public sealed class VoidFormPower : PowerModel
 		public int cardsPlayedThisTurn;
 	}
 
+	private NVoidFormVfx? _vfx;
+
 	public override PowerType Type => PowerType.Buff;
 
 	public override PowerStackType StackType => PowerStackType.Counter;
+
+	private NVoidFormVfx? Vfx
+	{
+		get
+		{
+			if (_vfx == null)
+			{
+				return _vfx;
+			}
+			if (!_vfx.IsValid())
+			{
+				return null;
+			}
+			return _vfx;
+		}
+		set
+		{
+			AssertMutable();
+			_vfx = value;
+		}
+	}
+
+	public override Task AfterApplied(Creature? applier, CardModel? cardSource)
+	{
+		Vfx = NVoidFormVfx.Create(base.Owner);
+		return Task.CompletedTask;
+	}
+
+	public override Task AfterRemoved(Creature oldOwner)
+	{
+		Vfx?.SetActive(isActive: false);
+		return Task.CompletedTask;
+	}
 
 	protected override object InitInternalData()
 	{
@@ -39,7 +78,7 @@ public sealed class VoidFormPower : PowerModel
 		return Task.CompletedTask;
 	}
 
-	public override bool TryModifyEnergyCostInCombat(CardModel card, decimal originalCost, out decimal modifiedCost)
+	public override bool TryModifyEnergyCostInCombatLate(CardModel card, decimal originalCost, out decimal modifiedCost)
 	{
 		modifiedCost = originalCost;
 		if (ShouldSkip(card))
@@ -61,21 +100,27 @@ public sealed class VoidFormPower : PowerModel
 		return true;
 	}
 
-	public override Task AfterCardPlayed(PlayerChoiceContext context, CardPlay cardPlay)
+	public override Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
 	{
 		if (cardPlay.Card.Owner.Creature == base.Owner && cardPlay != null && !cardPlay.IsAutoPlay && cardPlay.IsLastInSeries)
 		{
 			GetInternalData<Data>().cardsPlayedThisTurn++;
 		}
+		if (GetInternalData<Data>().cardsPlayedThisTurn >= base.Amount)
+		{
+			Vfx?.SetActive(isActive: false);
+		}
 		return Task.CompletedTask;
 	}
 
-	public override Task BeforeSideTurnStart(PlayerChoiceContext choiceContext, CombatSide side, CombatState combatState)
+	public override Task BeforeSideTurnStart(PlayerChoiceContext choiceContext, CombatSide side, IReadOnlyList<Creature> participants, ICombatState combatState)
 	{
-		if (side == base.Owner.Side)
+		if (!participants.Contains(base.Owner))
 		{
-			GetInternalData<Data>().cardsPlayedThisTurn = 0;
+			return Task.CompletedTask;
 		}
+		GetInternalData<Data>().cardsPlayedThisTurn = 0;
+		Vfx?.SetActive(isActive: true);
 		return Task.CompletedTask;
 	}
 
@@ -105,6 +150,11 @@ public sealed class VoidFormPower : PowerModel
 		return true;
 	}
 
+	/// <summary>
+	/// HACK: If Void Form is the first card played in a turn, there's a brief period before the turn is auto-ended
+	/// where we show a zero energy cost on all cards.
+	/// To avoid this, we max out cardsPlayedThisTurn, which doesn't matter anyways since the turn is ending.
+	/// </summary>
 	private void HideTemporaryZeroCostVisual()
 	{
 		GetInternalData<Data>().cardsPlayedThisTurn = 999999999;

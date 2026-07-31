@@ -16,35 +16,79 @@ using MegaCrit.Sts2.Core.TestSupport;
 
 namespace MegaCrit.Sts2.Core.Nodes.CommonUi;
 
+/// <summary>
+/// A popup to let the player know a terrible bug has occurred, and to upload a bug report.
+/// The wording should be changed before we release.
+/// Renders above the capstone screens (above top bar).
+/// </summary>
 [ScriptPath("res://src/Core/Nodes/CommonUi/NErrorPopup.cs")]
 public class NErrorPopup : NVerticalPopup, IScreenContext
 {
+	/// <summary>
+	/// Cached StringNames for the methods contained in this class, for fast lookup.
+	/// </summary>
 	public new class MethodName : NVerticalPopup.MethodName
 	{
+		/// <summary>
+		/// Cached name for the '_Ready' method.
+		/// </summary>
 		public new static readonly StringName _Ready = "_Ready";
 
+		/// <summary>
+		/// Cached name for the 'Create' method.
+		/// </summary>
 		public static readonly StringName Create = "Create";
 
+		/// <summary>
+		/// Cached name for the 'OnOkButtonPressed' method.
+		/// </summary>
 		public static readonly StringName OnOkButtonPressed = "OnOkButtonPressed";
 
+		/// <summary>
+		/// Cached name for the 'OnCancelButtonPressed' method.
+		/// </summary>
 		public static readonly StringName OnCancelButtonPressed = "OnCancelButtonPressed";
 
+		/// <summary>
+		/// Cached name for the 'OnReportBugButtonPressed' method.
+		/// </summary>
 		public static readonly StringName OnReportBugButtonPressed = "OnReportBugButtonPressed";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the properties and fields contained in this class, for fast lookup.
+	/// </summary>
 	public new class PropertyName : NVerticalPopup.PropertyName
 	{
+		/// <summary>
+		/// Cached name for the 'DefaultFocusedControl' property.
+		/// </summary>
 		public static readonly StringName DefaultFocusedControl = "DefaultFocusedControl";
 
+		/// <summary>
+		/// Cached name for the '_verticalPopup' field.
+		/// </summary>
 		public static readonly StringName _verticalPopup = "_verticalPopup";
 
+		/// <summary>
+		/// Cached name for the '_title' field.
+		/// </summary>
 		public static readonly StringName _title = "_title";
 
+		/// <summary>
+		/// Cached name for the '_body' field.
+		/// </summary>
 		public static readonly StringName _body = "_body";
 
+		/// <summary>
+		/// Cached name for the '_showReportBugButton' field.
+		/// </summary>
 		public static readonly StringName _showReportBugButton = "_showReportBugButton";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the signals contained in this class, for fast lookup.
+	/// </summary>
 	public new class SignalName : NVerticalPopup.SignalName
 	{
 	}
@@ -115,6 +159,10 @@ public class NErrorPopup : NVerticalPopup, IScreenContext
 		return nErrorPopup;
 	}
 
+	/// <summary>
+	/// Creates an error popup with hardcoded English text (bypassing localization).
+	/// Use this when localization may be broken (e.g., showing localization errors).
+	/// </summary>
 	public static NErrorPopup? Create(string title, string body, bool showReportBugButton)
 	{
 		if (TestMode.IsOn)
@@ -128,91 +176,126 @@ public class NErrorPopup : NVerticalPopup, IScreenContext
 		return nErrorPopup;
 	}
 
-	private static LocString LocStringFromNetError(NetErrorInfo info, out bool showReportBugButton)
+	public static LocString LocStringFromNetError(NetErrorInfo info, out bool showReportBugButton)
 	{
 		NetError reason = info.GetReason();
-		string text = default(string);
+		LocString locString = GetLocStringForReason(reason, info.ConnectionExtraInfo?.localIsHost ?? false);
+		if (locString == null)
+		{
+			ConnectionFailureExtraInfo? connectionExtraInfo = info.ConnectionExtraInfo;
+			if ((object)connectionExtraInfo != null && connectionExtraInfo.localIsHost)
+			{
+				locString = GetLocStringForReason(reason, isHost: false);
+			}
+		}
+		bool flag = !info.IsModded;
+		bool flag2 = flag;
+		if (flag2)
+		{
+			bool flag3 = ((reason == NetError.None || reason == NetError.StateDivergence || (uint)(reason - 17) <= 1u) ? true : false);
+			flag2 = flag3;
+		}
+		showReportBugButton = flag2;
+		if (locString == null)
+		{
+			Log.Error($"Invalid net error passed to {"NErrorPopup"}: {info}!");
+			locString = new LocString("main_menu_ui", "NETWORK_ERROR.INTERNAL_ERROR.body");
+			showReportBugButton = !info.IsModded;
+		}
+		locString.Add("info", info.GetErrorString());
+		return locString;
+	}
+
+	public static LocString? GetLocStringForReason(NetError reason, bool isHost)
+	{
+		string text = (isHost ? "NETWORK_ERROR.HOST." : "NETWORK_ERROR.");
+		string text2 = default(string);
 		switch (reason)
 		{
 		case NetError.None:
-			text = null;
+			text2 = null;
 			break;
 		case NetError.QuitGameOver:
-			text = null;
+			text2 = null;
 			break;
 		case NetError.CancelledJoin:
-			text = null;
+			text2 = null;
 			break;
 		case NetError.LobbyFull:
-			text = "NETWORK_ERROR.LOBBY_FULL.body";
+			text2 = "LOBBY_FULL.body";
 			break;
 		case NetError.Quit:
-			text = "NETWORK_ERROR.QUIT.body";
+			text2 = "QUIT.body";
 			break;
 		case NetError.HostAbandoned:
-			text = "NETWORK_ERROR.HOST_ABANDONED.body";
+			text2 = "HOST_ABANDONED.body";
 			break;
 		case NetError.Kicked:
-			text = "NETWORK_ERROR.KICKED.body";
+			text2 = "KICKED.body";
 			break;
 		case NetError.InvalidJoin:
-			text = "NETWORK_ERROR.INVALID_JOIN.body";
+			text2 = "INVALID_JOIN.body";
 			break;
 		case NetError.RunInProgress:
-			text = "NETWORK_ERROR.RUN_IN_PROGRESS.body";
+			text2 = "RUN_IN_PROGRESS.body";
 			break;
 		case NetError.StateDivergence:
-			text = "NETWORK_ERROR.STATE_DIVERGENCE.body";
+			text2 = "STATE_DIVERGENCE.body";
 			break;
 		case NetError.ModMismatch:
-			text = "NETWORK_ERROR.MOD_MISMATCH.body";
+			text2 = "MOD_MISMATCH.body";
 			break;
 		case NetError.JoinBlockedByUser:
-			text = "NETWORK_ERROR.JOIN_BLOCKED_BY_USER.body";
+			text2 = "JOIN_BLOCKED_BY_USER.body";
 			break;
 		case NetError.NoInternet:
-			text = "NETWORK_ERROR.NO_INTERNET.body";
+			text2 = "NO_INTERNET.body";
 			break;
 		case NetError.Timeout:
-			text = "NETWORK_ERROR.TIMEOUT.body";
+			text2 = "TIMEOUT.body";
 			break;
 		case NetError.HandshakeTimeout:
-			text = "NETWORK_ERROR.TIMEOUT.body";
+			text2 = "TIMEOUT.body";
 			break;
 		case NetError.InternalError:
-			text = "NETWORK_ERROR.INTERNAL_ERROR.body";
+			text2 = "INTERNAL_ERROR.body";
 			break;
 		case NetError.UnknownNetworkError:
-			text = "NETWORK_ERROR.UNKNOWN_ERROR.body";
+			text2 = "UNKNOWN_ERROR.body";
+			break;
+		case NetError.RateLimited:
+			text2 = "RATE_LIMITED.body";
 			break;
 		case NetError.TryAgainLater:
-			text = "NETWORK_ERROR.TRY_AGAIN_LATER.body";
+			text2 = "TRY_AGAIN_LATER.body";
+			break;
+		case NetError.SecureConnectionFailed:
+			text2 = "SECURE_CONNECTION_FAILED.body";
 			break;
 		case NetError.FailedToHost:
-			text = "NETWORK_ERROR.FAILED_TO_HOST.body";
+			text2 = "FAILED_TO_HOST.body";
 			break;
 		case NetError.NotInSaveGame:
-			text = "NETWORK_ERROR.NOT_IN_SAVE_GAME.body";
+			text2 = "NOT_IN_SAVE_GAME.body";
 			break;
 		case NetError.VersionMismatch:
-			text = "NETWORK_ERROR.VERSION_MISMATCH.body";
+			text2 = "VERSION_MISMATCH.body";
 			break;
 		default:
 			global::_003CPrivateImplementationDetails_003E.ThrowSwitchExpressionException(reason);
 			break;
 		}
-		string text2 = text;
-		bool flag = ((reason == NetError.None || reason == NetError.StateDivergence || (uint)(reason - 17) <= 1u) ? true : false);
-		showReportBugButton = flag;
-		if (text2 == null)
+		string text3 = text2;
+		string text4 = ((text3 != null) ? (text + text3) : null);
+		if (text4 != null)
 		{
-			Log.Error($"Invalid net error passed to NNetworkErrorPopup: {info}!");
-			text2 = "NETWORK_ERROR.INTERNAL_ERROR.body";
-			showReportBugButton = true;
+			LocString locString = new LocString("main_menu_ui", text4);
+			if (locString.Exists())
+			{
+				return locString;
+			}
 		}
-		LocString locString = new LocString("main_menu_ui", text2);
-		locString.Add("info", info.GetErrorString());
-		return locString;
+		return null;
 	}
 
 	private void OnOkButtonPressed(NButton _)
@@ -239,6 +322,11 @@ public class NErrorPopup : NVerticalPopup, IScreenContext
 		await NFeedbackScreenOpener.Instance.OpenFeedbackScreen();
 	}
 
+	/// <summary>
+	/// Get the method information for all the methods declared in this class.
+	/// This method is used by Godot to register the available methods in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<MethodInfo> GetGodotMethodList()
 	{
@@ -265,6 +353,7 @@ public class NErrorPopup : NVerticalPopup, IScreenContext
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool InvokeGodotClassMethod(in godot_string_name method, NativeVariantPtrArgs args, out godot_variant ret)
 	{
@@ -312,6 +401,7 @@ public class NErrorPopup : NVerticalPopup, IScreenContext
 		return false;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassMethod(in godot_string_name method)
 	{
@@ -338,6 +428,7 @@ public class NErrorPopup : NVerticalPopup, IScreenContext
 		return base.HasGodotClassMethod(in method);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool SetGodotClassPropertyValue(in godot_string_name name, in godot_variant value)
 	{
@@ -364,6 +455,7 @@ public class NErrorPopup : NVerticalPopup, IScreenContext
 		return base.SetGodotClassPropertyValue(in name, in value);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool GetGodotClassPropertyValue(in godot_string_name name, out godot_variant value)
 	{
@@ -395,6 +487,11 @@ public class NErrorPopup : NVerticalPopup, IScreenContext
 		return base.GetGodotClassPropertyValue(in name, out value);
 	}
 
+	/// <summary>
+	/// Get the property information for all the properties declared in this class.
+	/// This method is used by Godot to register the available properties in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<PropertyInfo> GetGodotPropertyList()
 	{
@@ -407,6 +504,7 @@ public class NErrorPopup : NVerticalPopup, IScreenContext
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void SaveGodotObjectData(GodotSerializationInfo info)
 	{
@@ -417,6 +515,7 @@ public class NErrorPopup : NVerticalPopup, IScreenContext
 		info.AddProperty(PropertyName._showReportBugButton, Variant.From(in _showReportBugButton));
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RestoreGodotObjectData(GodotSerializationInfo info)
 	{

@@ -20,40 +20,86 @@ namespace MegaCrit.sts2.Core.Nodes.TopBar;
 [ScriptPath("res://src/Core/Nodes/TopBar/NTopBarRoomIcon.cs")]
 public class NTopBarRoomIcon : NClickableControl
 {
+	/// <summary>
+	/// Cached StringNames for the methods contained in this class, for fast lookup.
+	/// </summary>
 	public new class MethodName : NClickableControl.MethodName
 	{
+		/// <summary>
+		/// Cached name for the '_Ready' method.
+		/// </summary>
 		public new static readonly StringName _Ready = "_Ready";
 
-		public new static readonly StringName _EnterTree = "_EnterTree";
+		/// <summary>
+		/// Cached name for the '_Notification' method.
+		/// </summary>
+		public new static readonly StringName _Notification = "_Notification";
 
-		public new static readonly StringName _ExitTree = "_ExitTree";
-
+		/// <summary>
+		/// Cached name for the 'DebugSetMapPointTypeOverride' method.
+		/// </summary>
 		public static readonly StringName DebugSetMapPointTypeOverride = "DebugSetMapPointTypeOverride";
 
+		/// <summary>
+		/// Cached name for the 'DebugClearMapPointTypeOverride' method.
+		/// </summary>
 		public static readonly StringName DebugClearMapPointTypeOverride = "DebugClearMapPointTypeOverride";
 
+		/// <summary>
+		/// Cached name for the 'OnFocus' method.
+		/// </summary>
 		public new static readonly StringName OnFocus = "OnFocus";
 
+		/// <summary>
+		/// Cached name for the 'GetHoverTipPrefixForRoomType' method.
+		/// </summary>
 		public static readonly StringName GetHoverTipPrefixForRoomType = "GetHoverTipPrefixForRoomType";
 
+		/// <summary>
+		/// Cached name for the 'GetHoverTipPrefixForUnknownRoomType' method.
+		/// </summary>
 		public static readonly StringName GetHoverTipPrefixForUnknownRoomType = "GetHoverTipPrefixForUnknownRoomType";
 
+		/// <summary>
+		/// Cached name for the 'OnUnfocus' method.
+		/// </summary>
 		public new static readonly StringName OnUnfocus = "OnUnfocus";
 
+		/// <summary>
+		/// Cached name for the 'UpdateIcon' method.
+		/// </summary>
 		public static readonly StringName UpdateIcon = "UpdateIcon";
 
+		/// <summary>
+		/// Cached name for the 'GetCurrentMapPointType' method.
+		/// </summary>
 		public static readonly StringName GetCurrentMapPointType = "GetCurrentMapPointType";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the properties and fields contained in this class, for fast lookup.
+	/// </summary>
 	public new class PropertyName : NClickableControl.PropertyName
 	{
+		/// <summary>
+		/// Cached name for the '_roomIcon' field.
+		/// </summary>
 		public static readonly StringName _roomIcon = "_roomIcon";
 
+		/// <summary>
+		/// Cached name for the '_roomIconOutline' field.
+		/// </summary>
 		public static readonly StringName _roomIconOutline = "_roomIconOutline";
 
+		/// <summary>
+		/// Cached name for the '_debugMapPointTypeOverride' field.
+		/// </summary>
 		public static readonly StringName _debugMapPointTypeOverride = "_debugMapPointTypeOverride";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the signals contained in this class, for fast lookup.
+	/// </summary>
 	public new class SignalName : NClickableControl.SignalName
 	{
 	}
@@ -70,17 +116,16 @@ public class NTopBarRoomIcon : NClickableControl
 	{
 		_roomIcon = GetNode<TextureRect>("Icon");
 		_roomIconOutline = GetNode<TextureRect>("Icon/Outline");
+		RunManager.Instance.RoomEntered += UpdateIcon;
 		ConnectSignals();
 	}
 
-	public override void _EnterTree()
+	public override void _Notification(int what)
 	{
-		RunManager.Instance.RoomEntered += UpdateIcon;
-	}
-
-	public override void _ExitTree()
-	{
-		RunManager.Instance.RoomEntered -= UpdateIcon;
+		if ((long)what == 1)
+		{
+			RunManager.Instance.RoomEntered -= UpdateIcon;
+		}
 	}
 
 	public void Initialize(IRunState runState)
@@ -89,6 +134,10 @@ public class NTopBarRoomIcon : NClickableControl
 		UpdateIcon();
 	}
 
+	/// <summary>
+	/// Override the map point type for debugging purposes.
+	/// </summary>
+	/// <param name="mapPointType">MapPointType to use instead of the real one.</param>
 	public void DebugSetMapPointTypeOverride(MapPointType mapPointType)
 	{
 		if (mapPointType != MapPointType.Unassigned)
@@ -97,6 +146,9 @@ public class NTopBarRoomIcon : NClickableControl
 		}
 	}
 
+	/// <summary>
+	/// Clear the map point type override.
+	/// </summary>
 	public void DebugClearMapPointTypeOverride()
 	{
 		_debugMapPointTypeOverride = MapPointType.Unassigned;
@@ -105,8 +157,7 @@ public class NTopBarRoomIcon : NClickableControl
 	protected override void OnFocus()
 	{
 		string hoverTipPrefixForRoomType = GetHoverTipPrefixForRoomType();
-		NHoverTipSet nHoverTipSet = NHoverTipSet.CreateAndShow(hoverTip: new HoverTip(new LocString("static_hover_tips", hoverTipPrefixForRoomType + ".title"), new LocString("static_hover_tips", hoverTipPrefixForRoomType + ".description")), owner: _roomIcon);
-		nHoverTipSet.GlobalPosition = _roomIcon.GlobalPosition + new Vector2(0f, base.Size.Y + 20f);
+		NHoverTipSet.CreateAndShow(hoverTip: new HoverTip(new LocString("static_hover_tips", hoverTipPrefixForRoomType + ".title"), new LocString("static_hover_tips", hoverTipPrefixForRoomType + ".description")), owner: _roomIcon)?.SetGlobalPosition(_roomIcon.GlobalPosition + new Vector2(0f, base.Size.Y + 20f));
 	}
 
 	private string GetHoverTipPrefixForRoomType()
@@ -200,13 +251,20 @@ public class NTopBarRoomIcon : NClickableControl
 		return _debugMapPointTypeOverride;
 	}
 
+	/// <summary>
+	/// Get the method information for all the methods declared in this class.
+	/// This method is used by Godot to register the available methods in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<MethodInfo> GetGodotMethodList()
 	{
-		List<MethodInfo> list = new List<MethodInfo>(11);
+		List<MethodInfo> list = new List<MethodInfo>(10);
 		list.Add(new MethodInfo(MethodName._Ready, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
-		list.Add(new MethodInfo(MethodName._EnterTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
-		list.Add(new MethodInfo(MethodName._ExitTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
+		list.Add(new MethodInfo(MethodName._Notification, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		{
+			new PropertyInfo(Variant.Type.Int, "what", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
+		}, null));
 		list.Add(new MethodInfo(MethodName.DebugSetMapPointTypeOverride, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
 		{
 			new PropertyInfo(Variant.Type.Int, "mapPointType", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
@@ -221,6 +279,7 @@ public class NTopBarRoomIcon : NClickableControl
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool InvokeGodotClassMethod(in godot_string_name method, NativeVariantPtrArgs args, out godot_variant ret)
 	{
@@ -230,15 +289,9 @@ public class NTopBarRoomIcon : NClickableControl
 			ret = default(godot_variant);
 			return true;
 		}
-		if (method == MethodName._EnterTree && args.Count == 0)
+		if (method == MethodName._Notification && args.Count == 1)
 		{
-			_EnterTree();
-			ret = default(godot_variant);
-			return true;
-		}
-		if (method == MethodName._ExitTree && args.Count == 0)
-		{
-			_ExitTree();
+			_Notification(VariantUtils.ConvertTo<int>(in args[0]));
 			ret = default(godot_variant);
 			return true;
 		}
@@ -290,6 +343,7 @@ public class NTopBarRoomIcon : NClickableControl
 		return base.InvokeGodotClassMethod(in method, args, out ret);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassMethod(in godot_string_name method)
 	{
@@ -297,11 +351,7 @@ public class NTopBarRoomIcon : NClickableControl
 		{
 			return true;
 		}
-		if (method == MethodName._EnterTree)
-		{
-			return true;
-		}
-		if (method == MethodName._ExitTree)
+		if (method == MethodName._Notification)
 		{
 			return true;
 		}
@@ -340,6 +390,7 @@ public class NTopBarRoomIcon : NClickableControl
 		return base.HasGodotClassMethod(in method);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool SetGodotClassPropertyValue(in godot_string_name name, in godot_variant value)
 	{
@@ -361,6 +412,7 @@ public class NTopBarRoomIcon : NClickableControl
 		return base.SetGodotClassPropertyValue(in name, in value);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool GetGodotClassPropertyValue(in godot_string_name name, out godot_variant value)
 	{
@@ -382,6 +434,11 @@ public class NTopBarRoomIcon : NClickableControl
 		return base.GetGodotClassPropertyValue(in name, out value);
 	}
 
+	/// <summary>
+	/// Get the property information for all the properties declared in this class.
+	/// This method is used by Godot to register the available properties in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<PropertyInfo> GetGodotPropertyList()
 	{
@@ -392,6 +449,7 @@ public class NTopBarRoomIcon : NClickableControl
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void SaveGodotObjectData(GodotSerializationInfo info)
 	{
@@ -401,6 +459,7 @@ public class NTopBarRoomIcon : NClickableControl
 		info.AddProperty(PropertyName._debugMapPointTypeOverride, Variant.From(in _debugMapPointTypeOverride));
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RestoreGodotObjectData(GodotSerializationInfo info)
 	{

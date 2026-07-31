@@ -9,6 +9,7 @@ from sts2_env.cards.defect import (
     GENETIC_ALGORITHM_UPGRADED_INCREASE,
     HAILSTORM_UPGRADED_POWER,
     HELIX_DRILL_UPGRADED_DAMAGE,
+    HOTFIX_FOCUS,
     HYPERBEAM_FOCUS,
     HYPERBEAM_UPGRADED_DAMAGE,
     MACHINE_LEARNING_CARDS,
@@ -125,7 +126,7 @@ BULK_UP_UPGRADED_POWER = 3
 CHAOS_UPGRADED_REPEAT = 2
 ADAPTIVE_STRIKE_UPGRADED_DAMAGE = 23
 ALL_FOR_ONE_UPGRADED_DAMAGE = 14
-BIASED_COGNITION_UPGRADED_FOCUS = 5
+BIASED_COGNITION_UPGRADED_FOCUS = 6
 BIASED_COGNITION_POWER = 1
 FOCUSED_STRIKE_UPGRADED_DAMAGE = 11
 FOCUSED_STRIKE_UPGRADED_POWER = 2
@@ -147,17 +148,18 @@ GO_FOR_THE_EYES_UPGRADED_DAMAGE = 4
 GO_FOR_THE_EYES_UPGRADED_WEAK = 2
 GUNK_UP_UPGRADED_DAMAGE = 5
 GUNK_UP_REPEAT = 3
-HOTFIX_UPGRADED_FOCUS = 3
 LEAP_UPGRADED_BLOCK = 12
+LIGHTNING_ORBS_CHANNELED = 2
 LIGHTNING_ROD_UPGRADED_BLOCK = 7
 LIGHTNING_ROD_POWER = 2
-MOMENTUM_STRIKE_UPGRADED_DAMAGE = 13
-MOMENTUM_STRIKE_DAMAGE = 10
+MOMENTUM_STRIKE_UPGRADED_DAMAGE = 15
+MOMENTUM_STRIKE_DAMAGE = 11
 SWEEPING_BEAM_UPGRADED_DAMAGE = 9
 SWEEPING_BEAM_DRAW_COUNT = 1
 TURBO_UPGRADED_ENERGY = 3
-UPROAR_UPGRADED_DAMAGE = 7
+UPROAR_UPGRADED_DAMAGE = 8
 UPROAR_HITS = 2
+VOLTAIC_COST = 3
 ALLY_PLAYER_ID = 2
 ALLY_PLAYER_HP = 70
 THREE_ORB_TYPES = 3
@@ -535,15 +537,20 @@ def test_gunk_up_factory_upgrade_increases_each_hit_damage_and_keeps_slimed():
     assert slimed[0].owner is combat.player
 
 
-def test_hotfix_factory_upgrade_increases_temporary_focus():
+def test_hotfix_factory_upgrade_removes_exhaust_and_keeps_temporary_focus():
+    # decompiled/MegaCrit.Sts2.Core.Models.Cards/Hotfix.cs OnUpgrade() only calls
+    # RemoveKeyword(CardKeyword.Exhaust); the FocusPower var stays at 2.
     combat = _make_combat()
-    combat.hand = [make_hotfix(upgraded=True)]
+    card = make_hotfix(upgraded=True)
+    combat.hand = [card]
     combat.energy = ZERO_COST
 
+    assert card.exhausts is False
     assert combat.play_card(HAND_CARD_INDEX)
 
-    assert combat.player.get_power_amount(PowerId.FOCUS) == HOTFIX_UPGRADED_FOCUS
-    assert combat.player.get_power_amount(PowerId.HOTFIX) == HOTFIX_UPGRADED_FOCUS
+    assert combat.player.get_power_amount(PowerId.FOCUS) == HOTFIX_FOCUS
+    assert combat.player.get_power_amount(PowerId.HOTFIX) == HOTFIX_FOCUS
+    assert card in combat.discard_pile
 
 
 def test_ignition_factory_upgrade_removes_exhaust_and_channels_plasma_to_ally():
@@ -859,7 +866,10 @@ def test_subroutine_factory_upgrade_costs_zero_and_keeps_power_amount():
     assert combat.player.get_power_amount(PowerId.SUBROUTINE) == SUBROUTINE_POWER
 
 
-def test_synchronize_factory_upgrade_removes_exhaust_and_keeps_focus_formula():
+def test_synchronize_factory_upgrade_raises_focus_per_orb_type():
+    # v0.110.0 decompiled/MegaCrit.Sts2.Core.Models.Cards/Synchronize.cs dropped
+    # the CanonicalKeywords => Exhaust line, and OnUpgrade() now calls
+    # CalculationExtra.UpgradeValueBy(1m) instead of RemoveKeyword(Exhaust).
     combat = _make_combat()
     combat.channel_orb(combat.player, "LIGHTNING")
     combat.channel_orb(combat.player, "FROST")
@@ -871,7 +881,7 @@ def test_synchronize_factory_upgrade_removes_exhaust_and_keeps_focus_formula():
     assert card.exhausts is False
     assert combat.play_card(HAND_CARD_INDEX)
 
-    expected_focus = THREE_ORB_TYPES * SYNCHRONIZE_FOCUS_PER_ORB_TYPE
+    expected_focus = THREE_ORB_TYPES * (SYNCHRONIZE_FOCUS_PER_ORB_TYPE + 1)
     assert combat.player.get_power_amount(PowerId.SYNCHRONIZE) == expected_focus
     assert combat.player.get_power_amount(PowerId.FOCUS) == expected_focus
     assert card in combat.discard_pile
@@ -889,13 +899,17 @@ def test_supercritical_factory_upgrade_gains_six_energy_and_exhausts():
     assert card in combat.exhaust_pile
 
 
-def test_trash_to_treasure_factory_upgrade_adds_innate_and_keeps_power_amount():
+def test_trash_to_treasure_factory_upgrade_drops_cost_and_keeps_power_amount():
+    # TrashToTreasure.cs: no CanonicalKeywords; OnUpgrade only does
+    # EnergyCost.UpgradeBy(-1), so the upgrade is cost 1 -> 0, never Innate.
     combat = _make_combat()
     card = make_trash_to_treasure(upgraded=True)
     combat.hand = [card]
     combat.energy = ONE_ENERGY
 
-    assert card.is_innate is True
+    assert make_trash_to_treasure().cost == 1
+    assert card.cost == 0
+    assert card.keywords == frozenset()
     assert combat.play_card(HAND_CARD_INDEX)
 
     assert combat.player.get_power_amount(PowerId.TRASH_TO_TREASURE) == TRASH_TO_TREASURE_POWER
@@ -966,12 +980,14 @@ def test_voltaic_factory_upgrade_removes_exhaust_and_keeps_lightning_count():
     card = make_voltaic(upgraded=True)
     existing_orb_count = len(combat.orb_queue.orbs)
     combat.hand = [card]
-    combat.energy = TWO_ENERGY
+    # Voltaic.cs is base(3, ...) and OnUpgrade only removes Exhaust, so the
+    # upgraded card still costs 3.
+    combat.energy = VOLTAIC_COST
 
     assert card.exhausts is False
     assert combat.play_card(HAND_CARD_INDEX)
 
-    expected_new_orbs = TWO_ENERGY * VOLTAIC_CALC_EXTRA
+    expected_new_orbs = LIGHTNING_ORBS_CHANNELED * VOLTAIC_CALC_EXTRA
     assert len(combat.orb_queue.orbs) == existing_orb_count + expected_new_orbs
     assert [orb.orb_type for orb in combat.orb_queue.orbs[-expected_new_orbs:]] == (
         [OrbType.LIGHTNING] * expected_new_orbs

@@ -48,7 +48,7 @@ class TestRegentStarGainAndStardustParity:
         starting_stars = combat.stars
 
         assert combat.play_card(0)
-        assert combat.player.block == 7
+        assert combat.player.block == 8
         assert combat.stars == starting_stars + 1
 
     def test_glow_gains_stars_and_draws_cards(self):
@@ -64,7 +64,7 @@ class TestRegentStarGainAndStardustParity:
         assert combat.play_card(0)
         assert combat.stars == starting_stars + 2
         assert first_draw in combat.hand
-        assert second_draw in combat.hand
+        assert second_draw not in combat.hand
 
     def test_make_it_so_returns_from_discard_after_every_three_skills_played(self):
         """Matches MakeItSo.cs: return this card from discard each third Skill played."""

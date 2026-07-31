@@ -476,9 +476,9 @@ def make_necronomicurse() -> CardInstance:
 
 def make_deprecated_card() -> CardInstance:
     return CardInstance(
-        card_id=CardId.DEPRECATED_CARD, cost=-1, card_type=CardType.CURSE,
-        target_type=TargetType.NONE, rarity=CardRarity.CURSE,
-        keywords=frozenset({"unplayable"}), instance_id=_get_next_id(),
+        card_id=CardId.DEPRECATED_CARD, cost=0, card_type=CardType.STATUS,
+        target_type=TargetType.NONE, rarity=CardRarity.STATUS,
+        keywords=frozenset({"exhaust"}), instance_id=_get_next_id(),
     )
 
 
@@ -503,7 +503,7 @@ def rip_and_tear_effect(card: CardInstance, combat: CombatState, target: Creatur
 def make_rip_and_tear(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.RIP_AND_TEAR, cost=1, card_type=CardType.ATTACK,
-        target_type=TargetType.RANDOM_ENEMY, rarity=CardRarity.UNCOMMON,
+        target_type=TargetType.RANDOM_ENEMY, rarity=CardRarity.EVENT,
         base_damage=9 if upgraded else 7, upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -636,7 +636,7 @@ def make_maul(upgraded: bool = False) -> CardInstance:
         card_id=CardId.MAUL, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.ANCIENT,
         base_damage=6 if upgraded else 5, upgraded=upgraded,
-        effect_vars={"increase": 2 if upgraded else 1},
+        effect_vars={"increase": 3 if upgraded else 2},
         instance_id=_get_next_id(),
     )
 
@@ -660,7 +660,7 @@ def make_neows_fury(upgraded: bool = False) -> CardInstance:
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.ANCIENT,
         base_damage=14 if upgraded else 10, upgraded=upgraded,
         keywords=frozenset({"exhaust"}),
-        effect_vars={"cards": 2}, instance_id=_get_next_id(),
+        effect_vars={"cards": 3 if upgraded else 2}, instance_id=_get_next_id(),
     )
 
 
@@ -677,7 +677,7 @@ def make_relax(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.RELAX, cost=3, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.ANCIENT,
-        base_block=17 if upgraded else 15, upgraded=upgraded,
+        base_block=18 if upgraded else 16, upgraded=upgraded,
         keywords=frozenset({"exhaust"}),
         effect_vars={
             "cards": 3 if upgraded else 2,
@@ -1155,11 +1155,8 @@ def make_toric_toughness(upgraded: bool = False) -> CardInstance:
 
 @register_effect(CardId.FUEL)
 def fuel_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    cards = card.effect_vars.get("cards", 1)
     energy = card.effect_vars.get("energy", 1)
-    owner = _owner(card, combat)
-    combat.gain_energy(owner, energy)
-    combat._draw_cards(cards)
+    combat.gain_energy(_owner(card, combat), energy)
 
 
 def make_fuel(upgraded: bool = False) -> CardInstance:
@@ -1167,7 +1164,7 @@ def make_fuel(upgraded: bool = False) -> CardInstance:
         card_id=CardId.FUEL, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.STATUS,
         upgraded=upgraded, keywords=frozenset({"exhaust"}),
-        effect_vars={"cards": 2 if upgraded else 1, "energy": 1},
+        effect_vars={"energy": 2 if upgraded else 1},
         instance_id=_get_next_id(),
     )
 
@@ -1182,7 +1179,7 @@ def make_giant_rock(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.GIANT_ROCK, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.STATUS,
-        base_damage=20 if upgraded else 16, upgraded=upgraded,
+        base_damage=24 if upgraded else 20, upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
@@ -1228,7 +1225,7 @@ def make_minion_sacrifice(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.MINION_SACRIFICE, cost=0, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.STATUS,
-        base_block=12 if upgraded else 9, upgraded=upgraded,
+        base_block=10 if upgraded else 7, upgraded=upgraded,
         keywords=frozenset({"exhaust"}), instance_id=_get_next_id(),
     )
 
@@ -1245,7 +1242,7 @@ def make_minion_strike(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.MINION_STRIKE, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.STATUS,
-        base_damage=10 if upgraded else 7, upgraded=upgraded,
+        base_damage=9 if upgraded else 6, upgraded=upgraded,
         keywords=frozenset({"exhaust"}),
         effect_vars={"cards": 1}, instance_id=_get_next_id(),
     )
@@ -1432,7 +1429,7 @@ def make_dowsing() -> CardInstance:
         card_id=CardId.DOWSING, cost=-1, card_type=CardType.QUEST,
         target_type=TargetType.NONE, rarity=CardRarity.QUEST,
         keywords=frozenset({"unplayable"}),
-        effect_vars={"rooms_entered": 0, "rooms_required": DOWSING_MAX_ROOMS},
+        effect_vars={"rooms": DOWSING_MAX_ROOMS},
         instance_id=_get_next_id(),
     )
 
@@ -1932,10 +1929,9 @@ def dowsing_before_room_entered(card: CardInstance, run_state, room_type) -> Non
     if point is None or point.point_type != MapPointType.UNKNOWN:
         return
 
-    card.effect_vars["rooms_entered"] = card.effect_vars.get("rooms_entered", 0) + 1
-    if card.effect_vars["rooms_entered"] < card.effect_vars.get(
-        "rooms_required", DOWSING_MAX_ROOMS
-    ):
+    remaining = card.effect_vars.get("rooms", DOWSING_MAX_ROOMS) - 1
+    card.effect_vars["rooms"] = max(0, remaining)
+    if remaining > 0:
         return
 
     card.on_quest_complete(run_state)

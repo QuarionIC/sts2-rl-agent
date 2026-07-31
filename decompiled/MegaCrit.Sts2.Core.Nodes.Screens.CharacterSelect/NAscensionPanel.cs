@@ -21,64 +21,156 @@ public class NAscensionPanel : Control
 	[Signal]
 	public delegate void AscensionLevelChangedEventHandler();
 
+	/// <summary>
+	/// Cached StringNames for the methods contained in this class, for fast lookup.
+	/// </summary>
 	public new class MethodName : Control.MethodName
 	{
+		/// <summary>
+		/// Cached name for the '_Ready' method.
+		/// </summary>
 		public new static readonly StringName _Ready = "_Ready";
 
+		/// <summary>
+		/// Cached name for the 'Initialize' method.
+		/// </summary>
 		public static readonly StringName Initialize = "Initialize";
 
+		/// <summary>
+		/// Cached name for the 'SetFireBlue' method.
+		/// </summary>
 		public static readonly StringName SetFireBlue = "SetFireBlue";
 
+		/// <summary>
+		/// Cached name for the 'SetFireRed' method.
+		/// </summary>
 		public static readonly StringName SetFireRed = "SetFireRed";
 
+		/// <summary>
+		/// Cached name for the 'Cleanup' method.
+		/// </summary>
 		public static readonly StringName Cleanup = "Cleanup";
 
+		/// <summary>
+		/// Cached name for the 'SetAscensionLevel' method.
+		/// </summary>
 		public static readonly StringName SetAscensionLevel = "SetAscensionLevel";
 
+		/// <summary>
+		/// Cached name for the 'IncrementAscension' method.
+		/// </summary>
 		public static readonly StringName IncrementAscension = "IncrementAscension";
 
+		/// <summary>
+		/// Cached name for the 'DecrementAscension' method.
+		/// </summary>
 		public static readonly StringName DecrementAscension = "DecrementAscension";
 
+		/// <summary>
+		/// Cached name for the 'RefreshArrowVisibility' method.
+		/// </summary>
 		public static readonly StringName RefreshArrowVisibility = "RefreshArrowVisibility";
 
+		/// <summary>
+		/// Cached name for the 'SetMaxAscension' method.
+		/// </summary>
 		public static readonly StringName SetMaxAscension = "SetMaxAscension";
 
+		/// <summary>
+		/// Cached name for the 'RefreshAscensionText' method.
+		/// </summary>
 		public static readonly StringName RefreshAscensionText = "RefreshAscensionText";
 
+		/// <summary>
+		/// Cached name for the 'AnimIn' method.
+		/// </summary>
 		public static readonly StringName AnimIn = "AnimIn";
 
+		/// <summary>
+		/// Cached name for the 'UpdateControllerButton' method.
+		/// </summary>
 		public static readonly StringName UpdateControllerButton = "UpdateControllerButton";
+
+		/// <summary>
+		/// Cached name for the 'Disable' method.
+		/// </summary>
+		public static readonly StringName Disable = "Disable";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the properties and fields contained in this class, for fast lookup.
+	/// </summary>
 	public new class PropertyName : Control.PropertyName
 	{
+		/// <summary>
+		/// Cached name for the 'Ascension' property.
+		/// </summary>
 		public static readonly StringName Ascension = "Ascension";
 
+		/// <summary>
+		/// Cached name for the '_maxAscension' field.
+		/// </summary>
 		public static readonly StringName _maxAscension = "_maxAscension";
 
+		/// <summary>
+		/// Cached name for the '_leftArrow' field.
+		/// </summary>
 		public static readonly StringName _leftArrow = "_leftArrow";
 
+		/// <summary>
+		/// Cached name for the '_rightArrow' field.
+		/// </summary>
 		public static readonly StringName _rightArrow = "_rightArrow";
 
+		/// <summary>
+		/// Cached name for the '_ascensionLevel' field.
+		/// </summary>
 		public static readonly StringName _ascensionLevel = "_ascensionLevel";
 
+		/// <summary>
+		/// Cached name for the '_info' field.
+		/// </summary>
 		public static readonly StringName _info = "_info";
 
-		public static readonly StringName _leftTriggerIcon = "_leftTriggerIcon";
+		/// <summary>
+		/// Cached name for the '_leftTabIcon' field.
+		/// </summary>
+		public static readonly StringName _leftTabIcon = "_leftTabIcon";
 
-		public static readonly StringName _rightTriggerIcon = "_rightTriggerIcon";
+		/// <summary>
+		/// Cached name for the '_rightTabIcon' field.
+		/// </summary>
+		public static readonly StringName _rightTabIcon = "_rightTabIcon";
 
+		/// <summary>
+		/// Cached name for the '_iconHsv' field.
+		/// </summary>
 		public static readonly StringName _iconHsv = "_iconHsv";
 
+		/// <summary>
+		/// Cached name for the '_arrowsVisible' field.
+		/// </summary>
 		public static readonly StringName _arrowsVisible = "_arrowsVisible";
 
+		/// <summary>
+		/// Cached name for the '_mode' field.
+		/// </summary>
 		public static readonly StringName _mode = "_mode";
 
+		/// <summary>
+		/// Cached name for the '_tween' field.
+		/// </summary>
 		public static readonly StringName _tween = "_tween";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the signals contained in this class, for fast lookup.
+	/// </summary>
 	public new class SignalName : Control.SignalName
 	{
+		/// <summary>
+		/// Cached name for the 'AscensionLevelChanged' signal.
+		/// </summary>
 		public static readonly StringName AscensionLevelChanged = "AscensionLevelChanged";
 	}
 
@@ -106,9 +198,9 @@ public class NAscensionPanel : Control
 
 	private MegaRichTextLabel _info;
 
-	private TextureRect _leftTriggerIcon;
+	private NHotkeyIcon _leftTabIcon;
 
-	private TextureRect _rightTriggerIcon;
+	private NHotkeyIcon _rightTabIcon;
 
 	private ShaderMaterial _iconHsv;
 
@@ -122,6 +214,7 @@ public class NAscensionPanel : Control
 
 	public int Ascension { get; private set; }
 
+	/// <inheritdoc cref="T:MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect.NAscensionPanel.AscensionLevelChangedEventHandler" />
 	public event AscensionLevelChangedEventHandler AscensionLevelChanged
 	{
 		add
@@ -136,8 +229,8 @@ public class NAscensionPanel : Control
 
 	public override void _Ready()
 	{
-		_leftTriggerIcon = GetNode<TextureRect>("%LeftTriggerIcon");
-		_rightTriggerIcon = GetNode<TextureRect>("%RightTriggerIcon");
+		_leftTabIcon = GetNode<NHotkeyIcon>("%LeftTabIcon");
+		_rightTabIcon = GetNode<NHotkeyIcon>("%RightTabIcon");
 		_leftArrow = GetNode<NButton>("HBoxContainer/LeftArrowContainer/LeftArrow");
 		_rightArrow = GetNode<NButton>("HBoxContainer/RightArrowContainer/RightArrow");
 		_ascensionLevel = GetNode<MegaLabel>("HBoxContainer/AscensionIconContainer/AscensionIcon/AscensionLevel");
@@ -287,22 +380,35 @@ public class NAscensionPanel : Control
 		MultiplayerUiMode mode = _mode;
 		if ((uint)(mode - 1) <= 1u)
 		{
-			_leftTriggerIcon.Visible = NControllerManager.Instance.IsUsingController;
-			_rightTriggerIcon.Visible = NControllerManager.Instance.IsUsingController;
-			_leftTriggerIcon.Texture = NInputManager.Instance.GetHotkeyIcon(MegaInput.viewDeckAndTabLeft);
-			_rightTriggerIcon.Texture = NInputManager.Instance.GetHotkeyIcon(MegaInput.viewExhaustPileAndTabRight);
+			_leftTabIcon.Visible = NControllerManager.Instance.IsUsingDirectionalNavigation;
+			_rightTabIcon.Visible = NControllerManager.Instance.IsUsingDirectionalNavigation;
+			_leftTabIcon.UpdateInput(MegaInput.viewDeckAndTabLeft);
+			_rightTabIcon.UpdateInput(MegaInput.viewExhaustPileAndTabRight);
 		}
 		else
 		{
-			_leftTriggerIcon.Visible = false;
-			_rightTriggerIcon.Visible = false;
+			_leftTabIcon.Visible = false;
+			_rightTabIcon.Visible = false;
 		}
 	}
 
+	public void Disable()
+	{
+		_leftArrow.Disable();
+		_rightArrow.Disable();
+		_leftTabIcon.Visible = false;
+		_rightTabIcon.Visible = false;
+	}
+
+	/// <summary>
+	/// Get the method information for all the methods declared in this class.
+	/// This method is used by Godot to register the available methods in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal static List<MethodInfo> GetGodotMethodList()
 	{
-		List<MethodInfo> list = new List<MethodInfo>(13);
+		List<MethodInfo> list = new List<MethodInfo>(14);
 		list.Add(new MethodInfo(MethodName._Ready, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.Initialize, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
 		{
@@ -325,9 +431,11 @@ public class NAscensionPanel : Control
 		list.Add(new MethodInfo(MethodName.RefreshAscensionText, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.AnimIn, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.UpdateControllerButton, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
+		list.Add(new MethodInfo(MethodName.Disable, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool InvokeGodotClassMethod(in godot_string_name method, NativeVariantPtrArgs args, out godot_variant ret)
 	{
@@ -409,9 +517,16 @@ public class NAscensionPanel : Control
 			ret = default(godot_variant);
 			return true;
 		}
+		if (method == MethodName.Disable && args.Count == 0)
+		{
+			Disable();
+			ret = default(godot_variant);
+			return true;
+		}
 		return base.InvokeGodotClassMethod(in method, args, out ret);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassMethod(in godot_string_name method)
 	{
@@ -467,9 +582,14 @@ public class NAscensionPanel : Control
 		{
 			return true;
 		}
+		if (method == MethodName.Disable)
+		{
+			return true;
+		}
 		return base.HasGodotClassMethod(in method);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool SetGodotClassPropertyValue(in godot_string_name name, in godot_variant value)
 	{
@@ -503,14 +623,14 @@ public class NAscensionPanel : Control
 			_info = VariantUtils.ConvertTo<MegaRichTextLabel>(in value);
 			return true;
 		}
-		if (name == PropertyName._leftTriggerIcon)
+		if (name == PropertyName._leftTabIcon)
 		{
-			_leftTriggerIcon = VariantUtils.ConvertTo<TextureRect>(in value);
+			_leftTabIcon = VariantUtils.ConvertTo<NHotkeyIcon>(in value);
 			return true;
 		}
-		if (name == PropertyName._rightTriggerIcon)
+		if (name == PropertyName._rightTabIcon)
 		{
-			_rightTriggerIcon = VariantUtils.ConvertTo<TextureRect>(in value);
+			_rightTabIcon = VariantUtils.ConvertTo<NHotkeyIcon>(in value);
 			return true;
 		}
 		if (name == PropertyName._iconHsv)
@@ -536,6 +656,7 @@ public class NAscensionPanel : Control
 		return base.SetGodotClassPropertyValue(in name, in value);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool GetGodotClassPropertyValue(in godot_string_name name, out godot_variant value)
 	{
@@ -569,14 +690,14 @@ public class NAscensionPanel : Control
 			value = VariantUtils.CreateFrom(in _info);
 			return true;
 		}
-		if (name == PropertyName._leftTriggerIcon)
+		if (name == PropertyName._leftTabIcon)
 		{
-			value = VariantUtils.CreateFrom(in _leftTriggerIcon);
+			value = VariantUtils.CreateFrom(in _leftTabIcon);
 			return true;
 		}
-		if (name == PropertyName._rightTriggerIcon)
+		if (name == PropertyName._rightTabIcon)
 		{
-			value = VariantUtils.CreateFrom(in _rightTriggerIcon);
+			value = VariantUtils.CreateFrom(in _rightTabIcon);
 			return true;
 		}
 		if (name == PropertyName._iconHsv)
@@ -602,6 +723,11 @@ public class NAscensionPanel : Control
 		return base.GetGodotClassPropertyValue(in name, out value);
 	}
 
+	/// <summary>
+	/// Get the property information for all the properties declared in this class.
+	/// This method is used by Godot to register the available properties in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal static List<PropertyInfo> GetGodotPropertyList()
 	{
@@ -612,8 +738,8 @@ public class NAscensionPanel : Control
 		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._rightArrow, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._ascensionLevel, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._info, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
-		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._leftTriggerIcon, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
-		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._rightTriggerIcon, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
+		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._leftTabIcon, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
+		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._rightTabIcon, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._iconHsv, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.Bool, PropertyName._arrowsVisible, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.Int, PropertyName._mode, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
@@ -621,6 +747,7 @@ public class NAscensionPanel : Control
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void SaveGodotObjectData(GodotSerializationInfo info)
 	{
@@ -631,8 +758,8 @@ public class NAscensionPanel : Control
 		info.AddProperty(PropertyName._rightArrow, Variant.From(in _rightArrow));
 		info.AddProperty(PropertyName._ascensionLevel, Variant.From(in _ascensionLevel));
 		info.AddProperty(PropertyName._info, Variant.From(in _info));
-		info.AddProperty(PropertyName._leftTriggerIcon, Variant.From(in _leftTriggerIcon));
-		info.AddProperty(PropertyName._rightTriggerIcon, Variant.From(in _rightTriggerIcon));
+		info.AddProperty(PropertyName._leftTabIcon, Variant.From(in _leftTabIcon));
+		info.AddProperty(PropertyName._rightTabIcon, Variant.From(in _rightTabIcon));
 		info.AddProperty(PropertyName._iconHsv, Variant.From(in _iconHsv));
 		info.AddProperty(PropertyName._arrowsVisible, Variant.From(in _arrowsVisible));
 		info.AddProperty(PropertyName._mode, Variant.From(in _mode));
@@ -640,6 +767,7 @@ public class NAscensionPanel : Control
 		info.AddSignalEventDelegate(SignalName.AscensionLevelChanged, backing_AscensionLevelChanged);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RestoreGodotObjectData(GodotSerializationInfo info)
 	{
@@ -668,13 +796,13 @@ public class NAscensionPanel : Control
 		{
 			_info = value6.As<MegaRichTextLabel>();
 		}
-		if (info.TryGetProperty(PropertyName._leftTriggerIcon, out var value7))
+		if (info.TryGetProperty(PropertyName._leftTabIcon, out var value7))
 		{
-			_leftTriggerIcon = value7.As<TextureRect>();
+			_leftTabIcon = value7.As<NHotkeyIcon>();
 		}
-		if (info.TryGetProperty(PropertyName._rightTriggerIcon, out var value8))
+		if (info.TryGetProperty(PropertyName._rightTabIcon, out var value8))
 		{
-			_rightTriggerIcon = value8.As<TextureRect>();
+			_rightTabIcon = value8.As<NHotkeyIcon>();
 		}
 		if (info.TryGetProperty(PropertyName._iconHsv, out var value9))
 		{
@@ -698,6 +826,11 @@ public class NAscensionPanel : Control
 		}
 	}
 
+	/// <summary>
+	/// Get the signal information for all the signals declared in this class.
+	/// This method is used by Godot to register the available signals in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal static List<MethodInfo> GetGodotSignalList()
 	{
@@ -711,6 +844,7 @@ public class NAscensionPanel : Control
 		EmitSignal(SignalName.AscensionLevelChanged);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RaiseGodotClassSignalCallbacks(in godot_string_name signal, NativeVariantPtrArgs args)
 	{
@@ -724,6 +858,7 @@ public class NAscensionPanel : Control
 		}
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassSignal(in godot_string_name signal)
 	{

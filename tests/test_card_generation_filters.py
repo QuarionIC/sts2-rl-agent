@@ -9,6 +9,10 @@ from sts2_env.cards.factory import (
     eligible_transform_cards,
 )
 from sts2_env.cards.ironclad import make_feed
+from sts2_env.cards.reference_static_metadata import (
+    MULTIPLAYER_CONSTRAINT_SINGLEPLAYER_ONLY,
+    reference_metadata_by_card_id,
+)
 from sts2_env.core.enums import CardId, CardType
 from sts2_env.core.rng import Rng
 
@@ -75,10 +79,24 @@ def test_card_generation_filters_multiplayer_constraints_like_reference():
 
     assert CardId.BELIEVE_IN_YOU not in singleplayer_colorless
     assert CardId.BELIEVE_IN_YOU in multiplayer_colorless
+
+    # v0.110.0 ships ZERO cards declaring CardMultiplayerConstraint.SingleplayerOnly
+    # (grep of the reference tree finds the name only in enum/filter plumbing:
+    # CardMultiplayerConstraint.cs, CardFactory.cs, CardPoolModel.cs, IRunState.cs).
+    # Stratagem.cs and WellLaidPlans.cs therefore carry no MultiplayerConstraint
+    # override, and CardPoolModel.GetUnlockedCards only strips SingleplayerOnly cards
+    # in a multiplayer run -- so an unconstrained card must appear in BOTH pools.
+    # If the game ever re-adds such a card this assertion fires and the two
+    # "in both pools" expectations below have to be revisited.
+    assert not [
+        card_id
+        for card_id, metadata in reference_metadata_by_card_id().items()
+        if metadata.multiplayer_constraint == MULTIPLAYER_CONSTRAINT_SINGLEPLAYER_ONLY
+    ]
     assert CardId.STRATAGEM in singleplayer_colorless
-    assert CardId.STRATAGEM not in multiplayer_colorless
+    assert CardId.STRATAGEM in multiplayer_colorless
     assert CardId.WELL_LAID_PLANS in singleplayer_silent
-    assert CardId.WELL_LAID_PLANS not in multiplayer_silent
+    assert CardId.WELL_LAID_PLANS in multiplayer_silent
 
 
 def test_basic_strike_transform_excludes_only_basic_strike_defend_candidates():

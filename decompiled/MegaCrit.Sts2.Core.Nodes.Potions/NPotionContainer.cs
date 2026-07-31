@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Godot;
 using Godot.Bridge;
@@ -17,6 +18,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.Ftue;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
+using MegaCrit.Sts2.Core.Nodes.Screens.ScreenContext;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
 
@@ -25,50 +27,126 @@ namespace MegaCrit.Sts2.Core.Nodes.Potions;
 [ScriptPath("res://src/Core/Nodes/Potions/NPotionContainer.cs")]
 public class NPotionContainer : Control
 {
+	/// <summary>
+	/// Cached StringNames for the methods contained in this class, for fast lookup.
+	/// </summary>
 	public new class MethodName : Control.MethodName
 	{
+		/// <summary>
+		/// Cached name for the '_Ready' method.
+		/// </summary>
 		public new static readonly StringName _Ready = "_Ready";
 
+		/// <summary>
+		/// Cached name for the '_EnterTree' method.
+		/// </summary>
 		public new static readonly StringName _EnterTree = "_EnterTree";
 
+		/// <summary>
+		/// Cached name for the '_ExitTree' method.
+		/// </summary>
 		public new static readonly StringName _ExitTree = "_ExitTree";
 
+		/// <summary>
+		/// Cached name for the '_Notification' method.
+		/// </summary>
+		public new static readonly StringName _Notification = "_Notification";
+
+		/// <summary>
+		/// Cached name for the 'ConnectPlayerEvents' method.
+		/// </summary>
 		public static readonly StringName ConnectPlayerEvents = "ConnectPlayerEvents";
 
+		/// <summary>
+		/// Cached name for the 'DisconnectPlayerEvents' method.
+		/// </summary>
 		public static readonly StringName DisconnectPlayerEvents = "DisconnectPlayerEvents";
 
+		/// <summary>
+		/// Cached name for the 'GrowPotionHolders' method.
+		/// </summary>
 		public static readonly StringName GrowPotionHolders = "GrowPotionHolders";
 
+		/// <summary>
+		/// Cached name for the 'UpdateNavigation' method.
+		/// </summary>
 		public static readonly StringName UpdateNavigation = "UpdateNavigation";
 
+		/// <summary>
+		/// Cached name for the 'PotionFtueCheck' method.
+		/// </summary>
 		public static readonly StringName PotionFtueCheck = "PotionFtueCheck";
 
+		/// <summary>
+		/// Cached name for the 'PlayAddFailedAnim' method.
+		/// </summary>
 		public static readonly StringName PlayAddFailedAnim = "PlayAddFailedAnim";
 
+		/// <summary>
+		/// Cached name for the 'OnPotionHolderFocused' method.
+		/// </summary>
 		public static readonly StringName OnPotionHolderFocused = "OnPotionHolderFocused";
 
+		/// <summary>
+		/// Cached name for the 'OnPotionHolderUnfocused' method.
+		/// </summary>
 		public static readonly StringName OnPotionHolderUnfocused = "OnPotionHolderUnfocused";
+
+		/// <summary>
+		/// Cached name for the 'OnPotionShortcutPressed' method.
+		/// </summary>
+		public static readonly StringName OnPotionShortcutPressed = "OnPotionShortcutPressed";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the properties and fields contained in this class, for fast lookup.
+	/// </summary>
 	public new class PropertyName : Control.PropertyName
 	{
+		/// <summary>
+		/// Cached name for the 'FirstPotionControl' property.
+		/// </summary>
 		public static readonly StringName FirstPotionControl = "FirstPotionControl";
 
+		/// <summary>
+		/// Cached name for the 'LastPotionControl' property.
+		/// </summary>
 		public static readonly StringName LastPotionControl = "LastPotionControl";
 
+		/// <summary>
+		/// Cached name for the '_potionHolders' field.
+		/// </summary>
 		public static readonly StringName _potionHolders = "_potionHolders";
 
+		/// <summary>
+		/// Cached name for the '_potionErrorBg' field.
+		/// </summary>
 		public static readonly StringName _potionErrorBg = "_potionErrorBg";
 
+		/// <summary>
+		/// Cached name for the '_potionShortcutButton' field.
+		/// </summary>
 		public static readonly StringName _potionShortcutButton = "_potionShortcutButton";
 
+		/// <summary>
+		/// Cached name for the '_potionsFullTween' field.
+		/// </summary>
 		public static readonly StringName _potionsFullTween = "_potionsFullTween";
 
+		/// <summary>
+		/// Cached name for the '_potionHolderInitPos' field.
+		/// </summary>
 		public static readonly StringName _potionHolderInitPos = "_potionHolderInitPos";
 
+		/// <summary>
+		/// Cached name for the '_focusedHolder' field.
+		/// </summary>
 		public static readonly StringName _focusedHolder = "_focusedHolder";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the signals contained in this class, for fast lookup.
+	/// </summary>
 	public new class SignalName : Control.SignalName
 	{
 	}
@@ -87,6 +165,8 @@ public class NPotionContainer : Control
 
 	private Vector2 _potionHolderInitPos;
 
+	private CancellationTokenSource _cts = new CancellationTokenSource();
+
 	private NPotionHolder? _focusedHolder;
 
 	public Control? FirstPotionControl => _holders.FirstOrDefault();
@@ -95,28 +175,34 @@ public class NPotionContainer : Control
 
 	public override void _Ready()
 	{
-		Callable.From(UpdateNavigation).CallDeferred();
-	}
-
-	public override void _EnterTree()
-	{
 		_potionHolders = GetNode<Control>("MarginContainer/PotionHolders");
 		_potionErrorBg = GetNode<Control>("PotionErrorBg");
 		_potionShortcutButton = GetNode<NButton>("PotionShortcutButton");
 		_potionErrorBg.Modulate = Colors.Transparent;
-		_potionShortcutButton.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(delegate
-		{
-			_potionHolders.GetChild<Control>(0).TryGrabFocus();
-		}));
+		_potionShortcutButton.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(OnPotionShortcutPressed));
 		CombatManager.Instance.CombatSetUp += OnCombatSetUp;
+		Callable.From(UpdateNavigation).CallDeferred();
 		ConnectPlayerEvents();
+	}
+
+	public override void _EnterTree()
+	{
+		_cts = new CancellationTokenSource();
 	}
 
 	public override void _ExitTree()
 	{
-		DisconnectPlayerEvents();
-		_player = null;
-		CombatManager.Instance.CombatSetUp -= OnCombatSetUp;
+		_cts.Cancel();
+	}
+
+	public override void _Notification(int what)
+	{
+		if ((long)what == 1)
+		{
+			DisconnectPlayerEvents();
+			_player = null;
+			CombatManager.Instance.CombatSetUp -= OnCombatSetUp;
+		}
 	}
 
 	public void Initialize(IRunState runState)
@@ -193,13 +279,13 @@ public class NPotionContainer : Control
 
 	private void UpdateNavigation()
 	{
-		Control control = NRun.Instance.GlobalUi.RelicInventory.RelicNodes.FirstOrDefault();
+		Control control = NRun.Instance?.GlobalUi.RelicInventory.RelicNodes.FirstOrDefault();
 		if (control != null)
 		{
 			for (int i = 0; i < _holders.Count; i++)
 			{
-				_holders[i].FocusNeighborLeft = ((i > 0) ? _holders[i - 1].GetPath() : NRun.Instance.GlobalUi.TopBar.Gold.GetPath());
-				_holders[i].FocusNeighborRight = ((i < _holders.Count - 1) ? _holders[i + 1].GetPath() : NRun.Instance.GlobalUi.TopBar.RoomIcon.GetPath());
+				_holders[i].FocusNeighborLeft = ((i > 0) ? _holders[i - 1].GetPath() : NRun.Instance?.GlobalUi.TopBar.Gold.GetPath());
+				_holders[i].FocusNeighborRight = ((i < _holders.Count - 1) ? _holders[i + 1].GetPath() : NRun.Instance?.GlobalUi.TopBar.RoomIcon.GetPath());
 				_holders[i].FocusNeighborBottom = control.GetPath();
 				_holders[i].FocusNeighborTop = _holders[i].GetPath();
 			}
@@ -230,12 +316,12 @@ public class NPotionContainer : Control
 		}
 	}
 
-	public void OnPotionUseCanceled(PotionModel potion)
+	public void OnPotionUseOrDiscardCanceled(PotionModel potion)
 	{
-		NPotionHolder nPotionHolder = _holders.FirstOrDefault((NPotionHolder n) => n.Potion.Model == potion);
+		NPotionHolder nPotionHolder = _holders.FirstOrDefault((NPotionHolder n) => n.Potion?.Model == potion);
 		if (nPotionHolder != null)
 		{
-			nPotionHolder.CancelPotionUse();
+			nPotionHolder.CancelPotionUseOrDiscard();
 			return;
 		}
 		Log.Error($"Tried to cancel potion use for potion {potion} but a holder for it does not exist in the player's belt!");
@@ -316,20 +402,46 @@ public class NPotionContainer : Control
 
 	private async Task ShinePotions()
 	{
-		await Cmd.Wait(1f);
+		await Cmd.Wait(1f, _cts.Token);
 		foreach (NPotionHolder holder in _holders)
 		{
 			await TaskHelper.RunSafely(holder.ShineOnStartOfCombat());
 		}
 	}
 
+	private void OnPotionShortcutPressed(NButton _)
+	{
+		Viewport viewport = GetViewport();
+		if (viewport == null)
+		{
+			_potionHolders.GetChild<Control>(0).TryGrabFocus();
+		}
+		else if (viewport.GuiGetFocusOwner() != null && NRun.Instance.GlobalUi.TopBar.IsAncestorOf(viewport.GuiGetFocusOwner()))
+		{
+			ActiveScreenContext.Instance.FocusOnDefaultControl();
+		}
+		else
+		{
+			_potionHolders.GetChild<Control>(0).TryGrabFocus();
+		}
+	}
+
+	/// <summary>
+	/// Get the method information for all the methods declared in this class.
+	/// This method is used by Godot to register the available methods in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal static List<MethodInfo> GetGodotMethodList()
 	{
-		List<MethodInfo> list = new List<MethodInfo>(11);
+		List<MethodInfo> list = new List<MethodInfo>(13);
 		list.Add(new MethodInfo(MethodName._Ready, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName._EnterTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName._ExitTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
+		list.Add(new MethodInfo(MethodName._Notification, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		{
+			new PropertyInfo(Variant.Type.Int, "what", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
+		}, null));
 		list.Add(new MethodInfo(MethodName.ConnectPlayerEvents, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.DisconnectPlayerEvents, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.GrowPotionHolders, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
@@ -347,9 +459,14 @@ public class NPotionContainer : Control
 		{
 			new PropertyInfo(Variant.Type.Object, "holder", PropertyHint.None, "", PropertyUsageFlags.Default, new StringName("Control"), exported: false)
 		}, null));
+		list.Add(new MethodInfo(MethodName.OnPotionShortcutPressed, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		{
+			new PropertyInfo(Variant.Type.Object, "_", PropertyHint.None, "", PropertyUsageFlags.Default, new StringName("Control"), exported: false)
+		}, null));
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool InvokeGodotClassMethod(in godot_string_name method, NativeVariantPtrArgs args, out godot_variant ret)
 	{
@@ -368,6 +485,12 @@ public class NPotionContainer : Control
 		if (method == MethodName._ExitTree && args.Count == 0)
 		{
 			_ExitTree();
+			ret = default(godot_variant);
+			return true;
+		}
+		if (method == MethodName._Notification && args.Count == 1)
+		{
+			_Notification(VariantUtils.ConvertTo<int>(in args[0]));
 			ret = default(godot_variant);
 			return true;
 		}
@@ -419,9 +542,16 @@ public class NPotionContainer : Control
 			ret = default(godot_variant);
 			return true;
 		}
+		if (method == MethodName.OnPotionShortcutPressed && args.Count == 1)
+		{
+			OnPotionShortcutPressed(VariantUtils.ConvertTo<NButton>(in args[0]));
+			ret = default(godot_variant);
+			return true;
+		}
 		return base.InvokeGodotClassMethod(in method, args, out ret);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassMethod(in godot_string_name method)
 	{
@@ -434,6 +564,10 @@ public class NPotionContainer : Control
 			return true;
 		}
 		if (method == MethodName._ExitTree)
+		{
+			return true;
+		}
+		if (method == MethodName._Notification)
 		{
 			return true;
 		}
@@ -469,9 +603,14 @@ public class NPotionContainer : Control
 		{
 			return true;
 		}
+		if (method == MethodName.OnPotionShortcutPressed)
+		{
+			return true;
+		}
 		return base.HasGodotClassMethod(in method);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool SetGodotClassPropertyValue(in godot_string_name name, in godot_variant value)
 	{
@@ -508,6 +647,7 @@ public class NPotionContainer : Control
 		return base.SetGodotClassPropertyValue(in name, in value);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool GetGodotClassPropertyValue(in godot_string_name name, out godot_variant value)
 	{
@@ -557,6 +697,11 @@ public class NPotionContainer : Control
 		return base.GetGodotClassPropertyValue(in name, out value);
 	}
 
+	/// <summary>
+	/// Get the property information for all the properties declared in this class.
+	/// This method is used by Godot to register the available properties in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal static List<PropertyInfo> GetGodotPropertyList()
 	{
@@ -572,6 +717,7 @@ public class NPotionContainer : Control
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void SaveGodotObjectData(GodotSerializationInfo info)
 	{
@@ -584,6 +730,7 @@ public class NPotionContainer : Control
 		info.AddProperty(PropertyName._focusedHolder, Variant.From(in _focusedHolder));
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RestoreGodotObjectData(GodotSerializationInfo info)
 	{

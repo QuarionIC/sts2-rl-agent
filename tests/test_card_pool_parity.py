@@ -16,10 +16,35 @@ from sts2_env.core.enums import CardId, CardType
 _CAMEL_WORD_BOUNDARY_RE = re.compile(r"(.)([A-Z][a-z]+)")
 _LOWER_TO_UPPER_BOUNDARY_RE = re.compile(r"([a-z0-9])([A-Z])")
 _CARD_POOL_DIR = Path("decompiled/MegaCrit.Sts2.Core.Models.CardPools")
+_CARD_CLASS_DIR = Path("decompiled/MegaCrit.Sts2.Core.Models.Cards")
 _CARD_POOL_CLASS_RE = re.compile(r"ModelDb\.Card<([A-Za-z0-9_]+)>\(\)")
 _EXPLICIT_CARD_ALIASES = {
     "Sloth": ("SLOTH_STATUS",),
 }
+
+_MULTIPLAYER_ONLY_RE = re.compile(
+    r"CardMultiplayerConstraint\s+MultiplayerConstraint\s*=>\s*"
+    r"CardMultiplayerConstraint\.MultiplayerOnly"
+)
+
+#: MultiplayerOnly card classes the simulator does not model. IRunState
+#: .CardMultiplayerConstraint returns SingleplayerOnly when Players.Count <= 1
+#: and CardPoolModel.GetUnlockedCards then strips every MultiplayerOnly card,
+#: so these are unreachable in the single-player runs the agent plays.
+#:
+#: This is deliberately an explicit list and NOT "every MultiplayerOnly class":
+#: 37 classes are MultiplayerOnly and 21 of them ARE modelled and ARE present in
+#: the simulator pools (DemonicShield, Tank, ...), because character.card_pool
+#: mirrors GenerateAllCards() and the multiplayer filtering happens later via
+#: matches_player_count(). A blanket filter would break all six pools below.
+_UNMODELLED_MULTIPLAYER_ONLY = frozenset({
+    "Blaze", "Midnight", "Outrage",                  # Ironclad
+    "BladeSymphony", "Concoct", "Fade",              # Silent
+    "Hibernate", "ImitationLearning", "OneForAll",   # Defect
+    "Constellation", "Plot", "Tutor",                # Regent
+    "Cacophony", "Soulbound", "Underworld",          # Necrobinder
+    "TheBall",                                       # Colorless
+})
 
 
 def _snake_case(name: str) -> str:
@@ -45,7 +70,14 @@ def _reference_pool(pool_name: str) -> tuple[CardId, ...]:
     return tuple(
         _card_id_for_reference_class(name)
         for name in _CARD_POOL_CLASS_RE.findall(text)
+        if name not in _UNMODELLED_MULTIPLAYER_ONLY
     )
+
+
+def test_unmodelled_skips_are_all_multiplayer_only() -> None:
+    for name in _UNMODELLED_MULTIPLAYER_ONLY:
+        source = (_CARD_CLASS_DIR / f"{name}.cs").read_text()
+        assert _MULTIPLAYER_ONLY_RE.search(source), name
 
 
 def test_character_card_pools_match_reference_order() -> None:

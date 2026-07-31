@@ -8,6 +8,7 @@ using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
+using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Screens;
 using MegaCrit.Sts2.Core.Nodes.Screens.Capstones;
@@ -18,49 +19,101 @@ namespace MegaCrit.Sts2.Core.Nodes.TopBar;
 [ScriptPath("res://src/Core/Nodes/TopBar/NTopBarDeckButton.cs")]
 public class NTopBarDeckButton : NTopBarButton
 {
+	/// <summary>
+	/// Cached StringNames for the methods contained in this class, for fast lookup.
+	/// </summary>
 	public new class MethodName : NTopBarButton.MethodName
 	{
+		/// <summary>
+		/// Cached name for the '_Ready' method.
+		/// </summary>
 		public new static readonly StringName _Ready = "_Ready";
 
-		public new static readonly StringName _ExitTree = "_ExitTree";
+		/// <summary>
+		/// Cached name for the '_Notification' method.
+		/// </summary>
+		public new static readonly StringName _Notification = "_Notification";
 
+		/// <summary>
+		/// Cached name for the 'OnPileContentsChanged' method.
+		/// </summary>
 		public static readonly StringName OnPileContentsChanged = "OnPileContentsChanged";
 
+		/// <summary>
+		/// Cached name for the 'OnRelease' method.
+		/// </summary>
 		public new static readonly StringName OnRelease = "OnRelease";
 
+		/// <summary>
+		/// Cached name for the 'IsOpen' method.
+		/// </summary>
 		public new static readonly StringName IsOpen = "IsOpen";
 
+		/// <summary>
+		/// Cached name for the '_Process' method.
+		/// </summary>
 		public new static readonly StringName _Process = "_Process";
 
+		/// <summary>
+		/// Cached name for the 'ToggleAnimState' method.
+		/// </summary>
 		public static readonly StringName ToggleAnimState = "ToggleAnimState";
 
+		/// <summary>
+		/// Cached name for the 'OnFocus' method.
+		/// </summary>
 		public new static readonly StringName OnFocus = "OnFocus";
 
+		/// <summary>
+		/// Cached name for the 'OnUnfocus' method.
+		/// </summary>
 		public new static readonly StringName OnUnfocus = "OnUnfocus";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the properties and fields contained in this class, for fast lookup.
+	/// </summary>
 	public new class PropertyName : NTopBarButton.PropertyName
 	{
+		/// <summary>
+		/// Cached name for the 'Hotkeys' property.
+		/// </summary>
 		public new static readonly StringName Hotkeys = "Hotkeys";
 
+		/// <summary>
+		/// Cached name for the '_elapsedTime' field.
+		/// </summary>
 		public static readonly StringName _elapsedTime = "_elapsedTime";
 
+		/// <summary>
+		/// Cached name for the '_rockBaseRotation' field.
+		/// </summary>
 		public static readonly StringName _rockBaseRotation = "_rockBaseRotation";
 
+		/// <summary>
+		/// Cached name for the '_countLabel' field.
+		/// </summary>
 		public static readonly StringName _countLabel = "_countLabel";
 
+		/// <summary>
+		/// Cached name for the '_count' field.
+		/// </summary>
 		public static readonly StringName _count = "_count";
 
+		/// <summary>
+		/// Cached name for the '_bumpTween' field.
+		/// </summary>
 		public static readonly StringName _bumpTween = "_bumpTween";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the signals contained in this class, for fast lookup.
+	/// </summary>
 	public new class SignalName : NTopBarButton.SignalName
 	{
 	}
 
 	private static readonly StringName _v = new StringName("v");
-
-	private static readonly HoverTip _hoverTip = new HoverTip(new LocString("static_hover_tips", "DECK.title"), new LocString("static_hover_tips", "DECK.description"));
 
 	private float _elapsedTime;
 
@@ -90,11 +143,13 @@ public class NTopBarDeckButton : NTopBarButton
 		_countLabel = GetNode<MegaLabel>("DeckCardCount");
 	}
 
-	public override void _ExitTree()
+	public override void _Notification(int what)
 	{
-		base._ExitTree();
-		_pile.CardAddFinished -= OnPileContentsChanged;
-		_pile.CardRemoveFinished -= OnPileContentsChanged;
+		if ((long)what == 1)
+		{
+			_pile.CardAddFinished -= OnPileContentsChanged;
+			_pile.CardRemoveFinished -= OnPileContentsChanged;
+		}
 	}
 
 	public void Initialize(Player player)
@@ -141,6 +196,10 @@ public class NTopBarDeckButton : NTopBarButton
 		return NCapstoneContainer.Instance.CurrentCapstoneScreen is NDeckViewScreen;
 	}
 
+	/// <summary>
+	/// Animates rocking back and forth
+	/// </summary>
+	/// <param name="delta"></param>
 	public override void _Process(double delta)
 	{
 		if (base.IsScreenOpen)
@@ -151,6 +210,10 @@ public class NTopBarDeckButton : NTopBarButton
 		}
 	}
 
+	/// <summary>
+	/// Toggles the anim state of this button.
+	/// Utilized when an external UI (ie BackButton) closes this screen.
+	/// </summary>
 	public void ToggleAnimState()
 	{
 		UpdateScreenOpen();
@@ -159,8 +222,11 @@ public class NTopBarDeckButton : NTopBarButton
 	protected override void OnFocus()
 	{
 		base.OnFocus();
-		NHoverTipSet nHoverTipSet = NHoverTipSet.CreateAndShow(this, _hoverTip);
-		nHoverTipSet.GlobalPosition = base.GlobalPosition + new Vector2(base.Size.X - nHoverTipSet.Size.X, base.Size.Y + 20f);
+		LocString locString = new LocString("static_hover_tips", "DECK.title");
+		locString.Add("Hotkey", NInputManager.Instance.GetCurrentHotkey(MegaInput.viewDeckAndTabLeft).ToString());
+		HoverTip hoverTip = new HoverTip(locString, new LocString("static_hover_tips", "DECK.description"));
+		NHoverTipSet nHoverTipSet = NHoverTipSet.CreateAndShow(this, hoverTip);
+		nHoverTipSet?.SetGlobalPosition(base.GlobalPosition + new Vector2(base.Size.X - nHoverTipSet.Size.X, base.Size.Y + 20f));
 	}
 
 	protected override void OnUnfocus()
@@ -169,12 +235,20 @@ public class NTopBarDeckButton : NTopBarButton
 		NHoverTipSet.Remove(this);
 	}
 
+	/// <summary>
+	/// Get the method information for all the methods declared in this class.
+	/// This method is used by Godot to register the available methods in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<MethodInfo> GetGodotMethodList()
 	{
 		List<MethodInfo> list = new List<MethodInfo>(9);
 		list.Add(new MethodInfo(MethodName._Ready, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
-		list.Add(new MethodInfo(MethodName._ExitTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
+		list.Add(new MethodInfo(MethodName._Notification, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		{
+			new PropertyInfo(Variant.Type.Int, "what", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
+		}, null));
 		list.Add(new MethodInfo(MethodName.OnPileContentsChanged, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.OnRelease, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.IsOpen, new PropertyInfo(Variant.Type.Bool, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
@@ -188,6 +262,7 @@ public class NTopBarDeckButton : NTopBarButton
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool InvokeGodotClassMethod(in godot_string_name method, NativeVariantPtrArgs args, out godot_variant ret)
 	{
@@ -197,9 +272,9 @@ public class NTopBarDeckButton : NTopBarButton
 			ret = default(godot_variant);
 			return true;
 		}
-		if (method == MethodName._ExitTree && args.Count == 0)
+		if (method == MethodName._Notification && args.Count == 1)
 		{
-			_ExitTree();
+			_Notification(VariantUtils.ConvertTo<int>(in args[0]));
 			ret = default(godot_variant);
 			return true;
 		}
@@ -247,6 +322,7 @@ public class NTopBarDeckButton : NTopBarButton
 		return base.InvokeGodotClassMethod(in method, args, out ret);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassMethod(in godot_string_name method)
 	{
@@ -254,7 +330,7 @@ public class NTopBarDeckButton : NTopBarButton
 		{
 			return true;
 		}
-		if (method == MethodName._ExitTree)
+		if (method == MethodName._Notification)
 		{
 			return true;
 		}
@@ -289,6 +365,7 @@ public class NTopBarDeckButton : NTopBarButton
 		return base.HasGodotClassMethod(in method);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool SetGodotClassPropertyValue(in godot_string_name name, in godot_variant value)
 	{
@@ -320,6 +397,7 @@ public class NTopBarDeckButton : NTopBarButton
 		return base.SetGodotClassPropertyValue(in name, in value);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool GetGodotClassPropertyValue(in godot_string_name name, out godot_variant value)
 	{
@@ -356,6 +434,11 @@ public class NTopBarDeckButton : NTopBarButton
 		return base.GetGodotClassPropertyValue(in name, out value);
 	}
 
+	/// <summary>
+	/// Get the property information for all the properties declared in this class.
+	/// This method is used by Godot to register the available properties in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<PropertyInfo> GetGodotPropertyList()
 	{
@@ -369,6 +452,7 @@ public class NTopBarDeckButton : NTopBarButton
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void SaveGodotObjectData(GodotSerializationInfo info)
 	{
@@ -380,6 +464,7 @@ public class NTopBarDeckButton : NTopBarButton
 		info.AddProperty(PropertyName._bumpTween, Variant.From(in _bumpTween));
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RestoreGodotObjectData(GodotSerializationInfo info)
 	{

@@ -36,17 +36,21 @@ class _FirstRng:
         return list(lst)[0]
 
 
-def _make_combat(deck, character_id: str) -> CombatState:
+def _make_combat_with_seed(deck, character_id: str, seed: int) -> CombatState:
     combat = CombatState(
         player_hp=80,
         player_max_hp=80,
         deck=deck,
-        rng_seed=42,
+        rng_seed=seed,
         character_id=character_id,
     )
-    creature, ai = create_shrinker_beetle(Rng(42))
+    creature, ai = create_shrinker_beetle(Rng(seed))
     combat.add_enemy(creature, ai)
     return combat
+
+
+def _make_combat(deck, character_id: str) -> CombatState:
+    return _make_combat_with_seed(deck, character_id, seed=42)
 
 
 class TestSingleChoiceParity:
@@ -228,7 +232,10 @@ class TestGeneratedChoiceParity:
 
     def test_splash_makes_only_selected_generated_attack_free(self):
         """Matches Splash.cs: SetToFreeThisTurn runs after choosing the generated card."""
-        combat = _make_combat(create_ironclad_starter_deck(), "Ironclad")
+        # Seed 1 is pinned because the assertion below is only meaningful when
+        # the generated trio contains at least one attack that does not already
+        # cost 0. The shared seed-42 helper draws three 0-cost attacks.
+        combat = _make_combat_with_seed(create_ironclad_starter_deck(), "Ironclad", seed=1)
         splash = create_card(CardId.SPLASH)
         combat.hand = [splash]
         combat.energy = 1
@@ -237,6 +244,7 @@ class TestGeneratedChoiceParity:
         assert combat.pending_choice is not None
         generated = [option.card for option in combat.pending_choice.options]
         original_costs = [card.cost for card in generated]
+        assert any(cost > 0 for cost in original_costs)
         selected_index = next(index for index, cost in enumerate(original_costs) if cost > 0)
 
         selected = generated[selected_index]

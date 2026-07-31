@@ -11,7 +11,6 @@ using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.MonsterMoves.Intents;
 using MegaCrit.Sts2.Core.MonsterMoves.MonsterMoveStateMachine;
 using MegaCrit.Sts2.Core.Nodes.Combat;
-using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.TestSupport;
 
 namespace MegaCrit.Sts2.Core.Models.Monsters;
@@ -52,24 +51,25 @@ public sealed class LeafSlimeM : MonsterModel
 	{
 		if (TestMode.IsOff)
 		{
-			Vector2? vector = null;
+			NCreature nCreature = null;
 			foreach (Creature target in targets)
 			{
-				NCreature creatureNode = NCombatRoom.Instance.GetCreatureNode(target);
-				if (creatureNode != null && (!vector.HasValue || vector.Value.X > creatureNode.GlobalPosition.X))
+				NCreature creatureNode = target.GetCreatureNode();
+				if (creatureNode != null && (nCreature == null || nCreature.GlobalPosition.X > creatureNode.GlobalPosition.X))
 				{
-					vector = creatureNode.VfxSpawnPosition;
+					nCreature = creatureNode;
 				}
 			}
-			Node2D node2D = NCombatRoom.Instance.GetCreatureNode(base.Creature)?.GetSpecialNode<Node2D>("Visuals/SpitTarget");
-			if (node2D != null)
+			NCreature creatureNode2 = base.Creature.GetCreatureNode();
+			Node2D node2D = creatureNode2?.GetSpecialNode<Node2D>("Visuals/SpitTarget");
+			if (creatureNode2 != null && node2D != null && nCreature != null)
 			{
-				node2D.GlobalPosition = vector.Value;
+				node2D.GlobalPosition = new Vector2(nCreature.GlobalPosition.X, node2D.GlobalPosition.Y);
 			}
 		}
 		SfxCmd.Play(CastSfx);
 		await CreatureCmd.TriggerAnim(base.Creature, "Cast", 1f);
 		VfxCmd.PlayOnCreatureCenters(targets, "vfx/vfx_slime_impact");
-		await CardPileCmd.AddToCombatAndPreview<Slimed>(targets, PileType.Discard, 2, addedByPlayer: false);
+		await CardPileCmd.AddToCombatAndPreview<Slimed>(targets, PileType.Discard, 2, null);
 	}
 }

@@ -25,8 +25,6 @@ public sealed class Mirage : CardModel
 
 	protected override IEnumerable<IHoverTip> ExtraHoverTips => new global::_003C_003Ez__ReadOnlySingleElementList<IHoverTip>(HoverTipFactory.FromPower<PoisonPower>());
 
-	public override IEnumerable<CardKeyword> CanonicalKeywords => new global::_003C_003Ez__ReadOnlySingleElementList<CardKeyword>(CardKeyword.Exhaust);
-
 	public Mirage()
 		: base(1, CardType.Skill, CardRarity.Uncommon, TargetType.Self)
 	{

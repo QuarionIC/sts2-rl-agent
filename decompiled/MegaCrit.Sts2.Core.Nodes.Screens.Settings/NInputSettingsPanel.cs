@@ -17,38 +17,121 @@ namespace MegaCrit.Sts2.Core.Nodes.Screens.Settings;
 [ScriptPath("res://src/Core/Nodes/Screens/Settings/NInputSettingsPanel.cs")]
 public class NInputSettingsPanel : NSettingsPanel
 {
+	/// <summary>
+	/// Cached StringNames for the methods contained in this class, for fast lookup.
+	/// </summary>
 	public new class MethodName : NSettingsPanel.MethodName
 	{
+		/// <summary>
+		/// Cached name for the '_Ready' method.
+		/// </summary>
 		public new static readonly StringName _Ready = "_Ready";
 
+		/// <summary>
+		/// Cached name for the 'OnViewportSizeChange' method.
+		/// </summary>
 		public static readonly StringName OnViewportSizeChange = "OnViewportSizeChange";
 
+		/// <summary>
+		/// Cached name for the 'OnVisibilityChange' method.
+		/// </summary>
 		public new static readonly StringName OnVisibilityChange = "OnVisibilityChange";
 
+		/// <summary>
+		/// Cached name for the '_ExitTree' method.
+		/// </summary>
+		public new static readonly StringName _ExitTree = "_ExitTree";
+
+		/// <summary>
+		/// Cached name for the 'SetAsListeningEntry' method.
+		/// </summary>
 		public static readonly StringName SetAsListeningEntry = "SetAsListeningEntry";
 
+		/// <summary>
+		/// Cached name for the '_UnhandledKeyInput' method.
+		/// </summary>
 		public new static readonly StringName _UnhandledKeyInput = "_UnhandledKeyInput";
 
+		/// <summary>
+		/// Cached name for the '_Input' method.
+		/// </summary>
 		public new static readonly StringName _Input = "_Input";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the properties and fields contained in this class, for fast lookup.
+	/// </summary>
 	public new class PropertyName : NSettingsPanel.PropertyName
 	{
+		/// <summary>
+		/// Cached name for the '_minPadding' field.
+		/// </summary>
 		public new static readonly StringName _minPadding = "_minPadding";
 
+		/// <summary>
+		/// Cached name for the '_listeningEntry' field.
+		/// </summary>
 		public static readonly StringName _listeningEntry = "_listeningEntry";
 
+		/// <summary>
+		/// Cached name for the '_kbModeHeader' field.
+		/// </summary>
+		public static readonly StringName _kbModeHeader = "_kbModeHeader";
+
+		/// <summary>
+		/// Cached name for the '_kbModeTickbox' field.
+		/// </summary>
+		public static readonly StringName _kbModeTickbox = "_kbModeTickbox";
+
+		/// <summary>
+		/// Cached name for the '_steamInputPrompt' field.
+		/// </summary>
+		public static readonly StringName _steamInputPrompt = "_steamInputPrompt";
+
+		/// <summary>
+		/// Cached name for the '_resetToDefaultButton' field.
+		/// </summary>
 		public static readonly StringName _resetToDefaultButton = "_resetToDefaultButton";
 
+		/// <summary>
+		/// Cached name for the '_resetLabel' field.
+		/// </summary>
+		public static readonly StringName _resetLabel = "_resetLabel";
+
+		/// <summary>
+		/// Cached name for the '_commandHeader' field.
+		/// </summary>
 		public static readonly StringName _commandHeader = "_commandHeader";
 
+		/// <summary>
+		/// Cached name for the '_mkbHeader' field.
+		/// </summary>
+		public static readonly StringName _mkbHeader = "_mkbHeader";
+
+		/// <summary>
+		/// Cached name for the '_keyboardHeader' field.
+		/// </summary>
 		public static readonly StringName _keyboardHeader = "_keyboardHeader";
 
+		/// <summary>
+		/// Cached name for the '_controllerHeader' field.
+		/// </summary>
 		public static readonly StringName _controllerHeader = "_controllerHeader";
 
-		public static readonly StringName _steamInputPrompt = "_steamInputPrompt";
+		/// <summary>
+		/// Cached name for the '_listeningPrompt' field.
+		/// </summary>
+		public static readonly StringName _listeningPrompt = "_listeningPrompt";
+
+		/// <summary>
+		/// Cached name for the '_listeningLabel' field.
+		/// </summary>
+		public static readonly StringName _listeningLabel = "_listeningLabel";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the signals contained in this class, for fast lookup.
+	/// </summary>
 	public new class SignalName : NSettingsPanel.SignalName
 	{
 	}
@@ -57,35 +140,59 @@ public class NInputSettingsPanel : NSettingsPanel
 
 	private NInputSettingsEntry? _listeningEntry;
 
-	private NButton _resetToDefaultButton;
+	private MegaRichTextLabel _kbModeHeader;
 
-	private MegaRichTextLabel _commandHeader;
-
-	private MegaRichTextLabel _keyboardHeader;
-
-	private MegaRichTextLabel _controllerHeader;
+	private NTickbox _kbModeTickbox;
 
 	private MegaRichTextLabel _steamInputPrompt;
 
+	private NButton _resetToDefaultButton;
+
+	private MegaLabel _resetLabel;
+
+	private MegaLabel _commandHeader;
+
+	private MegaLabel _mkbHeader;
+
+	private MegaLabel _keyboardHeader;
+
+	private MegaLabel _controllerHeader;
+
+	private Control _listeningPrompt;
+
+	private MegaRichTextLabel _listeningLabel;
+
+	/// <summary>
+	/// Nodes are initialized top down based on what you see on the screen.
+	/// </summary>
 	public override void _Ready()
 	{
 		base._Ready();
-		_resetToDefaultButton = GetNode<NButton>("%ResetToDefaultButton");
-		_commandHeader = GetNode<MegaRichTextLabel>("%CommandHeader");
-		_keyboardHeader = GetNode<MegaRichTextLabel>("%KeyboardHeader");
-		_controllerHeader = GetNode<MegaRichTextLabel>("%ControllerHeader");
+		GetViewport().Connect(Viewport.SignalName.SizeChanged, Callable.From(OnViewportSizeChange));
+		_kbModeHeader = GetNode<MegaRichTextLabel>("%KeyboardOnlyModeHeader");
+		_kbModeHeader.SetTextAutoSize(new LocString("settings_ui", "KEYBOARD_ONLY_MODE_HEADER").GetFormattedText());
+		_kbModeTickbox = GetNode<NTickbox>("%KeyboardOnlyModeTickbox");
 		_steamInputPrompt = GetNode<MegaRichTextLabel>("%SteamInputPrompt");
+		_steamInputPrompt.SetTextAutoSize((!NControllerManager.Instance.ShouldAllowControllerRebinding) ? new LocString("settings_ui", "INPUT_SETTINGS.STEAM_INPUT_DETECTED").GetFormattedText() : new LocString("settings_ui", "INPUT_SETTINGS.STEAM_INPUT_NOT_DETECTED").GetFormattedText());
+		_resetToDefaultButton = GetNode<NButton>("%ResetToDefaultButton");
 		_resetToDefaultButton.Connect(NClickableControl.SignalName.Released, Callable.From<NClickableControl>(delegate
 		{
 			NInputManager.Instance.ResetToDefaults();
 		}));
-		GetViewport().Connect(Viewport.SignalName.SizeChanged, Callable.From(OnViewportSizeChange));
-		_commandHeader.Text = new LocString("settings_ui", "INPUT_SETTINGS.COMMAND_HEADER").GetFormattedText();
-		_keyboardHeader.Text = new LocString("settings_ui", "INPUT_SETTINGS.KEYBOARD_HEADER").GetFormattedText();
-		_controllerHeader.Text = new LocString("settings_ui", "INPUT_SETTINGS.CONTROLLER_HEADER").GetFormattedText();
-		_steamInputPrompt.Text = new LocString("settings_ui", "INPUT_SETTINGS.STEAM_INPUT_DETECTED").GetFormattedText();
-		IReadOnlyList<StringName> readOnlyList = NInputManager.remappableControllerInputs.Concat(NInputManager.remappableKeyboardInputs).Distinct().ToList();
-		List<NInputSettingsEntry> list = base.Content.GetChildren().OfType<NInputSettingsEntry>().ToList();
+		_resetLabel = GetNode<MegaLabel>("%ResetLabel");
+		_resetLabel.SetTextAutoSize(new LocString("settings_ui", "INPUT_SETTINGS.RESET_TO_DEFAULT").GetRawText());
+		_commandHeader = GetNode<MegaLabel>("%CommandHeader");
+		_mkbHeader = GetNode<MegaLabel>("%MKbHeader");
+		_keyboardHeader = GetNode<MegaLabel>("%KbModeHeader");
+		_controllerHeader = GetNode<MegaLabel>("%ControllerHeader");
+		_commandHeader.SetTextAutoSize(new LocString("settings_ui", "INPUT_SETTINGS.COMMAND_HEADER").GetFormattedText());
+		_keyboardHeader.SetTextAutoSize(new LocString("settings_ui", "INPUT_SETTINGS.KEYBOARD_ONLY_MODE_HEADER").GetFormattedText());
+		_mkbHeader.SetTextAutoSize(new LocString("settings_ui", "INPUT_SETTINGS.MOUSE_KEYBOARD_HEADER").GetFormattedText());
+		_controllerHeader.SetTextAutoSize(new LocString("settings_ui", "INPUT_SETTINGS.CONTROLLER_HEADER").GetFormattedText());
+		_listeningPrompt = GetNode<Control>("%ListeningPrompt");
+		_listeningLabel = GetNode<MegaRichTextLabel>("%ListeningLabel");
+		_listeningLabel.SetTextAutoSize("[sine]" + new LocString("settings_ui", "LISTENING_INPUT").GetRawText() + "[/sine]");
+		IReadOnlyList<StringName> readOnlyList = NInputManager.remappableControllerInputs.Concat(NInputManager.remappableMKbInputs).Distinct().ToList();
 		foreach (StringName item in readOnlyList)
 		{
 			NInputSettingsEntry entry = NInputSettingsEntry.Create(item);
@@ -94,27 +201,14 @@ public class NInputSettingsPanel : NSettingsPanel
 				SetAsListeningEntry(entry);
 			}));
 			base.Content.AddChildSafely(entry);
-			list.Add(entry);
 		}
-		for (int num = 0; num < list.Count; num++)
-		{
-			list[num].FocusNeighborLeft = list[num].GetPath();
-			list[num].FocusNeighborRight = list[num].GetPath();
-			list[num].FocusNeighborTop = ((num > 0) ? list[num - 1].GetPath() : list[num].GetPath());
-			list[num].FocusNeighborBottom = ((num < list.Count - 1) ? list[num + 1].GetPath() : list[num].GetPath());
-		}
-		_resetToDefaultButton.FocusNeighborLeft = _resetToDefaultButton.GetPath();
-		_resetToDefaultButton.FocusNeighborRight = _resetToDefaultButton.GetPath();
-		_resetToDefaultButton.FocusNeighborTop = _resetToDefaultButton.GetPath();
-		_resetToDefaultButton.FocusNeighborBottom = list[0].GetPath();
-		list[0].FocusNeighborTop = _resetToDefaultButton.GetPath();
-		_firstControl = base.Content.GetChildren().OfType<NInputSettingsEntry>().First();
+		UpdateNavigation();
 	}
 
 	private async Task RefreshSize()
 	{
-		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+		await this.AwaitProcessFrame();
+		await this.AwaitProcessFrame();
 		Vector2 size = GetParent<Control>().Size;
 		Vector2 minimumSize = base.Content.GetMinimumSize();
 		if (minimumSize.Y + _minPadding >= size.Y)
@@ -132,23 +226,47 @@ public class NInputSettingsPanel : NSettingsPanel
 	{
 		base.OnVisibilityChange();
 		_listeningEntry = null;
-		_steamInputPrompt.Visible = !NControllerManager.Instance.ShouldAllowControllerRebinding;
+		_listeningPrompt.Visible = false;
+		NControllerManager.Instance.StopListeningForRebind();
 		TaskHelper.RunSafely(RefreshSize());
+	}
+
+	public override void _ExitTree()
+	{
+		NControllerManager.Instance.StopListeningForRebind();
 	}
 
 	private void SetAsListeningEntry(NInputSettingsEntry entry)
 	{
 		_listeningEntry = entry;
+		_listeningPrompt.Visible = true;
+		_listeningPrompt.SetGlobalPosition(new Vector2(960f, 540f) - _listeningPrompt.Size * 0.5f);
+		NControllerManager.Instance.StartListeningForRebind();
 	}
 
 	public override void _UnhandledKeyInput(InputEvent inputEvent)
 	{
-		if (_listeningEntry != null && NInputManager.remappableKeyboardInputs.Contains(_listeningEntry.InputName) && inputEvent is InputEventKey inputEventKey)
+		if (_listeningEntry == null || !(inputEvent is InputEventKey inputEventKey))
 		{
-			NInputManager.Instance.ModifyShortcutKey(_listeningEntry.InputName, inputEventKey.Keycode);
-			GetViewport()?.SetInputAsHandled();
-			_listeningEntry = null;
+			return;
 		}
+		if (NControllerManager.Instance.InputType == InputType.Controller)
+		{
+			GetViewport()?.SetInputAsHandled();
+			return;
+		}
+		if (NControllerManager.Instance.InputType == InputType.KeyboardOnlyMode && NInputManager.remappableKbOnlyInputs.Contains(_listeningEntry.InputName))
+		{
+			NInputManager.Instance.ModifyKbOnlyKey(_listeningEntry.InputName, inputEventKey.Keycode);
+		}
+		else if (NInputManager.remappableMKbInputs.Contains(_listeningEntry.InputName))
+		{
+			NInputManager.Instance.ModifyMKbKey(_listeningEntry.InputName, inputEventKey.Keycode);
+		}
+		GetViewport()?.SetInputAsHandled();
+		_listeningPrompt.Visible = false;
+		NControllerManager.Instance.StopListeningForRebind();
+		_listeningEntry = null;
 	}
 
 	public override void _Input(InputEvent inputEvent)
@@ -167,19 +285,27 @@ public class NInputSettingsPanel : NSettingsPanel
 					NInputManager.Instance.ModifyControllerButton(_listeningEntry.InputName, stringName);
 				}
 				GetViewport()?.SetInputAsHandled();
+				_listeningPrompt.Visible = false;
+				NControllerManager.Instance.StopListeningForRebind();
 				_listeningEntry = null;
 				break;
 			}
 		}
 	}
 
+	/// <summary>
+	/// Get the method information for all the methods declared in this class.
+	/// This method is used by Godot to register the available methods in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<MethodInfo> GetGodotMethodList()
 	{
-		List<MethodInfo> list = new List<MethodInfo>(6);
+		List<MethodInfo> list = new List<MethodInfo>(7);
 		list.Add(new MethodInfo(MethodName._Ready, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.OnViewportSizeChange, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.OnVisibilityChange, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
+		list.Add(new MethodInfo(MethodName._ExitTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.SetAsListeningEntry, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
 		{
 			new PropertyInfo(Variant.Type.Object, "entry", PropertyHint.None, "", PropertyUsageFlags.Default, new StringName("Control"), exported: false)
@@ -195,6 +321,7 @@ public class NInputSettingsPanel : NSettingsPanel
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool InvokeGodotClassMethod(in godot_string_name method, NativeVariantPtrArgs args, out godot_variant ret)
 	{
@@ -213,6 +340,12 @@ public class NInputSettingsPanel : NSettingsPanel
 		if (method == MethodName.OnVisibilityChange && args.Count == 0)
 		{
 			OnVisibilityChange();
+			ret = default(godot_variant);
+			return true;
+		}
+		if (method == MethodName._ExitTree && args.Count == 0)
+		{
+			_ExitTree();
 			ret = default(godot_variant);
 			return true;
 		}
@@ -237,6 +370,7 @@ public class NInputSettingsPanel : NSettingsPanel
 		return base.InvokeGodotClassMethod(in method, args, out ret);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassMethod(in godot_string_name method)
 	{
@@ -249,6 +383,10 @@ public class NInputSettingsPanel : NSettingsPanel
 			return true;
 		}
 		if (method == MethodName.OnVisibilityChange)
+		{
+			return true;
+		}
+		if (method == MethodName._ExitTree)
 		{
 			return true;
 		}
@@ -267,6 +405,7 @@ public class NInputSettingsPanel : NSettingsPanel
 		return base.HasGodotClassMethod(in method);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool SetGodotClassPropertyValue(in godot_string_name name, in godot_variant value)
 	{
@@ -280,24 +419,14 @@ public class NInputSettingsPanel : NSettingsPanel
 			_listeningEntry = VariantUtils.ConvertTo<NInputSettingsEntry>(in value);
 			return true;
 		}
-		if (name == PropertyName._resetToDefaultButton)
+		if (name == PropertyName._kbModeHeader)
 		{
-			_resetToDefaultButton = VariantUtils.ConvertTo<NButton>(in value);
+			_kbModeHeader = VariantUtils.ConvertTo<MegaRichTextLabel>(in value);
 			return true;
 		}
-		if (name == PropertyName._commandHeader)
+		if (name == PropertyName._kbModeTickbox)
 		{
-			_commandHeader = VariantUtils.ConvertTo<MegaRichTextLabel>(in value);
-			return true;
-		}
-		if (name == PropertyName._keyboardHeader)
-		{
-			_keyboardHeader = VariantUtils.ConvertTo<MegaRichTextLabel>(in value);
-			return true;
-		}
-		if (name == PropertyName._controllerHeader)
-		{
-			_controllerHeader = VariantUtils.ConvertTo<MegaRichTextLabel>(in value);
+			_kbModeTickbox = VariantUtils.ConvertTo<NTickbox>(in value);
 			return true;
 		}
 		if (name == PropertyName._steamInputPrompt)
@@ -305,9 +434,50 @@ public class NInputSettingsPanel : NSettingsPanel
 			_steamInputPrompt = VariantUtils.ConvertTo<MegaRichTextLabel>(in value);
 			return true;
 		}
+		if (name == PropertyName._resetToDefaultButton)
+		{
+			_resetToDefaultButton = VariantUtils.ConvertTo<NButton>(in value);
+			return true;
+		}
+		if (name == PropertyName._resetLabel)
+		{
+			_resetLabel = VariantUtils.ConvertTo<MegaLabel>(in value);
+			return true;
+		}
+		if (name == PropertyName._commandHeader)
+		{
+			_commandHeader = VariantUtils.ConvertTo<MegaLabel>(in value);
+			return true;
+		}
+		if (name == PropertyName._mkbHeader)
+		{
+			_mkbHeader = VariantUtils.ConvertTo<MegaLabel>(in value);
+			return true;
+		}
+		if (name == PropertyName._keyboardHeader)
+		{
+			_keyboardHeader = VariantUtils.ConvertTo<MegaLabel>(in value);
+			return true;
+		}
+		if (name == PropertyName._controllerHeader)
+		{
+			_controllerHeader = VariantUtils.ConvertTo<MegaLabel>(in value);
+			return true;
+		}
+		if (name == PropertyName._listeningPrompt)
+		{
+			_listeningPrompt = VariantUtils.ConvertTo<Control>(in value);
+			return true;
+		}
+		if (name == PropertyName._listeningLabel)
+		{
+			_listeningLabel = VariantUtils.ConvertTo<MegaRichTextLabel>(in value);
+			return true;
+		}
 		return base.SetGodotClassPropertyValue(in name, in value);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool GetGodotClassPropertyValue(in godot_string_name name, out godot_variant value)
 	{
@@ -321,14 +491,39 @@ public class NInputSettingsPanel : NSettingsPanel
 			value = VariantUtils.CreateFrom(in _listeningEntry);
 			return true;
 		}
+		if (name == PropertyName._kbModeHeader)
+		{
+			value = VariantUtils.CreateFrom(in _kbModeHeader);
+			return true;
+		}
+		if (name == PropertyName._kbModeTickbox)
+		{
+			value = VariantUtils.CreateFrom(in _kbModeTickbox);
+			return true;
+		}
+		if (name == PropertyName._steamInputPrompt)
+		{
+			value = VariantUtils.CreateFrom(in _steamInputPrompt);
+			return true;
+		}
 		if (name == PropertyName._resetToDefaultButton)
 		{
 			value = VariantUtils.CreateFrom(in _resetToDefaultButton);
 			return true;
 		}
+		if (name == PropertyName._resetLabel)
+		{
+			value = VariantUtils.CreateFrom(in _resetLabel);
+			return true;
+		}
 		if (name == PropertyName._commandHeader)
 		{
 			value = VariantUtils.CreateFrom(in _commandHeader);
+			return true;
+		}
+		if (name == PropertyName._mkbHeader)
+		{
+			value = VariantUtils.CreateFrom(in _mkbHeader);
 			return true;
 		}
 		if (name == PropertyName._keyboardHeader)
@@ -341,41 +536,65 @@ public class NInputSettingsPanel : NSettingsPanel
 			value = VariantUtils.CreateFrom(in _controllerHeader);
 			return true;
 		}
-		if (name == PropertyName._steamInputPrompt)
+		if (name == PropertyName._listeningPrompt)
 		{
-			value = VariantUtils.CreateFrom(in _steamInputPrompt);
+			value = VariantUtils.CreateFrom(in _listeningPrompt);
+			return true;
+		}
+		if (name == PropertyName._listeningLabel)
+		{
+			value = VariantUtils.CreateFrom(in _listeningLabel);
 			return true;
 		}
 		return base.GetGodotClassPropertyValue(in name, out value);
 	}
 
+	/// <summary>
+	/// Get the property information for all the properties declared in this class.
+	/// This method is used by Godot to register the available properties in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<PropertyInfo> GetGodotPropertyList()
 	{
 		List<PropertyInfo> list = new List<PropertyInfo>();
 		list.Add(new PropertyInfo(Variant.Type.Float, PropertyName._minPadding, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._listeningEntry, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
+		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._kbModeHeader, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
+		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._kbModeTickbox, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
+		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._steamInputPrompt, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._resetToDefaultButton, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
+		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._resetLabel, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._commandHeader, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
+		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._mkbHeader, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._keyboardHeader, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._controllerHeader, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
-		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._steamInputPrompt, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
+		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._listeningPrompt, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
+		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._listeningLabel, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void SaveGodotObjectData(GodotSerializationInfo info)
 	{
 		base.SaveGodotObjectData(info);
 		info.AddProperty(PropertyName._minPadding, Variant.From(in _minPadding));
 		info.AddProperty(PropertyName._listeningEntry, Variant.From(in _listeningEntry));
+		info.AddProperty(PropertyName._kbModeHeader, Variant.From(in _kbModeHeader));
+		info.AddProperty(PropertyName._kbModeTickbox, Variant.From(in _kbModeTickbox));
+		info.AddProperty(PropertyName._steamInputPrompt, Variant.From(in _steamInputPrompt));
 		info.AddProperty(PropertyName._resetToDefaultButton, Variant.From(in _resetToDefaultButton));
+		info.AddProperty(PropertyName._resetLabel, Variant.From(in _resetLabel));
 		info.AddProperty(PropertyName._commandHeader, Variant.From(in _commandHeader));
+		info.AddProperty(PropertyName._mkbHeader, Variant.From(in _mkbHeader));
 		info.AddProperty(PropertyName._keyboardHeader, Variant.From(in _keyboardHeader));
 		info.AddProperty(PropertyName._controllerHeader, Variant.From(in _controllerHeader));
-		info.AddProperty(PropertyName._steamInputPrompt, Variant.From(in _steamInputPrompt));
+		info.AddProperty(PropertyName._listeningPrompt, Variant.From(in _listeningPrompt));
+		info.AddProperty(PropertyName._listeningLabel, Variant.From(in _listeningLabel));
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RestoreGodotObjectData(GodotSerializationInfo info)
 	{
@@ -388,25 +607,49 @@ public class NInputSettingsPanel : NSettingsPanel
 		{
 			_listeningEntry = value2.As<NInputSettingsEntry>();
 		}
-		if (info.TryGetProperty(PropertyName._resetToDefaultButton, out var value3))
+		if (info.TryGetProperty(PropertyName._kbModeHeader, out var value3))
 		{
-			_resetToDefaultButton = value3.As<NButton>();
+			_kbModeHeader = value3.As<MegaRichTextLabel>();
 		}
-		if (info.TryGetProperty(PropertyName._commandHeader, out var value4))
+		if (info.TryGetProperty(PropertyName._kbModeTickbox, out var value4))
 		{
-			_commandHeader = value4.As<MegaRichTextLabel>();
+			_kbModeTickbox = value4.As<NTickbox>();
 		}
-		if (info.TryGetProperty(PropertyName._keyboardHeader, out var value5))
+		if (info.TryGetProperty(PropertyName._steamInputPrompt, out var value5))
 		{
-			_keyboardHeader = value5.As<MegaRichTextLabel>();
+			_steamInputPrompt = value5.As<MegaRichTextLabel>();
 		}
-		if (info.TryGetProperty(PropertyName._controllerHeader, out var value6))
+		if (info.TryGetProperty(PropertyName._resetToDefaultButton, out var value6))
 		{
-			_controllerHeader = value6.As<MegaRichTextLabel>();
+			_resetToDefaultButton = value6.As<NButton>();
 		}
-		if (info.TryGetProperty(PropertyName._steamInputPrompt, out var value7))
+		if (info.TryGetProperty(PropertyName._resetLabel, out var value7))
 		{
-			_steamInputPrompt = value7.As<MegaRichTextLabel>();
+			_resetLabel = value7.As<MegaLabel>();
+		}
+		if (info.TryGetProperty(PropertyName._commandHeader, out var value8))
+		{
+			_commandHeader = value8.As<MegaLabel>();
+		}
+		if (info.TryGetProperty(PropertyName._mkbHeader, out var value9))
+		{
+			_mkbHeader = value9.As<MegaLabel>();
+		}
+		if (info.TryGetProperty(PropertyName._keyboardHeader, out var value10))
+		{
+			_keyboardHeader = value10.As<MegaLabel>();
+		}
+		if (info.TryGetProperty(PropertyName._controllerHeader, out var value11))
+		{
+			_controllerHeader = value11.As<MegaLabel>();
+		}
+		if (info.TryGetProperty(PropertyName._listeningPrompt, out var value12))
+		{
+			_listeningPrompt = value12.As<Control>();
+		}
+		if (info.TryGetProperty(PropertyName._listeningLabel, out var value13))
+		{
+			_listeningLabel = value13.As<MegaRichTextLabel>();
 		}
 	}
 }

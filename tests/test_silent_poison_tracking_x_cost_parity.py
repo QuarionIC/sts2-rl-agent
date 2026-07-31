@@ -47,8 +47,8 @@ class TestSilentPoisonTrackingXCostParity:
         combat.energy = 0
 
         assert combat.play_card(0)
-        assert combat.player.get_power_amount(PowerId.ANTICIPATE) == 5
-        assert combat.player.get_power_amount(PowerId.DEXTERITY) == 5
+        assert combat.player.get_power_amount(PowerId.ANTICIPATE) == 4
+        assert combat.player.get_power_amount(PowerId.DEXTERITY) == 4
 
         fire_after_turn_end(CombatSide.PLAYER, combat)
 
@@ -85,31 +85,33 @@ class TestSilentPoisonTrackingXCostParity:
         assert enemy.current_hp == hp_before_tick - 5
         assert enemy.get_power_amount(PowerId.POISON) == 4
 
-    def test_expertise_draws_up_to_six_and_does_not_overdraw_when_hand_is_full_enough(self):
+    def test_expertise_draws_exactly_two_cards_and_retains_them_this_turn(self):
         combat = _make_combat()
         kept_attack = make_strike_silent()
         kept_skill = make_defend_silent()
         draw_1 = make_strike_silent()
         draw_2 = make_defend_silent()
         draw_3 = make_strike_silent()
-        draw_4 = make_defend_silent()
-        draw_5 = make_strike_silent()
         combat.hand = [make_expertise(), kept_attack, kept_skill]
-        combat.draw_pile = [draw_1, draw_2, draw_3, draw_4, draw_5]
+        combat.draw_pile = [draw_1, draw_2, draw_3]
         combat.energy = 1
 
         assert combat.play_card(0)
-        assert combat.hand == [kept_attack, kept_skill, draw_1, draw_2, draw_3, draw_4]
-        assert combat.draw_pile == [draw_5]
+        assert combat.hand == [kept_attack, kept_skill, draw_1, draw_2]
+        assert combat.draw_pile == [draw_3]
+        assert draw_1.should_retain_this_turn is True
+        assert draw_2.should_retain_this_turn is True
+        assert kept_attack.should_retain_this_turn is False
 
-        combat = _make_combat()
-        combat.hand = [make_expertise()] + [make_strike_silent() for _ in range(6)]
-        combat.draw_pile = [make_defend_silent()]
-        combat.energy = 1
+        upgraded = _make_combat()
+        upgraded_draws = [make_strike_silent() for _ in range(4)]
+        upgraded.hand = [make_expertise(upgraded=True)]
+        upgraded.draw_pile = list(upgraded_draws)
+        upgraded.energy = 1
 
-        assert combat.play_card(0)
-        assert len(combat.hand) == 6
-        assert len(combat.draw_pile) == 1
+        assert upgraded.play_card(0)
+        assert upgraded.hand == upgraded_draws[:3]
+        assert upgraded.draw_pile == upgraded_draws[3:]
 
     def test_noxious_fumes_applies_poison_to_all_enemies_at_player_turn_start(self):
         combat = _make_combat(extra_enemies=1)

@@ -93,8 +93,8 @@ COLD_SNAP_UPGRADED_DAMAGE = 9
 FIGHT_THROUGH_BLOCK = 13
 FIGHT_THROUGH_UPGRADED_BLOCK = 17
 FIGHT_THROUGH_WOUND_COUNT = 2
-REFRACT_DAMAGE = 9
-REFRACT_UPGRADED_DAMAGE = 12
+REFRACT_DAMAGE = 10
+REFRACT_UPGRADED_DAMAGE = 13
 REFRACT_HITS = 2
 REFRACT_GLASS_ORBS = 2
 ICE_LANCE_DAMAGE = 19
@@ -412,7 +412,7 @@ class TestDefectCardEffectsReferenceParity:
         assert combat.play_card(0)
 
         assert blocked.current_hp == 100
-        assert hittable.current_hp == 74
+        assert hittable.current_hp == 70
         assert combat.player.get_power_amount(PowerId.FOCUS) == 1
 
     def test_shatter_hits_only_hittable_enemies(self):
@@ -427,7 +427,7 @@ class TestDefectCardEffectsReferenceParity:
         assert combat.play_card(0)
 
         assert blocked.current_hp == 100
-        assert hittable.current_hp == 89
+        assert hittable.current_hp == 93
 
     def test_go_for_the_eyes_applies_weak_only_if_target_intends_attack(self):
         """Matches GoForTheEyes.cs: Weak is conditional on target attack intent."""
@@ -635,7 +635,7 @@ class TestDefectCardEffectsReferenceParity:
         assert len(combat.orb_queue.orbs) == REFRACT_GLASS_ORBS
         assert all(orb.orb_type == OrbType.GLASS for orb in combat.orb_queue.orbs)
 
-    def test_upgraded_refract_hits_twice_with_twelve_damage(self):
+    def test_upgraded_refract_hits_twice_with_thirteen_damage(self):
         """Matches Refract.cs: upgrade changes Damage only."""
         combat = _make_combat()
         enemy = combat.enemies[0]
@@ -758,7 +758,7 @@ class TestDefectCardEffectsReferenceParity:
         combat.channel_orb(combat.player, "LIGHTNING")
         combat.channel_orb(combat.player, "LIGHTNING")
         combat.hand = [make_voltaic()]
-        combat.energy = 2
+        combat.energy = 3
 
         assert combat.play_card(0)
 
@@ -769,7 +769,7 @@ class TestDefectCardEffectsReferenceParity:
         combat = _make_combat()
         combat.channel_orb(combat.player, "FROST")
         combat.hand = [make_voltaic()]
-        combat.energy = 2
+        combat.energy = 3
 
         assert combat.play_card(0)
 
@@ -802,7 +802,7 @@ class TestDefectCardEffectsReferenceParity:
 
         assert combat.play_card(0, 0)
 
-        assert enemy.current_hp == starting_hp - 10
+        assert enemy.current_hp == starting_hp - 11
         assert card.cost == 0
 
     def test_tesla_coil_triggers_only_lightning_passives_against_target(self):
@@ -877,7 +877,7 @@ class TestDefectCardEffectsReferenceParity:
 
         assert combat.play_card(0, 0)
 
-        assert enemy.current_hp == starting_hp - 12
+        assert enemy.current_hp == starting_hp - 14
         assert combat.player.get_power_amount(PowerId.FREE_POWER) == 1
 
     def test_meteor_strike_deals_damage_and_channels_three_plasma(self):
@@ -932,7 +932,7 @@ class TestDefectCardEffectsReferenceParity:
 
         assert combat.play_card(0, 0)
 
-        assert enemy.current_hp == 100 - 10 - 6
+        assert enemy.current_hp == 100 - 12 - 6
         assert attack in combat.discard_pile
 
     def test_tempest_uses_x_energy_and_upgrade_adds_one_channel(self):
@@ -1136,19 +1136,19 @@ class TestDefectCardEffectsReferenceParity:
         assert [orb.orb_type for orb in combat.orb_queue.orbs] == [OrbType.GLASS]
 
     def test_biased_cognition_applies_focus_then_delayed_focus_loss(self):
-        """Matches BiasedCognition.cs: apply Focus(4), then BiasedCognition(1)."""
+        """Matches BiasedCognition.cs: apply Focus(5), then BiasedCognition(1)."""
         combat = _make_combat()
         combat.hand = [make_biased_cognition()]
         combat.energy = 1
 
         assert combat.play_card(0)
 
-        assert combat.player.get_power_amount(PowerId.FOCUS) == 4
+        assert combat.player.get_power_amount(PowerId.FOCUS) == 5
         assert combat.player.get_power_amount(PowerId.BIASED_COGNITION) == 1
 
         combat.end_player_turn()
 
-        assert combat.player.get_power_amount(PowerId.FOCUS) == 3
+        assert combat.player.get_power_amount(PowerId.FOCUS) == 4
 
     def test_creative_ai_applies_power(self):
         """Matches CreativeAI.cs: apply CreativeAiPower(1)."""
@@ -1210,7 +1210,7 @@ class TestDefectCardEffectsReferenceParity:
         creative_ai = create_card(CardId.CREATIVE_AI_CARD, upgraded=True)
         machine_learning = create_card(CardId.MACHINE_LEARNING_CARD, upgraded=True)
 
-        assert biased.effect_vars["focus_power"] == 5
+        assert biased.effect_vars["focus_power"] == 6
         assert biased.cost == 1
         assert creative_ai.cost == 2
         assert creative_ai.effect_vars["creative_ai"] == 1

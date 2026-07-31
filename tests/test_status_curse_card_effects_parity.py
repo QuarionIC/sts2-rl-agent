@@ -130,7 +130,7 @@ class TestStatusCurseCardEffectsParity:
         combat.energy = 3
 
         assert combat.play_card(0)
-        assert combat.player.block == 17
+        assert combat.player.block == 18
         assert combat.player.get_power_amount(PowerId.DRAW_CARDS_NEXT_TURN) == 3
         assert combat.player.get_power_amount(PowerId.ENERGY_NEXT_TURN) == 3
 
@@ -159,15 +159,15 @@ class TestStatusCurseCardEffectsParity:
 
         assert combat.play_card(0, 0)
 
-        assert played.base_damage == 6
-        assert in_draw.base_damage == 6
-        assert in_discard.base_damage == 6
+        assert played.base_damage == 7
+        assert in_draw.base_damage == 7
+        assert in_discard.base_damage == 7
 
         combat.upgrade_card(in_draw)
 
         assert in_draw.upgraded is True
-        assert in_draw.base_damage == 7
-        assert in_draw.effect_vars["increase"] == 2
+        assert in_draw.base_damage == 8
+        assert in_draw.effect_vars["increase"] == 3
 
     def test_neows_fury_shuffles_full_discard_pile_before_returning_cards(self):
         combat = _make_combat()
@@ -250,16 +250,27 @@ class TestStatusCurseCardEffectsParity:
 
         assert combat.energy == 3
 
-    def test_fuel_gains_energy_before_drawing_void(self):
-        """Matches Fuel.cs: gain energy before Draw, so drawn Void removes one."""
+    def test_fuel_only_gains_energy_and_never_draws(self):
+        """Matches Fuel.cs: OnPlay is only GainEnergy(Energy) -- no draw."""
         combat = _make_combat()
+        void = make_void()
         combat.hand = [make_fuel()]
-        combat.draw_pile = [make_void()]
+        combat.draw_pile = [void]
         combat.energy = 0
 
         assert combat.play_card(0)
 
-        assert combat.energy == 0
+        assert combat.energy == 1
+        assert combat.draw_pile == [void]
+        assert combat.hand == []
+
+        upgraded_combat = _make_combat()
+        upgraded_combat.hand = [make_fuel(upgraded=True)]
+        upgraded_combat.energy = 0
+
+        assert upgraded_combat.play_card(0)
+
+        assert upgraded_combat.energy == 2
 
     def test_brightest_flame_gains_energy_before_drawing_void(self):
         """Matches BrightestFlame.cs: gain energy before Draw, so drawn Void removes one."""

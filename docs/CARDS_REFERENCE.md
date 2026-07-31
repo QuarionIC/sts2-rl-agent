@@ -1,6 +1,6 @@
 # Slay the Spire 2 - Complete Card Reference
 
-**Total cards parsed: 577**
+**Total cards parsed: 578**
 
 ## Summary
 
@@ -14,11 +14,11 @@
 | Colorless | 64 |
 | Event | 27 |
 | Token | 14 |
-| Status | 11 |
+| Status | 12 |
 | Curse | 18 |
-| Quest | 3 |
+| Quest | 4 |
 | Unknown/Uncategorized | 1 |
-| **Total** | **577** |
+| **Total** | **578** |
 
 ## Table of Contents
 
@@ -30,9 +30,9 @@
 - [Colorless (64 cards)](#colorless)
 - [Event (27 cards)](#event)
 - [Token (14 cards)](#token)
-- [Status (11 cards)](#status)
+- [Status (12 cards)](#status)
 - [Curse (18 cards)](#curse)
-- [Quest (3 cards)](#quest)
+- [Quest (4 cards)](#quest)
 - [Unknown/Uncategorized (1 cards)](#unknownuncategorized)
 
 ---
@@ -118,7 +118,7 @@
 - **Color:** ironclad
 - **Cost:** 0
 - **Type:** Skill
-- **Rarity:** Common
+- **Rarity:** Uncommon
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
@@ -159,9 +159,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 17, CardsToExhaust: 1}
+- **Vars:** {Damage: 18, CardsToExhaust: 1}
 - **Effect:** Deal Damage to target enemy; Exhaust card(s) from hand; Shuffle draw pile
-- **Upgrade:** Damage+5
+- **Upgrade:** Damage+6
 ### Havoc
 - **ID:** HAVOC
 - **Color:** ironclad
@@ -244,7 +244,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** Strike
-- **Vars:** {Damage: 7, StrengthPower: 2}
+- **Vars:** {Damage: 7, StrengthPower: 3}
 - **Effect:** Deal Damage to target enemy; Apply SetupStrike to self
 - **Upgrade:** Damage+2; Strength+1
 ### ShrugItOff
@@ -290,9 +290,9 @@
 - **Type:** Skill
 - **Rarity:** Common
 - **Target:** AnyEnemy
-- **Keywords:** None
+- **Keywords:** Exhaust
 - **Tags:** None
-- **Vars:** {VulnerablePower: 2}
+- **Vars:** {VulnerablePower: 3}
 - **Effect:** Apply Vulnerable to target
 - **Upgrade:** Vulnerable+1
 ### TrueGrit
@@ -411,25 +411,25 @@
 - **Color:** ironclad
 - **Cost:** 1
 - **Type:** Skill
-- **Rarity:** Uncommon
+- **Rarity:** Rare
 - **Target:** AnyEnemy
 - **Keywords:** Exhaust
 - **Tags:** None
-- **Vars:** {StrengthPerVulnerable: 1}
-- **Effect:** Apply Strength to self
-- **Upgrade:** Remove Exhaust
+- **Vars:** {VulnerablePower: 1, StrengthPerVulnerable: 1}
+- **Effect:** Apply Vulnerable to target enemy; Apply Strength to self equal to that enemy's Vulnerable
+- **Upgrade:** VulnerablePower+1
 ### DrumOfBattle
 - **ID:** DRUM_OF_BATTLE
 - **Color:** ironclad
-- **Cost:** 0
-- **Type:** Power
+- **Cost:** 1
+- **Type:** Skill
 - **Rarity:** Uncommon
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {DrumOfBattlePower: 1, Cards: 2}
-- **Effect:** Apply DrumOfBattle to self; Draw card(s)
-- **Upgrade:** Cards+1
+- **Vars:** {Cards: 2, Energy: 2}
+- **Effect:** Draw card(s); Gain Energy when this card is Exhausted
+- **Upgrade:** Energy+1
 ### EvilEye
 - **ID:** EVIL_EYE
 - **Color:** ironclad
@@ -476,7 +476,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 5, StrengthPower: 2, EnemyStrength: 1}
+- **Vars:** {Damage: 5, StrengthPower: 3, EnemyStrength: 1}
 - **Effect:** Deal Damage to target enemy multiple times; Apply Strength to self; Apply Strength to target
 - **Upgrade:** Damage+1; Strength+1
 ### FlameBarrier
@@ -498,12 +498,18 @@
 - **Type:** Skill
 - **Rarity:** Uncommon
 - **Target:** Self
-- **Keywords:** None
+- **Keywords:** Exhaust
 - **Tags:** None
 - **Vars:** {Energy: 3}
 - **Effect:** Gain Energy
 - **Upgrade:** Energy+1
 ### Grapple
+*Not a real card. No `Grapple.cs` exists in the v0.110.0 decompile (nor in
+v0.109.0), and `decompiled/MegaCrit.Sts2.Core.Models.CardPools/IroncladCardPool.cs`
+does not list it. Removed from `IRONCLAD_CARD_POOL` on 2026-07-31 so it can never
+be generated. The entry below is retained only because
+tests/test_ironclad_factory_upgrade_parity.py builds the card directly through
+`create_reference_card()`, which does not consult the pools.*
 - **ID:** GRAPPLE
 - **Color:** ironclad
 - **Cost:** 1
@@ -524,7 +530,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 14, HpLoss: 2}
+- **Vars:** {Damage: 15, HpLoss: 2}
 - **Effect:** Deal Damage to target enemy; Deal non-attack damage
 - **Upgrade:** Damage+5
 ### HowlFromBeyond
@@ -536,9 +542,9 @@
 - **Target:** AllEnemies
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 16}
+- **Vars:** {Damage: 18}
 - **Effect:** Deal Damage to ALL enemies
-- **Upgrade:** Damage+5
+- **Upgrade:** Damage+6
 ### InfernalBlade
 - **ID:** INFERNAL_BLADE
 - **Color:** ironclad
@@ -657,9 +663,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 6, Cards: 1}
+- **Vars:** {Damage: 5, Repeat: 2}
 - **Effect:** Deal Damage to target enemy; Draw card(s)
-- **Upgrade:** Damage+3
+- **Upgrade:** Repeat+1
 ### Stampede
 - **ID:** STAMPEDE
 - **Color:** ironclad
@@ -701,11 +707,11 @@
 - **Color:** ironclad
 - **Cost:** 1
 - **Type:** Skill
-- **Rarity:** Uncommon
+- **Rarity:** Common
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Block: 7, VulnerablePower: 1}
+- **Vars:** {Block: 6, VulnerablePower: 1}
 - **Effect:** Gain Block; Apply Vulnerable to target
 - **Upgrade:** Block+1; Vulnerable+1
 ### Unrelenting
@@ -717,7 +723,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 12}
+- **Vars:** {Damage: 14}
 - **Effect:** Deal Damage to target enemy; Apply FreeAttack to self
 - **Upgrade:** Damage+6
 ### Uppercut
@@ -811,11 +817,11 @@
 - **Color:** ironclad
 - **Cost:** 1
 - **Type:** Skill
-- **Rarity:** Rare
+- **Rarity:** Uncommon
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Block: 5, Colossus: 1}
+- **Vars:** {Block: 4, Colossus: 1}
 - **Effect:** Gain Block; Apply Colossus to self
 - **Upgrade:** Block+3
 ### Conflagration
@@ -827,9 +833,9 @@
 - **Target:** AllEnemies
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {CalcBase: 8, ExtraDamage: 2, CalculatedDamage: dynamic}
+- **Vars:** {Damage: 2, Repeat: 4}
 - **Effect:** Deal Damage to ALL enemies
-- **Upgrade:** Damage+1; CalculationBase+1; ExtraDamage+1
+- **Upgrade:** Repeat+1
 ### CrimsonMantle
 - **ID:** CRIMSON_MANTLE
 - **Color:** ironclad
@@ -839,15 +845,15 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {CrimsonMantlePower: 8}
+- **Vars:** {CrimsonMantlePower: 7}
 - **Effect:** Apply CrimsonMantle to self
-- **Upgrade:** CrimsonMantlePower+2
+- **Upgrade:** CrimsonMantlePower+3
 ### Cruelty
 - **ID:** CRUELTY
 - **Color:** ironclad
 - **Cost:** 1
 - **Type:** Power
-- **Rarity:** Rare
+- **Rarity:** Uncommon
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
@@ -875,7 +881,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {StrengthPower: 2}
+- **Vars:** {StrengthPower: 3}
 - **Effect:** Apply DemonForm to self
 - **Upgrade:** StrengthPower+1
 ### Feed
@@ -935,7 +941,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {JuggernautPower: 5}
+- **Vars:** {JuggernautPower: 6}
 - **Effect:** Apply Juggernaut to self
 - **Upgrade:** JuggernautPower+2
 ### Mangle
@@ -947,9 +953,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 15, StrengthLoss: 10}
+- **Vars:** {Damage: 20, StrengthLoss: 10}
 - **Effect:** Deal Damage to target enemy; Apply Mangle to target
-- **Upgrade:** Damage+5; StrengthLoss+5
+- **Upgrade:** Damage+6; StrengthLoss+5
 ### Offering
 - **ID:** OFFERING
 - **Color:** ironclad
@@ -983,7 +989,7 @@
 - **Target:** AllEnemies
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 17, Cards: 3}
+- **Vars:** {Damage: 18, Cards: 3}
 - **Effect:** Deal Damage to ALL enemies
 - **Upgrade:** Damage+6
 ### PrimalForce
@@ -1017,11 +1023,11 @@
 - **Type:** Skill
 - **Rarity:** Rare
 - **Target:** Self
-- **Keywords:** Exhaust
+- **Keywords:** None
 - **Tags:** None
 - **Vars:** None
-- **Effect:** Draw card(s); Exhaust card(s) from hand
-- **Upgrade:** Cost-1
+- **Effect:** Exhaust card(s) from hand; Create card(s) in hand; Upgrade card(s)
+- **Upgrade:** No upgrade changes
 ### Tank
 - **ID:** TANK
 - **Color:** ironclad
@@ -1073,7 +1079,7 @@
 ### Break
 - **ID:** BREAK
 - **Color:** ironclad
-- **Cost:** 2
+- **Cost:** 1
 - **Type:** Attack
 - **Rarity:** Ancient
 - **Target:** AnyEnemy
@@ -1081,7 +1087,7 @@
 - **Tags:** None
 - **Vars:** {Damage: 20, VulnerablePower: 5}
 - **Effect:** Deal Damage to target enemy; Apply Vulnerable to target
-- **Upgrade:** Damage+5; Vulnerable+2
+- **Upgrade:** Damage+10; Vulnerable+2
 ### Corruption
 - **ID:** CORRUPTION
 - **Color:** ironclad
@@ -1153,7 +1159,7 @@
 - **Color:** silent
 - **Cost:** 1
 - **Type:** Skill
-- **Rarity:** Common
+- **Rarity:** Uncommon
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
@@ -1169,7 +1175,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {DexterityPower: 3}
+- **Vars:** {DexterityPower: 2}
 - **Effect:** Apply Anticipate to self
 - **Upgrade:** Dexterity+2
 ### Backflip
@@ -1289,7 +1295,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** Strike
-- **Vars:** {Damage: 7}
+- **Vars:** {Damage: 3, Shivs: 2}
 - **Effect:** Deal Damage to target enemy; Create Shiv(s) in hand
 - **Upgrade:** Damage+3
 ### PiercingWail
@@ -1385,7 +1391,7 @@
 - **Target:** Self
 - **Keywords:** Sly
 - **Tags:** None
-- **Vars:** {Block: 9}
+- **Vars:** {Block: 6}
 - **Effect:** Gain Block
 - **Upgrade:** Block+3
 ### Accuracy
@@ -1493,7 +1499,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Cards: 6}
+- **Vars:** {Cards: 2}
 - **Effect:** Draw card(s)
 - **Upgrade:** Cards+1
 ### Expose
@@ -1525,7 +1531,7 @@
 - **Color:** silent
 - **Cost:** 2
 - **Type:** Skill
-- **Rarity:** Uncommon
+- **Rarity:** Rare
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
@@ -1546,6 +1552,12 @@
 - **Upgrade:** Damage+2
 - **Special:** Scales with skills in hand
 ### FollowThrough
+*Not a real card. No `FollowThrough.cs` exists in the v0.110.0 decompile (nor in
+v0.109.0), and `decompiled/MegaCrit.Sts2.Core.Models.CardPools/SilentCardPool.cs`
+does not list it. Removed from `SILENT_CARD_POOL` on 2026-07-31 so it can never be
+generated. The entry below is retained only because
+tests/test_silent_factory_upgrade_parity.py builds the card directly through
+`create_reference_card()`, which does not consult the pools.*
 - **ID:** FOLLOW_THROUGH
 - **Color:** silent
 - **Cost:** 1
@@ -1584,15 +1596,15 @@
 ### Haze
 - **ID:** HAZE
 - **Color:** silent
-- **Cost:** 3
+- **Cost:** 2
 - **Type:** Skill
 - **Rarity:** Uncommon
 - **Target:** AllEnemies
-- **Keywords:** Sly
+- **Keywords:** None
 - **Tags:** None
-- **Vars:** {PoisonPower: 4}
-- **Effect:** Apply Poison to self
-- **Upgrade:** Poison+2
+- **Vars:** {PoisonPower: 4, WeakPower: 1}
+- **Effect:** Apply Poison and Weak to all enemies
+- **Upgrade:** Poison+2; Weak+1
 ### HiddenDaggers
 - **ID:** HIDDEN_DAGGERS
 - **Color:** silent
@@ -1638,9 +1650,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {CalcBase: 8, ExtraDamage: 4, CalculatedDamage: dynamic}
+- **Vars:** {CalcBase: 9, ExtraDamage: 4, CalculatedDamage: dynamic}
 - **Effect:** Deal Damage to target enemy
-- **Upgrade:** Damage+1; CalculationBase+2; ExtraDamage+1
+- **Upgrade:** CalculationBase+2; ExtraDamage+1
 ### Mirage
 - **ID:** MIRAGE
 - **Color:** silent
@@ -1648,7 +1660,7 @@
 - **Type:** Skill
 - **Rarity:** Uncommon
 - **Target:** Self
-- **Keywords:** Exhaust
+- **Keywords:** None
 - **Tags:** None
 - **Vars:** {CalcBase: 0, CalculatedBlock: dynamic, CalcExtra: 1}
 - **Effect:** Gain Block
@@ -1669,15 +1681,15 @@
 ### Outbreak
 - **ID:** OUTBREAK
 - **Color:** silent
-- **Cost:** 1
-- **Type:** Power
-- **Rarity:** Uncommon
-- **Target:** Self
+- **Cost:** 3
+- **Type:** Skill
+- **Rarity:** Rare
+- **Target:** AllEnemies
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {OutbreakPower: 11}
-- **Effect:** Apply Outbreak to self
-- **Upgrade:** OutbreakPower+4
+- **Vars:** {PoisonPower: 9}
+- **Effect:** Apply Poison to all enemies then trigger their Poison
+- **Upgrade:** Poison+3
 ### PhantomBlades
 - **ID:** PHANTOM_BLADES
 - **Color:** silent
@@ -1699,9 +1711,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 17}
+- **Vars:** {Damage: 15}
 - **Effect:** Deal Damage to target enemy
-- **Upgrade:** Damage+5
+- **Upgrade:** Damage+4
 ### Pounce
 - **ID:** POUNCE
 - **Color:** silent
@@ -1711,7 +1723,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 12}
+- **Vars:** {Damage: 14}
 - **Effect:** Deal Damage to target enemy; Apply FreeSkill to self
 - **Upgrade:** Damage+6
 ### PreciseCut
@@ -1732,7 +1744,7 @@
 - **Color:** silent
 - **Cost:** 2
 - **Type:** Attack
-- **Rarity:** Uncommon
+- **Rarity:** Common
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
@@ -1751,6 +1763,18 @@
 - **Vars:** {Cards: 2}
 - **Effect:** Draw card(s)
 - **Upgrade:** Cards+1
+### Sidestep
+- **ID:** SIDESTEP
+- **Color:** silent
+- **Cost:** 0
+- **Type:** Skill
+- **Rarity:** Uncommon
+- **Target:** Self
+- **Keywords:** None
+- **Tags:** None
+- **Vars:** {Energy: 1}
+- **Effect:** Apply EnergyNextTurn to self
+- **Upgrade:** Energy+1
 ### Skewer
 - **ID:** SKEWER
 - **Color:** silent
@@ -1760,7 +1784,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 7}
+- **Vars:** {Damage: 8}
 - **Effect:** Deal Damage to target enemy X times (X=energy)
 - **Upgrade:** Damage+3
 - **Special:** X-cost: uses all remaining energy
@@ -1775,7 +1799,7 @@
 - **Tags:** None
 - **Vars:** {SpeedsterPower: 2}
 - **Effect:** Apply Speedster to self
-- **Upgrade:** SpeedsterPower+1
+- **Upgrade:** Add Innate
 ### Strangle
 - **ID:** STRANGLE
 - **Color:** silent
@@ -1815,15 +1839,15 @@
 ### WellLaidPlans
 - **ID:** WELL_LAID_PLANS
 - **Color:** silent
-- **Cost:** 1
+- **Cost:** 2
 - **Type:** Power
-- **Rarity:** Uncommon
+- **Rarity:** Rare
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
 - **Vars:** {RetainAmount: 1}
 - **Effect:** Apply WellLaidPlans to self
-- **Upgrade:** RetainAmount+1
+- **Upgrade:** Cost-1
 ### Abrasive
 - **ID:** ABRASIVE
 - **Color:** silent
@@ -1841,7 +1865,7 @@
 - **Color:** silent
 - **Cost:** 1
 - **Type:** Power
-- **Rarity:** Rare
+- **Rarity:** Uncommon
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
@@ -1893,9 +1917,9 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {StrengthPower: 2}
+- **Vars:** {Cards: 2}
 - **Effect:** Apply BladeOfInk to self
-- **Upgrade:** Strength+1
+- **Upgrade:** Cards+1
 ### BulletTime
 - **ID:** BULLET_TIME
 - **Color:** silent
@@ -1929,7 +1953,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {CorrosiveWave: 3}
+- **Vars:** {CorrosiveWave: 2}
 - **Effect:** Apply CorrosiveWave to self
 - **Upgrade:** CorrosiveWave+1
 ### EchoingSlash
@@ -1937,7 +1961,7 @@
 - **Color:** silent
 - **Cost:** 1
 - **Type:** Attack
-- **Rarity:** Rare
+- **Rarity:** Uncommon
 - **Target:** AllEnemies
 - **Keywords:** None
 - **Tags:** None
@@ -1977,9 +2001,9 @@
 - **Target:** AllEnemies
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 50}
+- **Vars:** {Damage: 60}
 - **Effect:** Deal Damage to ALL enemies
-- **Upgrade:** Damage+10
+- **Upgrade:** Damage+15
 ### KnifeTrap
 - **ID:** KNIFE_TRAP
 - **Color:** silent
@@ -2053,7 +2077,7 @@
 - **Tags:** None
 - **Vars:** {SerpentFormPower: 4}
 - **Effect:** Apply SerpentForm to self
-- **Upgrade:** SerpentFormPower+1
+- **Upgrade:** SerpentFormPower+2
 ### ShadowStep
 - **ID:** SHADOW_STEP
 - **Color:** silent
@@ -2382,11 +2406,11 @@
 - **Type:** Skill
 - **Rarity:** Common
 - **Target:** Self
-- **Keywords:** None
+- **Keywords:** Exhaust
 - **Tags:** None
 - **Vars:** {FocusPower: 2}
 - **Effect:** Apply Hotfix to self
-- **Upgrade:** FocusPower+1
+- **Upgrade:** Remove Exhaust
 ### Leap
 - **ID:** LEAP
 - **Color:** defect
@@ -2420,9 +2444,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** Strike
-- **Vars:** {Damage: 10}
+- **Vars:** {Damage: 11}
 - **Effect:** Deal Damage to target enemy
-- **Upgrade:** Damage+3
+- **Upgrade:** Damage+4
 ### SweepingBeam
 - **ID:** SWEEPING_BEAM
 - **Color:** defect
@@ -2456,7 +2480,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 5}
+- **Vars:** {Damage: 6}
 - **Effect:** Deal Damage to target enemy 2 times; Auto-play card(s)
 - **Upgrade:** Damage+2
 ### BootSequence
@@ -2606,15 +2630,15 @@
 ### Fusion
 - **ID:** FUSION
 - **Color:** defect
-- **Cost:** 2
+- **Cost:** 1
 - **Type:** Skill
 - **Rarity:** Uncommon
 - **Target:** Self
-- **Keywords:** None
+- **Keywords:** Exhaust
 - **Tags:** None
 - **Vars:** None
 - **Effect:** Channel Plasma orb
-- **Upgrade:** Cost-1
+- **Upgrade:** Remove Exhaust
 ### Glacier
 - **ID:** GLACIER
 - **Color:** defect
@@ -2708,7 +2732,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 9}
+- **Vars:** {Damage: 10}
 - **Effect:** Deal Damage to target enemy 2 times; Channel Glass orb
 - **Upgrade:** Damage+3
 ### RocketPunch
@@ -2816,7 +2840,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 24, Energy: 3}
+- **Vars:** {Damage: 26, Energy: 3}
 - **Effect:** Deal Damage to target enemy; Gain Energy
 - **Upgrade:** Damage+8
 ### Synchronize
@@ -2826,11 +2850,11 @@
 - **Type:** Skill
 - **Rarity:** Uncommon
 - **Target:** Self
-- **Keywords:** Exhaust
+- **Keywords:** None
 - **Tags:** None
 - **Vars:** {CalcBase: 0, CalculatedFocus: dynamic, CalcExtra: 2}
 - **Effect:** Apply Synchronize to self
-- **Upgrade:** Remove Exhaust
+- **Upgrade:** CalcExtra+1
 - **Special:** Scales with orb count
 ### Synthesis
 - **ID:** SYNTHESIS
@@ -2841,7 +2865,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 12}
+- **Vars:** {Damage: 14}
 - **Effect:** Deal Damage to target enemy; Apply FreePower to self
 - **Upgrade:** Damage+6
 ### Tempest
@@ -2868,7 +2892,7 @@
 - **Tags:** None
 - **Vars:** {Damage: 3}
 - **Effect:** Deal Damage to target enemy; Trigger orb passive(s)
-- **Upgrade:** Damage+3
+- **Upgrade:** Damage+1
 ### Thunder
 - **ID:** THUNDER
 - **Color:** defect
@@ -3035,7 +3059,7 @@
 - **Target:** AllEnemies
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 26, FocusPower: 3}
+- **Vars:** {Damage: 30, FocusPower: 3}
 - **Effect:** Deal Damage to ALL enemies; Apply Focus to self
 - **Upgrade:** Damage+8
 ### IceLance
@@ -3055,7 +3079,7 @@
 - **Color:** defect
 - **Cost:** 1
 - **Type:** Skill
-- **Rarity:** Rare
+- **Rarity:** Uncommon
 - **Target:** AnyAlly
 - **Keywords:** Exhaust
 - **Tags:** None
@@ -3142,9 +3166,9 @@
 - **Type:** Attack
 - **Rarity:** Rare
 - **Target:** AllEnemies
-- **Keywords:** None
+- **Keywords:** Exhaust
 - **Tags:** None
-- **Vars:** {Damage: 11}
+- **Vars:** {Damage: 7}
 - **Effect:** Deal Damage to ALL enemies; Evoke front orb
 - **Upgrade:** Damage+4
 ### SignalBoost
@@ -3194,11 +3218,11 @@
 - **Tags:** None
 - **Vars:** None
 - **Effect:** Apply TrashToTreasure to self
-- **Upgrade:** Add Innate
+- **Upgrade:** Cost-1
 ### Voltaic
 - **ID:** VOLTAIC
 - **Color:** defect
-- **Cost:** 2
+- **Cost:** 3
 - **Type:** Skill
 - **Rarity:** Rare
 - **Target:** Self
@@ -3216,7 +3240,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {FocusPower: 4, BiasedCognitionPower: 1}
+- **Vars:** {FocusPower: 5, BiasedCognitionPower: 1}
 - **Effect:** Apply Focus to self; Apply BiasedCognition to self
 - **Upgrade:** FocusPower+1
 ### Quadcast
@@ -3462,9 +3486,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 9, Cards: 1}
+- **Vars:** {Damage: 10, Cards: 1}
 - **Effect:** Deal Damage to target enemy; Upgrade card(s); Preview card(s); Create Soul(s); Add generated card(s) to draw pile
-- **Upgrade:** Damage+2
+- **Upgrade:** Damage+3
 ### Scourge
 - **ID:** SCOURGE
 - **Color:** necrobinder
@@ -3486,7 +3510,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** Strike
-- **Vars:** {Damage: 8}
+- **Vars:** {Damage: 9}
 - **Effect:** Deal Damage to target enemy; Select card(s) from hand
 - **Upgrade:** Damage+3
 ### Snap
@@ -3619,9 +3643,9 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {DanseMacabrePower: 3, Energy: 2}
+- **Vars:** {DanseMacabrePower: 4, Energy: 2}
 - **Effect:** Apply DanseMacabre to self
-- **Upgrade:** DanseMacabrePower+1
+- **Upgrade:** DanseMacabrePower+2
 ### DeathMarch
 - **ID:** DEATH_MARCH
 - **Color:** necrobinder
@@ -3631,9 +3655,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {CalcBase: 8, ExtraDamage: 3, CalculatedDamage: dynamic}
+- **Vars:** {CalcBase: 8, ExtraDamage: 4, CalculatedDamage: dynamic}
 - **Effect:** Deal Damage to target enemy
-- **Upgrade:** Damage+1; CalculationBase+1; ExtraDamage+1
+- **Upgrade:** CalculationBase+1; ExtraDamage+2
 ### Deathbringer
 - **ID:** DEATHBRINGER
 - **Color:** necrobinder
@@ -3667,7 +3691,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 7, DebilitatePower: 3}
+- **Vars:** {Damage: 10, DebilitatePower: 2}
 - **Effect:** Deal Damage to target enemy; Apply Debilitate to target
 - **Upgrade:** Damage+2; DebilitatePower+1
 ### Delay
@@ -3752,7 +3776,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {HpLoss: 6}
+- **Vars:** {HpLoss: 7}
 - **Effect:** Apply Haunt to self
 - **Upgrade:** HpLoss+2
 ### HighFive
@@ -3774,9 +3798,9 @@
 - **Type:** Skill
 - **Rarity:** Uncommon
 - **Target:** AllAllies
-- **Keywords:** Exhaust
+- **Keywords:** None
 - **Tags:** None
-- **Vars:** None
+- **Vars:** {Summon: 6}
 - **Effect:** Summon minion
 - **Upgrade:** Summon+2
 ### Lethality
@@ -3921,9 +3945,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** OstyAttack
-- **Vars:** {OstyDamage: 5, SicEmPower: 2}
+- **Vars:** {OstyDamage: 5, SicEmPower: 3}
 - **Effect:** Deal Damage to target enemy; Apply SicEm to target
-- **Upgrade:** Damage+1; SicEmPower+1; OstyDamage+1
+- **Upgrade:** OstyDamage+1; SicEmPower+1
 ### SleightOfFlesh
 - **ID:** SLEIGHT_OF_FLESH
 - **Color:** necrobinder
@@ -3963,7 +3987,7 @@
 ### BansheesCry
 - **ID:** BANSHEES_CRY
 - **Color:** necrobinder
-- **Cost:** 6
+- **Cost:** 9
 - **Type:** Attack
 - **Rarity:** Rare
 - **Target:** AllEnemies
@@ -3971,7 +3995,7 @@
 - **Tags:** None
 - **Vars:** {Damage: 33, Energy: 2}
 - **Effect:** Deal Damage to ALL enemies
-- **Upgrade:** Damage+6
+- **Upgrade:** Cost-2
 ### CallOfTheVoid
 - **ID:** CALL_OF_THE_VOID
 - **Color:** necrobinder
@@ -4198,9 +4222,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {CalcBase: 9, ExtraDamage: 2, CalculatedDamage: dynamic}
+- **Vars:** {CalcBase: 9, ExtraDamage: 4, CalculatedDamage: dynamic}
 - **Effect:** Deal Damage to target enemy
-- **Upgrade:** Damage+1; ExtraDamage+1
+- **Upgrade:** ExtraDamage+2
 - **Special:** Damage scales with Souls in exhaust pile
 ### SpiritOfAsh
 - **ID:** SPIRIT_OF_ASH
@@ -4236,9 +4260,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** Exhaust
 - **Tags:** None
-- **Vars:** {Increase: 3}
+- **Vars:** {Increase: 5}
 - **Effect:** Deal Damage to target enemy; This card's damage permanently increases by Increase
-- **Upgrade:** Increase+1
+- **Upgrade:** Increase+2
 - **Special:** Persistent state saved across combats
 ### TimesUp
 - **ID:** TIMES_UP
@@ -4329,7 +4353,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 7, VulnerablePower: 1, WeakPower: 1}
+- **Vars:** {Damage: 8, VulnerablePower: 1, WeakPower: 1}
 - **Effect:** Deal Damage to target enemy; Apply Weak to target; Apply Vulnerable to target
 - **Upgrade:** Damage+4
 ### StrikeRegent
@@ -4365,21 +4389,21 @@
 - **Target:** AllEnemies
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 14}
+- **Vars:** {Damage: 6}
 - **Effect:** Deal Damage to ALL enemies
-- **Upgrade:** Damage+4
+- **Upgrade:** Damage+2
 ### Begone
 - **ID:** BEGONE
 - **Color:** regent
 - **Cost:** 1
-- **Type:** Attack
+- **Type:** Skill
 - **Rarity:** Common
-- **Target:** AnyEnemy
+- **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 4}
-- **Effect:** Deal Damage to target enemy; Upgrade card(s); Transform card(s); Create MinionDiveBomb card; Select card(s) from hand
-- **Upgrade:** Damage+1
+- **Vars:** None
+- **Effect:** Select card(s) from hand; Create MinionStrike card; Upgrade card(s); Transform card(s)
+- **Upgrade:** No upgrade changes
 ### CelestialMight
 - **ID:** CELESTIAL_MIGHT
 - **Color:** regent
@@ -4389,9 +4413,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 6}
+- **Vars:** {Damage: 6, Repeat: 3}
 - **Effect:** Deal Damage to target enemy multiple times
-- **Upgrade:** Damage+2
+- **Upgrade:** Repeat+1
 ### CloakOfStars
 - **ID:** CLOAK_OF_STARS
 - **Color:** regent
@@ -4413,9 +4437,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 9}
+- **Vars:** {Damage: 10}
 - **Effect:** Deal Damage to target enemy; Create Debris card; Add generated card(s) to hand
-- **Upgrade:** Damage+3
+- **Upgrade:** Damage+4
 ### CosmicIndifference
 - **ID:** COSMIC_INDIFFERENCE
 - **Color:** regent
@@ -4437,9 +4461,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {CalcBase: 6, ExtraDamage: 2, CalculatedDamage: dynamic}
+- **Vars:** {CalcBase: 8, ExtraDamage: 2, CalculatedDamage: dynamic}
 - **Effect:** Deal Damage to target enemy
-- **Upgrade:** Damage+1; ExtraDamage+1
+- **Upgrade:** ExtraDamage+1
 - **Special:** Scales with total cards
 ### CrushUnder
 - **ID:** CRUSH_UNDER
@@ -4450,7 +4474,7 @@
 - **Target:** AllEnemies
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 7, StrengthLoss: 1}
+- **Vars:** {Damage: 8, StrengthLoss: 1}
 - **Effect:** Deal Damage to ALL enemies; Apply CrushUnder to self
 - **Upgrade:** Damage+1; StrengthLoss+1
 ### GatherLight
@@ -4462,7 +4486,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Block: 7, Stars: 1}
+- **Vars:** {Block: 8, Stars: 1}
 - **Effect:** Gain Block; Gain Stars
 - **Upgrade:** Block+3
 ### Glitterstream
@@ -4474,7 +4498,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Block: 11, BlockNextTurn: 4}
+- **Vars:** {Block: 11, BlockNextTurn: 5}
 - **Effect:** Gain Block; Apply BlockNextTurn to self
 - **Upgrade:** Block+2; BlockNextTurn+2
 ### Glow
@@ -4486,7 +4510,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Cards: 2, Stars: 1}
+- **Vars:** {Cards: 1, Stars: 1}
 - **Effect:** Draw card(s); Gain Stars
 - **Upgrade:** Stars+1
 ### GuidingStar
@@ -4558,7 +4582,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Energy: 1, Forge: 6}
+- **Vars:** {Energy: 1, Forge: 9}
 - **Effect:** Apply EnergyNextTurn to self; Forge (upgrade random card in deck)
 - **Upgrade:** Forge+4
 ### SolarStrike
@@ -4570,7 +4594,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** Strike
-- **Vars:** {Damage: 8, Stars: 1}
+- **Vars:** {Damage: 9, Stars: 1}
 - **Effect:** Deal Damage to target enemy; Gain Stars
 - **Upgrade:** Damage+1; Stars+1
 ### SpoilsOfBattle
@@ -4582,9 +4606,9 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Forge: 10}
+- **Vars:** {Forge: 5, Cards: 2}
 - **Effect:** Forge (upgrade random card in deck)
-- **Upgrade:** Forge+5
+- **Upgrade:** Forge+3
 ### WroughtInWar
 - **ID:** WROUGHT_IN_WAR
 - **Color:** regent
@@ -4594,13 +4618,13 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 7, Forge: 5}
+- **Vars:** {Damage: 7, Forge: 7}
 - **Effect:** Deal Damage to target enemy; Forge (upgrade random card in deck)
 - **Upgrade:** Damage+2; Forge+2
 ### Alignment
 - **ID:** ALIGNMENT
 - **Color:** regent
-- **Cost:** 0 | StarCost: 2
+- **Cost:** 0 | StarCost: 3
 - **Type:** Skill
 - **Rarity:** Uncommon
 - **Target:** Self
@@ -4630,7 +4654,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Block: 13, Forge: 10}
+- **Vars:** {Block: 12, Forge: 10}
 - **Effect:** Gain Block; Forge (upgrade random card in deck)
 - **Upgrade:** Block+3; Forge+3
 ### Charge
@@ -4690,7 +4714,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 30}
+- **Vars:** {Damage: 35}
 - **Effect:** Deal Damage to target enemy
 - **Upgrade:** Damage+10
 ### Furnace
@@ -4702,7 +4726,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Forge: 4}
+- **Vars:** {Forge: 5}
 - **Effect:** Apply Furnace to self
 - **Upgrade:** Forge+2
 ### GammaBlast
@@ -4750,9 +4774,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 24}
+- **Vars:** {Damage: 27}
 - **Effect:** Deal Damage to target enemy
-- **Upgrade:** Damage+6
+- **Upgrade:** Damage+8
 ### KinglyPunch
 - **ID:** KINGLY_PUNCH
 - **Color:** regent
@@ -4762,9 +4786,9 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 8, Increase: 3}
+- **Vars:** {Damage: 8, Increase: 4}
 - **Effect:** Deal Damage to target enemy
-- **Upgrade:** Increase+2
+- **Upgrade:** Damage+2; Increase+2
 ### KnockoutBlow
 - **ID:** KNOCKOUT_BLOW
 - **Color:** regent
@@ -4858,9 +4882,9 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {ParryPower: 6}
+- **Vars:** {ParryPower: 10}
 - **Effect:** Apply Parry to self
-- **Upgrade:** ParryPower+3
+- **Upgrade:** ParryPower+4
 ### ParticleWall
 - **ID:** PARTICLE_WALL
 - **Color:** regent
@@ -4882,7 +4906,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Block: 3}
+- **Vars:** {Block: 2}
 - **Effect:** Apply PillarOfCreation to self
 - **Upgrade:** Block+1
 ### Prophesize
@@ -4930,13 +4954,13 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Block: 17}
+- **Vars:** {Block: 15}
 - **Effect:** Gain Block; Apply Reflect to self
-- **Upgrade:** Block+4
+- **Upgrade:** Block+5
 ### Resonance
 - **ID:** RESONANCE
 - **Color:** regent
-- **Cost:** 1 | StarCost: 3
+- **Cost:** 1 | StarCost: 2
 - **Type:** Skill
 - **Rarity:** Uncommon
 - **Target:** AllEnemies
@@ -5026,9 +5050,9 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {VigorPower: 6}
+- **Vars:** {VigorPower: 7}
 - **Effect:** Apply Vigor to self
-- **Upgrade:** VigorPower+2
+- **Upgrade:** VigorPower+3
 ### Arsenal
 - **ID:** ARSENAL
 - **Color:** regent
@@ -5040,7 +5064,7 @@
 - **Tags:** None
 - **Vars:** {ArsenalPower: 1}
 - **Effect:** Apply Arsenal to self
-- **Upgrade:** ArsenalPower+1
+- **Upgrade:** Add Innate
 ### BeatIntoShape
 - **ID:** BEAT_INTO_SHAPE
 - **Color:** regent
@@ -5080,7 +5104,7 @@
 ### BundleOfJoy
 - **ID:** BUNDLE_OF_JOY
 - **Color:** regent
-- **Cost:** 2
+- **Cost:** 1
 - **Type:** Skill
 - **Rarity:** Rare
 - **Target:** Self
@@ -5207,7 +5231,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 17}
+- **Vars:** {Damage: 20}
 - **Effect:** Deal Damage to target enemy; Add generated card(s) to hand; Select card(s) from hand
 - **Upgrade:** Damage+5
 ### IAmInvincible
@@ -5219,7 +5243,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Block: 9}
+- **Vars:** {Block: 10}
 - **Effect:** Gain Block
 - **Upgrade:** Block+3
 ### MakeItSo
@@ -5269,7 +5293,7 @@
 - **Tags:** None
 - **Vars:** {Gold: 30}
 - **Effect:** Apply Royalties to self
-- **Upgrade:** Gold+5
+- **Upgrade:** Gold+10
 ### SeekingEdge
 - **ID:** SEEKING_EDGE
 - **Color:** regent
@@ -5337,11 +5361,11 @@
 - **Type:** Power
 - **Rarity:** Rare
 - **Target:** Self
-- **Keywords:** None
+- **Keywords:** Ethereal
 - **Tags:** None
 - **Vars:** {VoidFormPower: 2}
 - **Effect:** Apply VoidForm to self; End turn
-- **Upgrade:** VoidFormPower+1
+- **Upgrade:** Remove Ethereal
 ### MeteorShower
 - **ID:** METEOR_SHOWER
 - **Color:** regent
@@ -5365,7 +5389,7 @@
 - **Tags:** None
 - **Vars:** None
 - **Effect:** Apply TheSealedThrone to self
-- **Upgrade:** Add Innate
+- **Upgrade:** Cost-1
 ---
 
 ## Colorless
@@ -5393,7 +5417,7 @@
 - **Target:** AnyAlly
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Energy: 3}
+- **Vars:** {Energy: 2}
 - **Effect:** Gain Energy
 - **Upgrade:** Energy+1
 ### Catastrophe
@@ -5477,7 +5501,7 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** Defend
-- **Vars:** {ExtraBlock: 5}
+- **Vars:** {ExtraBlock: 4}
 - **Effect:** Apply Fasten to self
 - **Upgrade:** ExtraBlock+2
 ### Finesse
@@ -5718,7 +5742,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** Strike
-- **Vars:** {Damage: 6, Cards: 3}
+- **Vars:** {Damage: 9, Cards: 3}
 - **Effect:** Deal Damage to target enemy; Choose from card grid; Add card to Hand pile
 - **Upgrade:** Damage+3
 ### Shockwave
@@ -5869,7 +5893,7 @@
 ### BeaconOfHope
 - **ID:** BEACON_OF_HOPE
 - **Color:** colorless
-- **Cost:** 1
+- **Cost:** 2
 - **Type:** Power
 - **Rarity:** Rare
 - **Target:** Self
@@ -5935,9 +5959,9 @@
 - **Target:** Self
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {PlatingPower: 7}
+- **Vars:** {PlatingPower: 9}
 - **Effect:** Apply Plating to self
-- **Upgrade:** PlatingPower+2
+- **Upgrade:** PlatingPower+3
 ### GoldAxe
 - **ID:** GOLD_AXE
 - **Color:** colorless
@@ -6154,7 +6178,7 @@
 - **Color:** event
 - **Cost:** 1
 - **Type:** Attack
-- **Rarity:** Uncommon
+- **Rarity:** Event
 - **Target:** RandomEnemy
 - **Keywords:** None
 - **Tags:** None
@@ -6206,7 +6230,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 5, Increase: 1}
+- **Vars:** {Damage: 5, Increase: 2}
 - **Effect:** Deal Damage to target enemy 2 times; All Maul copies gain +Increase damage permanently
 - **Upgrade:** Damage+1; Increase+1
 - **Special:** Self-mutating: ALL copies of Maul gain damage when any copy is played
@@ -6221,7 +6245,7 @@
 - **Tags:** None
 - **Vars:** {Damage: 10, Cards: 2}
 - **Effect:** Deal Damage to target enemy; Add card to Hand pile
-- **Upgrade:** Damage+4
+- **Upgrade:** Damage+4; Cards+1
 ### Relax
 - **ID:** RELAX
 - **Color:** event
@@ -6231,13 +6255,13 @@
 - **Target:** Self
 - **Keywords:** Exhaust
 - **Tags:** None
-- **Vars:** {Block: 15, Cards: 2, Energy: 2}
+- **Vars:** {Block: 16, Cards: 2, Energy: 2}
 - **Effect:** Gain Block; Apply DrawCardsNextTurn to self; Apply EnergyNextTurn to self
 - **Upgrade:** Block+2; Cards+1; Energy+1
 ### Whistle
 - **ID:** WHISTLE
 - **Color:** event
-- **Cost:** 3
+- **Cost:** 2
 - **Type:** Attack
 - **Rarity:** Ancient
 - **Target:** AnyEnemy
@@ -6490,9 +6514,9 @@
 - **Target:** Self
 - **Keywords:** Exhaust
 - **Tags:** None
-- **Vars:** {Cards: 1, Energy: 1}
+- **Vars:** {Energy: 1}
 - **Effect:** Draw card(s); Gain Energy
-- **Upgrade:** Cards+1
+- **Upgrade:** Energy+1
 ### GiantRock
 - **ID:** GIANT_ROCK
 - **Color:** token
@@ -6502,7 +6526,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** None
 - **Tags:** None
-- **Vars:** {Damage: 16}
+- **Vars:** {Damage: 20}
 - **Effect:** Deal Damage to target enemy
 - **Upgrade:** Damage+4
 ### Luminesce
@@ -6520,7 +6544,7 @@
 ### MinionDiveBomb
 - **ID:** MINION_DIVE_BOMB
 - **Color:** token
-- **Cost:** 1
+- **Cost:** 0
 - **Type:** Attack
 - **Rarity:** Token
 - **Target:** AnyEnemy
@@ -6538,7 +6562,7 @@
 - **Target:** Self
 - **Keywords:** Exhaust
 - **Tags:** Minion
-- **Vars:** {Block: 9}
+- **Vars:** {Block: 7}
 - **Effect:** Gain Block
 - **Upgrade:** Block+3
 ### MinionStrike
@@ -6550,7 +6574,7 @@
 - **Target:** AnyEnemy
 - **Keywords:** Exhaust
 - **Tags:** Minion, Strike
-- **Vars:** {Damage: 7, Cards: 1}
+- **Vars:** {Damage: 6, Cards: 1}
 - **Effect:** Deal Damage to target enemy; Draw card(s)
 - **Upgrade:** Damage+3
 ### Shiv
@@ -6659,7 +6683,7 @@
 
 ## Status
 
-*11 cards*
+*12 cards*
 
 ### Beckon
 - **ID:** BECKON
@@ -6791,6 +6815,19 @@
 - **Effect:** Unplayable
 - **Upgrade:** Cannot be upgraded
 - **Special:** Cannot be upgraded
+### Wither
+- **ID:** WITHER
+- **Color:** status
+- **Cost:** Unplayable
+- **Type:** Status
+- **Rarity:** Status
+- **Target:** None
+- **Keywords:** Unplayable
+- **Tags:** None
+- **Vars:** {Damage: 3}
+- **Effect:** Unplayable
+- **Upgrade:** Cannot be upgraded
+- **Special:** At the end of your turn, deals Damage to its owner while in hand (Wither.cs OnTurnEndInHand). Wither.FakeUpgrade() adds +3 Damage per level without changing the upgrade level (MaxUpgradeLevel is 0).
 ### Wound
 - **ID:** WOUND
 - **Color:** status
@@ -6921,7 +6958,7 @@
 - **Type:** Curse
 - **Rarity:** Curse
 - **Target:** None
-- **Keywords:** Unplayable, Eternal, Innate
+- **Keywords:** Unplayable, Eternal, Innate, Ethereal
 - **Tags:** None
 - **Vars:** None
 - **Effect:** Unplayable
@@ -7048,7 +7085,7 @@
 
 ## Quest
 
-*3 cards*
+*4 cards*
 
 ### ByrdonisEgg
 - **ID:** BYRDONIS_EGG
@@ -7063,6 +7100,19 @@
 - **Effect:** Unplayable
 - **Upgrade:** Cannot be upgraded
 - **Special:** Cannot be upgraded
+### Dowsing
+- **ID:** DOWSING
+- **Color:** quest
+- **Cost:** Unplayable
+- **Type:** Quest
+- **Rarity:** Quest
+- **Target:** None
+- **Keywords:** Unplayable
+- **Tags:** None
+- **Vars:** {Rooms: 5}
+- **Effect:** Unplayable
+- **Upgrade:** Cannot be upgraded
+- **Special:** Counts down as Unknown rooms are entered; transforms into Abundance at 0; Cannot be upgraded
 ### LanternKey
 - **ID:** LANTERN_KEY
 - **Color:** quest
@@ -7098,14 +7148,14 @@
 ### DeprecatedCard
 - **ID:** DEPRECATED_CARD
 - **Color:** unknown
-- **Cost:** Unplayable
-- **Type:** Curse
-- **Rarity:** Curse
+- **Cost:** 0
+- **Type:** Status
+- **Rarity:** Status
 - **Target:** None
-- **Keywords:** Unplayable
+- **Keywords:** Exhaust
 - **Tags:** None
 - **Vars:** None
-- **Effect:** Unplayable
+- **Effect:** Draw card(s); Remove itself from the deck
 - **Upgrade:** Cannot be upgraded
 - **Special:** Cannot be upgraded
 ---

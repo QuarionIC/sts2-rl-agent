@@ -42,7 +42,7 @@ def test_ally_believe_in_you_grants_energy_to_target_ally_only():
 
     assert combat.play_card_from_creature(ally, 0, 0)
     assert ally_combat_state.energy == starting_ally_energy
-    assert combat.energy == starting_primary_energy + 3
+    assert combat.energy == starting_primary_energy + 2
 
 
 def test_ally_lift_targets_primary_player_block_without_affecting_ally():

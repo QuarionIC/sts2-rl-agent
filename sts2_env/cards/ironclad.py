@@ -274,7 +274,7 @@ def make_bloodletting(upgraded: bool = False) -> CardInstance:
         cost=0,
         card_type=CardType.SKILL,
         target_type=TargetType.SELF,
-        rarity=CardRarity.COMMON,
+        rarity=CardRarity.UNCOMMON,
         effect_vars={"hp_loss": 3, "energy": 3 if upgraded else 2},
         upgraded=upgraded,
         instance_id=_get_next_id(),
@@ -345,7 +345,7 @@ def make_cinder(upgraded: bool = False) -> CardInstance:
         card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY,
         rarity=CardRarity.COMMON,
-        base_damage=22 if upgraded else 17,
+        base_damage=24 if upgraded else 18,
         effect_vars={"cards_to_exhaust": 1},
         upgraded=upgraded,
         instance_id=_get_next_id(),
@@ -525,7 +525,7 @@ def make_setup_strike(upgraded: bool = False) -> CardInstance:
         target_type=TargetType.ANY_ENEMY,
         rarity=CardRarity.COMMON,
         base_damage=9 if upgraded else 7,
-        effect_vars={"strength": 3 if upgraded else 2},
+        effect_vars={"strength": 4 if upgraded else 3},
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -1049,7 +1049,7 @@ def make_fight_me(upgraded: bool = False) -> CardInstance:
         base_damage=6 if upgraded else 5,
         effect_vars={
             "repeat": 2,
-            "strength": 3 if upgraded else 2,
+            "strength": 4 if upgraded else 3,
             "enemy_strength": 1,
         },
         upgraded=upgraded,
@@ -1142,7 +1142,7 @@ def make_hemokinesis(upgraded: bool = False) -> CardInstance:
         card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY,
         rarity=CardRarity.UNCOMMON,
-        base_damage=19 if upgraded else 14,
+        base_damage=20 if upgraded else 15,
         effect_vars={"hp_loss": 2},
         upgraded=upgraded,
         instance_id=_get_next_id(),
@@ -1169,7 +1169,7 @@ def make_howl_from_beyond(upgraded: bool = False) -> CardInstance:
         card_type=CardType.ATTACK,
         target_type=TargetType.ALL_ENEMIES,
         rarity=CardRarity.UNCOMMON,
-        base_damage=21 if upgraded else 16,
+        base_damage=24 if upgraded else 18,
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -1406,10 +1406,11 @@ def make_second_wind(upgraded: bool = False) -> CardInstance:
 def spite(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     owner = _owner(card, combat)
-    _deal_damage_to_target(card, combat, target)
-    draw = card.effect_vars.get("cards", 1)
+    hits = 1
     if combat.has_unblocked_damage_received_this_turn(owner, side=CombatSide.PLAYER):
-        _draw_cards(combat, draw, owner)
+        hits = card.effect_vars.get("repeat", 2)
+    for _ in range(hits):
+        _deal_damage_to_target(card, combat, target)
 
 
 def make_spite(upgraded: bool = False) -> CardInstance:
@@ -1419,8 +1420,8 @@ def make_spite(upgraded: bool = False) -> CardInstance:
         card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY,
         rarity=CardRarity.UNCOMMON,
-        base_damage=9 if upgraded else 6,
-        effect_vars={"cards": 1},
+        base_damage=5,
+        effect_vars={"repeat": 3 if upgraded else 2},
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -1524,8 +1525,8 @@ def make_taunt(upgraded: bool = False) -> CardInstance:
         cost=1,
         card_type=CardType.SKILL,
         target_type=TargetType.ANY_ENEMY,
-        rarity=CardRarity.UNCOMMON,
-        base_block=8 if upgraded else 7,
+        rarity=CardRarity.COMMON,
+        base_block=7 if upgraded else 6,
         effect_vars={"vulnerable": 2 if upgraded else 1},
         upgraded=upgraded,
         instance_id=_get_next_id(),
@@ -1547,7 +1548,7 @@ def make_unrelenting(upgraded: bool = False) -> CardInstance:
         card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY,
         rarity=CardRarity.UNCOMMON,
-        base_damage=18 if upgraded else 12,
+        base_damage=20 if upgraded else 14,
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -1741,8 +1742,8 @@ def make_colossus(upgraded: bool = False) -> CardInstance:
         cost=1,
         card_type=CardType.SKILL,
         target_type=TargetType.SELF,
-        rarity=CardRarity.RARE,
-        base_block=8 if upgraded else 5,
+        rarity=CardRarity.UNCOMMON,
+        base_block=7 if upgraded else 4,
         effect_vars={"colossus": 1},
         upgraded=upgraded,
         instance_id=_get_next_id(),
@@ -1752,16 +1753,13 @@ def make_colossus(upgraded: bool = False) -> CardInstance:
 # --- Conflagration ---
 @register_effect(CardId.CONFLAGRATION)
 def conflagration(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    calc_base = card.effect_vars.get("calc_base", 8)
-    extra = card.effect_vars.get("extra_damage", 2)
     owner = _owner(card, combat)
-    attack_count = combat.count_card_plays_finished_this_turn(owner, card_type=CardType.ATTACK)
-    base = calc_base + extra * attack_count
     if owner.is_dead:
         return
-    for enemy in list(combat.hittable_enemies):
-        damage = calculate_damage(base, owner, enemy, ValueProp.MOVE, combat)
-        apply_damage(enemy, damage, ValueProp.MOVE, combat, owner)
+    for _ in range(card.effect_vars.get("repeat", 4)):
+        for enemy in list(combat.hittable_enemies):
+            damage = calculate_damage(card.base_damage, owner, enemy, ValueProp.MOVE, combat)
+            apply_damage(enemy, damage, ValueProp.MOVE, combat, owner)
 
 
 def make_conflagration(upgraded: bool = False) -> CardInstance:
@@ -1771,11 +1769,8 @@ def make_conflagration(upgraded: bool = False) -> CardInstance:
         card_type=CardType.ATTACK,
         target_type=TargetType.ALL_ENEMIES,
         rarity=CardRarity.RARE,
-        base_damage=8,  # Dynamic
-        effect_vars={
-            "calc_base": 9 if upgraded else 8,
-            "extra_damage": 3 if upgraded else 2,
-        },
+        base_damage=2,
+        effect_vars={"repeat": 5 if upgraded else 4},
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -1800,7 +1795,7 @@ def make_crimson_mantle(upgraded: bool = False) -> CardInstance:
         card_type=CardType.POWER,
         target_type=TargetType.SELF,
         rarity=CardRarity.RARE,
-        effect_vars={"crimson_mantle_power": 10 if upgraded else 8},
+        effect_vars={"crimson_mantle_power": 10 if upgraded else 7},
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -1819,7 +1814,7 @@ def make_cruelty(upgraded: bool = False) -> CardInstance:
         cost=1,
         card_type=CardType.POWER,
         target_type=TargetType.SELF,
-        rarity=CardRarity.RARE,
+        rarity=CardRarity.UNCOMMON,
         effect_vars={"cruelty_power": 50 if upgraded else 25},
         upgraded=upgraded,
         instance_id=_get_next_id(),
@@ -1858,7 +1853,7 @@ def make_demon_form(upgraded: bool = False) -> CardInstance:
         card_type=CardType.POWER,
         target_type=TargetType.SELF,
         rarity=CardRarity.RARE,
-        effect_vars={"strength": 3 if upgraded else 2},
+        effect_vars={"strength": 4 if upgraded else 3},
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -1973,7 +1968,7 @@ def make_juggernaut(upgraded: bool = False) -> CardInstance:
         card_type=CardType.POWER,
         target_type=TargetType.SELF,
         rarity=CardRarity.RARE,
-        effect_vars={"juggernaut_power": 7 if upgraded else 5},
+        effect_vars={"juggernaut_power": 8 if upgraded else 6},
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -1995,7 +1990,7 @@ def make_mangle(upgraded: bool = False) -> CardInstance:
         card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY,
         rarity=CardRarity.RARE,
-        base_damage=20 if upgraded else 15,
+        base_damage=26 if upgraded else 20,
         effect_vars={"strength_loss": 15 if upgraded else 10},
         upgraded=upgraded,
         instance_id=_get_next_id(),
@@ -2092,7 +2087,7 @@ def make_pacts_end(upgraded: bool = False) -> CardInstance:
         card_type=CardType.ATTACK,
         target_type=TargetType.ALL_ENEMIES,
         rarity=CardRarity.RARE,
-        base_damage=23 if upgraded else 17,
+        base_damage=24 if upgraded else 18,
         effect_vars={"cards": 3},
         upgraded=upgraded,
         instance_id=_get_next_id(),

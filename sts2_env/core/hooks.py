@@ -769,6 +769,8 @@ def fire_after_card_generated_for_combat(
 
 
 def fire_after_card_exhausted(card: object, combat: CombatState) -> None:
+    from sts2_env.cards.registry import fire_card_after_card_exhausted
+
     record_card_exhausted = getattr(combat, "record_card_exhausted", None)
     if callable(record_card_exhausted):
         record_card_exhausted(card)
@@ -776,6 +778,9 @@ def fire_after_card_exhausted(card: object, combat: CombatState) -> None:
         power.after_card_exhausted(owner, card, combat)
     for owner, relic in _iter_relic_listeners(combat):
         relic.after_card_exhausted(owner, card, combat)
+    for state in getattr(combat, "combat_player_states", ()):
+        for listener in combat.unique_cards_in_piles(state.all_piles):
+            fire_card_after_card_exhausted(listener, card, combat)
 
 
 def fire_after_card_discarded(card: object, combat: CombatState) -> None:

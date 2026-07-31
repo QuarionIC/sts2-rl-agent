@@ -56,30 +56,19 @@ class ReferenceCardMeta:
 
 _RUNTIME_ONLY_CARD_IDS = {CardId.GENERIC}
 
-# Necrobinder cards whose factories were intentionally updated to match the
-# v0.109.0 patch (see decompiled_v0.109.0/), while docs/CARDS_REFERENCE.md
-# still reflects the pre-patch decompile. These are deliberate deviations
-# from the stale reference doc, not bugs.
-_PATCHED_NECROBINDER_CARD_IDS = {
-    CardId.BANSHEES_CRY,
-    CardId.BORROWED_TIME,
-    CardId.DANSE_MACABRE,
-    # v0.109.0 raises Dominate Uncommon -> Rare and keeps Exhaust canonical
-    # (pre-patch removed it on upgrade). Verified by diffing decompiled/ vs
-    # decompiled_v0.109.0/.
-    CardId.DOMINATE,
-    CardId.DEATH_MARCH,
-    CardId.DEBILITATE_CARD,
-    CardId.DIRGE,
-    CardId.EIDOLON,
-    CardId.HAUNT,
-    CardId.REAVE,
-    CardId.SCULPTING_STRIKE,
-    CardId.SEANCE,
-    CardId.SIC_EM,
-    CardId.SOUL_STORM,
-    CardId.THE_SCYTHE,
-}
+# NOTE: this file used to carry a _PATCHED_NECROBINDER_CARD_IDS allowlist that
+# excused 15 cards from the two reference comparisons below. Its premise was
+# that decompiled/ lagged the live patch while the factories had been hand-moved
+# forward. That premise inverted when decompiled/ was refreshed to v0.110.0:
+# decompiled/ is now the NEWEST tree, so a factory/doc disagreement is a stale
+# doc (or a stale factory), never an excused deviation.
+#
+# The allowlist was removed rather than re-pointed. Everything it hid was
+# resolved against decompiled/: docs/CARDS_REFERENCE.md was corrected for
+# Dominate, DanseMacabre, DeathMarch, Debilitate, Haunt, Reave, SculptingStrike,
+# SicEm and SoulStorm, and TheScythe's factory was fixed (v0.110.0 buffed its
+# Increase from 4/+1 to 5/+2). Do not reintroduce an allowlist here -- fix the
+# doc entry or the factory against decompiled/ instead.
 
 
 def _camel_to_snake(name: str) -> str:
@@ -348,8 +337,6 @@ def test_factory_backed_playable_cards_have_smoke_execution(card_id: CardId):
 def test_factory_backed_cards_match_reference_core_metadata():
     mismatches: list[str] = []
     for card_id in sorted(_factory_registry(), key=lambda current: current.value):
-        if card_id in _PATCHED_NECROBINDER_CARD_IDS:
-            continue
         definition = _reference_definition(card_id)
         if definition is None:
             continue
@@ -393,8 +380,6 @@ def test_factory_backed_cards_match_reference_core_metadata():
 def test_factory_backed_cards_match_reference_dynamic_vars():
     mismatches: list[str] = []
     for card_id in sorted(_factory_registry(), key=lambda current: current.value):
-        if card_id in _PATCHED_NECROBINDER_CARD_IDS:
-            continue
         definition = _reference_definition(card_id)
         if definition is None:
             continue
@@ -468,7 +453,7 @@ def test_docs_backed_cards_preserve_reference_tags_for_explicit_instantiation(ca
         (CardId.BAD_LUCK, {"eternal", "unplayable"}),
         (CardId.CURSE_OF_THE_BELL, {"eternal", "unplayable"}),
         (CardId.ENTHRALLED, {"eternal"}),
-        (CardId.FOLLY, {"unplayable", "eternal", "innate"}),
+        (CardId.FOLLY, {"unplayable", "eternal", "innate", "ethereal"}),
         (CardId.GREED, {"eternal", "unplayable"}),
     ],
 )
@@ -496,14 +481,20 @@ def test_knowledge_demon_status_cards_are_cost_unplayable_without_keyword(card_i
 
 
 def test_deprecated_card_matches_original_save_placeholder():
+    # decompiled/MegaCrit.Sts2.Core.Models.Cards/DeprecatedCard.cs:
+    #   base(0, CardType.Status, CardRarity.Status, TargetType.None,
+    #        shouldShowInCardLibrary: false)
+    # with CanonicalKeywords => Exhaust and MaxUpgradeLevel => 0. It is
+    # playable: OnPlay draws 1 and removes its deck version.
     card = create_card(CardId.DEPRECATED_CARD, upgraded=True)
 
-    assert card.cost == -1
-    assert card.original_cost == -1
-    assert card.card_type is CardType.CURSE
-    assert card.rarity is CardRarity.CURSE
+    assert card.cost == 0
+    assert card.original_cost == 0
+    assert card.card_type is CardType.STATUS
+    assert card.rarity is CardRarity.STATUS
     assert card.target_type is TargetType.NONE
-    assert card.keywords == frozenset({"unplayable"})
+    assert card.keywords == frozenset({"exhaust"})
+    assert card.is_unplayable is False
     assert card.upgraded is False
     assert card.can_be_generated_in_combat is True
     assert card.can_be_generated_by_modifiers is True

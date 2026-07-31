@@ -15,35 +15,68 @@ namespace MegaCrit.Sts2.Core.Nodes.TopBar;
 [ScriptPath("res://src/Core/Nodes/TopBar/NRunTimer.cs")]
 public class NRunTimer : Control
 {
+	/// <summary>
+	/// Cached StringNames for the methods contained in this class, for fast lookup.
+	/// </summary>
 	public new class MethodName : Control.MethodName
 	{
+		/// <summary>
+		/// Cached name for the '_Ready' method.
+		/// </summary>
 		public new static readonly StringName _Ready = "_Ready";
 
+		/// <summary>
+		/// Cached name for the 'DeferredInit' method.
+		/// </summary>
 		public static readonly StringName DeferredInit = "DeferredInit";
 
-		public new static readonly StringName _ExitTree = "_ExitTree";
+		/// <summary>
+		/// Cached name for the '_Notification' method.
+		/// </summary>
+		public new static readonly StringName _Notification = "_Notification";
 
+		/// <summary>
+		/// Cached name for the 'RefreshVisibility' method.
+		/// </summary>
 		public static readonly StringName RefreshVisibility = "RefreshVisibility";
 
+		/// <summary>
+		/// Cached name for the 'ToggleTimer' method.
+		/// </summary>
 		public static readonly StringName ToggleTimer = "ToggleTimer";
 
+		/// <summary>
+		/// Cached name for the 'OnTimerTimeout' method.
+		/// </summary>
 		public static readonly StringName OnTimerTimeout = "OnTimerTimeout";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the properties and fields contained in this class, for fast lookup.
+	/// </summary>
 	public new class PropertyName : Control.PropertyName
 	{
+		/// <summary>
+		/// Cached name for the '_timerLabel' field.
+		/// </summary>
 		public static readonly StringName _timerLabel = "_timerLabel";
 
+		/// <summary>
+		/// Cached name for the '_timer' field.
+		/// </summary>
 		public static readonly StringName _timer = "_timer";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the signals contained in this class, for fast lookup.
+	/// </summary>
 	public new class SignalName : Control.SignalName
 	{
 	}
 
 	private MegaLabel _timerLabel;
 
-	private Timer _timer;
+	private Timer? _timer;
 
 	public override void _Ready()
 	{
@@ -59,14 +92,21 @@ public class NRunTimer : Control
 		_timer = new Timer();
 		_timer.WaitTime = 1.0;
 		_timer.Autostart = false;
-		_timer.Connect(Timer.SignalName.Timeout, Callable.From(OnTimerTimeout));
+		_timer.Connect(Timer.SignalName.Timeout, Callable.From(delegate
+		{
+			RefreshVisibility();
+			OnTimerTimeout();
+		}));
 		this.AddChildSafely(_timer);
 		_timer.Start();
 	}
 
-	public override void _ExitTree()
+	public override void _Notification(int what)
 	{
-		_timer.Stop();
+		if ((long)what == 1)
+		{
+			_timer?.Stop();
+		}
 	}
 
 	public void RefreshVisibility()
@@ -94,13 +134,21 @@ public class NRunTimer : Control
 		}
 	}
 
+	/// <summary>
+	/// Get the method information for all the methods declared in this class.
+	/// This method is used by Godot to register the available methods in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal static List<MethodInfo> GetGodotMethodList()
 	{
 		List<MethodInfo> list = new List<MethodInfo>(6);
 		list.Add(new MethodInfo(MethodName._Ready, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.DeferredInit, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
-		list.Add(new MethodInfo(MethodName._ExitTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
+		list.Add(new MethodInfo(MethodName._Notification, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		{
+			new PropertyInfo(Variant.Type.Int, "what", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
+		}, null));
 		list.Add(new MethodInfo(MethodName.RefreshVisibility, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.ToggleTimer, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
 		{
@@ -110,6 +158,7 @@ public class NRunTimer : Control
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool InvokeGodotClassMethod(in godot_string_name method, NativeVariantPtrArgs args, out godot_variant ret)
 	{
@@ -125,9 +174,9 @@ public class NRunTimer : Control
 			ret = default(godot_variant);
 			return true;
 		}
-		if (method == MethodName._ExitTree && args.Count == 0)
+		if (method == MethodName._Notification && args.Count == 1)
 		{
-			_ExitTree();
+			_Notification(VariantUtils.ConvertTo<int>(in args[0]));
 			ret = default(godot_variant);
 			return true;
 		}
@@ -152,6 +201,7 @@ public class NRunTimer : Control
 		return base.InvokeGodotClassMethod(in method, args, out ret);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassMethod(in godot_string_name method)
 	{
@@ -163,7 +213,7 @@ public class NRunTimer : Control
 		{
 			return true;
 		}
-		if (method == MethodName._ExitTree)
+		if (method == MethodName._Notification)
 		{
 			return true;
 		}
@@ -182,6 +232,7 @@ public class NRunTimer : Control
 		return base.HasGodotClassMethod(in method);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool SetGodotClassPropertyValue(in godot_string_name name, in godot_variant value)
 	{
@@ -198,6 +249,7 @@ public class NRunTimer : Control
 		return base.SetGodotClassPropertyValue(in name, in value);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool GetGodotClassPropertyValue(in godot_string_name name, out godot_variant value)
 	{
@@ -214,6 +266,11 @@ public class NRunTimer : Control
 		return base.GetGodotClassPropertyValue(in name, out value);
 	}
 
+	/// <summary>
+	/// Get the property information for all the properties declared in this class.
+	/// This method is used by Godot to register the available properties in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal static List<PropertyInfo> GetGodotPropertyList()
 	{
@@ -223,6 +280,7 @@ public class NRunTimer : Control
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void SaveGodotObjectData(GodotSerializationInfo info)
 	{
@@ -231,6 +289,7 @@ public class NRunTimer : Control
 		info.AddProperty(PropertyName._timer, Variant.From(in _timer));
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RestoreGodotObjectData(GodotSerializationInfo info)
 	{

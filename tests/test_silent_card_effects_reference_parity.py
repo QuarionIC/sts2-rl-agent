@@ -52,12 +52,11 @@ from sts2_env.powers.base import PowerInstance
 BLUR_BLOCK = 5
 BLUR_UPGRADED_BLOCK = 8
 BLUR_POWER_AMOUNT = 1
-OUTBREAK_POWER_AMOUNT = 11
-OUTBREAK_UPGRADED_POWER_AMOUNT = 15
+OUTBREAK_POISON = 9
+OUTBREAK_UPGRADED_POISON = 12
 SNEAKY_POWER_AMOUNT = 1
 SNEAKY_UPGRADED_POWER_AMOUNT = 2
 SPEEDSTER_POWER_AMOUNT = 2
-SPEEDSTER_UPGRADED_POWER_AMOUNT = 3
 
 
 class _CannotHitPower(PowerInstance):
@@ -262,8 +261,10 @@ class TestSilentCardEffectsReferenceParity:
 
         combat.discard_cards([first, second])
 
+        # MementoMori.cs: CalculationBaseVar(9) + ExtraDamageVar(4), upgrade
+        # +2 / +1 -> 11 + 5 * 2 discards = 21.
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == 80
+        assert enemy.current_hp == 79
 
     def test_precise_cut_loses_damage_for_each_other_card_in_hand(self):
         combat = _make_combat()
@@ -528,20 +529,30 @@ class TestSilentCardEffectsReferenceParity:
         assert combat.player.block == BLUR_UPGRADED_BLOCK
         assert combat.player.get_power_amount(PowerId.BLUR) == BLUR_POWER_AMOUNT
 
-    def test_outbreak_card_applies_reference_power_amounts(self):
+    def test_outbreak_card_applies_reference_poison_then_detonates_it(self):
+        # Outbreak.cs (v0.110.0): apply Poison to every hittable enemy, then call
+        # Trigger() on each one's PoisonPower. One tick fires (TriggerCount =
+        # min(amount, 1 + opposing Accelerant) = 1), dealing `poison` unblockable
+        # damage and decrementing the stack by 1.
         combat = _make_combat()
+        enemy = combat.enemies[0]
+        enemy.max_hp = enemy.current_hp = 100
         combat.hand = [silent_cards.make_outbreak()]
-        combat.energy = 1
+        combat.energy = 3
 
         assert combat.play_card(0)
-        assert combat.player.get_power_amount(PowerId.OUTBREAK) == OUTBREAK_POWER_AMOUNT
+        assert enemy.get_power_amount(PowerId.POISON) == OUTBREAK_POISON - 1
+        assert enemy.current_hp == 100 - OUTBREAK_POISON
 
         upgraded_combat = _make_combat()
+        upgraded_enemy = upgraded_combat.enemies[0]
+        upgraded_enemy.max_hp = upgraded_enemy.current_hp = 100
         upgraded_combat.hand = [silent_cards.make_outbreak(upgraded=True)]
-        upgraded_combat.energy = 1
+        upgraded_combat.energy = 3
 
         assert upgraded_combat.play_card(0)
-        assert upgraded_combat.player.get_power_amount(PowerId.OUTBREAK) == OUTBREAK_UPGRADED_POWER_AMOUNT
+        assert upgraded_enemy.get_power_amount(PowerId.POISON) == OUTBREAK_UPGRADED_POISON - 1
+        assert upgraded_enemy.current_hp == 100 - OUTBREAK_UPGRADED_POISON
 
     def test_outbreak_damage_hits_only_hittable_enemies(self):
         combat = _make_combat(extra_enemies=1)
@@ -558,6 +569,8 @@ class TestSilentCardEffectsReferenceParity:
         assert hittable.current_hp == 89
 
     def test_speedster_card_applies_reference_power_amounts(self):
+        # Speedster.cs: PowerVar<SpeedsterPower>(2) with no upgrade change --
+        # OnUpgrade only does AddKeyword(CardKeyword.Innate).
         combat = _make_combat()
         combat.hand = [silent_cards.make_speedster()]
         combat.energy = 2
@@ -565,12 +578,15 @@ class TestSilentCardEffectsReferenceParity:
         assert combat.play_card(0)
         assert combat.player.get_power_amount(PowerId.SPEEDSTER) == SPEEDSTER_POWER_AMOUNT
 
+        upgraded = silent_cards.make_speedster(upgraded=True)
+        assert upgraded.keywords == frozenset({"innate"})
+
         upgraded_combat = _make_combat()
-        upgraded_combat.hand = [silent_cards.make_speedster(upgraded=True)]
+        upgraded_combat.hand = [upgraded]
         upgraded_combat.energy = 2
 
         assert upgraded_combat.play_card(0)
-        assert upgraded_combat.player.get_power_amount(PowerId.SPEEDSTER) == SPEEDSTER_UPGRADED_POWER_AMOUNT
+        assert upgraded_combat.player.get_power_amount(PowerId.SPEEDSTER) == SPEEDSTER_POWER_AMOUNT
 
     def test_speedster_damage_hits_only_hittable_enemies(self):
         combat = _make_combat(extra_enemies=1)
@@ -705,7 +721,7 @@ class TestSilentCardEffectsReferenceParity:
         block_combat.energy = 2
 
         assert block_combat.play_card(0)
-        assert block_combat.player.block == 12
+        assert block_combat.player.block == 9
 
     def test_silent_direct_power_and_status_cards_match_reference(self):
         abrasive_combat = _make_combat()
@@ -758,7 +774,9 @@ class TestSilentCardEffectsReferenceParity:
         assert combat.play_card(0, 0)
         assert enemy.current_hp == 90
 
-    def test_leading_strike_generates_one_shiv_after_attack(self):
+    def test_leading_strike_generates_two_shivs_after_attack(self):
+        # LeadingStrike.cs: CardsVar("Shivs", 2) (flat) and DamageVar(3) with
+        # OnUpgrade Damage+3.
         combat = _make_combat()
         enemy = combat.enemies[0]
         enemy.max_hp = 100
@@ -767,8 +785,8 @@ class TestSilentCardEffectsReferenceParity:
         combat.energy = 1
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == 90
-        assert sum(1 for card in combat.hand if card.card_id == CardId.SHIV) == 1
+        assert enemy.current_hp == 94
+        assert sum(1 for card in combat.hand if card.card_id == CardId.SHIV) == 2
 
     def test_mirage_blocks_for_living_enemies_poison_only(self):
         combat = _make_combat(extra_enemies=1)
@@ -813,20 +831,26 @@ class TestSilentCardEffectsReferenceParity:
         assert combat.player.get_power_amount(PowerId.NO_DRAW) == 1
         assert strike.cost == 0
 
-    def test_blade_of_ink_grants_temporary_strength_for_attack_plays_only(self):
+    def test_blade_of_ink_creates_inky_shivs_in_hand(self):
+        # BladeOfInk.cs: CardsVar(2) (upgrade +1); OnPlay creates that many
+        # Shivs in hand and enchants each one with Inky(1).
         combat = _make_combat()
-        strike = make_strike_ironclad()
-        combat.hand = [make_blade_of_ink(), strike, make_deflect()]
+        combat.hand = [make_blade_of_ink()]
         combat.energy = 2
 
         assert combat.play_card(0)
-        assert combat.player.get_power_amount(PowerId.BLADE_OF_INK) == 2
+        shivs = [card for card in combat.hand if card.card_id == CardId.SHIV]
+        assert len(shivs) == 2
+        assert all(shiv.enchantments.get("Inky") == 1 for shiv in shivs)
 
-        assert combat.play_card(0, 0)
-        assert combat.player.get_power_amount(PowerId.STRENGTH) == 2
+        upgraded_combat = _make_combat()
+        upgraded_combat.hand = [make_blade_of_ink(upgraded=True)]
+        upgraded_combat.energy = 2
 
-        assert combat.play_card(0)
-        assert combat.player.get_power_amount(PowerId.STRENGTH) == 2
+        assert upgraded_combat.play_card(0)
+        upgraded_shivs = [card for card in upgraded_combat.hand if card.card_id == CardId.SHIV]
+        assert len(upgraded_shivs) == 3
+        assert all(shiv.enchantments.get("Inky") == 1 for shiv in upgraded_shivs)
 
         fire_after_turn_end(CombatSide.PLAYER, combat)
         assert combat.player.get_power_amount(PowerId.STRENGTH) == 0
@@ -854,7 +878,7 @@ class TestSilentCardEffectsReferenceParity:
 
         assert combat.play_card(0, 0)
         assert combat.energy == 0
-        assert enemy.current_hp == 79
+        assert enemy.current_hp == 76
 
         zero = make_skewer()
         combat.hand = [zero]

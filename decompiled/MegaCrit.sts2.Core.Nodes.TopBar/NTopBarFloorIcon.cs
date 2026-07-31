@@ -15,31 +15,54 @@ namespace MegaCrit.sts2.Core.Nodes.TopBar;
 [ScriptPath("res://src/Core/Nodes/TopBar/NTopBarFloorIcon.cs")]
 public class NTopBarFloorIcon : NClickableControl
 {
+	/// <summary>
+	/// Cached StringNames for the methods contained in this class, for fast lookup.
+	/// </summary>
 	public new class MethodName : NClickableControl.MethodName
 	{
+		/// <summary>
+		/// Cached name for the '_Ready' method.
+		/// </summary>
 		public new static readonly StringName _Ready = "_Ready";
 
-		public new static readonly StringName _EnterTree = "_EnterTree";
+		/// <summary>
+		/// Cached name for the '_Notification' method.
+		/// </summary>
+		public new static readonly StringName _Notification = "_Notification";
 
-		public new static readonly StringName _ExitTree = "_ExitTree";
-
+		/// <summary>
+		/// Cached name for the 'UpdateIcon' method.
+		/// </summary>
 		public static readonly StringName UpdateIcon = "UpdateIcon";
 
+		/// <summary>
+		/// Cached name for the 'OnFocus' method.
+		/// </summary>
 		public new static readonly StringName OnFocus = "OnFocus";
 
+		/// <summary>
+		/// Cached name for the 'OnUnfocus' method.
+		/// </summary>
 		public new static readonly StringName OnUnfocus = "OnUnfocus";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the properties and fields contained in this class, for fast lookup.
+	/// </summary>
 	public new class PropertyName : NClickableControl.PropertyName
 	{
+		/// <summary>
+		/// Cached name for the '_floorNumLabel' field.
+		/// </summary>
 		public static readonly StringName _floorNumLabel = "_floorNumLabel";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the signals contained in this class, for fast lookup.
+	/// </summary>
 	public new class SignalName : NClickableControl.SignalName
 	{
 	}
-
-	private static readonly HoverTip _floorHoverTip = new HoverTip(new LocString("static_hover_tips", "FLOOR.title"), new LocString("static_hover_tips", "FLOOR.description"));
 
 	private MegaLabel _floorNumLabel;
 
@@ -48,6 +71,7 @@ public class NTopBarFloorIcon : NClickableControl
 	public override void _Ready()
 	{
 		_floorNumLabel = GetNode<MegaLabel>("FloorNumLabel");
+		RunManager.Instance.RoomEntered += UpdateIcon;
 		ConnectSignals();
 	}
 
@@ -57,14 +81,12 @@ public class NTopBarFloorIcon : NClickableControl
 		UpdateIcon();
 	}
 
-	public override void _EnterTree()
+	public override void _Notification(int what)
 	{
-		RunManager.Instance.RoomEntered += UpdateIcon;
-	}
-
-	public override void _ExitTree()
-	{
-		RunManager.Instance.RoomEntered -= UpdateIcon;
+		if ((long)what == 1)
+		{
+			RunManager.Instance.RoomEntered -= UpdateIcon;
+		}
 	}
 
 	private void UpdateIcon()
@@ -77,8 +99,8 @@ public class NTopBarFloorIcon : NClickableControl
 
 	protected override void OnFocus()
 	{
-		NHoverTipSet nHoverTipSet = NHoverTipSet.CreateAndShow(this, _floorHoverTip);
-		nHoverTipSet.GlobalPosition = base.GlobalPosition + new Vector2(0f, base.Size.Y + 20f);
+		HoverTip hoverTip = new HoverTip(new LocString("static_hover_tips", "FLOOR.title"), new LocString("static_hover_tips", "FLOOR.description"));
+		NHoverTipSet.CreateAndShow(this, hoverTip)?.SetGlobalPosition(base.GlobalPosition + new Vector2(0f, base.Size.Y + 20f));
 	}
 
 	protected override void OnUnfocus()
@@ -86,19 +108,27 @@ public class NTopBarFloorIcon : NClickableControl
 		NHoverTipSet.Remove(this);
 	}
 
+	/// <summary>
+	/// Get the method information for all the methods declared in this class.
+	/// This method is used by Godot to register the available methods in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<MethodInfo> GetGodotMethodList()
 	{
-		List<MethodInfo> list = new List<MethodInfo>(6);
+		List<MethodInfo> list = new List<MethodInfo>(5);
 		list.Add(new MethodInfo(MethodName._Ready, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
-		list.Add(new MethodInfo(MethodName._EnterTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
-		list.Add(new MethodInfo(MethodName._ExitTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
+		list.Add(new MethodInfo(MethodName._Notification, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		{
+			new PropertyInfo(Variant.Type.Int, "what", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
+		}, null));
 		list.Add(new MethodInfo(MethodName.UpdateIcon, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.OnFocus, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.OnUnfocus, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool InvokeGodotClassMethod(in godot_string_name method, NativeVariantPtrArgs args, out godot_variant ret)
 	{
@@ -108,15 +138,9 @@ public class NTopBarFloorIcon : NClickableControl
 			ret = default(godot_variant);
 			return true;
 		}
-		if (method == MethodName._EnterTree && args.Count == 0)
+		if (method == MethodName._Notification && args.Count == 1)
 		{
-			_EnterTree();
-			ret = default(godot_variant);
-			return true;
-		}
-		if (method == MethodName._ExitTree && args.Count == 0)
-		{
-			_ExitTree();
+			_Notification(VariantUtils.ConvertTo<int>(in args[0]));
 			ret = default(godot_variant);
 			return true;
 		}
@@ -141,6 +165,7 @@ public class NTopBarFloorIcon : NClickableControl
 		return base.InvokeGodotClassMethod(in method, args, out ret);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassMethod(in godot_string_name method)
 	{
@@ -148,11 +173,7 @@ public class NTopBarFloorIcon : NClickableControl
 		{
 			return true;
 		}
-		if (method == MethodName._EnterTree)
-		{
-			return true;
-		}
-		if (method == MethodName._ExitTree)
+		if (method == MethodName._Notification)
 		{
 			return true;
 		}
@@ -171,6 +192,7 @@ public class NTopBarFloorIcon : NClickableControl
 		return base.HasGodotClassMethod(in method);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool SetGodotClassPropertyValue(in godot_string_name name, in godot_variant value)
 	{
@@ -182,6 +204,7 @@ public class NTopBarFloorIcon : NClickableControl
 		return base.SetGodotClassPropertyValue(in name, in value);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool GetGodotClassPropertyValue(in godot_string_name name, out godot_variant value)
 	{
@@ -193,6 +216,11 @@ public class NTopBarFloorIcon : NClickableControl
 		return base.GetGodotClassPropertyValue(in name, out value);
 	}
 
+	/// <summary>
+	/// Get the property information for all the properties declared in this class.
+	/// This method is used by Godot to register the available properties in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<PropertyInfo> GetGodotPropertyList()
 	{
@@ -201,6 +229,7 @@ public class NTopBarFloorIcon : NClickableControl
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void SaveGodotObjectData(GodotSerializationInfo info)
 	{
@@ -208,6 +237,7 @@ public class NTopBarFloorIcon : NClickableControl
 		info.AddProperty(PropertyName._floorNumLabel, Variant.From(in _floorNumLabel));
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RestoreGodotObjectData(GodotSerializationInfo info)
 	{

@@ -930,7 +930,7 @@ def sacrifice(card: CardInstance, combat: CombatState, target: Creature | None) 
     osty = combat.get_osty(owner)
     if osty is None or not osty.is_alive:
         return
-    block_gain = osty.max_hp * 2
+    block_gain = osty.max_hp * 3
     combat.kill_osty(_owner(card, combat))
     _gain_resolved_block(owner, block_gain, combat)
 
@@ -1423,6 +1423,7 @@ def make_sacrifice(upgraded: bool = False) -> CardInstance:
         card_id=CardId.SACRIFICE, cost=0 if upgraded else 1,
         card_type=CardType.SKILL, target_type=TargetType.SELF,
         rarity=CardRarity.RARE, upgraded=upgraded, keywords=kw,
+        effect_vars={"calc_base": 0, "calc_extra": 1},
         instance_id=_get_next_id(),
     )
 
@@ -1431,7 +1432,7 @@ def make_legion_of_bone(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.LEGION_OF_BONE, cost=2, card_type=CardType.SKILL,
         target_type=TargetType.ALL_ALLIES, rarity=CardRarity.UNCOMMON,
-        upgraded=upgraded, keywords=frozenset({"exhaust"}),
+        upgraded=upgraded,
         effect_vars={"summon": 8 if upgraded else 6},
         instance_id=_get_next_id(),
     )
@@ -1596,8 +1597,11 @@ def make_the_scythe(upgraded: bool = False) -> CardInstance:
     from sts2_env.cards.factory import create_reference_card
 
     card = create_reference_card(CardId.THE_SCYTHE, upgraded=upgraded, allow_generation=True)
+    # TheScythe.cs (v0.110.0): _baseDamage 13, IntVar("Increase", 5m),
+    # OnUpgrade raises Increase by 2. v0.109.0 had 4 and +1; the beta patch
+    # buffed both, so this is 5 base / 7 upgraded.
     card.base_damage = 13
-    card.effect_vars["increase"] = 5 if upgraded else 4
+    card.effect_vars["increase"] = 7 if upgraded else 5
     return card
 
 

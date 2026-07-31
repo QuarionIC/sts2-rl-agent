@@ -26,6 +26,7 @@ from sts2_env.core.creature import Creature
 from sts2_env.core.combat import CombatState
 
 
+ASTRAL_PULSE_HITS = 2
 CELESTIAL_MIGHT_REPEAT = 3
 SEVEN_STARS_REPEAT = 7
 
@@ -108,22 +109,22 @@ def venerate(card: CardInstance, combat: CombatState, target: Creature | None) -
 
 @register_effect(CardId.ASTRAL_PULSE)
 def astral_pulse(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    _deal_damage_all(card, combat)
+    # AstralPulse.cs: DamageCmd.Attack(Damage).TargetingAllOpponents(...).WithHitCount(2)
+    for _ in range(ASTRAL_PULSE_HITS):
+        _deal_damage_all(card, combat)
 
 
 @register_effect(CardId.BEGONE)
 def begone(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    from sts2_env.cards.status import make_minion_dive_bomb
+    from sts2_env.cards.status import make_minion_strike
 
-    assert target is not None
-    _deal_damage_single(card, combat, target)
     if not combat.hand:
         return
 
     def _resolver(selected: CardInstance | None) -> None:
         if selected is None:
             return
-        transformed = make_minion_dive_bomb(upgraded=card.upgraded)
+        transformed = make_minion_strike(upgraded=card.upgraded)
         combat.transform_card(selected, transformed)
 
     combat.request_card_choice(
@@ -229,7 +230,7 @@ def glow(card: CardInstance, combat: CombatState, target: Creature | None) -> No
     """
     owner = _owner(card, combat)
     combat.gain_stars(owner, card.effect_vars.get("stars", 1))
-    cards = card.effect_vars.get("cards", 2)
+    cards = card.effect_vars.get("cards", 1)
     combat._draw_cards(cards)
     combat.apply_power_to(owner, PowerId.DRAW_CARDS_NEXT_TURN, cards)
 
@@ -298,14 +299,16 @@ def solar_strike(card: CardInstance, combat: CombatState, target: Creature | Non
 
 @register_effect(CardId.SPOILS_OF_BATTLE)
 def spoils_of_battle(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    combat.forge(_owner(card, combat), card.effect_vars.get("forge", 10), source=card)
+    owner = _owner(card, combat)
+    combat.forge(owner, card.effect_vars.get("forge", 5), source=card)
+    combat.draw_cards(owner, card.effect_vars.get("cards", 2))
 
 
 @register_effect(CardId.WROUGHT_IN_WAR)
 def wrought_in_war(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
     _deal_damage_single(card, combat, target)
-    combat.forge(_owner(card, combat), card.effect_vars.get("forge", 5), source=card)
+    combat.forge(_owner(card, combat), card.effect_vars.get("forge", 7), source=card)
 
 
 # ---------------------------------------------------------------------------
@@ -1001,7 +1004,7 @@ def make_falling_star(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.FALLING_STAR, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.BASIC,
-        base_damage=11 if upgraded else 7, upgraded=upgraded,
+        base_damage=12 if upgraded else 8, upgraded=upgraded,
         effect_vars={"weak": 1, "vulnerable": 1},
         star_cost=2,
         instance_id=_get_next_id(),
@@ -1022,7 +1025,7 @@ def make_astral_pulse(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.ASTRAL_PULSE, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ALL_ENEMIES, rarity=CardRarity.COMMON,
-        base_damage=18 if upgraded else 14, upgraded=upgraded,
+        base_damage=8 if upgraded else 6, upgraded=upgraded,
         star_cost=3,
         instance_id=_get_next_id(),
     )
@@ -1040,9 +1043,9 @@ def make_beat_into_shape(upgraded: bool = False) -> CardInstance:
 
 def make_begone(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.BEGONE, cost=1, card_type=CardType.ATTACK,
-        target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=5 if upgraded else 4, upgraded=upgraded,
+        card_id=CardId.BEGONE, cost=1, card_type=CardType.SKILL,
+        target_type=TargetType.SELF, rarity=CardRarity.COMMON,
+        upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
@@ -1051,8 +1054,10 @@ def make_celestial_might(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.CELESTIAL_MIGHT, cost=2, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=8 if upgraded else 6, upgraded=upgraded,
-        effect_vars={"repeat": CELESTIAL_MIGHT_REPEAT},
+        base_damage=6, upgraded=upgraded,
+        effect_vars={
+            "repeat": CELESTIAL_MIGHT_REPEAT + 1 if upgraded else CELESTIAL_MIGHT_REPEAT
+        },
         instance_id=_get_next_id(),
     )
 
@@ -1070,7 +1075,7 @@ def make_collision_course(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.COLLISION_COURSE, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=12 if upgraded else 9, upgraded=upgraded,
+        base_damage=14 if upgraded else 10, upgraded=upgraded,
         instance_id=_get_next_id(),
     )
 
@@ -1088,7 +1093,7 @@ def make_gather_light(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.GATHER_LIGHT, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.COMMON,
-        base_block=10 if upgraded else 7, upgraded=upgraded,
+        base_block=11 if upgraded else 8, upgraded=upgraded,
         effect_vars={"stars": 1},
         instance_id=_get_next_id(),
     )
@@ -1099,7 +1104,7 @@ def make_glow(upgraded: bool = False) -> CardInstance:
         card_id=CardId.GLOW, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.COMMON,
         upgraded=upgraded,
-        effect_vars={"cards": 2, "stars": 2 if upgraded else 1},
+        effect_vars={"cards": 1, "stars": 2 if upgraded else 1},
         instance_id=_get_next_id(),
     )
 
@@ -1151,7 +1156,7 @@ def make_refine_blade(upgraded: bool = False) -> CardInstance:
         card_id=CardId.REFINE_BLADE, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.COMMON,
         upgraded=upgraded,
-        effect_vars={"forge": 10 if upgraded else 6, "energy": 1},
+        effect_vars={"forge": 13 if upgraded else 9, "energy": 1},
         instance_id=_get_next_id(),
     )
 
@@ -1160,7 +1165,7 @@ def make_solar_strike(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.SOLAR_STRIKE, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
-        base_damage=9 if upgraded else 8, upgraded=upgraded,
+        base_damage=10 if upgraded else 9, upgraded=upgraded,
         effect_vars={"stars": 2 if upgraded else 1},
         instance_id=_get_next_id(),
     )
@@ -1171,7 +1176,7 @@ def make_spoils_of_battle(upgraded: bool = False) -> CardInstance:
         card_id=CardId.SPOILS_OF_BATTLE, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.COMMON,
         upgraded=upgraded,
-        effect_vars={"forge": 15 if upgraded else 10},
+        effect_vars={"forge": 8 if upgraded else 5, "cards": 2},
         instance_id=_get_next_id(),
     )
 
@@ -1181,7 +1186,7 @@ def make_wrought_in_war(upgraded: bool = False) -> CardInstance:
         card_id=CardId.WROUGHT_IN_WAR, cost=1, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.COMMON,
         base_damage=9 if upgraded else 7, upgraded=upgraded,
-        effect_vars={"forge": 7 if upgraded else 5},
+        effect_vars={"forge": 9 if upgraded else 7},
         instance_id=_get_next_id(),
     )
 
@@ -1232,7 +1237,7 @@ def make_bulwark(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.BULWARK, cost=2, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        base_block=16 if upgraded else 13, upgraded=upgraded,
+        base_block=15 if upgraded else 12, upgraded=upgraded,
         effect_vars={"forge": 13 if upgraded else 10},
         instance_id=_get_next_id(),
     )
@@ -1319,7 +1324,7 @@ def make_resonance(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.RESONANCE, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.ALL_ENEMIES, rarity=CardRarity.UNCOMMON,
-        upgraded=upgraded, star_cost=3,
+        upgraded=upgraded, star_cost=2,
         effect_vars={"strength": 2 if upgraded else 1},
         instance_id=_get_next_id(),
     )
@@ -1368,7 +1373,7 @@ def make_heirloom_hammer(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.HEIRLOOM_HAMMER, cost=2, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.RARE,
-        upgraded=upgraded, base_damage=22 if upgraded else 17,
+        upgraded=upgraded, base_damage=25 if upgraded else 20,
         effect_vars={"repeat": 1},
         instance_id=_get_next_id(),
     )
@@ -1379,7 +1384,8 @@ def make_void_form(upgraded: bool = False) -> CardInstance:
         card_id=CardId.VOID_FORM, cost=3, card_type=CardType.POWER,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
         upgraded=upgraded,
-        effect_vars={"void_form_power": 3 if upgraded else 2},
+        keywords=frozenset() if upgraded else frozenset({"ethereal"}),
+        effect_vars={"void_form_power": 2},
         instance_id=_get_next_id(),
     )
 
@@ -1388,8 +1394,8 @@ def make_crescent_spear(upgraded: bool = False) -> CardInstance:
     from sts2_env.cards.factory import create_reference_card
 
     card = create_reference_card(CardId.CRESCENT_SPEAR, upgraded=upgraded, allow_generation=True)
-    card.base_damage = 7 if upgraded else 6
-    card.effect_vars["calc_base"] = 6
+    card.base_damage = 8
+    card.effect_vars["calc_base"] = 8
     card.effect_vars["extra_damage"] = 3 if upgraded else 2
     return card
 

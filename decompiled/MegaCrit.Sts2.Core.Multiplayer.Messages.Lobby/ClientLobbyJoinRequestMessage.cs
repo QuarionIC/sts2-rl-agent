@@ -5,11 +5,16 @@ using MegaCrit.Sts2.Core.Unlocks;
 
 namespace MegaCrit.Sts2.Core.Multiplayer.Messages.Lobby;
 
+/// <summary>
+/// Sent from a newly connected client to the host as the first message in the joining flow.
+/// </summary>
 public struct ClientLobbyJoinRequestMessage : INetMessage, IPacketSerializable
 {
 	public int maxAscensionUnlocked;
 
 	public SerializableUnlockState unlockState;
+
+	public PeerVersionInfo versionInfo;
 
 	public bool ShouldBroadcast => false;
 
@@ -17,15 +22,19 @@ public struct ClientLobbyJoinRequestMessage : INetMessage, IPacketSerializable
 
 	public LogLevel LogLevel => LogLevel.Info;
 
+	public bool ShouldBuffer => true;
+
 	public void Serialize(PacketWriter writer)
 	{
 		writer.WriteInt(maxAscensionUnlocked);
 		writer.Write(unlockState);
+		writer.Write(versionInfo);
 	}
 
 	public void Deserialize(PacketReader reader)
 	{
 		maxAscensionUnlocked = reader.ReadInt();
 		unlockState = reader.Read<SerializableUnlockState>();
+		versionInfo = reader.Read<PeerVersionInfo>();
 	}
 }

@@ -13,43 +13,97 @@ using MegaCrit.Sts2.addons.mega_text;
 
 namespace MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 
+/// <summary>
+/// Button on the main menu which opens the profile screen, allowing the player to switch profiles.
+/// </summary>
 [ScriptPath("res://src/Core/Nodes/Screens/MainMenu/NOpenProfileScreenButton.cs")]
 public class NOpenProfileScreenButton : NButton
 {
+	/// <summary>
+	/// Cached StringNames for the methods contained in this class, for fast lookup.
+	/// </summary>
 	public new class MethodName : NButton.MethodName
 	{
+		/// <summary>
+		/// Cached name for the '_Ready' method.
+		/// </summary>
 		public new static readonly StringName _Ready = "_Ready";
 
+		/// <summary>
+		/// Cached name for the '_EnterTree' method.
+		/// </summary>
 		public new static readonly StringName _EnterTree = "_EnterTree";
 
-		public new static readonly StringName _ExitTree = "_ExitTree";
-
+		/// <summary>
+		/// Cached name for the '_Notification' method.
+		/// </summary>
 		public new static readonly StringName _Notification = "_Notification";
 
+		/// <summary>
+		/// Cached name for the 'RefreshLabels' method.
+		/// </summary>
 		public static readonly StringName RefreshLabels = "RefreshLabels";
 
+		/// <summary>
+		/// Cached name for the 'OnRelease' method.
+		/// </summary>
 		public new static readonly StringName OnRelease = "OnRelease";
 
+		/// <summary>
+		/// Cached name for the 'OnFocus' method.
+		/// </summary>
 		public new static readonly StringName OnFocus = "OnFocus";
 
+		/// <summary>
+		/// Cached name for the 'OnUnfocus' method.
+		/// </summary>
 		public new static readonly StringName OnUnfocus = "OnUnfocus";
 
+		/// <summary>
+		/// Cached name for the 'UpdateDescription' method.
+		/// </summary>
 		public static readonly StringName UpdateDescription = "UpdateDescription";
+
+		/// <summary>
+		/// Cached name for the '_ExitTree' method.
+		/// </summary>
+		public new static readonly StringName _ExitTree = "_ExitTree";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the properties and fields contained in this class, for fast lookup.
+	/// </summary>
 	public new class PropertyName : NButton.PropertyName
 	{
+		/// <summary>
+		/// Cached name for the 'Hotkeys' property.
+		/// </summary>
 		public new static readonly StringName Hotkeys = "Hotkeys";
 
+		/// <summary>
+		/// Cached name for the '_profileIcon' field.
+		/// </summary>
 		public static readonly StringName _profileIcon = "_profileIcon";
 
+		/// <summary>
+		/// Cached name for the '_title' field.
+		/// </summary>
 		public static readonly StringName _title = "_title";
 
+		/// <summary>
+		/// Cached name for the '_description' field.
+		/// </summary>
 		public static readonly StringName _description = "_description";
 
+		/// <summary>
+		/// Cached name for the '_tween' field.
+		/// </summary>
 		public static readonly StringName _tween = "_tween";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the signals contained in this class, for fast lookup.
+	/// </summary>
 	public new class SignalName : NButton.SignalName
 	{
 	}
@@ -71,9 +125,9 @@ public class NOpenProfileScreenButton : NButton
 	public override void _Ready()
 	{
 		ConnectSignals();
-		_profileIcon = GetNode<NProfileIcon>("ProfileIcon");
-		_title = GetNode<MegaLabel>("Title");
-		_description = GetNode<MegaLabel>("Description");
+		_profileIcon = GetNode<NProfileIcon>("%ProfileIcon");
+		_title = GetNode<MegaLabel>("%Title");
+		_description = GetNode<MegaLabel>("%Description");
 		RefreshLabels();
 		_profileIcon.SetProfileId(SaveManager.Instance.CurrentProfileId);
 		UpdateDescription();
@@ -86,16 +140,6 @@ public class NOpenProfileScreenButton : NButton
 		{
 			NControllerManager.Instance.Connect(NControllerManager.SignalName.MouseDetected, Callable.From(UpdateDescription));
 			NControllerManager.Instance.Connect(NControllerManager.SignalName.ControllerDetected, Callable.From(UpdateDescription));
-		}
-	}
-
-	public override void _ExitTree()
-	{
-		base._ExitTree();
-		if (NControllerManager.Instance != null)
-		{
-			NControllerManager.Instance.Disconnect(NControllerManager.SignalName.ControllerDetected, Callable.From(UpdateDescription));
-			NControllerManager.Instance.Disconnect(NControllerManager.SignalName.MouseDetected, Callable.From(UpdateDescription));
 		}
 	}
 
@@ -123,7 +167,8 @@ public class NOpenProfileScreenButton : NButton
 	{
 		base.OnFocus();
 		_tween?.Kill();
-		base.Scale = Vector2.One * 1.02f;
+		_tween = CreateTween();
+		_tween.TweenProperty(this, "scale", Vector2.One * 1.02f, 0.05).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
 	}
 
 	protected override void OnUnfocus()
@@ -131,24 +176,38 @@ public class NOpenProfileScreenButton : NButton
 		base.OnUnfocus();
 		_tween?.Kill();
 		_tween = CreateTween();
-		_tween.TweenProperty(this, "scale", Vector2.One * 1f, 0.3).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
+		_tween.TweenProperty(this, "scale", Vector2.One, 0.3).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
 	}
 
 	private void UpdateDescription()
 	{
 		if (NControllerManager.Instance != null)
 		{
-			_description.SetVisible(!NControllerManager.Instance.IsUsingController);
+			_description.SetVisible(!NControllerManager.Instance.IsUsingDirectionalNavigation);
 		}
 	}
 
+	public override void _ExitTree()
+	{
+		base._ExitTree();
+		if (NControllerManager.Instance != null)
+		{
+			NControllerManager.Instance.Disconnect(NControllerManager.SignalName.ControllerDetected, Callable.From(UpdateDescription));
+			NControllerManager.Instance.Disconnect(NControllerManager.SignalName.MouseDetected, Callable.From(UpdateDescription));
+		}
+	}
+
+	/// <summary>
+	/// Get the method information for all the methods declared in this class.
+	/// This method is used by Godot to register the available methods in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<MethodInfo> GetGodotMethodList()
 	{
 		List<MethodInfo> list = new List<MethodInfo>(9);
 		list.Add(new MethodInfo(MethodName._Ready, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName._EnterTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
-		list.Add(new MethodInfo(MethodName._ExitTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName._Notification, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
 		{
 			new PropertyInfo(Variant.Type.Int, "what", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
@@ -158,9 +217,11 @@ public class NOpenProfileScreenButton : NButton
 		list.Add(new MethodInfo(MethodName.OnFocus, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.OnUnfocus, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.UpdateDescription, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
+		list.Add(new MethodInfo(MethodName._ExitTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool InvokeGodotClassMethod(in godot_string_name method, NativeVariantPtrArgs args, out godot_variant ret)
 	{
@@ -173,12 +234,6 @@ public class NOpenProfileScreenButton : NButton
 		if (method == MethodName._EnterTree && args.Count == 0)
 		{
 			_EnterTree();
-			ret = default(godot_variant);
-			return true;
-		}
-		if (method == MethodName._ExitTree && args.Count == 0)
-		{
-			_ExitTree();
 			ret = default(godot_variant);
 			return true;
 		}
@@ -218,9 +273,16 @@ public class NOpenProfileScreenButton : NButton
 			ret = default(godot_variant);
 			return true;
 		}
+		if (method == MethodName._ExitTree && args.Count == 0)
+		{
+			_ExitTree();
+			ret = default(godot_variant);
+			return true;
+		}
 		return base.InvokeGodotClassMethod(in method, args, out ret);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassMethod(in godot_string_name method)
 	{
@@ -229,10 +291,6 @@ public class NOpenProfileScreenButton : NButton
 			return true;
 		}
 		if (method == MethodName._EnterTree)
-		{
-			return true;
-		}
-		if (method == MethodName._ExitTree)
 		{
 			return true;
 		}
@@ -260,9 +318,14 @@ public class NOpenProfileScreenButton : NButton
 		{
 			return true;
 		}
+		if (method == MethodName._ExitTree)
+		{
+			return true;
+		}
 		return base.HasGodotClassMethod(in method);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool SetGodotClassPropertyValue(in godot_string_name name, in godot_variant value)
 	{
@@ -289,6 +352,7 @@ public class NOpenProfileScreenButton : NButton
 		return base.SetGodotClassPropertyValue(in name, in value);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool GetGodotClassPropertyValue(in godot_string_name name, out godot_variant value)
 	{
@@ -320,6 +384,11 @@ public class NOpenProfileScreenButton : NButton
 		return base.GetGodotClassPropertyValue(in name, out value);
 	}
 
+	/// <summary>
+	/// Get the property information for all the properties declared in this class.
+	/// This method is used by Godot to register the available properties in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<PropertyInfo> GetGodotPropertyList()
 	{
@@ -332,6 +401,7 @@ public class NOpenProfileScreenButton : NButton
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void SaveGodotObjectData(GodotSerializationInfo info)
 	{
@@ -342,6 +412,7 @@ public class NOpenProfileScreenButton : NButton
 		info.AddProperty(PropertyName._tween, Variant.From(in _tween));
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RestoreGodotObjectData(GodotSerializationInfo info)
 	{

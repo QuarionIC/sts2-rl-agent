@@ -68,8 +68,8 @@ from sts2_env.relics.registry import create_relic_by_name
 from sts2_env.run.run_state import PlayerState
 
 
-COLOSSUS_BLOCK = 5
-COLOSSUS_UPGRADED_BLOCK = 8
+COLOSSUS_BLOCK = 4
+COLOSSUS_UPGRADED_BLOCK = 7
 COLOSSUS_POWER_AMOUNT = 1
 DOMINATE_TARGET_VULNERABLE = 3
 #: v0.109.0 Dominate APPLIES 1 Vulnerable and only then reads the stack to
@@ -80,10 +80,10 @@ DOMINATE_VULNERABLE_APPLIED = 1
 DOMINATE_STRENGTH_GAIN = DOMINATE_TARGET_VULNERABLE + DOMINATE_VULNERABLE_APPLIED
 FIGHT_ME_DAMAGE_PER_HIT = 5
 FIGHT_ME_HITS = 2
-FIGHT_ME_SELF_STRENGTH = 2
+FIGHT_ME_SELF_STRENGTH = 3
 FIGHT_ME_ENEMY_STRENGTH = 1
 FIGHT_ME_UPGRADED_DAMAGE_PER_HIT = 6
-FIGHT_ME_UPGRADED_SELF_STRENGTH = 3
+FIGHT_ME_UPGRADED_SELF_STRENGTH = 4
 TEST_ENEMY_HP = 100
 EXHAUST_KEYWORD = "exhaust"
 
@@ -269,8 +269,8 @@ class TestIroncladCombatEdgeCardModelParity:
 
         assert combat.play_card(0, 0)
         assert enemy.current_hp == 91
-        assert combat.player.get_power_amount(PowerId.SETUP_STRIKE) == 3
-        assert combat.player.get_power_amount(PowerId.STRENGTH) == 3
+        assert combat.player.get_power_amount(PowerId.SETUP_STRIKE) == 4
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == 4
 
         combat.player.powers[PowerId.SETUP_STRIKE].after_turn_end(combat.player, CombatSide.PLAYER, combat)
 
@@ -334,7 +334,8 @@ class TestIroncladCombatEdgeCardModelParity:
         tremble_combat.energy = 1
 
         assert tremble_combat.play_card(0, 0)
-        assert tremble_enemy.get_power_amount(PowerId.VULNERABLE) == 3
+        # Tremble.cs base Vulnerable is 3, upgrading to 4.
+        assert tremble_enemy.get_power_amount(PowerId.VULNERABLE) == 4
 
         taunt_combat = _make_combat()
         taunt_enemy = taunt_combat.enemies[0]
@@ -342,7 +343,7 @@ class TestIroncladCombatEdgeCardModelParity:
         taunt_combat.energy = 1
 
         assert taunt_combat.play_card(0, 0)
-        assert taunt_combat.player.block == 8
+        assert taunt_combat.player.block == 7
         assert taunt_enemy.get_power_amount(PowerId.VULNERABLE) == 2
 
     def test_unrelenting_makes_next_owner_attack_free(self):
@@ -359,7 +360,7 @@ class TestIroncladCombatEdgeCardModelParity:
         assert combat.play_card(0, 0)
         assert combat.energy == 0
         assert combat.player.get_power_amount(PowerId.FREE_ATTACK) == 0
-        assert enemy.current_hp == 82
+        assert enemy.current_hp == 80
 
     def test_stampede_autoplays_random_attack_before_turn_end(self):
         combat = _make_combat()
@@ -394,7 +395,7 @@ class TestIroncladCombatEdgeCardModelParity:
         combat.energy = 2
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == 83
+        assert enemy.current_hp == 82
         assert combat.hand == [kept]
         assert to_exhaust in combat.exhaust_pile
 
@@ -447,18 +448,32 @@ class TestIroncladCombatEdgeCardModelParity:
         assert combat.is_over
         assert combat.player.block == 8
 
-    def test_drum_of_battle_draws_then_applies_power(self):
+    def test_drum_of_battle_draws_then_gains_energy_when_exhausted(self):
+        """v0.110.0 DrumOfBattle is a 1-cost Skill: draw Cards(2) on play, and
+        gain Energy from AfterCardExhausted only when the exhausted card is
+        itself. Upgrading raises Energy 2 -> 3; Cards stays at 2."""
         combat = _make_combat()
-        drawn = [make_strike_ironclad(), make_defend_ironclad(), make_strike_ironclad()]
-        combat.hand = [make_drum_of_battle(upgraded=True)]
+        drawn = [make_strike_ironclad(), make_defend_ironclad()]
+        drum = make_drum_of_battle(upgraded=True)
+        combat.hand = [drum]
         combat.draw_pile = list(drawn)
-        combat.energy = 0
+        combat.energy = 1
 
         assert combat.play_card(0)
         assert combat.hand == drawn
-        assert combat.player.get_power_amount(PowerId.DRUM_OF_BATTLE) == 1
+        assert combat.energy == 0
+        assert combat.player.get_power_amount(PowerId.DRUM_OF_BATTLE) == 0
 
-    def test_conflagration_scales_with_attacks_played_this_turn(self):
+        # Exhausting an unrelated card must not pay out.
+        combat.exhaust_card(combat.hand[0])
+        assert combat.energy == 0
+
+        combat.exhaust_card(drum)
+        assert combat.energy == 3
+
+    def test_conflagration_hits_every_enemy_four_times_regardless_of_attacks_played(self):
+        # Conflagration.cs: DamageVar(2) with RepeatVar(4) against all
+        # opponents; OnUpgrade raises Repeat by 1. No attack-count scaling.
         combat = _make_combat(extra_enemies=1)
         for enemy in combat.enemies:
             enemy.max_hp = 100
@@ -469,7 +484,17 @@ class TestIroncladCombatEdgeCardModelParity:
         assert combat.play_card(0, 0)
         assert combat.play_card(0, 0)
         assert combat.play_card(0)
-        assert [enemy.current_hp for enemy in combat.enemies] == [76, 88]
+        assert [enemy.current_hp for enemy in combat.enemies] == [80, 92]
+
+        upgraded = _make_combat(extra_enemies=1)
+        for enemy in upgraded.enemies:
+            enemy.max_hp = 100
+            enemy.current_hp = 100
+        upgraded.hand = [make_conflagration(upgraded=True)]
+        upgraded.energy = 1
+
+        assert upgraded.play_card(0)
+        assert [enemy.current_hp for enemy in upgraded.enemies] == [90, 90]
 
     def test_conflagration_hits_only_hittable_enemies(self):
         combat = _make_combat(extra_enemies=1)
@@ -484,7 +509,7 @@ class TestIroncladCombatEdgeCardModelParity:
         assert combat.play_card(0)
 
         assert blocked.current_hp == 100
-        assert hittable.current_hp == 84
+        assert hittable.current_hp == 86
 
     def test_fiend_fire_exhausts_all_hand_cards_before_damage_hits(self):
         combat = _make_combat()
@@ -509,7 +534,7 @@ class TestIroncladCombatEdgeCardModelParity:
         combat.player.block = 0
         combat._start_player_turn()  # noqa: SLF001
         assert combat.player.current_hp == start_hp - 1
-        assert combat.player.block == 8
+        assert combat.player.block == 7
 
     def test_thrash_exhausts_random_attack_and_adds_its_damage(self):
         combat = _make_combat()
@@ -594,7 +619,8 @@ class TestIroncladCombatEdgeCardModelParity:
         combat.energy = 2
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == 75
+        # Break.cs upgrades Damage by 10 (20 -> 30), not 5.
+        assert enemy.current_hp == 70
         assert enemy.get_power_amount(PowerId.VULNERABLE) == 7
 
     def test_break_does_not_apply_vulnerable_after_killing_target(self):
@@ -639,13 +665,13 @@ class TestIroncladCombatEdgeCardModelParity:
         combat.energy = 3
 
         assert combat.play_card(0)
-        assert combat.player.get_power_amount(PowerId.DEMON_FORM) == 3
+        assert combat.player.get_power_amount(PowerId.DEMON_FORM) == 4
         combat.player.powers[PowerId.DEMON_FORM].after_side_turn_start(
             combat.player,
             CombatSide.PLAYER,
             combat,
         )
-        assert combat.player.get_power_amount(PowerId.STRENGTH) == 3
+        assert combat.player.get_power_amount(PowerId.STRENGTH) == 4
 
     def test_corruption_applies_skill_cost_and_exhaust_rules(self):
         combat = _make_combat()
@@ -751,7 +777,7 @@ class TestIroncladCombatEdgeCardModelParity:
 
         assert combat.play_card(0, 0)
         assert combat.player.current_hp == hp_before - 2
-        assert enemy.current_hp == 86
+        assert enemy.current_hp == 85
 
     def test_inferno_increments_start_turn_self_damage_when_played(self):
         combat = _make_combat()
@@ -819,7 +845,7 @@ class TestIroncladCombatEdgeCardModelParity:
         combat.energy = 3
 
         assert combat.play_card(0, 0)
-        assert enemy.current_hp == 80
+        assert enemy.current_hp == 74
         assert enemy.get_power_amount(PowerId.MANGLE) == 15
         assert enemy.get_power_amount(PowerId.STRENGTH) == -11
 
@@ -850,7 +876,7 @@ class TestIroncladCombatEdgeCardModelParity:
 
         combat._apply_card_before_hand_draw(combat.player)  # noqa: SLF001
 
-        assert [enemy.current_hp for enemy in combat.enemies] == [84, 84]
+        assert [enemy.current_hp for enemy in combat.enemies] == [82, 82]
         assert card in combat.discard_pile
 
     def test_stomp_cost_drops_for_owner_attacks_played_this_turn(self):
@@ -923,28 +949,34 @@ class TestIroncladCombatEdgeCardModelParity:
         assert stop in combat.hand
         assert combat.draw_pile == [remaining]
 
-    def test_spite_draws_only_after_owner_took_unblocked_damage_this_turn(self):
+    def test_spite_hits_twice_only_after_owner_took_unblocked_damage_this_turn(self):
+        # Spite.cs: DamageVar(5) with RepeatVar(2); hitCount is Repeat only
+        # when the owner lost HP this turn, otherwise 1. It never draws.
         combat = _make_combat()
         enemy = combat.enemies[0]
-        missed_draw = make_defend_ironclad()
+        enemy.max_hp = enemy.current_hp = 100
+        untouched_draw = make_defend_ironclad()
         combat.hand = [make_spite()]
-        combat.draw_pile = [missed_draw]
+        combat.draw_pile = [untouched_draw]
         combat.energy = 0
 
         assert combat.play_card(0, 0)
+        assert enemy.current_hp == 95
         assert combat.hand == []
-        assert combat.draw_pile == [missed_draw]
+        assert combat.draw_pile == [untouched_draw]
 
         damaged_combat = _make_combat()
-        enemy = damaged_combat.enemies[0]
-        drawn = make_defend_ironclad()
+        damaged_enemy = damaged_combat.enemies[0]
+        damaged_enemy.max_hp = damaged_enemy.current_hp = 100
+        not_drawn = make_defend_ironclad()
         damaged_combat.hand = [make_bloodletting(), make_spite()]
-        damaged_combat.draw_pile = [drawn]
+        damaged_combat.draw_pile = [not_drawn]
         damaged_combat.energy = 1
 
         assert damaged_combat.play_card(0)
         assert damaged_combat.play_card(0, 0)
-        assert damaged_combat.hand == [drawn]
+        assert damaged_enemy.current_hp == 90
+        assert damaged_combat.draw_pile == [not_drawn]
 
     def test_expect_a_fight_gains_energy_for_attacks_in_hand_not_skills(self):
         combat = _make_combat()

@@ -2,6 +2,10 @@ using Godot;
 
 namespace MegaCrit.Sts2.Core.Helpers;
 
+/// <summary>
+/// Color reference class for this specific game, Slay the Spire 2.
+/// If a color is a one-off, it probably doesn't need to be live here.
+/// </summary>
 public static class StsColors
 {
 	public static readonly Color aqua = new Color("2AEBBE");
@@ -55,6 +59,8 @@ public static class StsColors
 	public static readonly Color lightGray = new Color(0.75f, 0.75f, 0.75f);
 
 	public static readonly Color gray = new Color(0.5f, 0.5f, 0.5f);
+
+	public static readonly Color disabledRed = new Color("BF3030");
 
 	public static readonly Color placeholderGrayTabButton = new Color(0.75f, 0.75f, 0.75f);
 

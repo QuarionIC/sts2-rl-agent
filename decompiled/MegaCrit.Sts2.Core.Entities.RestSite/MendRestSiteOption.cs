@@ -72,7 +72,7 @@ public sealed class MendRestSiteOption : RestSiteOption
 			NRestSiteRoom.Instance.AnimateDescriptionDown();
 			NRestSiteButton buttonForOption = NRestSiteRoom.Instance.GetButtonForOption(this);
 			Vector2 startPosition = buttonForOption.GlobalPosition + buttonForOption.Size / 2f;
-			bool usingController = NControllerManager.Instance.IsUsingController;
+			bool usingController = NControllerManager.Instance.IsUsingDirectionalNavigation;
 			NTargetManager targetManager = NTargetManager.Instance;
 			targetManager.StartTargeting(TargetType.AnyPlayer, startPosition, usingController ? TargetMode.Controller : TargetMode.ClickMouseToTarget, ShouldCancelTargeting, AllowHoveringNode);
 			if (usingController)
@@ -111,9 +111,9 @@ public sealed class MendRestSiteOption : RestSiteOption
 				targetManager.Disconnect(NTargetManager.SignalName.NodeUnhovered, Callable.From<Node>(OnNodeUnhovered));
 				if (usingController)
 				{
-					foreach (NRestSiteCharacter item in NRestSiteRoom.Instance?.characterAnims ?? new List<NRestSiteCharacter>())
+					foreach (NRestSiteCharacter characterAnim in NRestSiteRoom.Instance.characterAnims)
 					{
-						item.Hitbox.SetFocusMode(Control.FocusModeEnum.None);
+						characterAnim.Hitbox.SetFocusMode(Control.FocusModeEnum.None);
 					}
 				}
 			}
@@ -145,6 +145,9 @@ public sealed class MendRestSiteOption : RestSiteOption
 		return false;
 	}
 
+	/// <summary>
+	/// Called when a targetable node (rest site character, player state display) is hovered.
+	/// </summary>
 	private void OnNodeHovered(Node node)
 	{
 		Player player = NodeToPlayer(node);
@@ -158,12 +161,19 @@ public sealed class MendRestSiteOption : RestSiteOption
 		}
 	}
 
+	/// <summary>
+	/// Called when a targetable node (rest site character, player state display) is unhovered.
+	/// </summary>
 	private void OnNodeUnhovered(Node _)
 	{
 		Description.Add("HasTarget", variable: false);
 		NRestSiteRoom.Instance?.GetButtonForOption(this)?.RefreshTextState();
 	}
 
+	/// <summary>
+	/// Translates a node target to a player.
+	/// The node target can be a character at the rest site or a remote player's state display at the top-left.
+	/// </summary>
 	private Player? NodeToPlayer(Node? node)
 	{
 		if (node == null)

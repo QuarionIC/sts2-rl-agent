@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Threading;
 using System.Threading.Tasks;
 using Godot;
 using Godot.Bridge;
@@ -17,37 +19,74 @@ namespace MegaCrit.sts2.Core.Nodes.TopBar;
 [ScriptPath("res://src/Core/Nodes/TopBar/NTopBarGold.cs")]
 public class NTopBarGold : NClickableControl
 {
+	/// <summary>
+	/// Cached StringNames for the methods contained in this class, for fast lookup.
+	/// </summary>
 	public new class MethodName : NClickableControl.MethodName
 	{
+		/// <summary>
+		/// Cached name for the '_Ready' method.
+		/// </summary>
 		public new static readonly StringName _Ready = "_Ready";
 
-		public new static readonly StringName _ExitTree = "_ExitTree";
+		/// <summary>
+		/// Cached name for the '_Notification' method.
+		/// </summary>
+		public new static readonly StringName _Notification = "_Notification";
 
+		/// <summary>
+		/// Cached name for the 'UpdateGold' method.
+		/// </summary>
 		public static readonly StringName UpdateGold = "UpdateGold";
 
+		/// <summary>
+		/// Cached name for the 'OnFocus' method.
+		/// </summary>
 		public new static readonly StringName OnFocus = "OnFocus";
 
+		/// <summary>
+		/// Cached name for the 'OnUnfocus' method.
+		/// </summary>
 		public new static readonly StringName OnUnfocus = "OnUnfocus";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the properties and fields contained in this class, for fast lookup.
+	/// </summary>
 	public new class PropertyName : NClickableControl.PropertyName
 	{
+		/// <summary>
+		/// Cached name for the '_goldLabel' field.
+		/// </summary>
 		public static readonly StringName _goldLabel = "_goldLabel";
 
+		/// <summary>
+		/// Cached name for the '_goldPopupLabel' field.
+		/// </summary>
 		public static readonly StringName _goldPopupLabel = "_goldPopupLabel";
 
+		/// <summary>
+		/// Cached name for the '_currentGold' field.
+		/// </summary>
 		public static readonly StringName _currentGold = "_currentGold";
 
+		/// <summary>
+		/// Cached name for the '_additionalGold' field.
+		/// </summary>
 		public static readonly StringName _additionalGold = "_additionalGold";
 
+		/// <summary>
+		/// Cached name for the '_alreadyRunning' field.
+		/// </summary>
 		public static readonly StringName _alreadyRunning = "_alreadyRunning";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the signals contained in this class, for fast lookup.
+	/// </summary>
 	public new class SignalName : NClickableControl.SignalName
 	{
 	}
-
-	private static readonly HoverTip _hoverTip = new HoverTip(new LocString("static_hover_tips", "MONEY_POUCH.title"), new LocString("static_hover_tips", "MONEY_POUCH.description"));
 
 	private Player? _player;
 
@@ -61,6 +100,8 @@ public class NTopBarGold : NClickableControl
 
 	private bool _alreadyRunning;
 
+	private CancellationTokenSource? _animCts;
+
 	public override void _Ready()
 	{
 		_goldLabel = GetNode<MegaLabel>("%GoldLabel");
@@ -69,21 +110,24 @@ public class NTopBarGold : NClickableControl
 		ConnectSignals();
 	}
 
-	public override void _ExitTree()
-	{
-		base._ExitTree();
-		if (_player != null)
-		{
-			_player.GoldChanged -= UpdateGold;
-		}
-	}
-
 	public void Initialize(Player player)
 	{
 		_player = player;
 		_currentGold = _player.Gold;
 		_goldLabel.SetTextAutoSize($"{_currentGold}");
 		_player.GoldChanged += UpdateGold;
+	}
+
+	public override void _Notification(int what)
+	{
+		if ((long)what == 1)
+		{
+			_animCts?.Cancel();
+			if (_player != null)
+			{
+				_player.GoldChanged -= UpdateGold;
+			}
+		}
 	}
 
 	private void UpdateGold()
@@ -105,40 +149,52 @@ public class NTopBarGold : NClickableControl
 		{
 			return;
 		}
+		_animCts = new CancellationTokenSource();
+		CancellationToken ct = _animCts.Token;
 		_alreadyRunning = true;
-		Tween tween = CreateTween().SetParallel();
-		tween.TweenProperty(_goldPopupLabel, "modulate:a", 1f, 0.15000000596046448);
-		tween.TweenProperty(_goldPopupLabel, "position:y", _goldPopupLabel.Position.Y + 30f, 0.25);
-		await ToSignal(tween, Tween.SignalName.Finished);
-		await Task.Delay(150);
-		while (_additionalGold != 0)
+		try
 		{
-			int num = 1;
-			if (Mathf.Abs(_additionalGold) > 100)
+			Tween tween = CreateTween().SetParallel();
+			tween.TweenProperty(_goldPopupLabel, "modulate:a", 1f, 0.15000000596046448);
+			tween.TweenProperty(_goldPopupLabel, "position:y", _goldPopupLabel.Position.Y + 30f, 0.25);
+			await tween.AwaitFinished(ct);
+			await Task.Delay(150, ct);
+			while (_additionalGold != 0)
 			{
-				num = 75;
+				ct.ThrowIfCancellationRequested();
+				int num = 1;
+				if (Mathf.Abs(_additionalGold) > 100)
+				{
+					num = 75;
+				}
+				else if (Mathf.Abs(_additionalGold) > 50)
+				{
+					num = 10;
+				}
+				_additionalGold = ((_additionalGold > 0) ? (_additionalGold - num) : (_additionalGold + num));
+				_goldPopupLabel.SetTextAutoSize(((_additionalGold >= 0) ? "+" : "") + _additionalGold);
+				_goldLabel.SetTextAutoSize($"{_player.Gold - _additionalGold}");
+				await Task.Delay((int)Mathf.Lerp(10f, 20f, Mathf.Max(0, 10 - Mathf.Abs(_additionalGold))), ct);
 			}
-			else if (Mathf.Abs(_additionalGold) > 50)
-			{
-				num = 10;
-			}
-			_additionalGold = ((_additionalGold > 0) ? (_additionalGold - num) : (_additionalGold + num));
-			_goldPopupLabel.SetTextAutoSize(((_additionalGold >= 0) ? "+" : "") + _additionalGold);
-			_goldLabel.SetTextAutoSize($"{_player.Gold - _additionalGold}");
-			await Task.Delay((int)Mathf.Lerp(10f, 20f, Mathf.Max(0, 10 - Mathf.Abs(_additionalGold))));
+			await Task.Delay(250, ct);
+			Tween tween2 = CreateTween().SetParallel();
+			tween2.TweenProperty(_goldPopupLabel, "modulate:a", 0f, 0.10000000149011612);
+			tween2.TweenProperty(_goldPopupLabel, "position:y", _goldPopupLabel.Position.Y - 30f, 0.25).FromCurrent();
+			_goldLabel.SetTextAutoSize($"{_player.Gold}");
 		}
-		await Task.Delay(250);
-		Tween tween2 = CreateTween().SetParallel();
-		tween2.TweenProperty(_goldPopupLabel, "modulate:a", 0f, 0.10000000149011612);
-		tween2.TweenProperty(_goldPopupLabel, "position:y", _goldPopupLabel.Position.Y - 30f, 0.25).FromCurrent();
-		_goldLabel.SetTextAutoSize($"{_player.Gold}");
-		_alreadyRunning = false;
+		catch (OperationCanceledException)
+		{
+		}
+		finally
+		{
+			_alreadyRunning = false;
+		}
 	}
 
 	protected override void OnFocus()
 	{
-		NHoverTipSet nHoverTipSet = NHoverTipSet.CreateAndShow(this, _hoverTip);
-		nHoverTipSet.GlobalPosition = base.GlobalPosition + new Vector2(0f, base.Size.Y + 20f);
+		HoverTip hoverTip = new HoverTip(new LocString("static_hover_tips", "MONEY_POUCH.title"), new LocString("static_hover_tips", "MONEY_POUCH.description"));
+		NHoverTipSet.CreateAndShow(this, hoverTip)?.SetGlobalPosition(base.GlobalPosition + new Vector2(0f, base.Size.Y + 20f));
 	}
 
 	protected override void OnUnfocus()
@@ -146,18 +202,27 @@ public class NTopBarGold : NClickableControl
 		NHoverTipSet.Remove(this);
 	}
 
+	/// <summary>
+	/// Get the method information for all the methods declared in this class.
+	/// This method is used by Godot to register the available methods in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<MethodInfo> GetGodotMethodList()
 	{
 		List<MethodInfo> list = new List<MethodInfo>(5);
 		list.Add(new MethodInfo(MethodName._Ready, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
-		list.Add(new MethodInfo(MethodName._ExitTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
+		list.Add(new MethodInfo(MethodName._Notification, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
+		{
+			new PropertyInfo(Variant.Type.Int, "what", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false)
+		}, null));
 		list.Add(new MethodInfo(MethodName.UpdateGold, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.OnFocus, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.OnUnfocus, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool InvokeGodotClassMethod(in godot_string_name method, NativeVariantPtrArgs args, out godot_variant ret)
 	{
@@ -167,9 +232,9 @@ public class NTopBarGold : NClickableControl
 			ret = default(godot_variant);
 			return true;
 		}
-		if (method == MethodName._ExitTree && args.Count == 0)
+		if (method == MethodName._Notification && args.Count == 1)
 		{
-			_ExitTree();
+			_Notification(VariantUtils.ConvertTo<int>(in args[0]));
 			ret = default(godot_variant);
 			return true;
 		}
@@ -194,6 +259,7 @@ public class NTopBarGold : NClickableControl
 		return base.InvokeGodotClassMethod(in method, args, out ret);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassMethod(in godot_string_name method)
 	{
@@ -201,7 +267,7 @@ public class NTopBarGold : NClickableControl
 		{
 			return true;
 		}
-		if (method == MethodName._ExitTree)
+		if (method == MethodName._Notification)
 		{
 			return true;
 		}
@@ -220,6 +286,7 @@ public class NTopBarGold : NClickableControl
 		return base.HasGodotClassMethod(in method);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool SetGodotClassPropertyValue(in godot_string_name name, in godot_variant value)
 	{
@@ -251,6 +318,7 @@ public class NTopBarGold : NClickableControl
 		return base.SetGodotClassPropertyValue(in name, in value);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool GetGodotClassPropertyValue(in godot_string_name name, out godot_variant value)
 	{
@@ -282,6 +350,11 @@ public class NTopBarGold : NClickableControl
 		return base.GetGodotClassPropertyValue(in name, out value);
 	}
 
+	/// <summary>
+	/// Get the property information for all the properties declared in this class.
+	/// This method is used by Godot to register the available properties in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<PropertyInfo> GetGodotPropertyList()
 	{
@@ -294,6 +367,7 @@ public class NTopBarGold : NClickableControl
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void SaveGodotObjectData(GodotSerializationInfo info)
 	{
@@ -305,6 +379,7 @@ public class NTopBarGold : NClickableControl
 		info.AddProperty(PropertyName._alreadyRunning, Variant.From(in _alreadyRunning));
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RestoreGodotObjectData(GodotSerializationInfo info)
 	{

@@ -10,60 +10,131 @@ using MegaCrit.Sts2.Core.Nodes.CommonUi;
 
 namespace MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 
+/// <summary>
+/// A Base Button class which doesn't rely on Godot's Button class.
+/// </summary>
 [ScriptPath("res://src/Core/Nodes/GodotExtensions/NButton.cs")]
 public class NButton : NClickableControl
 {
+	/// <summary>
+	/// Cached StringNames for the methods contained in this class, for fast lookup.
+	/// </summary>
 	public new class MethodName : NClickableControl.MethodName
 	{
+		/// <summary>
+		/// Cached name for the '_Ready' method.
+		/// </summary>
 		public new static readonly StringName _Ready = "_Ready";
 
+		/// <summary>
+		/// Cached name for the 'ConnectSignals' method.
+		/// </summary>
 		public new static readonly StringName ConnectSignals = "ConnectSignals";
 
+		/// <summary>
+		/// Cached name for the 'GetControllerIconNode' method.
+		/// </summary>
+		public static readonly StringName GetControllerIconNode = "GetControllerIconNode";
+
+		/// <summary>
+		/// Cached name for the '_EnterTree' method.
+		/// </summary>
 		public new static readonly StringName _EnterTree = "_EnterTree";
 
+		/// <summary>
+		/// Cached name for the '_Input' method.
+		/// </summary>
 		public new static readonly StringName _Input = "_Input";
 
+		/// <summary>
+		/// Cached name for the 'OnPress' method.
+		/// </summary>
 		public new static readonly StringName OnPress = "OnPress";
 
+		/// <summary>
+		/// Cached name for the 'OnFocus' method.
+		/// </summary>
 		public new static readonly StringName OnFocus = "OnFocus";
 
+		/// <summary>
+		/// Cached name for the 'OnEnable' method.
+		/// </summary>
 		public new static readonly StringName OnEnable = "OnEnable";
 
+		/// <summary>
+		/// Cached name for the 'OnDisable' method.
+		/// </summary>
 		public new static readonly StringName OnDisable = "OnDisable";
 
+		/// <summary>
+		/// Cached name for the 'UpdateControllerButton' method.
+		/// </summary>
 		public static readonly StringName UpdateControllerButton = "UpdateControllerButton";
 
+		/// <summary>
+		/// Cached name for the 'RegisterHotkeys' method.
+		/// </summary>
 		public static readonly StringName RegisterHotkeys = "RegisterHotkeys";
 
+		/// <summary>
+		/// Cached name for the 'UnregisterHotkeys' method.
+		/// </summary>
 		public static readonly StringName UnregisterHotkeys = "UnregisterHotkeys";
 
+		/// <summary>
+		/// Cached name for the '_ExitTree' method.
+		/// </summary>
 		public new static readonly StringName _ExitTree = "_ExitTree";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the properties and fields contained in this class, for fast lookup.
+	/// </summary>
 	public new class PropertyName : NClickableControl.PropertyName
 	{
+		/// <summary>
+		/// Cached name for the 'ClickedSfx' property.
+		/// </summary>
 		public static readonly StringName ClickedSfx = "ClickedSfx";
 
+		/// <summary>
+		/// Cached name for the 'HoveredSfx' property.
+		/// </summary>
 		public static readonly StringName HoveredSfx = "HoveredSfx";
 
+		/// <summary>
+		/// Cached name for the 'Hotkeys' property.
+		/// </summary>
 		public static readonly StringName Hotkeys = "Hotkeys";
 
+		/// <summary>
+		/// Cached name for the 'ControllerIconHotkey' property.
+		/// </summary>
 		public static readonly StringName ControllerIconHotkey = "ControllerIconHotkey";
 
+		/// <summary>
+		/// Cached name for the 'HasControllerHotkey' property.
+		/// </summary>
 		public static readonly StringName HasControllerHotkey = "HasControllerHotkey";
 
-		public static readonly StringName _controllerHotkeyIcon = "_controllerHotkeyIcon";
+		/// <summary>
+		/// Cached name for the '_hotkeyIcon' field.
+		/// </summary>
+		public static readonly StringName _hotkeyIcon = "_hotkeyIcon";
 	}
 
+	/// <summary>
+	/// Cached StringNames for the signals contained in this class, for fast lookup.
+	/// </summary>
 	public new class SignalName : NClickableControl.SignalName
 	{
 	}
 
-	protected TextureRect? _controllerHotkeyIcon;
+	protected NHotkeyIcon? _hotkeyIcon;
 
 	protected virtual string? ClickedSfx => "event:/sfx/ui/clicks/ui_click";
 
-	protected virtual string HoveredSfx => "event:/sfx/ui/clicks/ui_hover";
+	protected virtual string? HoveredSfx => "event:/sfx/ui/clicks/ui_hover";
 
 	protected virtual string[] Hotkeys => Array.Empty<string>();
 
@@ -98,8 +169,13 @@ public class NButton : NClickableControl
 		{
 			RegisterHotkeys();
 		}
-		_controllerHotkeyIcon = GetNodeOrNull<TextureRect>("%ControllerIcon");
+		GetControllerIconNode();
 		UpdateControllerButton();
+	}
+
+	protected virtual void GetControllerIconNode()
+	{
+		_hotkeyIcon = GetNodeOrNull<NHotkeyIcon>("%HotkeyIcon");
 	}
 
 	public override void _EnterTree()
@@ -115,6 +191,10 @@ public class NButton : NClickableControl
 		}
 	}
 
+	/// <summary>
+	/// Detects input actions
+	/// </summary>
+	/// <param name="inputEvent"></param>
 	public override void _Input(InputEvent inputEvent)
 	{
 		CheckMouseDragThreshold(inputEvent);
@@ -130,12 +210,15 @@ public class NButton : NClickableControl
 
 	protected override void OnFocus()
 	{
-		SfxCmd.Play(HoveredSfx);
+		if (HoveredSfx != null)
+		{
+			SfxCmd.Play(HoveredSfx);
+		}
 	}
 
 	protected override void OnEnable()
 	{
-		Callable.From(RegisterHotkeys).CallDeferred();
+		RegisterHotkeys();
 		UpdateControllerButton();
 	}
 
@@ -147,22 +230,13 @@ public class NButton : NClickableControl
 
 	protected void UpdateControllerButton()
 	{
-		if (_controllerHotkeyIcon == null)
-		{
-			return;
-		}
 		NControllerManager instance = NControllerManager.Instance;
-		if (instance == null)
+		if (instance != null && _hotkeyIcon != null)
 		{
-			return;
-		}
-		_controllerHotkeyIcon.Visible = instance.IsUsingController && _isEnabled;
-		if (ControllerIconHotkey != null)
-		{
-			Texture2D hotkeyIcon = NInputManager.Instance.GetHotkeyIcon(ControllerIconHotkey);
-			if (hotkeyIcon != null)
+			_hotkeyIcon.Visible = instance.IsUsingDirectionalNavigation && _isEnabled;
+			if (ControllerIconHotkey != null)
 			{
-				_controllerHotkeyIcon.Texture = hotkeyIcon;
+				_hotkeyIcon.UpdateInput(ControllerIconHotkey);
 			}
 		}
 	}
@@ -207,12 +281,18 @@ public class NButton : NClickableControl
 		UnregisterHotkeys();
 	}
 
+	/// <summary>
+	/// Get the method information for all the methods declared in this class.
+	/// This method is used by Godot to register the available methods in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<MethodInfo> GetGodotMethodList()
 	{
-		List<MethodInfo> list = new List<MethodInfo>(12);
+		List<MethodInfo> list = new List<MethodInfo>(13);
 		list.Add(new MethodInfo(MethodName._Ready, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName.ConnectSignals, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
+		list.Add(new MethodInfo(MethodName.GetControllerIconNode, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName._EnterTree, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, null, null));
 		list.Add(new MethodInfo(MethodName._Input, new PropertyInfo(Variant.Type.Nil, "", PropertyHint.None, "", PropertyUsageFlags.Default, exported: false), MethodFlags.Normal, new List<PropertyInfo>
 		{
@@ -229,6 +309,7 @@ public class NButton : NClickableControl
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool InvokeGodotClassMethod(in godot_string_name method, NativeVariantPtrArgs args, out godot_variant ret)
 	{
@@ -241,6 +322,12 @@ public class NButton : NClickableControl
 		if (method == MethodName.ConnectSignals && args.Count == 0)
 		{
 			ConnectSignals();
+			ret = default(godot_variant);
+			return true;
+		}
+		if (method == MethodName.GetControllerIconNode && args.Count == 0)
+		{
+			GetControllerIconNode();
 			ret = default(godot_variant);
 			return true;
 		}
@@ -307,6 +394,7 @@ public class NButton : NClickableControl
 		return base.InvokeGodotClassMethod(in method, args, out ret);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool HasGodotClassMethod(in godot_string_name method)
 	{
@@ -315,6 +403,10 @@ public class NButton : NClickableControl
 			return true;
 		}
 		if (method == MethodName.ConnectSignals)
+		{
+			return true;
+		}
+		if (method == MethodName.GetControllerIconNode)
 		{
 			return true;
 		}
@@ -361,17 +453,19 @@ public class NButton : NClickableControl
 		return base.HasGodotClassMethod(in method);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool SetGodotClassPropertyValue(in godot_string_name name, in godot_variant value)
 	{
-		if (name == PropertyName._controllerHotkeyIcon)
+		if (name == PropertyName._hotkeyIcon)
 		{
-			_controllerHotkeyIcon = VariantUtils.ConvertTo<TextureRect>(in value);
+			_hotkeyIcon = VariantUtils.ConvertTo<NHotkeyIcon>(in value);
 			return true;
 		}
 		return base.SetGodotClassPropertyValue(in name, in value);
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override bool GetGodotClassPropertyValue(in godot_string_name name, out godot_variant value)
 	{
@@ -404,14 +498,19 @@ public class NButton : NClickableControl
 			value = VariantUtils.CreateFrom<bool>(HasControllerHotkey);
 			return true;
 		}
-		if (name == PropertyName._controllerHotkeyIcon)
+		if (name == PropertyName._hotkeyIcon)
 		{
-			value = VariantUtils.CreateFrom(in _controllerHotkeyIcon);
+			value = VariantUtils.CreateFrom(in _hotkeyIcon);
 			return true;
 		}
 		return base.GetGodotClassPropertyValue(in name, out value);
 	}
 
+	/// <summary>
+	/// Get the property information for all the properties declared in this class.
+	/// This method is used by Godot to register the available properties in the editor.
+	/// Do not call this method.
+	/// </summary>
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	internal new static List<PropertyInfo> GetGodotPropertyList()
 	{
@@ -421,24 +520,26 @@ public class NButton : NClickableControl
 		list.Add(new PropertyInfo(Variant.Type.PackedStringArray, PropertyName.Hotkeys, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.String, PropertyName.ControllerIconHotkey, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		list.Add(new PropertyInfo(Variant.Type.Bool, PropertyName.HasControllerHotkey, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
-		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._controllerHotkeyIcon, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
+		list.Add(new PropertyInfo(Variant.Type.Object, PropertyName._hotkeyIcon, PropertyHint.None, "", PropertyUsageFlags.ScriptVariable, exported: false));
 		return list;
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void SaveGodotObjectData(GodotSerializationInfo info)
 	{
 		base.SaveGodotObjectData(info);
-		info.AddProperty(PropertyName._controllerHotkeyIcon, Variant.From(in _controllerHotkeyIcon));
+		info.AddProperty(PropertyName._hotkeyIcon, Variant.From(in _hotkeyIcon));
 	}
 
+	/// <inheritdoc />
 	[EditorBrowsable(EditorBrowsableState.Never)]
 	protected override void RestoreGodotObjectData(GodotSerializationInfo info)
 	{
 		base.RestoreGodotObjectData(info);
-		if (info.TryGetProperty(PropertyName._controllerHotkeyIcon, out var value))
+		if (info.TryGetProperty(PropertyName._hotkeyIcon, out var value))
 		{
-			_controllerHotkeyIcon = value.As<TextureRect>();
+			_hotkeyIcon = value.As<NHotkeyIcon>();
 		}
 	}
 }
