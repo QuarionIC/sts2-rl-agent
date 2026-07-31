@@ -137,3 +137,81 @@ def test_hp_only_wins_when_it_is_nearly_free():
     # Between two lines that win equally often, the cheaper one must win.
     cfg = _cfg()
     assert _expected_value(cfg, 0.85, 0.10) > _expected_value(cfg, 0.85, 0.60)
+
+
+class TestDamageShapingIsPolicyInvariant:
+    """PBRS must change WHEN the HP signal arrives, never the objective.
+
+    The terminal charge alone did not move behaviour: over 1.5M-step arms
+    warm-started from one checkpoint, HP retained among wins went 0.500 (no
+    term) -> 0.519 at w=2.0 and 0.508 at w=4.0 -- under a fifth of the 7.1 HP
+    gap to the planner, and non-monotonic in the weight. A combat is ~30
+    actions and the whole charge landed on the last one, so the fix is credit
+    assignment, not a bigger number.
+
+    Shaping is only SAFE to add because it telescopes: Phi(s0) = 0 (no damage
+    yet) and Phi := 0 at terminal, so the per-episode sum is exactly zero and
+    the optimal policy is untouched. That property is load-bearing and it is
+    easy to break by accident -- assigning rather than accumulating the
+    terminal reward silently drops the final cancelling term, turning the
+    shaping into a second, double-counted damage penalty. These tests exist
+    because that is precisely the bug that was written here first.
+    """
+
+    @staticmethod
+    def _play(env, seed):
+        import numpy as np
+
+        env.reset(seed=seed)
+        done = tr = False
+        total = 0.0
+        steps = 0
+        while not (done or tr) and steps < 400:
+            legal = np.flatnonzero(env.action_masks())
+            action = int(legal[-1]) if legal.size > 1 else int(legal[0])
+            _, reward, done, tr, _ = env.step(action)
+            total += reward
+            steps += 1
+        return total
+
+    def _env(self):
+        import sts2_env.events  # noqa: F401
+        from sts2_env.gym_env.rich_combat_env import RichSTS2CombatEnv
+
+        return RichSTS2CombatEnv(character_id="Necrobinder", ascension_level=0)
+
+    @pytest.mark.parametrize("seed", [0, 2, 4, 5, 9, 11])
+    def test_episode_return_is_identical_with_and_without_shaping(self, seed):
+        env = self._env()
+        env.set_shaping_scale(1.0)
+        shaped = self._play(env, seed)
+        env.set_shaping_scale(0.0)
+        sparse = self._play(env, seed)
+        assert shaped == pytest.approx(sparse, abs=1e-6), (
+            "shaping changed the episode return, so it is no longer a "
+            "potential: the optimal policy has moved and every number "
+            "measured before it is no longer comparable"
+        )
+
+    def test_shaping_actually_delivers_mid_episode_signal(self):
+        # Invariance is worthless if the term does nothing; the whole point
+        # is a non-zero reward on the steps where damage is taken.
+        import numpy as np
+
+        env = self._env()
+        env.set_shaping_scale(1.0)
+        env.reset(seed=0)
+        done = tr = False
+        mid_episode_nonzero = 0
+        steps = 0
+        while not (done or tr) and steps < 400:
+            legal = np.flatnonzero(env.action_masks())
+            action = int(legal[-1]) if legal.size > 1 else int(legal[0])
+            _, reward, done, tr, _ = env.step(action)
+            steps += 1
+            if not (done or tr) and reward != 0.0:
+                mid_episode_nonzero += 1
+        assert mid_episode_nonzero > 0, (
+            "no mid-episode reward: the shaping is inert and the HP charge "
+            "still arrives only at the end"
+        )

@@ -228,6 +228,26 @@ class RewardConfig:
     #: this is 2.0 and not "as large as the loss bound allows".
     w_combat_hp_retained: float = 2.0
 
+    #: COMBAT-ONLY PBRS on cumulative damage: Phi(s) = -w * damage/max_hp.
+    #:
+    #: The terminal charge alone did not move behaviour. Measured 2026-07-31
+    #: over 1.5M-step arms warm-started from the same checkpoint, HP retained
+    #: among wins went 0.500 (no term) -> 0.519 at w_combat_hp_retained=2.0
+    #: and 0.508 at 4.0 -- under a fifth of the 7.1 HP gap to the planner, and
+    #: NON-MONOTONIC in the weight, which is the signature of noise rather
+    #: than a real effect.
+    #:
+    #: The problem is credit assignment, not sizing: a combat is ~30 actions
+    #: and the entire HP charge arrived on the last one. This delivers it on
+    #: the step the damage is taken. Being a potential with
+    #: Phi(s0) = Phi(terminal) = 0, it telescopes to zero over the episode and
+    #: cannot change the optimal policy -- it only makes the existing
+    #: objective learnable. Eval zeroes shaping_scale, so reported numbers
+    #: stay pure-sparse and comparable across every measurement.
+    #:
+    #: Sized to match the terminal charge so the two speak the same units.
+    w_combat_hp_shaping: float = 2.0
+
     #: Bounds on the HP cost ratio. The floor is NEGATIVE because a net heal
     #: (Necrobinder heals mid-combat) is real value and should pay -- but
     #: only up to +0.5 reward, so a Regen stall cannot out-earn winning

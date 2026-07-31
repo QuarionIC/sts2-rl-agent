@@ -301,6 +301,10 @@ class RichSTS2CombatEnv(gymnasium.Env):
 
         self._hp_start = self.combat.primary_player.current_hp
         self._step_count = 0
+        # Potential at s0. Damage is 0 here, so Phi(s0) = 0 and the shaping
+        # telescopes to exactly zero over the episode -- it changes WHEN the
+        # HP signal arrives, never what the optimal policy is.
+        self._phi = 0.0
 
         obs = self._encoder.encode_combat(self.combat)
         info = {"action_mask": get_action_mask(self.combat)}
@@ -338,14 +342,49 @@ class RichSTS2CombatEnv(gymnasium.Env):
         reward = 0.0
         won = False
         hp_cost = None
+
+        # PBRS on cumulative damage: F = gamma*Phi(s') - Phi(s), Phi := 0 at
+        # terminal states.
+        #
+        # The terminal HP charge alone did not move behaviour. Measured
+        # 2026-07-31 over 1.5M-step arms, HP retained among wins went 0.500
+        # (no term) -> 0.519 at w=2.0 and 0.508 at w=4.0: under a fifth of the
+        # 7.1 HP gap to the planner, and NON-MONOTONIC in the weight, which is
+        # noise rather than effect. The reason is credit assignment, not
+        # sizing -- a fight is ~30 actions and the whole HP charge landed on
+        # the last one.
+        #
+        # This delivers the charge on the step the damage is actually taken.
+        # Because Phi is a potential and Phi(s0) = Phi(terminal) = 0, the
+        # episode total is unchanged: it is a pure learning-rate device on the
+        # objective the terminal term already defines. Eval sets
+        # shaping_scale = 0, so reported numbers stay pure-sparse and remain
+        # comparable with every measurement taken before this existed.
+        if cfg.w_combat_hp_shaping > 0.0:
+            phi_next = 0.0 if (terminated or truncated) else self._potential()
+            reward += cfg.shaping_scale * (
+                cfg.gamma_shape * phi_next - self._phi)
+            self._phi = phi_next
+
+        # ACCUMULATE onto the shaping, never overwrite it.
+        #
+        # PBRS only telescopes to zero if the FINAL F -- which is
+        # gamma*0 - Phi(s_last), the positive term that cancels every negative
+        # one before it -- actually reaches the agent. Assigning `reward =`
+        # here discarded exactly that term, so the shaping summed to
+        # -Phi(s_last) instead of 0 and quietly became a real per-episode
+        # damage penalty ON TOP of the terminal charge: double-counted, and no
+        # longer policy-invariant. Caught by asserting the episode total is
+        # identical with shaping on and off, which is the property that makes
+        # PBRS safe to add at all.
         if terminated:
             won = combat.player_won
             _cb = self.combat
             _down = cfg.enemy_down(_cb) if _cb is not None else None
             hp_cost = self._hp_cost()
-            reward = cfg.combat_terminal_reward(won, _down, hp_cost)
+            reward += cfg.combat_terminal_reward(won, _down, hp_cost)
         elif truncated:
-            reward = cfg.death
+            reward += cfg.death
 
         obs = self._encoder.encode_combat(combat)
         info = {"action_mask": get_action_mask(combat)}
@@ -359,6 +398,17 @@ class RichSTS2CombatEnv(gymnasium.Env):
                 info["hp_cost"] = hp_cost
                 info["hp_end"] = int(combat.primary_player.current_hp)
         return obs, float(reward), terminated, truncated, info
+
+    def _potential(self) -> float:
+        """Phi(s) = -w * cumulative damage so far, as a fraction of max_hp.
+
+        Negative and monotonically decreasing, so every point of damage taken
+        produces an immediate negative reward of the same size the terminal
+        charge would eventually have applied.
+        """
+        assert self.combat is not None
+        cfg = self.reward_config
+        return -cfg.w_combat_hp_shaping * self._hp_cost()
 
     def _hp_cost(self) -> float:
         """NET HP lost this combat as a fraction of max_hp.
