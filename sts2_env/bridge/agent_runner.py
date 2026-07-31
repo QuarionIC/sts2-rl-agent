@@ -1781,8 +1781,11 @@ def main() -> None:
     parser.add_argument(
         "--combat-delay",
         type=float,
-        default=0.0,
-        help="Seconds to pause before each combat action (end turn is always instant).",
+        default=0.2,
+        help="Seconds to pause before each combat action (end turn is always "
+             "instant). Defaults to 0.2s: fast enough not to slow a batch "
+             "materially, slow enough that card plays are watchable and that "
+             "the game's play/VFX animations settle before the next action.",
     )
 
     args = parser.parse_args()

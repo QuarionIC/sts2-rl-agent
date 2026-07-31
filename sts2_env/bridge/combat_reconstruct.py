@@ -320,6 +320,16 @@ def _character_from(state: dict[str, Any]) -> str:
     return "Ironclad"
 
 
+_WARNED_ONCE: set[str] = set()
+
+
+def _warn_once_reconstruct(key: str, message: str) -> None:
+    """Log a fidelity gap once per process rather than once per decision."""
+    if key not in _WARNED_ONCE:
+        _WARNED_ONCE.add(key)
+        logger.warning(message)
+
+
 class _RngChain:
     """Minimal attribute holder for the shuffle-RNG resolution chain."""
 
@@ -354,6 +364,17 @@ def _install_game_shuffle_rng(combat, raw) -> bool:
     Returns True when the game's stream was installed.
     """
     if not isinstance(raw, dict):
+        # SAY SO, ONCE. Whether shuffle parity is actually active in live play
+        # is the difference between "post-reshuffle divergence is residual
+        # drift" and "the fix never reached the game", and those call for
+        # completely different work. Silence here meant the question could
+        # only be answered by inference.
+        _warn_once_reconstruct(
+            "no_shuffle_rng",
+            "payload carries no usable 'shuffle_rng': reshuffles will diverge "
+            "from the game exactly as before the parity work. Rebuild and "
+            "redeploy the bridge mod if this is unexpected.",
+        )
         return False
     try:
         words = [int(raw[f"state{i}"]) for i in range(4)]
@@ -403,6 +424,10 @@ def _install_game_shuffle_rng(combat, raw) -> bool:
     # differently-ordered pile still produces a different draw order. That is
     # exactly what "unstable" means in the game's own doc comment.
     combat._force_stable_reshuffle = True
+    _warn_once_reconstruct(
+        "shuffle_rng_ok",
+        "shuffle parity ACTIVE: reconstructed combats now draw from the "
+        "game's own xoshiro256** stream with StableShuffle semantics.")
     return True
 
 
