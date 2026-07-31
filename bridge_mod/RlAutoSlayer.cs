@@ -150,8 +150,14 @@ public class RlAutoSlayer
         catch { }
         return fallback;
     }
-    private const int FinalRunFloor = 49;
-    private const int RunTimeoutMinutes = 60;
+    // Runaway guard only. Act 4 (Heart) sits past floor 50, so a fixed
+    // "final floor" would cut a winning run short before its last act.
+    private const int AbsoluteMaxFloor = 200;
+    // Runs now play to a win or a death rather than stopping at a floor
+    // number, and a full A0 run with a 90s planner budget per combat can
+    // outlast an hour. Too tight a cap would abort exactly the deep runs we
+    // most want to see finish.
+    private const int RunTimeoutMinutes = 180;
     private const int RunStateTimeoutSeconds = 60;
     private const int RoomAssignmentTimeoutSeconds = 60;
     private const int NonCombatSettleDelayMs = 500;
@@ -397,7 +403,18 @@ public class RlAutoSlayer
             ct, TimeSpan.FromSeconds(RoomAssignmentTimeoutSeconds), "Room type not assigned");
 
         // Main game loop
-        while (runState.TotalFloor < FinalRunFloor)
+        // PLAY THE RUN OUT -- to a win or a death, not to a floor number.
+        //
+        // This used to stop at FinalRunFloor and abandon, which threw away
+        // the end of every successful run: the agent could never finish an
+        // act 3 boss, never reach act 4, and a "completed" run told us
+        // nothing about whether it would have won. The run now ends the way
+        // the game ends it, and the RunEnded checks inside the loop are what
+        // terminate it.
+        //
+        // AbsoluteMaxFloor is a runaway guard, not a target: it exists so a
+        // room loop that somehow stops advancing cannot spin forever.
+        while (runState.TotalFloor < AbsoluteMaxFloor)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -521,7 +538,7 @@ public class RlAutoSlayer
         }
 
         // The room loop now exits for three reasons, and only ONE of them
-        // leaves a run to abandon: reaching FinalRunFloor. If the run already
+        // leaves a run to abandon: hitting the runaway guard. If the run already
         // ended (death or victory), the Run node and its whole GlobalUi
         // subtree are gone, so AbandonRunAsync's UI lookups throw --
         // "Node /root/Game/RootSceneContainer/Run/GlobalUi/TopBar/
@@ -534,7 +551,8 @@ public class RlAutoSlayer
             return;
         }
 
-        Logger.Log("[RlAutoSlayer] Run completed (max floor reached). Abandoning");
+        Logger.Log($"[RlAutoSlayer] Room loop hit the {AbsoluteMaxFloor}-floor "
+                   + "runaway guard without the run ending. Abandoning");
         await AbandonRunAsync(ct);
     }
 
@@ -1008,10 +1026,33 @@ public class RlAutoSlayer
     {
         Node root = ((SceneTree)Engine.GetMainLoop()).Root;
         await Task.Delay(AbandonRunSettleDelayMs, ct);
-        await UiHelper.Click(await WaitHelper.ForNode<NButton>(
-            root,
-            AbandonRunOptionsButtonPath,
-            ct));
+
+        // The Options button is not always in the top bar. Observed live with
+        // the map screen up: RightAlignedStuff held only SaveIndicator,
+        // Padding, TimerContainer and Map. WaitHelper.ForNode then waits its
+        // full timeout and throws, which turned "recover before the next run"
+        // into a second stall on top of the one being recovered from.
+        //
+        // Nothing to click means nothing to abandon, so say so and let the
+        // caller move on -- recovery is best-effort by design.
+        NButton options = root.GetNodeOrNull<NButton>(AbandonRunOptionsButtonPath);
+        if (options == null)
+        {
+            DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            while (options == null && DateTime.UtcNow < deadline)
+            {
+                _watchdog?.Reset("Looking for the run Options button");
+                await Task.Delay(250, ct);
+                options = root.GetNodeOrNull<NButton>(AbandonRunOptionsButtonPath);
+            }
+        }
+        if (options == null)
+        {
+            Logger.Log("[RlAutoSlayer] No Options button in the run top bar -- "
+                       + "cannot abandon from here; leaving the run as-is");
+            return;
+        }
+        await UiHelper.Click(options);
         await UiHelper.Click(await WaitHelper.ForNode<NButton>(
             root,
             AbandonRunButtonPath,

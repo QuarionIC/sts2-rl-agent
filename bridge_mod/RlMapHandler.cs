@@ -121,6 +121,42 @@ public class RlMapHandler : IScreenHandler, IHandler
             return;
         }
 
+        // OFFER ONLY NODES THE GAME WILL ACTUALLY LET US ENTER.
+        //
+        // Not every node reachable in the graph is enterable right now. The
+        // first map choice enumerates every row-0 point, and in the legacy
+        // acts some of those (an ANCIENT node, for one) are never enabled.
+        // Offering them let the agent pick one, after which the click wait
+        // timed out with "Map point not enabled" and the whole run FAILED --
+        // observed live on run 6 of an Ironclad batch, choosing "Ancient at
+        // (0,3)".
+        //
+        // Filtering here rather than at the click keeps the agent's action
+        // indices meaningful: it only ever chooses among real options.
+        List<NMapPoint> enabledNodes = availableNodes.Where(mp => mp.IsEnabled).ToList();
+        if (enabledNodes.Count > 0 && enabledNodes.Count != availableNodes.Count)
+        {
+            Logger.Log($"[RlMap] {availableNodes.Count - enabledNodes.Count} of "
+                       + $"{availableNodes.Count} reachable node(s) are not "
+                       + $"enterable; offering the {enabledNodes.Count} that are");
+            availableNodes = enabledNodes;
+        }
+        else if (enabledNodes.Count == 0)
+        {
+            // Nothing enabled yet -- usually the map is still animating in.
+            // Wait briefly rather than either failing or offering junk.
+            Logger.Log("[RlMap] No node is enabled yet; waiting for the map to settle");
+            DateTime settle = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+            while (DateTime.UtcNow < settle && enabledNodes.Count == 0)
+            {
+                RlAutoSlayer.CurrentWatchdog?.Reset("Waiting for map nodes to enable");
+                await Task.Delay(250, ct);
+                enabledNodes = availableNodes.Where(mp => mp.IsEnabled).ToList();
+            }
+            if (enabledNodes.Count > 0)
+                availableNodes = enabledNodes;
+        }
+
         // Build the state message for Python
         var nodes = new List<Dictionary<string, object>>();
         for (int i = 0; i < availableNodes.Count; i++)
@@ -188,9 +224,29 @@ public class RlMapHandler : IScreenHandler, IHandler
             chosenNode = random.NextItem(availableNodes);
         }
 
-        // Wait for the node to be enabled and click it
-        await WaitHelper.Until(() => chosenNode.IsEnabled, ct,
-            TimeSpan.FromSeconds(10), "Map point not enabled");
+        // Wait for the node to be enabled, and if it never is, fall back to
+        // one that is rather than throwing away the run. The filter above
+        // makes this rare, but a node can still disable between the offer and
+        // the click, and losing an entire run to an unclickable map point is
+        // never the right trade.
+        if (!chosenNode.IsEnabled)
+        {
+            try
+            {
+                await WaitHelper.Until(() => chosenNode.IsEnabled, ct,
+                    TimeSpan.FromSeconds(10), "Map point not enabled");
+            }
+            catch (Exception)
+            {
+                NMapPoint fallback = availableNodes.FirstOrDefault(mp => mp.IsEnabled);
+                if (fallback == null)
+                    throw;
+                Logger.Log($"[RlMap] Chosen node never enabled; falling back to "
+                           + $"{fallback.Point.PointType} at "
+                           + $"({fallback.Point.coord.row},{fallback.Point.coord.col})");
+                chosenNode = fallback;
+            }
+        }
 
         _roomEnteredTcs = new TaskCompletionSource();
         RunManager.Instance.RoomEntered += OnRoomEntered;
