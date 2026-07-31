@@ -46,7 +46,8 @@ def test_detect_model_mode_unrecognized_raises():
 def test_full_run_and_combat_only_sizes_match_known_constants():
     # Guards against silent drift between agent_runner's detection
     # thresholds and the actual gym env sizes.
-    assert FULL_RUN_ACTION_SPACE_SIZE == 157
+    # 158 since treasure gained a SKIP action (Sapphire key / Act 4).
+    assert FULL_RUN_ACTION_SPACE_SIZE == 158
     assert FULL_RUN_OBS_SIZE == 151
     assert COMBAT_ONLY_ACTION_SPACE_SIZE == 115
     assert COMBAT_ONLY_OBS_SIZE == 131

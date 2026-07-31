@@ -125,7 +125,13 @@ def _build_action_layout() -> _ActionLayout:
     event_start = rest_start + rest_size
     event_size = 4
     treasure_start = event_start + event_size
-    treasure_size = 1
+    # 0 = collect, 1 = SKIP. Skipping a treasure chest is not a null move:
+    # in Act 3 it is how the Sapphire (blue) key is obtained, and all three
+    # keys are required to reach Act 4. RunManager already offered a "skip"
+    # action whenever the reward is skippable; the action space simply never
+    # exposed it, so the agent could not decline a chest and could never
+    # unlock the Act 4 path.
+    treasure_size = 2
     player_select_start = treasure_start + treasure_size
     player_select_size = 7
     return _ActionLayout(
@@ -346,7 +352,7 @@ class STS2RunEnv(gymnasium.Env):
             elif phase == RunManager.PHASE_EVENT:
                 self._step_event(action)
             elif phase == RunManager.PHASE_TREASURE:
-                self._step_treasure()
+                self._step_treasure(action - _TREASURE_START)
         except Exception:
             # Guard against simulation bugs so the episode can finish.
             # Force-end as a loss if the run is not already over, but tag
@@ -595,6 +601,13 @@ class STS2RunEnv(gymnasium.Env):
 
         elif phase == RunManager.PHASE_TREASURE:
             mask[layout.treasure_start] = 1
+            # Only unmask SKIP when the manager actually offers it. Chests
+            # differ: a skippable one is the Sapphire-key opportunity, an
+            # unskippable one must be taken, and masking them alike would
+            # teach the agent that skipping is sometimes a no-op.
+            if any(a.get("action") == "skip"
+                   for a in self._mgr.get_available_actions()):
+                mask[layout.treasure_start + 1] = 1
 
         # Safety: guarantee at least one action is unmasked.
         if mask.sum() == 0:
@@ -799,9 +812,16 @@ class STS2RunEnv(gymnasium.Env):
         else:
             mgr.take_action({"action": "choose", "index": local - 1})
 
-    def _step_treasure(self) -> None:
+    def _step_treasure(self, local: int = 0) -> None:
         mgr = self._mgr
         assert mgr is not None
+        if local == 1:
+            # Only offered when the reward is actually skippable; fall back to
+            # collecting rather than sending an action the manager will reject.
+            actions = mgr.get_available_actions()
+            if any(a.get("action") == "skip" for a in actions):
+                mgr.take_action({"action": "skip"})
+                return
         mgr.take_action({"action": "collect"})
 
     # ------------------------------------------------------------------
