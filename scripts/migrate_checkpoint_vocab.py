@@ -62,7 +62,9 @@ def _rewrite_observation_space(raw: bytes) -> bytes:
     import gymnasium as gym
     import numpy as np
 
-    from sts2_env.gym_env.rich_observation import RICH_OBS_HIGH, RICH_OBS_SIZE
+    from sts2_env.gym_env.rich_observation import (
+        RICH_OBS_HIGH, RICH_OBS_LOW, RICH_OBS_SIZE,
+    )
 
     data = json.loads(raw.decode("utf-8"))
     entry = data.get("observation_space")
@@ -74,8 +76,14 @@ def _rewrite_observation_space(raw: bytes) -> bytes:
     if old_shape == (RICH_OBS_SIZE,):
         return raw
 
+    # Rebuild with THIS BUILD's bounds, not invented ones. Hardcoding low=0.0
+    # here produced a space that matched on shape and differed on bounds, and
+    # SB3's check_for_correct_spaces rejected the warm start with
+    # "Box(0.0, 591.0, (4900,)) != Box(-1.0, 591.0, (4900,))" -- the ID block
+    # is a raw index range but other segments encode signed deltas, so the
+    # floor is -1.0.
     new = gym.spaces.Box(
-        low=0.0, high=float(RICH_OBS_HIGH),
+        low=float(RICH_OBS_LOW), high=float(RICH_OBS_HIGH),
         shape=(RICH_OBS_SIZE,), dtype=np.float32,
     )
     entry[":serialized:"] = base64.b64encode(cloudpickle.dumps(new)).decode("ascii")
@@ -97,6 +105,7 @@ def migrate(src: Path, dst: Path) -> int:
 
     target_rows = NUM_CARD_IDS + 1  # +1 for padding_idx=0
     touched = []
+    grown_shapes: set[tuple[int, int]] = set()
     for key, tensor in list(state.items()):
         if not key.endswith(EMBEDDING_SUFFIX):
             continue
@@ -117,10 +126,25 @@ def migrate(src: Path, dst: Path) -> int:
         )
         state[key] = grown
         touched.append((key, rows, target_rows))
+        grown_shapes.add((rows, int(tensor.shape[1])))
 
     if not touched:
         print(f"{src}: already at {target_rows} embedding rows; nothing to do")
         return 0
+
+    # THE OPTIMIZER STATE HAS TO GROW TOO.
+    #
+    # Adam keeps exp_avg / exp_avg_sq shaped like each parameter, so a
+    # checkpoint whose embedding grew from 587 to 591 rows still carries
+    # 587-row moments. The model then loads fine and dies on the first
+    # update with "The size of tensor a (587) must match the size of tensor
+    # b (591)" -- inside torch._foreach_lerp_, a long way from the cause.
+    #
+    # Matching on the exact old shape is safe here: (old_rows, embed_dim) is
+    # unique to the embedding tables among this policy's parameters.
+    if "policy.optimizer.pth" in other:
+        other["policy.optimizer.pth"] = _grow_optimizer_state(
+            other["policy.optimizer.pth"], grown_shapes)
 
     buf = io.BytesIO()
     torch.save(state, buf)
@@ -134,6 +158,32 @@ def migrate(src: Path, dst: Path) -> int:
         print(f"  {key}: {before} -> {after} rows")
     print(f"migrated {len(touched)} embedding table(s): {src} -> {dst}")
     return len(touched)
+
+
+def _grow_optimizer_state(raw: bytes, grown_shapes: set) -> bytes:
+    """Row-pad Adam moments that match a grown parameter's OLD shape."""
+    if not grown_shapes:
+        return raw
+    opt = torch.load(io.BytesIO(raw), map_location="cpu", weights_only=False)
+    changed = 0
+    for entry in (opt.get("state") or {}).values():
+        if not isinstance(entry, dict):
+            continue
+        for key, value in list(entry.items()):
+            if not isinstance(value, torch.Tensor) or value.ndim != 2:
+                continue
+            shape = (int(value.shape[0]), int(value.shape[1]))
+            if shape not in grown_shapes:
+                continue
+            pad = NUM_CARD_IDS + 1 - shape[0]
+            entry[key] = torch.cat(
+                [value, value.new_zeros((pad, shape[1]))], dim=0)
+            changed += 1
+    if changed:
+        print(f"  optimizer: grew {changed} moment tensor(s)")
+    buf = io.BytesIO()
+    torch.save(opt, buf)
+    return buf.getvalue()
 
 
 def main(argv: list[str] | None = None) -> int:
