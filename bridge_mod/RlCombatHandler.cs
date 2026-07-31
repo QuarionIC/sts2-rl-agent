@@ -385,26 +385,127 @@ public class RlCombatHandler : IRoomHandler, IHandler
         return random.NextItem(hittable);
     }
 
+    /// <summary>
+    /// A fingerprint of everything a card play can move.
+    ///
+    /// Deliberately the SAME quantities SerializeCombatState sends: if none of
+    /// them has changed for a few consecutive polls, the state Python is about
+    /// to receive is the settled one.
+    /// </summary>
+    private static string StateFingerprint(Player player)
+    {
+        try
+        {
+            PlayerCombatState pcs = player.PlayerCombatState;
+            Creature creature = player.Creature;
+            CombatState cs = CombatManager.Instance?.DebugOnlyGetState();
+            var sb = new System.Text.StringBuilder();
+            sb.Append(pcs?.Energy ?? -1).Append('/')
+              .Append(pcs?.Hand.Cards.Count ?? -1).Append('/')
+              .Append(pcs?.DrawPile.Cards.Count ?? -1).Append('/')
+              .Append(pcs?.DiscardPile.Cards.Count ?? -1).Append('/')
+              .Append(pcs?.ExhaustPile.Cards.Count ?? -1).Append('/')
+              .Append(creature?.CurrentHp ?? -1).Append('/')
+              .Append(creature?.Block ?? -1).Append('/')
+              .Append(creature?.Powers.Count() ?? -1);
+            if (cs != null)
+            {
+                foreach (Creature enemy in cs.Enemies)
+                    sb.Append(';').Append(enemy.CurrentHp).Append(',')
+                      .Append(enemy.Block).Append(',')
+                      .Append(enemy.Powers.Count());
+            }
+            return sb.ToString();
+        }
+        catch (Exception)
+        {
+            // A fingerprint we cannot take must not stall the run; returning a
+            // fresh value each time simply means "not settled yet", and the
+            // overall timeout still applies.
+            return Guid.NewGuid().ToString();
+        }
+    }
+
+    /// <summary>
+    /// Enqueue a card play and wait for it to FULLY RESOLVE.
+    ///
+    /// The previous version broke out of its wait on the first observable
+    /// change -- energy or hand count moving. That is a proxy for "the play
+    /// started", not "the play finished". A card's effects (draws, damage,
+    /// generated cards, power applications) keep working through the action
+    /// queue afterwards, and SerializeCombatState could run mid-resolution.
+    ///
+    /// Python then received a state that did not yet reflect the action it had
+    /// just sent, while its own simulation had resolved it completely -- the
+    /// SIM-AHEAD divergence class, measured at 3.92% of live combat actions
+    /// (54 of 1376) on 2026-07-31 against a stable ~2% genuine fidelity rate.
+    /// Every occurrence also threw away a valid plan and forced a fresh search
+    /// (~30s on the eval ladder), so this was expensive as well as misleading.
+    ///
+    /// Waiting for QUIESCENCE instead: the play must first be observed, then
+    /// the state must stop changing for several consecutive polls. Bounded by
+    /// the same overall timeout, so a long animation costs time but never the
+    /// run.
+    /// </summary>
     private static async Task PlayCardAndWaitAsync(
         Player player, CardModel card, Creature? target, CancellationToken ct)
     {
         var playAction = new PlayCardAction(card, target);
         RunManager.Instance.ActionQueueSynchronizer.RequestEnqueue(playAction);
+        await WaitForActionToSettleAsync(player, ct);
+    }
 
-        int energyBefore = player.PlayerCombatState?.Energy ?? -1;
-        int handBefore = PileType.Hand.GetPile(player).Cards.Count;
+    //: Polls of an unchanged fingerprint before the state counts as settled.
+    //: Three at 50ms is 150ms of quiet -- comfortably longer than the gaps
+    //: between chained effects, short enough not to slow a batch materially.
+    private const int SettlePolls = 3;
+    private const int SettlePollMs = 50;
+    private const int ActionSettleTimeoutMs = 4000;
+
+    private static async Task WaitForActionToSettleAsync(
+        Player player, CancellationToken ct)
+    {
+        string before = StateFingerprint(player);
         int waitMs = 0;
-        while (waitMs < 3000)
+        bool observed = false;
+        int stablePolls = 0;
+        string last = before;
+
+        while (waitMs < ActionSettleTimeoutMs)
         {
-            int energyNow = player.PlayerCombatState?.Energy ?? -1;
-            int handNow = PileType.Hand.GetPile(player).Cards.Count;
-            if (energyNow != energyBefore || handNow != handBefore
-                || !IsPlayPhase(player)
-                || !CombatManager.Instance.IsInProgress)
-                break;
-            await Task.Delay(50, ct);
-            waitMs += 50;
+            if (!IsPlayPhase(player) || !CombatManager.Instance.IsInProgress)
+                return;
+
+            string now = StateFingerprint(player);
+            if (!observed)
+            {
+                // Phase 1: has the action taken effect at all yet?
+                if (now != before)
+                {
+                    observed = true;
+                    last = now;
+                    stablePolls = 0;
+                }
+            }
+            else if (now == last)
+            {
+                // Phase 2: has it stopped changing?
+                if (++stablePolls >= SettlePolls)
+                    return;
+            }
+            else
+            {
+                // Still resolving -- effects are chaining.
+                last = now;
+                stablePolls = 0;
+            }
+
+            await Task.Delay(SettlePollMs, ct);
+            waitMs += SettlePollMs;
         }
+
+        Logger.Log($"[RlCombat] Action did not settle within {ActionSettleTimeoutMs}ms "
+                   + $"(observed={observed}); sending state anyway");
     }
 
     private static async Task UsePotionAndWaitAsync(
@@ -437,8 +538,13 @@ public class RlCombatHandler : IRoomHandler, IHandler
         );
         RunManager.Instance.ActionQueueSynchronizer.RequestEnqueue(usePotionAction);
 
+        // Wait for the SLOT to empty -- that is the potion's own signal that
+        // the action was consumed -- and then for the resulting effects to
+        // settle. A potion is at least as effect-heavy as a card (damage,
+        // draws, powers, generated cards), so serializing on slot-empty alone
+        // races exactly the way the card path did.
         int waitMs = 0;
-        while (waitMs < 3000)
+        while (waitMs < ActionSettleTimeoutMs)
         {
             dynamic potionNow = null;
             try
@@ -452,9 +558,11 @@ public class RlCombatHandler : IRoomHandler, IHandler
 
             if (potionNow == null || !IsPlayPhase(player) || !CombatManager.Instance.IsInProgress)
                 break;
-            await Task.Delay(50, ct);
-            waitMs += 50;
+            await Task.Delay(SettlePollMs, ct);
+            waitMs += SettlePollMs;
         }
+
+        await WaitForActionToSettleAsync(player, ct);
     }
 
     // ----------------------------------------------------------------
