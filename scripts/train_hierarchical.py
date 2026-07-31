@@ -115,7 +115,8 @@ class HarvestedDeckSampler:
 
 
 def make_combat_env(ascension: int = 0, seed: int = 0, pools=("act1",),
-                    deck_file: str | None = None, mix_progressive: float = 0.3):
+                    deck_file: str | None = None, mix_progressive: float = 0.3,
+                    w_combat_hp_retained: float | None = None):
     import sts2_env.events  # noqa: F401
     from sts2_env.gym_env.rich_combat_env import RichSTS2CombatEnv
 
@@ -123,11 +124,23 @@ def make_combat_env(ascension: int = 0, seed: int = 0, pools=("act1",),
         HarvestedDeckSampler("Necrobinder", deck_file, mix_progressive)
         if deck_file else "progressive"
     )
+    from sts2_env.gym_env.reward_config import RewardConfig
+
+    cfg = RewardConfig()
+    if w_combat_hp_retained is not None:
+        cfg.w_combat_hp_retained = w_combat_hp_retained
+    if not cfg.worst_win_beats_best_loss():
+        raise SystemExit(
+            f"--w-combat-hp-retained {w_combat_hp_retained} makes the worst "
+            f"win rank below the best loss; that teaches the agent dying is "
+            f"acceptable. Refusing to train.")
+
     env = RichSTS2CombatEnv(
         character_id="Necrobinder",
         ascension_level=ascension,
         encounter_pools=tuple(pools),
         deck_sampler=sampler,
+        reward_config=cfg,
     )
     env.reset(seed=seed)
     return env
@@ -281,14 +294,29 @@ def eval_run_agent(model, combat_model_path, n_episodes, ascension, max_act_coun
     }
 
 
-def eval_combat_agent(model, n_episodes, ascension, pools, deck_file=None):
+def eval_combat_agent(model, n_episodes, ascension, pools, deck_file=None,
+                      w_combat_hp_retained=None):
     env = make_combat_env(ascension=ascension, seed=EVAL_SEED_BLOCK, pools=pools,
-                          deck_file=deck_file)
+                          deck_file=deck_file,
+                          w_combat_hp_retained=w_combat_hp_retained)
     env.set_shaping_scale(0.0)
     wins, hp_frac = [], []
+    # HP retention among WINS only, and potions burned.
+    #
+    # mean_hp_frac averages losses in at 0.0, so it moves with the win rate
+    # and cannot show whether the HP term changed how a win is BOUGHT --
+    # which is the only thing the term does. mean_hp_frac_wins is the metric
+    # the reward change is accountable to.
+    #
+    # Potions are tracked because rewarding HP without pricing potions is a
+    # standing invitation to dump every potion in every fight: the HP shows
+    # up as a gain while the resource the run needed later is gone. If this
+    # climbs alongside hp_frac_wins, part of the improvement is borrowed.
+    hp_frac_wins, potions_used = [], []
     t0 = time.time()
     for i in range(n_episodes):
         obs, info = env.reset(seed=EVAL_SEED_BLOCK + i)
+        potions_at_start = _count_potions(env.combat)
         done = tr = False
         n = 0
         while not (done or tr) and n < 1500:
@@ -301,13 +329,29 @@ def eval_combat_agent(model, n_episodes, ascension, pools, deck_file=None):
         alive = bool(p is not None and p.is_alive)
         wins.append(alive)
         if p is not None and p.max_hp:
-            hp_frac.append(max(0.0, p.current_hp) / p.max_hp)
+            frac = max(0.0, p.current_hp) / p.max_hp
+            hp_frac.append(frac)
+            if alive:
+                hp_frac_wins.append(frac)
+        potions_used.append(max(0, potions_at_start - _count_potions(combat)))
     return {
         "win_rate": float(np.mean(wins)),
         "mean_hp_frac": float(np.mean(hp_frac)) if hp_frac else 0.0,
+        "mean_hp_frac_wins": float(np.mean(hp_frac_wins)) if hp_frac_wins else 0.0,
+        "mean_potions_used": float(np.mean(potions_used)) if potions_used else 0.0,
         "episodes": n_episodes,
         "wall_s": round(time.time() - t0, 1),
     }
+
+
+def _count_potions(combat) -> int:
+    """Potions currently held. Missing/odd shapes count as 0 rather than raise."""
+    if combat is None:
+        return 0
+    try:
+        return sum(1 for p in (getattr(combat, "potions", None) or []) if p is not None)
+    except TypeError:
+        return 0
 
 
 # ---------------------------------------------------------------------------
@@ -385,6 +429,14 @@ def main() -> int:
                     help="Play combats with the deterministic beam-search "
                          "planner instead of a learned combat model")
     ap.add_argument("--planner-ladder", choices=["train", "eval"], default="train")
+    ap.add_argument("--w-combat-hp-retained", type=float, default=None,
+                    help="COMBAT phase: how much of a win's value HP loss "
+                         "costs. Default None keeps RewardConfig's 2.0. "
+                         "Measured 2026-07-31 the planner wins as often as "
+                         "the policy (76.0%% vs 73.5%%, McNemar p=0.51) while "
+                         "taking 7.1 HP less per win -- 45%% of max HP over a "
+                         "4.2-combat run -- so this is the term that prices "
+                         "the difference. 0.0 ablates it.")
     ap.add_argument("--w-deck-quality", type=float, default=0.0,
                     help="Weight of the upgrade-density term in Phi "
                          "(0 = off, matching all prior results)")
@@ -408,9 +460,14 @@ def main() -> int:
 
     if args.phase == "combat":
         factory = partial(make_combat_env, args.ascension, pools=tuple(args.pools),
-                          deck_file=args.deck_file)
-        eval_fn = lambda m, n: eval_combat_agent(m, n, args.ascension, tuple(args.pools),
-                                                 deck_file=args.deck_file)
+                          deck_file=args.deck_file,
+                          w_combat_hp_retained=args.w_combat_hp_retained)
+        # Eval builds its own env, so it needs the weight too -- otherwise the
+        # arms of an A/B would be SCORED under different rewards than they
+        # were trained under, and the comparison would measure nothing.
+        eval_fn = lambda m, n: eval_combat_agent(
+            m, n, args.ascension, tuple(args.pools), deck_file=args.deck_file,
+            w_combat_hp_retained=args.w_combat_hp_retained)
     else:
         factory = partial(make_run_env, args.combat_model, args.ascension,
                           args.max_act_count, combat_device=args.combat_device,
