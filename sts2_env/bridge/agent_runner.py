@@ -352,6 +352,12 @@ def run_agent(
                 phase = _phase_for_state(state)
                 step_count += 1
 
+                # Keep the newest combat payload so a mid-combat card
+                # discovery, which arrives without one, still has a fight to
+                # be evaluated against.
+                if msg_type == BridgeStateType.COMBAT_ACTION:
+                    _LAST_COMBAT_STATE[0] = state
+
                 if verbose and step_count % 10 == 1:
                     logger.info("Step %d: type=%s phase=%s", step_count, msg_type, phase)
 
@@ -463,7 +469,15 @@ def run_agent(
                 # unresolvable card id or mask disagreement degrades to the
                 # heuristic rather than to a guess.
                 if (_RUN_POLICY[0] == "rl"
-                        and phase in (_RL_RUN_PHASES_ACTIVE[0] or _RL_RUN_PHASES)):
+                        and phase in (_RL_RUN_PHASES_ACTIVE[0] or _RL_RUN_PHASES)
+                        # A mid-combat discovery maps to CARD_REWARD, so the
+                        # run agent used to claim it. It cannot: its
+                        # observation holds deck, map, relics and potions and
+                        # NO combat state, and it was trained to judge cards
+                        # as permanent deck additions. A discovered card is
+                        # free for one turn and gone after -- the opposite
+                        # decision. Left to the combat-aware chooser below.
+                        and not _is_in_combat_card_select(state)):
                     if _try_rl_run_action(client, state, verbose):
                         continue
 
@@ -548,12 +562,27 @@ def run_agent(
                             client.choose(indexes[0])
                         else:
                             client.choose_many(indexes)
+                    elif msg_type == BridgeStateType.REWARD_SCREEN:
+                        choice = _pick_reward_screen_option(state)
+                        if verbose:
+                            logger.info("CARD_REWARD: choosing option %s", choice)
+                        _send_choice_or_skip(client, choice)
                     else:
-                        choice = (
-                            _pick_reward_screen_option(state)
-                            if msg_type == BridgeStateType.REWARD_SCREEN
-                            else _pick_card_reward_index(state)
-                        )
+                        choice = _pick_card_reward_index(state)
+                        # None means skip. The reward is NOT consumed by the
+                        # skip button -- it is consumed by leaving the rewards
+                        # screen -- so latch the decision for the reward screen
+                        # that follows, or the two screens ping-pong forever.
+                        if choice is None:
+                            if card_reward_should_force_take(state):
+                                logger.warning(
+                                    "CARD_REWARD re-offered %d times this room "
+                                    "-- taking a card instead of skipping again.",
+                                    _CARD_REWARD_LATCH[2],
+                                )
+                                choice = DEFAULT_CHOICE_INDEX
+                            else:
+                                note_card_reward_declined(state)
                         if verbose:
                             logger.info("CARD_REWARD: choosing option %s", choice)
                         _send_choice_or_skip(client, choice)
@@ -702,15 +731,104 @@ def _pick_map_node(state: dict[str, Any]) -> int:
     _fb = _pick_map_node_heuristic(state)
     return _llm_pick(state, list(state.get("nodes", [])), 'Which room do you move to next?', _fb, 'MAP')
 
+def _is_in_combat_card_select(state: dict[str, Any]) -> bool:
+    """True when this card_select is a mid-combat discovery.
+
+    The mod sets in_combat from CombatManager.IsInProgress. Payloads from a
+    mod build that predates the flag fall back to False, which restores the
+    old behaviour rather than guessing.
+    """
+    return bool(state.get("in_combat", False))
+
+
+def _score_discovered_card(card: dict[str, Any], combat_state: dict[str, Any] | None) -> float:
+    """Rank one mid-combat discovery candidate. Higher is better.
+
+    Deliberately a cheap static score rather than a planner rollout. The
+    discovery resolves INSIDE the OnPlay of the card being played, so the
+    reconstruction available here is one action stale, and the planner takes
+    seconds per call -- long enough for the 30s selector timeout to fire and
+    hand the choice back to the mod's fallback.
+
+    The ordering encodes what a discovered card is FOR: it is generated free
+    for the turn (CardModel.SetToFreeThisTurn), so it is a tempo card, not a
+    deck addition. Attacks and Skills that act now beat Powers that need
+    several turns to repay themselves.
+    """
+    card_type = _canonical_text(card.get("type"))
+    score = {
+        "attack": 3.0,
+        "skill": 2.5,
+        "power": 1.0,
+        "status": -5.0,
+        "curse": -5.0,
+    }.get(card_type, 1.5)
+
+    # Free-this-turn means printed cost mostly does not bind, but a cheap card
+    # still composes better with whatever else is in hand.
+    try:
+        cost = int(card.get("cost", 1))
+    except (TypeError, ValueError):
+        cost = 1
+    if cost >= 0:
+        score -= 0.15 * cost
+
+    if card.get("upgraded"):
+        score += 0.5
+
+    # Low on HP: a Skill (block, defensive utility) outranks another Attack.
+    if combat_state:
+        player = combat_state.get("player") or {}
+        try:
+            hp = int(player.get("hp", combat_state.get("hp", 0)) or 0)
+            max_hp = int(player.get("max_hp", combat_state.get("max_hp", 0)) or 0)
+        except (TypeError, ValueError):
+            hp = max_hp = 0
+        if max_hp > 0 and hp / max_hp < REST_HP_RATIO_THRESHOLD:
+            if card_type == "skill":
+                score += 1.5
+            elif card_type == "attack":
+                score -= 0.5
+    return score
+
+
 def _pick_card_select_indexes(state: dict[str, Any]) -> list[int]:
-    """Choose required card indexes for upgrade/transform/select screens."""
+    """Choose card indexes for upgrade/transform/discovery/select screens.
+
+    Two bugs lived here, both measured live 2026-07-31.
+
+    1. ``min_select == 0`` returned [] -- which the caller sends as a SKIP.
+       CardSelectCmd.FromChooseACardScreen passes ``minSelect: 0`` for every
+       mid-combat discovery, so the agent skipped every Discovery, Abundance
+       and Attack Potion choice it was ever offered. "May take nothing" was
+       read as "must take nothing".
+    2. Out-of-combat selections returned the first N indexes unconditionally,
+       the same fixed-slot degeneracy already rejected for card rewards.
+
+    Optional selections (min_select == 0) now take the best-scoring card when
+    one scores positively, and skip only when every option is bad.
+    """
     cards = list(state.get("cards", []))
     min_select = max(int(state.get("min_select", 1)), 0)
     max_select = max(int(state.get("max_select", min_select)), 0)
-    if not cards or max_select == 0 or min_select == 0:
+    if not cards or max_select == 0:
         return []
-    count = min(min_select, max_select, len(cards))
-    return [_read_index(card, fallback) for fallback, card in enumerate(cards[:count])]
+
+    combat_state = _LAST_COMBAT_STATE[0] if _is_in_combat_card_select(state) else None
+    ranked = sorted(
+        range(len(cards)),
+        key=lambda i: _score_discovered_card(cards[i], combat_state),
+        reverse=True,
+    )
+
+    if min_select == 0:
+        best = ranked[0]
+        if _score_discovered_card(cards[best], combat_state) <= 0.0:
+            return []
+        return [_read_index(cards[best], best)]
+
+    count = min(max(min_select, 1), max_select, len(cards))
+    return [_read_index(cards[i], i) for i in ranked[:count]]
 
 
 def _pick_card_reward_index_heuristic(state: dict[str, Any]) -> int | None:
@@ -752,14 +870,87 @@ def _pick_card_reward_index(state: dict[str, Any]) -> int | None:
         return _read_index(cards[local], local)
     return _fb
 
+#: [floor the latch belongs to, declined-a-card-here, times re-offered]
+#:
+#: Declining a card reward takes TWO screens, and the game only consumes the
+#: reward on the second one.
+#:
+#: Pressing Skip inside the card-selection screen is a CANCEL, not a decline:
+#: CardRewardAlternative.Generate builds it with
+#: PostAlternateCardRewardAction.EndSelectionAndDoNotCompleteReward, whose own
+#: doc comment reads "end card selection, but don't complete it - the player
+#: may re-enter card selection". CardReward.OnSelect returns rewardComplete =
+#: false, so the reward stays in the set and the rewards screen offers it
+#: again. What actually consumes it is leaving the rewards screen:
+#: RewardsSetSynchronizer.SkipRewardsSet calls OnSkipped() on every reward
+#: that is not SuccessfullySelected.
+#:
+#: Live 2026-07-31 the run agent chose skip at card_reward and pick at
+#: reward_screen, forever -- 10+ round trips per second until the run timed
+#: out. Remembering "I already skipped" would NOT have fixed it on its own;
+#: the skip has to become a Proceed.
+_CARD_REWARD_LATCH: list[Any] = [None, False, 0]
+
+#: Take a card rather than livelock. Mirrors MaxRepeatedChoices in the mod's
+#: event loop: an unwanted card costs deck quality, a spinning run costs
+#: everything.
+CARD_REWARD_MAX_REOFFERS = 3
+
+
+def _reward_latch_floor(state: dict[str, Any]) -> Any:
+    """Identity for "this room's rewards". Latches must not outlive it."""
+    return (state.get("floor"), state.get("act"))
+
+
+def _reset_card_reward_latch_if_new_room(state: dict[str, Any]) -> None:
+    floor = _reward_latch_floor(state)
+    if _CARD_REWARD_LATCH[0] != floor:
+        _CARD_REWARD_LATCH[0] = floor
+        _CARD_REWARD_LATCH[1] = False
+        _CARD_REWARD_LATCH[2] = 0
+
+
+def note_card_reward_declined(state: dict[str, Any]) -> None:
+    """Record that the agent wants no card from this room's card reward."""
+    _reset_card_reward_latch_if_new_room(state)
+    _CARD_REWARD_LATCH[1] = True
+    _CARD_REWARD_LATCH[2] += 1
+
+
+def card_reward_is_declined(state: dict[str, Any]) -> bool:
+    _reset_card_reward_latch_if_new_room(state)
+    return bool(_CARD_REWARD_LATCH[1])
+
+
+def card_reward_should_force_take(state: dict[str, Any]) -> bool:
+    """True once this room has declined CARD_REWARD_MAX_REOFFERS times.
+
+    Bounds the ping-pong at MAX_REOFFERS round trips rather than letting it
+    run one extra lap, which matters because each lap is a full screen open
+    and close in the live game.
+    """
+    _reset_card_reward_latch_if_new_room(state)
+    return _CARD_REWARD_LATCH[2] >= CARD_REWARD_MAX_REOFFERS
+
+
 def _pick_reward_screen_option(state: dict[str, Any]) -> int:
     options = _enabled_options(state)
     if not options:
         return DEFAULT_CHOICE_INDEX
+
+    # Already declined a card in this room? Then LEAVE, do not re-open the
+    # entry. Proceeding is what makes the game skip the reward for real.
+    proceed = _first_matching_option(options, actions=(REWARD_PROCEED_ACTION,))
+    if proceed is not None and card_reward_is_declined(state):
+        logger.info("REWARD_SCREEN: card reward already declined this room -- "
+                    "proceeding so the game skips it (opening it again would "
+                    "just re-offer it).")
+        return _read_index(proceed, DEFAULT_CHOICE_INDEX)
+
     option = _first_matching_option(options, actions=(REWARD_PICK_ACTION,))
     if option is not None:
         return _read_index(option, DEFAULT_CHOICE_INDEX)
-    option = _first_matching_option(options, actions=(REWARD_PROCEED_ACTION,)) or options[0]
+    option = proceed or options[0]
     return _read_index(option, DEFAULT_CHOICE_INDEX)
 
 
@@ -893,6 +1084,16 @@ _COMBAT_POLICY: list[Any] = ["llm", None]
 
 #: [pending sim-action indices, the game turn they were planned for]
 _COMBAT_QUEUE: list[Any] = [[], -1]
+
+#: The most recent combat payload seen this run.
+#:
+#: Mid-combat card discoveries (Discovery, Abundance, ...) arrive as a
+#: card_select message that carries NO combat block -- CardSelectCmd calls the
+#: selector directly, outside the combat handler. Without the fight in view
+#: there is nothing to choose against, so the runner keeps the last combat
+#: payload and evaluates candidates against it. It is the same turn: the
+#: discovery resolves inside the OnPlay of a card the agent just played.
+_LAST_COMBAT_STATE: list[Any] = [None]
 
 
 def _combat_planner_action(state: dict[str, Any]) -> int | None:
@@ -1333,6 +1534,54 @@ def _rl_run_action(state: dict[str, Any]) -> int | None:
     return action
 
 
+def _apply_card_reward_latch(
+    state: dict[str, Any], decoded: dict[str, Any]
+) -> dict[str, Any]:
+    """Carry a card-reward decline from the card screen to the rewards screen.
+
+    The run agent decides "skip" on the card_reward payload but the game only
+    honours a decline on the REWARDS screen, so the two have to be joined up
+    here. Without this the agent opens the reward, cancels out of it, is
+    offered it again, and never leaves the room.
+
+    Also enforces the livelock breaker: after CARD_REWARD_MAX_REOFFERS
+    presentations of the same reward, take a card. That is a worse deck and a
+    finished run, versus a perfect deck and a run that never ends.
+    """
+    msg_type = state.get("type", "")
+
+    if msg_type == BridgeStateType.CARD_REWARD:
+        if decoded.get("method") == "skip":
+            if card_reward_should_force_take(state):
+                logger.warning(
+                    "CARD_REWARD re-offered %d times this room -- taking a "
+                    "card instead of skipping again. Skip only CANCELS the "
+                    "selection screen; the reward is not consumed until the "
+                    "rewards screen is left.",
+                    _CARD_REWARD_LATCH[2],
+                )
+                return {"phase": "run", "method": "choose", "args": [0]}
+            note_card_reward_declined(state)
+
+    elif msg_type == BridgeStateType.REWARD_SCREEN:
+        if decoded.get("method") == "choose" and card_reward_is_declined(state):
+            options = _enabled_options(state)
+            proceed = _first_matching_option(
+                options, actions=(REWARD_PROCEED_ACTION,))
+            if proceed is not None:
+                index = _read_index(proceed, DEFAULT_CHOICE_INDEX)
+                if decoded.get("args") != [index]:
+                    logger.info(
+                        "REWARD_SCREEN: overriding %s(%s) with proceed(%d) -- "
+                        "the agent already declined this room's card reward, "
+                        "and re-opening it would only re-offer it.",
+                        decoded.get("method"), decoded.get("args"), index,
+                    )
+                return {"phase": "run", "method": "choose", "args": [index]}
+
+    return decoded
+
+
 def _try_rl_run_action(client: Any, state: dict[str, Any], verbose: bool) -> bool:
     """Play one out-of-combat action with the run agent. False = not handled."""
     action = _rl_run_action(state)
@@ -1348,6 +1597,8 @@ def _try_rl_run_action(client: Any, state: dict[str, Any], verbose: bool) -> boo
         logger.error("run agent decoded a COMBAT action in phase %r -- "
                      "refusing; using the heuristic.", state.get("type"))
         return False
+
+    decoded = _apply_card_reward_latch(state, decoded)
 
     # Log what the HEURISTIC would have done next to what the agent did.
     #
@@ -1435,7 +1686,61 @@ def _rl_combat_action(state: dict[str, Any]) -> int | None:
     if not (0 <= action < mask.size) or not mask[action]:
         legal = _np.flatnonzero(mask)
         action = int(legal[0]) if legal.size else 0
+
+    # DOES THE GAME PLAY THE CARD THE AGENT ACTUALLY CHOSE?
+    #
+    # The agent picks an action index against the RECONSTRUCTED combat, but
+    # that index is decoded and sent against the WIRE payload. Those are two
+    # different objects, and the action means "play hand slot i" -- so if the
+    # reconstruction's hand order ever differs from the wire's, the game plays
+    # a DIFFERENT CARD than the one the agent chose, silently and with a
+    # perfectly legal-looking action.
+    #
+    # Nothing else would catch it: the move is legal, the game accepts it, and
+    # there is no plan to validate because an RL combat agent emits one action
+    # at a time. Resolve the intended card on both sides and compare.
+    _verify_combat_action_targets_intended_card(state, combat, action)
     return action
+
+
+def _verify_combat_action_targets_intended_card(
+        state: dict[str, Any], combat: Any, action: int) -> bool:
+    """Log loudly if the wire hand slot holds a different card than the sim's."""
+    try:
+        from sts2_env.gym_env.action_space import action_to_card_and_target
+
+        decoded = action_to_card_and_target(action)
+    except Exception:
+        return True
+    if not decoded:
+        return True
+    hand_index = decoded[0] if isinstance(decoded, tuple) else None
+    if not isinstance(hand_index, int):
+        return True
+
+    try:
+        sim_hand = combat.combat_player_states[0].hand
+    except Exception:
+        return True
+    wire_hand = state.get("hand") or []
+    if not (0 <= hand_index < len(sim_hand)) or hand_index >= len(wire_hand):
+        return True
+
+    intended = _norm_card(str(getattr(sim_hand[hand_index], "card_id", "")))
+    actual = _norm_card(str(wire_hand[hand_index].get("id")
+                            or wire_hand[hand_index].get("card_id") or ""))
+    if intended and actual and intended != actual:
+        logger.error(
+            "ACTION MISMATCH: agent chose hand slot %d intending %s, but the "
+            "game holds %s there -- the wrong card would be played. sim hand "
+            "%s vs wire hand %s",
+            hand_index, intended, actual,
+            [_norm_card(str(getattr(c, "card_id", ""))) for c in sim_hand],
+            [_norm_card(str(c.get("id") or c.get("card_id") or ""))
+             for c in wire_hand],
+        )
+        return False
+    return True
 
 
 def _heuristic_combat_action(state: dict[str, Any], adapter: Any) -> int | None:

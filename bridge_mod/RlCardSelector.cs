@@ -14,6 +14,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.CardRewardAlternatives;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Models;
@@ -54,7 +55,28 @@ public class RlCardSelector : ICardSelector
             };
             if (card.IsUpgraded)
                 cardData["upgraded"] = true;
+            cardData["cost"] = card.EnergyCost.GetWithModifiers(CostModifiers.All);
             cards.Add(cardData);
+        }
+
+        // Is this a mid-combat card discovery, or an out-of-combat prompt?
+        //
+        // The same ICardSelector method serves both -- CardSelectCmd routes a
+        // deck upgrade and a Discovery through GetSelectedCards alike -- and
+        // Python had no way to tell them apart. Every mid-combat discovery was
+        // therefore treated as a card-reward-shaped decision: handed to the
+        // RUN agent, which sees deck/map/relics and no fight at all, or (when
+        // the run agent declined) auto-skipped, because FromChooseACardScreen
+        // passes minSelect: 0 and the fallback read "min_select == 0" as
+        // "select nothing".
+        bool inCombat = false;
+        try
+        {
+            inCombat = CombatManager.Instance?.IsInProgress ?? false;
+        }
+        catch (Exception)
+        {
+            inCombat = false;
         }
 
         var stateMsg = RunStateBridgeFields.Apply(new Dictionary<string, object>
@@ -63,6 +85,7 @@ public class RlCardSelector : ICardSelector
             ["cards"] = cards,
             ["min_select"] = minSelect,
             ["max_select"] = maxSelect,
+            ["in_combat"] = inCombat,
         });
 
         // Try to get decision from Python agent
