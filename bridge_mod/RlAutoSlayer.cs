@@ -242,6 +242,18 @@ public class RlAutoSlayer
             [typeof(NGameOverScreen)] = new RlGameOverScreenHandler(),
             [typeof(NCrystalSphereScreen)] = new RlCrystalSphereScreenHandler(),
         };
+
+        // ActsFromThePast' Match and Keep minigame lives in the MOD assembly,
+        // so it is resolved by name and registered only when that mod is
+        // installed. Without a handler the drain loop fell through to
+        // TryDismissUnknownScreenAsync, which cannot resolve a grid of card
+        // holders, and the run stalled until the watchdog killed it.
+        RlMatchAndKeepScreenHandler? matchAndKeep = RlMatchAndKeepScreenHandler.TryCreate();
+        if (matchAndKeep != null)
+        {
+            _screenHandlers[matchAndKeep.ScreenType] = matchAndKeep;
+            Logger.Log("[RlAutoSlayer] Registered the Match and Keep handler");
+        }
     }
 
     public void Start(string seed, string? logFile = null)
