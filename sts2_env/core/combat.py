@@ -2702,9 +2702,26 @@ class CombatState:
         Pure-simulation callers have no ``_wire_entry`` and keep the previous
         key, so seeded simulation results are unaffected.
         """
-        cards.sort(key=lambda card: (
-            getattr(card, "_wire_entry", None) or card.card_id.name,
-            card.upgraded))
+        # SORT ON THE ENTRY ALONE.
+        #
+        # StableShuffle does list2.Sort() on List<CardModel>, which dispatches
+        # to AbstractModel.CompareTo -> ModelId.CompareTo, and that compares
+        # (Category, Entry) ordinal and NOTHING ELSE -- notably not the
+        # upgrade level. Adding `card.upgraded` as a tiebreak invented an
+        # ordering the game does not have: two copies of one card, one
+        # upgraded, were deterministically ordered here while the game leaves
+        # their relative order to List.Sort. Necrobinder decks are full of
+        # part-upgraded duplicates, so this fired on ordinary reshuffles.
+        #
+        # Python's sort is stable, so equal-comparing cards keep their
+        # pre-sort order. That matches .NET for piles of 16 or fewer, where
+        # introsort degenerates to a stable insertion sort. Above 16 .NET
+        # partitions and stability is lost, so a large pile holding
+        # part-upgraded duplicates can still deal differently -- reproducing
+        # that exactly needs an introsort port, and is deliberately NOT
+        # claimed here.
+        cards.sort(key=lambda card:
+                   getattr(card, "_wire_entry", None) or card.card_id.name)
         rng.shuffle(cards)
 
     def move_card_to_discard(self, card: CardInstance | None) -> None:
@@ -3719,6 +3736,7 @@ class CombatState:
         *,
         generation_context: str = "combat",
         ethereal: bool = False,
+        upgrade: bool = False,
     ) -> None:
         state = self.combat_player_state_for(owner)
         if state is None or count <= 0:
@@ -3735,6 +3753,12 @@ class CombatState:
         if ethereal:
             for card in generated:
                 card.keywords = frozenset(set(card.keywords) | {"ethereal"})
+        if upgrade:
+            # Stoke upgrades the generated cards BEFORE they enter the hand, the
+            # same order as CardCmd.Upgrade(cards) preceding
+            # CardPileCmd.AddGeneratedCardsToCombat in Stoke.cs.
+            for card in generated:
+                self.upgrade_card(card)
         self._add_generated_cards_to_hand(generated, owner=owner)
 
     def retrieve_attacks_from_discard(self, owner: Creature, count: int, *, upgrade: bool = False) -> None:
