@@ -194,6 +194,47 @@ class RewardConfig:
     #: reproducible; the hierarchical run agent opts in explicitly so
     #: the change can be A/B'd rather than silently altering Phi.
     w_deck_quality: float = 0.0
+    #: COMBAT-ONLY: how much of a win's value HP loss can cost.
+    #:
+    #: The combat env's reward was terminal and FLAT on a win, so a win at
+    #: full HP and a win at 1 HP paid identically -- the combat agent had no
+    #: reason to prefer the cheap line. That is fine for one fight and wrong
+    #: for a run: HP only comes back at rest sites, so a win bought at 30 HP
+    #: loses the run two floors later. Measured 2026-07-31, the deterministic
+    #: planner (which optimises win-then-HP) converted the SAME run agent's
+    #: decks into a 34.0% run win rate against the RL combat agent's 8.7%
+    #: (n=150 shared seeds each, two-proportion p=8.5e-08).
+    #:
+    #: 2.0 is 20% of ``win``. It spreads wins across a 2-point band while
+    #: leaving 14 points between the worst win (+8.0, having lost a full
+    #: max_hp) and the best possible loss (-6.0, having dealt 100% of enemy
+    #: HP) -- so no amount of HP saved can ever make losing attractive.
+    #: Rescale with ``win`` if ``win`` changes.
+    #:
+    #: Applies to WINS ONLY, via :meth:`combat_terminal_reward`. On a loss
+    #: the player is at 0 HP, so an HP term there is a near-constant penalty
+    #: scaled by whatever HP the sampler handed out -- it would punish the
+    #: combat agent for the run agent's earlier decisions.
+    #:
+    #: THE SIZING CONSTRAINT THAT MATTERS is not "wins beat losses" (that is
+    #: satisfied with enormous slack) but how much WIN PROBABILITY the term
+    #: invites the agent to trade away for HP. Giving up dp of win chance to
+    #: save dc of HP cost pays iff ``w * dc > dp * (win - loss)``. With
+    #: win-loss ~= 18 and w = 2.0, even the full 0->1 HP swing only justifies
+    #: dp < 2/18 ~= 11%, and a realistic dc of 0.3 justifies dp < 3.3%. That
+    #: is the intended bargain: shave HP when it is nearly free, never gamble
+    #: the fight for it. At w = 8.0 the arithmetic flips and a 70%-win line
+    #: that costs 5 HP outranks a 90%-win line that costs 40 -- which is why
+    #: this is 2.0 and not "as large as the loss bound allows".
+    w_combat_hp_retained: float = 2.0
+
+    #: Bounds on the HP cost ratio. The floor is NEGATIVE because a net heal
+    #: (Necrobinder heals mid-combat) is real value and should pay -- but
+    #: only up to +0.5 reward, so a Regen stall cannot out-earn winning
+    #: promptly. The ceiling stops a single brutal fight from dominating.
+    combat_hp_cost_floor: float = -0.25
+    combat_hp_cost_ceiling: float = 1.0
+
     #: Acts the episode is scored against; the progress denominator. 1 = the
     #: current goal (beat act 1). Must match the env's max_act_count or the
     #: potential saturates early or never reaches 1.0.
@@ -245,6 +286,44 @@ class RewardConfig:
         if enemy_down is not None:
             credit = self.death_progress_credit * min(1.0, max(0.0, float(enemy_down)))
         return self.death + credit + elites
+
+    def combat_terminal_reward(self, won: bool, enemy_down: float | None = None,
+                               hp_cost: float | None = None) -> float:
+        """Terminal payout for a STANDALONE COMBAT episode.
+
+        Identical to :meth:`terminal_reward` except that a win is charged for
+        the HP it cost. Deliberately a separate entry point rather than an
+        extra argument on ``terminal_reward``: the run env calls that method
+        positionally (rich_run_env.py) and its win is flat ON PURPOSE --
+        under PBRS the shaping telescopes, so a clean win and a bloody one
+        already total the same, and charging HP there would double-count
+        against the potential's own hp_damage term.
+
+        ``hp_cost`` is NET HP lost over the fight as a fraction of max_hp:
+        ``(hp_start - hp_end) / max_hp``. Net, not gross -- healing back is
+        genuine value for the run, so it earns rather than merely offsets.
+        Normalised by max_hp rather than hp_start because absolute HP is the
+        currency a run spends, and because hp_start is handed to the agent by
+        the deck sampler; grading against it would charge the combat agent
+        for a start it did not choose.
+        """
+        base = self.terminal_reward(won, enemy_down)
+        if not won or hp_cost is None or self.w_combat_hp_retained == 0.0:
+            return base
+        cost = min(self.combat_hp_cost_ceiling,
+                   max(self.combat_hp_cost_floor, float(hp_cost)))
+        return base - self.w_combat_hp_retained * cost
+
+    def worst_win_beats_best_loss(self) -> bool:
+        """The invariant that keeps the HP term safe. Asserted in tests.
+
+        No amount of HP saved may make losing preferable to winning. The
+        worst win is a win that cost a full max_hp; the best loss is a death
+        having depleted every enemy.
+        """
+        worst_win = self.win - self.w_combat_hp_retained * self.combat_hp_cost_ceiling
+        best_loss = self.death + self.death_progress_credit
+        return worst_win > best_loss
 
     # ------------------------------------------------------------------
     # Legacy event shaping (attempt-6 era; only when legacy_shaping=True)

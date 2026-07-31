@@ -337,11 +337,13 @@ class RichSTS2CombatEnv(gymnasium.Env):
         cfg = self.reward_config
         reward = 0.0
         won = False
+        hp_cost = None
         if terminated:
             won = combat.player_won
             _cb = self.combat
             _down = cfg.enemy_down(_cb) if _cb is not None else None
-            reward = cfg.terminal_reward(won, _down)
+            hp_cost = self._hp_cost()
+            reward = cfg.combat_terminal_reward(won, _down, hp_cost)
         elif truncated:
             reward = cfg.death
 
@@ -349,7 +351,27 @@ class RichSTS2CombatEnv(gymnasium.Env):
         info = {"action_mask": get_action_mask(combat)}
         if terminated or truncated:
             info["won"] = won
+            if hp_cost is not None:
+                # Surfaced so evals can report HP retention alongside win
+                # rate -- the whole point of the term is that a win's COST
+                # is now part of the objective, and a metric that only
+                # reports wins cannot show whether it worked.
+                info["hp_cost"] = hp_cost
+                info["hp_end"] = int(combat.primary_player.current_hp)
         return obs, float(reward), terminated, truncated, info
+
+    def _hp_cost(self) -> float:
+        """NET HP lost this combat as a fraction of max_hp.
+
+        Net rather than gross: healing back is real value for the run, so it
+        earns here instead of merely cancelling. Normalised by max_hp because
+        absolute HP is what a run spends, and because hp_start is whatever
+        the deck sampler handed out -- see combat_terminal_reward.
+        """
+        assert self.combat is not None
+        player = self.combat.primary_player
+        max_hp = max(1, int(player.max_hp))
+        return (self._hp_start - int(player.current_hp)) / max_hp
 
     def action_masks(self) -> np.ndarray:
         if self.combat is None:
