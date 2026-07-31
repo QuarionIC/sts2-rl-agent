@@ -676,13 +676,32 @@ public class RlAutoSlayer
         while (DateTime.UtcNow < deadline)
         {
             ct.ThrowIfCancellationRequested();
+
+            // RE-CHECK VALIDITY EVERY ITERATION.
+            //
+            // We poll this screen for up to 10s and search its children each
+            // time. Godot can free it in that window -- these screens close
+            // themselves -- and touching a freed node throws
+            // "InvalidOperationException: Handle is not initialized" from
+            // DelegateUtils.DelegateHash, which takes down the whole GAME, not
+            // just the run. Measured live: a 20-run session died at run 3 with
+            // that exception raised through DrainOverlayScreensAsync.
+            //
+            // A screen that no longer exists has been dismissed by definition.
+            if (!GodotObject.IsInstanceValid(screen) || !screen.IsInsideTree())
+            {
+                Logger.Log($"[RlAutoSlayer] {type.Name} closed on its own "
+                           + "while we were looking at it");
+                return true;
+            }
+
             _watchdog?.Reset($"Dismissing unhandled screen {type.Name}");
 
             // Prefer an explicit proceed button; it is what these screens
             // expect and is unambiguous when several controls are present.
             NProceedButton proceed = UiHelper.FindFirst<NProceedButton>(screen);
-            if (proceed != null && proceed.IsEnabled
-                    && ((Control)proceed).IsVisibleInTree())
+            if (proceed != null && GodotObject.IsInstanceValid(proceed)
+                    && proceed.IsEnabled && ((Control)proceed).IsVisibleInTree())
             {
                 Logger.Log($"[RlAutoSlayer] {type.Name}: clicking its proceed button");
                 await UiHelper.Click(proceed);
@@ -691,7 +710,8 @@ public class RlAutoSlayer
             }
 
             NButton button = UiHelper.FindAll<NButton>(screen)
-                .FirstOrDefault(b => b.IsEnabled && ((Control)b).IsVisibleInTree());
+                .FirstOrDefault(b => GodotObject.IsInstanceValid(b) && b.IsEnabled
+                                     && ((Control)b).IsVisibleInTree());
             if (button != null)
             {
                 Logger.Log($"[RlAutoSlayer] {type.Name}: no handler, clicking "

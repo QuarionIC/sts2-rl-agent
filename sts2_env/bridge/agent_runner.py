@@ -980,7 +980,38 @@ def _combat_planner_action(state: dict[str, Any]) -> int | None:
                 same_len = len(sim_hand) == len(live_hand)
                 same_multiset = (sorted(_norm_card(c) for c in sim_hand)
                                  == sorted(_norm_card(c) for c in live_hand))
-                if same_len and same_multiset:
+                # SIM-AHEAD: our hand is the live hand with exactly one card
+                # removed, and we hold less energy. That is not a shuffle
+                # disagreement at all -- it is the simulation having played an
+                # action the game has not, so the plan and the game are
+                # off by one.
+                #
+                # Worth separating because it was hiding inside CONTENTS and
+                # pointing the investigation at the wrong subsystem: a real
+                # case read sim [DEFEND, SLICE, DEFEND, STRIKE] energy 2
+                # against live [DEFEND, STRIKE, SLICE, DEFEND, STRIKE] energy
+                # 3 -- the live hand minus the STRIKE at index 1. Card
+                # contents were never the problem there.
+                sim_energy = nxt.get("sim_energy")
+                live_energy = (state.get("player") or {}).get("energy")
+                sim_ahead = False
+                if len(sim_hand) == len(live_hand) - 1:
+                    remaining = [_norm_card(c) for c in live_hand]
+                    for card in (_norm_card(c) for c in sim_hand):
+                        if card in remaining:
+                            remaining.remove(card)
+                        else:
+                            break
+                    else:
+                        sim_ahead = (len(remaining) == 1
+                                     and isinstance(sim_energy, int)
+                                     and isinstance(live_energy, int)
+                                     and sim_energy <= live_energy)
+
+                if sim_ahead:
+                    kind = ("SIM-AHEAD (we played an action the game has not; "
+                            "off by one, not a shuffle mismatch)")
+                elif same_len and same_multiset:
                     kind = "ORDER-ONLY (same cards, different order)"
                 elif same_multiset:
                     kind = "COUNT (same multiset, different length)"
@@ -1193,7 +1224,27 @@ def _combat_planner_action(state: dict[str, Any]) -> int | None:
 
 
 def _norm_card(v: str) -> str:
-    return str(v).upper().replace("CARDID.", "").replace("-", "_").strip()
+    """Canonical card name for COMPARING a prediction against the live game.
+
+    Must tolerate the ``_CARD`` suffix the way _to_card_id does. The wire and
+    the simulator disagree on it for some cards -- the simulator registers
+    SERPENT_FORM_CARD where the game sends SERPENT_FORM -- and without this
+    the divergence detector reported those as "different cards" and blamed
+    shuffle parity for a naming mismatch. Measured live: a sim hand ending
+    SERPENT_FORM_CARD against a live hand holding SERPENT_FORM, counted as a
+    CONTENTS divergence.
+
+    Also strips mod namespaces for the same reason: the same card can arrive
+    as ACTSFROMTHEPAST-X or X depending on which side produced the string.
+    """
+    name = str(v).upper().replace("CARDID.", "").replace("-", "_").strip()
+    for prefix in ("ACTSFROMTHEPAST_", "ACT4HEART_", "DOWNFALL_", "BASE_"):
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+            break
+    if name.endswith("_CARD"):
+        name = name[: -len("_CARD")]
+    return name
 
 def _llm_pick(state: dict[str, Any], options: list[dict[str, Any]],
               question: str, fallback: Any, tag: str) -> Any:
