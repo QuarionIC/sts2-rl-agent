@@ -322,7 +322,6 @@ def _character_from(state: dict[str, Any]) -> str:
 
 _WARNED_ONCE: set[str] = set()
 
-
 def _warn_once_reconstruct(key: str, message: str) -> None:
     """Log a fidelity gap once per process rather than once per decision."""
     if key not in _WARNED_ONCE:
@@ -428,6 +427,19 @@ def _install_game_shuffle_rng(combat, raw) -> bool:
         "shuffle_rng_ok",
         "shuffle parity ACTIVE: reconstructed combats now draw from the "
         "game's own xoshiro256** stream with StableShuffle semantics.")
+
+    # NOTE: a shuffle-counter "drift detector" lived here and was removed.
+    # Two versions were tried and neither isolated parity error. Comparing
+    # the game's counter against the ROOT combat measured nothing (planning
+    # clones, so the root never advances). Comparing against the plan's
+    # SHADOW conflates parity error with queued-but-unplayed actions, the
+    # game's own between-decision draws, and combat boundaries -- the deltas
+    # were uninterpretable either way.
+    #
+    # The CONTENTS divergence check in agent_runner is the authoritative
+    # measurement: it compares the card we predicted in a slot against the
+    # card the live game actually holds there, which is the thing that
+    # matters and needs no inference. Post-reshuffle it reads ~4.6%.
     return True
 
 
