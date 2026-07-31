@@ -499,16 +499,48 @@ def _to_card_id(raw: str):
     return matches[0] if len(matches) == 1 else None
 
 
+#: Mod power classes the simulator models under a different name, VERIFIED
+#: behaviour-for-behaviour rather than by name similarity.
+#:
+#: ASLEEP_LAGAVULIN_POWER wakes its owner on unblocked damage, strips the
+#: owner's Metallicize and removes itself -- which is what AsleepPower does,
+#: stripping PLATING (StS2's name for Metallicize) and stunning.
+#:
+#: Deliberately short. Three mod powers LOOKED like aliases; only this one
+#: survived reading both implementations:
+#:   * STRENGTH_UP_POWER applies Strength at AfterSideTurnEnd, while the
+#:     simulator's RITUAL applies it at turn START -- a full turn earlier, so
+#:     the planner would credit the enemy with Strength on an attack that has
+#:     not gained it yet.
+#:   * REGEN_ENEMY_POWER heals Amount every turn forever, while the
+#:     simulator's REGEN heals then decrements by 1 -- so an aliased enemy
+#:     would be simulated healing less every turn than it really does.
+#: Both need their own power, not an alias. Aliasing on name similarity would
+#: have been strictly worse than the current honest "unrecognised" warning.
+_POWER_ID_ALIASES = {
+    "ASLEEPLAGAVULINPOWER": "ASLEEP",
+}
+
+
 def _to_power_id(raw: str):
     """Wire power-id string -> PowerId enum, or None if unrecognised.
 
     Same normalisation ladder as :func:`_to_card_id`: exact, upper-snake,
-    mod-namespace stripped, then an alphanumeric-flattened unique match.
+    mod-namespace stripped, then an alphanumeric-flattened unique match --
+    plus the verified alias table above.
     """
     from sts2_env.core.enums import PowerId
 
     name = str(raw).replace("PowerId.", "").strip()
     upper = name.upper().replace(" ", "_").replace("-", "_")
+
+    aliased = _POWER_ID_ALIASES.get(
+        "".join(ch for ch in upper if ch.isalnum()))
+    if aliased is not None:
+        try:
+            return PowerId[aliased]
+        except KeyError:
+            pass
     for pref in (p.replace("-", "_") for p in _MOD_PREFIXES):
         if upper.startswith(pref):
             upper = upper[len(pref):]
