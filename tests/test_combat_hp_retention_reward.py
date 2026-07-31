@@ -34,13 +34,22 @@ def test_a_cheap_win_pays_more_than_an_expensive_one():
 
 
 def test_the_worst_win_still_beats_the_best_loss():
+    """The one invariant that must never break, whatever the weight.
+
+    The headroom is no longer generous. At w=2.0 the worst win beat the best
+    loss by 14 points; at the shipped 14.0 it is +2.00 vs -6.00, a margin of
+    2. Still strictly ordered -- dying is never preferable to winning -- but
+    close enough that any further increase needs this checked first, which is
+    what worst_win_beats_best_loss() is for.
+    """
     cfg = _cfg()
     assert cfg.worst_win_beats_best_loss()
     worst_win = cfg.combat_terminal_reward(True, 0.0, hp_cost=1.0)
     best_loss = cfg.combat_terminal_reward(False, 1.0, hp_cost=1.0)
     assert worst_win > best_loss
-    # And with real headroom, not by a hair.
-    assert worst_win - best_loss > 10.0
+    # Pin the actual margin so a future weight change has to confront it
+    # rather than quietly consume it.
+    assert worst_win - best_loss == pytest.approx(2.0)
 
 
 def test_losses_are_not_charged_for_hp():
@@ -112,25 +121,41 @@ def _expected_value(cfg, win_prob, hp_cost):
             + (1 - win_prob) * cfg.combat_terminal_reward(False, 0.8))
 
 
-def test_the_term_does_not_invite_gambling_the_fight_to_save_hp():
-    """The constraint that actually sizes the weight.
+def test_a_low_weight_does_not_invite_gambling_the_fight_to_save_hp():
+    """The mechanism, pinned at a weight where it still holds.
 
-    "Wins beat losses" is satisfied with enormous slack and is not the
-    binding limit. What binds is how much WIN PROBABILITY the term invites
-    the agent to trade for HP. A 90%-win line costing 40 HP must stay ahead
-    of a 70%-win line costing 5 -- otherwise "preserve HP" quietly becomes
-    "avoid risk", which loses runs.
+    What binds this term is not "wins beat losses" but how much WIN
+    PROBABILITY it invites trading for HP: giving up dp of win chance to save
+    dc of HP pays iff ``w * dc > dp * (win - loss)``. At w=2.0 a 90%-win line
+    costing 40 HP still outranks a 70%-win line costing 5.
+    """
+    gentle = _cfg(w_combat_hp_retained=2.0)
+    assert _expected_value(gentle, 0.90, 40 / 66) > \
+        _expected_value(gentle, 0.70, 5 / 66)
+
+
+def test_the_shipped_weight_accepts_the_gamble_tradeoff():
+    """The SHIPPED default inverts that preference, deliberately.
+
+    Raised 2.0 -> 14.0 on 2026-07-31 by explicit direction, for a stronger
+    signal: at 2.0 the term was worth a measured +0.95 HP per win (95% CI
+    [+0.36, +1.53]) and had gone flat across 3M steps.
+
+    The cost is asserted here rather than left to be discovered. At 14.0 a
+    70%-win line costing 5 HP outranks a 90%-win line costing 40 -- the agent
+    will accept a materially worse chance of winning in exchange for HP. If
+    the live win rate falls, this is the explanation, and it was known in
+    advance.
+
+    Asserting the inversion rather than deploring it: a test that merely
+    failed here would get "fixed" by being weakened. Lower the weight back
+    and this fails, pointing at the sibling above.
     """
     cfg = _cfg()
-    safe_but_flaky = _expected_value(cfg, 0.70, 5 / 70)
-    reliable_but_costly = _expected_value(cfg, 0.90, 40 / 70)
-    assert reliable_but_costly > safe_but_flaky
-
-    # ...and the same comparison inverts once the weight is far too large,
-    # which is exactly the failure this sizing avoids.
-    reckless = _cfg(w_combat_hp_retained=8.0)
-    assert _expected_value(reckless, 0.70, 5 / 70) > \
-        _expected_value(reckless, 0.90, 40 / 70)
+    assert cfg.w_combat_hp_retained == 14.0
+    assert _expected_value(cfg, 0.70, 5 / 66) > _expected_value(cfg, 0.90, 40 / 66)
+    # The hard floor still holds: no HP saving makes dying acceptable.
+    assert cfg.worst_win_beats_best_loss()
 
 
 def test_hp_only_wins_when_it_is_nearly_free():

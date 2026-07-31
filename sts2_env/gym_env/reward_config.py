@@ -216,17 +216,32 @@ class RewardConfig:
     #: scaled by whatever HP the sampler handed out -- it would punish the
     #: combat agent for the run agent's earlier decisions.
     #:
-    #: THE SIZING CONSTRAINT THAT MATTERS is not "wins beat losses" (that is
-    #: satisfied with enormous slack) but how much WIN PROBABILITY the term
-    #: invites the agent to trade away for HP. Giving up dp of win chance to
-    #: save dc of HP cost pays iff ``w * dc > dp * (win - loss)``. With
-    #: win-loss ~= 18 and w = 2.0, even the full 0->1 HP swing only justifies
-    #: dp < 2/18 ~= 11%, and a realistic dc of 0.3 justifies dp < 3.3%. That
-    #: is the intended bargain: shave HP when it is nearly free, never gamble
-    #: the fight for it. At w = 8.0 the arithmetic flips and a 70%-win line
-    #: that costs 5 HP outranks a 90%-win line that costs 40 -- which is why
-    #: this is 2.0 and not "as large as the loss bound allows".
-    w_combat_hp_retained: float = 2.0
+    #: RAISED FROM 2.0 TO 14.0 ON 2026-07-31 BY EXPLICIT DIRECTION, for a
+    #: clearer learning signal. Recording what that buys and what it costs,
+    #: because the trade is real and was measured rather than assumed.
+    #:
+    #: What it buys: at 2.0 the term was worth a measured +0.95 HP per win
+    #: (95% CI [+0.36, +1.53]) -- real and significant, but only ~14% of the
+    #: 7.0 HP gap to the planner, and flat across 3M steps. 14.0 is a seven
+    #: fold stronger gradient on a signal that had demonstrably stopped
+    #: improving.
+    #:
+    #: What it costs: the binding constraint is NOT "wins beat losses" -- that
+    #: still holds, though the margin narrows from 14 points to 2 (worst win
+    #: -4.00 vs best loss -6.00) and ``worst_win_beats_best_loss`` still
+    #: passes. What binds is how much WIN PROBABILITY the term invites trading
+    #: away: giving up dp of win chance to save dc of HP pays iff
+    #: ``w * dc > dp * (win - loss)``. At 2.0 even the full HP swing justified
+    #: only dp < 11%; at 14.0 it justifies dp < 78%, and the preference
+    #: INVERTS on a concrete case -- a 70%-win line costing 5 HP scores +4.22
+    #: against +0.68 for a 90%-win line costing 40.
+    #:
+    #: So this weight accepts risk-aversion as the price of a stronger HP
+    #: signal. WATCH THE WIN RATE: if it falls, that is this term, not noise,
+    #: and the diagnosis is already written down here.
+    #: test_the_default_weight_accepts_the_gamble_tradeoff pins the inversion
+    #: so it can never become a silent surprise.
+    w_combat_hp_retained: float = 14.0
 
     #: COMBAT-ONLY PBRS on cumulative damage: Phi(s) = -w * damage/max_hp.
     #:
