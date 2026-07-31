@@ -87,7 +87,16 @@ def test_autoslay_run_flow_uses_named_protocol_and_timing_constants() -> None:
     assert "NonCombatBridgeProtocol.GameOverMessage" in source
     assert '"{\\"type\\":\\"run_complete\\"' not in source
     assert '"{\\"type\\":\\"game_over\\"' not in source
-    assert "while (runState.TotalFloor < FinalRunFloor)" in source
+    # Runs play to a win or a death now, not to a floor number. The old
+    # FinalRunFloor cap silently truncated every successful run -- the agent
+    # could never finish an Act 3 boss or reach Act 4 -- so the loop bound is
+    # a runaway guard and the RunEnded checks are what terminate it.
+    assert "while (runState.TotalFloor < AbsoluteMaxFloor)" in source
+    # Match the USE, not the word: the comment above the loop deliberately
+    # names FinalRunFloor to explain what it replaced and why.
+    assert "< FinalRunFloor" not in source
+    assert "private const int FinalRunFloor" not in source
+    assert "if (RunEnded)" in source
     assert "TimeSpan.FromMinutes(RunTimeoutMinutes)" in source
     assert "TimeSpan.FromSeconds(RunStateTimeoutSeconds)" in source
     assert "TimeSpan.FromSeconds(RoomAssignmentTimeoutSeconds)" in source
