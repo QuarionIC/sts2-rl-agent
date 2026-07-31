@@ -327,6 +327,7 @@ def run_agent(
 
         step_count = 0
         runs_seen = 0
+        run_ended = False   # a terminal message for this run was already counted
         combat_count = 0
 
         try:
@@ -352,6 +353,11 @@ def run_agent(
                 phase = _phase_for_state(state)
                 step_count += 1
 
+                # Any non-terminal payload means a new run is under way, so
+                # the next ending is a genuinely new one to count.
+                if phase not in TERMINAL_PHASES and phase != MSG_TYPE_PONG:
+                    run_ended = False
+
                 # Keep the newest combat payload so a mid-combat card
                 # discovery, which arrives without one, still has a fight to
                 # be evaluated against.
@@ -367,10 +373,22 @@ def run_agent(
                 if phase == MSG_TYPE_PONG:
                     continue
                 if phase in TERMINAL_PHASES:
-                    runs_seen += 1
-                    logger.info("Run finished: %s (run %d this session)",
-                                state.get("result", state.get("message", "unknown")),
-                                runs_seen)
+                    # One ENDING, not one message. A death emits game_over and
+                    # then run_complete, so counting every terminal message
+                    # reported 3 runs for the 2 that were actually played --
+                    # and any per-run rate computed from it was wrong by that
+                    # factor. Count only the first terminal message of a
+                    # streak; the next non-terminal payload re-arms it.
+                    if not run_ended:
+                        run_ended = True
+                        runs_seen += 1
+                        logger.info("Run finished: %s (run %d this session)",
+                                    state.get("result",
+                                              state.get("message", "unknown")),
+                                    runs_seen)
+                    else:
+                        logger.debug("Additional terminal message (%s) for the "
+                                     "run already counted", msg_type)
                     # DO NOT EXIT. The mod plays N runs back-to-back
                     # (RlAutoSlayer.RunAsync loops over PreferredRunCount), so a
                     # terminal message is a RUN boundary, not a session
@@ -1534,6 +1552,161 @@ def _rl_run_action(state: dict[str, Any]) -> int | None:
     return action
 
 
+def _selectable_indexes(state: dict[str, Any]) -> list[int] | None:
+    """Indexes this payload can actually accept, or None if it does not say.
+
+    Returning None rather than [] for an unknown payload shape matters: []
+    would read as "nothing is selectable" and suppress every choice.
+    """
+    for key in ("options", "nodes", "bundles", "cards"):
+        entries = state.get(key)
+        if not isinstance(entries, list) or not entries:
+            continue
+        out = []
+        for fallback, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                out.append(fallback)
+                continue
+            if not bool(entry.get("enabled", True)):
+                continue
+            out.append(_read_index(entry, fallback))
+        return out
+    return None
+
+
+def _validate_choice(
+    state: dict[str, Any], decoded: dict[str, Any]
+) -> dict[str, Any]:
+    """Refuse to send an index the current screen cannot accept.
+
+    _send_noncombat_action called client.<method>(*args) with whatever the
+    policy produced, unchecked. Live 2026-07-31 the run agent answered a shop
+    with choose([9]) then choose([8]); the game went silent, the runner timed
+    out after 60s, and the mod terminated the run.
+
+    A model trained against a differently-sized option list will emit
+    out-of-range indexes, and the failure mode is a HANG rather than an error
+    -- the worst kind, because it costs the whole run and looks like the game
+    is thinking. Falling back to the heuristic keeps the run alive and, more
+    usefully, says loudly that the action space and the payload disagree.
+    """
+    if decoded.get("method") != "choose":
+        return decoded
+    args = decoded.get("args") or []
+    if len(args) != 1 or not isinstance(args[0], int):
+        return decoded
+
+    allowed = _selectable_indexes(state)
+    if allowed is None or args[0] in allowed:
+        return decoded
+
+    fallback = _heuristic_choice_for_log(state)
+    if not isinstance(fallback, int) or (allowed and fallback not in allowed):
+        fallback = allowed[0] if allowed else None
+    if fallback is None:
+        logger.error(
+            "%s: agent chose index %d but the payload offers %s, and there is "
+            "no usable fallback.",
+            state.get("type"), args[0], allowed,
+        )
+        return decoded
+
+    logger.warning(
+        "%s: agent chose index %d but the payload only offers %s -- sending "
+        "%d instead. An out-of-range index does not error, it HANGS the room "
+        "until the mod terminates the run.",
+        state.get("type"), args[0], allowed, fallback,
+    )
+    return {**decoded, "args": [fallback]}
+
+
+#: [(screen fingerprint, method, args), consecutive repeats]
+_LAST_NONCOMBAT_CHOICE: list[Any] = [None, 0]
+
+#: Break at 2 so we stay UNDER the mod's own limit.
+#:
+#: RlNonCombatRoomHandlers aborts the room after MaxRepeatedChoices = 3
+#: identical clicks, and RlAutoSlayer turns that into "run terminated". So a
+#: guard that only acted on the 3rd repeat would never run -- the mod would
+#: already have killed the run.
+NONCOMBAT_REPEAT_LIMIT = 2
+
+
+def _screen_fingerprint(state: dict[str, Any]) -> tuple:
+    """Identify a screen by its offered options, not by arrival order.
+
+    A genuinely new screen must reset the counter, or the guard would start
+    rotating choices on unrelated screens that merely share an index.
+    """
+    options = state.get("options") or state.get("cards") or state.get("nodes") or []
+    labels = []
+    for opt in options:
+        if isinstance(opt, dict):
+            labels.append(str(opt.get("id") or opt.get("label")
+                              or opt.get("action") or opt.get("index")))
+        else:
+            labels.append(str(opt))
+    return (state.get("type", ""), state.get("floor"), tuple(labels))
+
+
+def _alternative_choice(state: dict[str, Any], current: int) -> int | None:
+    """The next enabled option after *current*, or None if there is no other."""
+    options = _enabled_options(state)
+    indexes = [_read_index(opt, i) for i, opt in enumerate(options)]
+    others = [i for i in indexes if i != current]
+    return others[0] if others else None
+
+
+def _break_repeated_choice(
+    state: dict[str, Any], decoded: dict[str, Any]
+) -> dict[str, Any]:
+    """Vary a choice that is being made over and over on the same screen.
+
+    run_env has had an anti-dither guard since the forensics that found
+    deterministic-argmax policies toggling one option forever; the LIVE path
+    had none, so the same dithering ran unchecked until the mod's repeat
+    limit terminated the run. Measured 2026-07-31: three identical
+    ``event -> choose([0])`` calls, then "Run finished: terminated".
+
+    Rotating to another legal option is a worse decision than the policy
+    wanted and a far better one than a dead run -- the same trade the
+    card-reward breaker makes.
+    """
+    key = (_screen_fingerprint(state), decoded.get("method"),
+           tuple(decoded.get("args") or ()))
+    if key == _LAST_NONCOMBAT_CHOICE[0]:
+        _LAST_NONCOMBAT_CHOICE[1] += 1
+    else:
+        _LAST_NONCOMBAT_CHOICE[0] = key
+        _LAST_NONCOMBAT_CHOICE[1] = 1
+
+    if _LAST_NONCOMBAT_CHOICE[1] <= NONCOMBAT_REPEAT_LIMIT:
+        return decoded
+    if decoded.get("method") != "choose":
+        return decoded
+
+    args = decoded.get("args") or []
+    if len(args) != 1 or not isinstance(args[0], int):
+        return decoded
+
+    alternative = _alternative_choice(state, args[0])
+    if alternative is None:
+        logger.warning(
+            "%s: choice %s repeated %d times and there is no other enabled "
+            "option to try. The mod will abort this room shortly.",
+            state.get("type"), args, _LAST_NONCOMBAT_CHOICE[1],
+        )
+        return decoded
+
+    logger.warning(
+        "%s: choice %s repeated %d times without the screen changing -- "
+        "trying option %d instead so the mod does not terminate the run.",
+        state.get("type"), args, _LAST_NONCOMBAT_CHOICE[1], alternative,
+    )
+    _LAST_NONCOMBAT_CHOICE[1] = 0
+    return {**decoded, "args": [alternative]}
+
+
 def _apply_card_reward_latch(
     state: dict[str, Any], decoded: dict[str, Any]
 ) -> dict[str, Any]:
@@ -1599,6 +1772,8 @@ def _try_rl_run_action(client: Any, state: dict[str, Any], verbose: bool) -> boo
         return False
 
     decoded = _apply_card_reward_latch(state, decoded)
+    decoded = _validate_choice(state, decoded)
+    decoded = _break_repeated_choice(state, decoded)
 
     # Log what the HEURISTIC would have done next to what the agent did.
     #
