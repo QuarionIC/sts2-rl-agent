@@ -940,11 +940,30 @@ public class RlEventRoomHandler : IRoomHandler, IHandler
             string stateJson = JsonSerializer.Serialize(RunStateBridgeFields.Apply(new Dictionary<string, object>
             {
                 ["type"] = NonCombatBridgeProtocol.EventState,
+                // TELL PYTHON WHICH OPTION LEAVES THE EVENT.
+                //
+                // Every option used to go over the wire as a generic
+                // EventChoiceAction, so the agent could not tell the "Proceed"
+                // button on an event's RESULT page from a real choice on its
+                // first page. After answering an event the agent kept picking
+                // an ordinary option, the page never changed, and three
+                // identical clicks tripped MaxRepeatedChoices below -- which
+                // abandons the event and, through room-level recovery, ends
+                // the run. Observed live 2026-07-31 as "the agent restarted a
+                // run instead of clicking proceed".
+                //
+                // The mod already branches on Option.IsProceed a few lines
+                // down; it simply never told the client.
                 ["options"] = options.Select((option, index) => new Dictionary<string, object>
                 {
                     ["index"] = index,
-                    ["id"] = NonCombatBridgeProtocol.EventChoiceAction,
-                    ["action"] = NonCombatBridgeProtocol.EventChoiceAction,
+                    ["id"] = option.Option.IsProceed
+                        ? NonCombatBridgeProtocol.ProceedAction
+                        : NonCombatBridgeProtocol.EventChoiceAction,
+                    ["action"] = option.Option.IsProceed
+                        ? NonCombatBridgeProtocol.ProceedAction
+                        : NonCombatBridgeProtocol.EventChoiceAction,
+                    ["is_proceed"] = option.Option.IsProceed,
                     ["label"] = option.Option.Title.GetFormattedText(),
                     ["description"] = option.Option.Description.GetFormattedText(),
                     ["enabled"] = !option.Option.IsLocked,

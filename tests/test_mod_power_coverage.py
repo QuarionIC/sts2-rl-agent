@@ -30,7 +30,17 @@ from sts2_env.bridge.combat_reconstruct import _to_power_id
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MOD_ROOT = REPO_ROOT / "decompiled_mods" / "ActsFromThePast"
+
+#: The gameplay mods actually INSTALLED for agent runs.
+#:
+#: Downfall is deliberately absent. It was subscribed until 2026-07-31 and
+#: injected 807 card classes and 238 powers from eight other characters into
+#: Necrobinder runs; the simulator models none of it, so 61-89% of combat
+#: payloads were refused and the agent played heuristics through most of
+#: every run while the logs said the planner was engaged. It was unsubscribed
+#: rather than modelled. decompiled_mods/Downfall survives only as reference.
+INSTALLED_MODS = ("ActsFromThePast", "Act4Heart")
+MOD_ROOT = REPO_ROOT / "decompiled_mods"
 
 #: Powers known to be unimplemented, each with what it actually does. Entries
 #: come OFF this list as they are implemented; nothing is ever added to it to
@@ -57,7 +67,18 @@ def _slugify(name: str) -> str:
 
 
 def _mod_power_entries() -> list[str]:
-    return sorted(_slugify(p.stem) for p in MOD_ROOT.rglob("*Power.cs"))
+    entries = set()
+    for mod in INSTALLED_MODS:
+        root = MOD_ROOT / mod
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*Power.cs"):
+            # BaseLib-style interface stubs (ICustomPower) are contracts, not
+            # powers an enemy can carry.
+            if path.stem.startswith("I") and path.stem[1:2].isupper():
+                continue
+            entries.add(_slugify(path.stem))
+    return sorted(entries)
 
 
 pytestmark = pytest.mark.skipif(
@@ -65,9 +86,11 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_the_mod_tree_is_actually_present():
+def test_the_mod_trees_are_actually_present():
     entries = _mod_power_entries()
     assert len(entries) >= 20, f"only {len(entries)} power classes found"
+    for mod in INSTALLED_MODS:
+        assert (MOD_ROOT / mod).is_dir(), f"{mod} reference tree is missing"
 
 
 @pytest.mark.parametrize("entry", _mod_power_entries())

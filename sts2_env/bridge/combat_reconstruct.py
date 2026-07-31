@@ -565,6 +565,14 @@ def _to_power_id(raw: str):
     variants = {flat, flat + "POWER"}
     if flat.endswith("POWER"):
         variants.add(flat[: -len("POWER")])
+    # ...and an EMBEDDED "Power", which is where mods put it. Act4Heart names
+    # its class RegeneratePowerA4H, so the wire sends REGENERATE_POWER_A4H
+    # while the simulator registers REGENERATE_A4H -- the suffix rule above
+    # cannot see that, and BYRDONIS was reconstructed with no Regenerate
+    # (observed live 2026-07-31). Still only accepted when unique, so a
+    # genuine *_POWER name cannot be captured by a near-miss.
+    if "POWER" in flat:
+        variants.add(flat.replace("POWER", "", 1))
     matches = [m for m in PowerId if _flat(m.name) in variants]
     for m in matches:
         if _flat(m.name) == flat:

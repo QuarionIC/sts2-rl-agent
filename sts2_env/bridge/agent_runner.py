@@ -1030,11 +1030,33 @@ def _pick_shop_option(state: dict[str, Any]) -> int:
     _fb = _pick_shop_option_heuristic(state)
     return _llm_pick(state, _enabled_options(state), 'What do you buy (or leave)?', _fb, 'SHOP')
 
+def _proceed_option(state: dict[str, Any]) -> dict[str, Any] | None:
+    """The option that LEAVES this screen, if the payload marks one.
+
+    Events have two kinds of page: a question, whose options are real
+    choices, and a result, whose only affordance is Proceed. The wire did not
+    distinguish them, so the agent answered a result page as though it were
+    still a question.
+    """
+    for option in _enabled_options(state):
+        if option.get("is_proceed") or _canonical_text(
+                option.get("action")) == REWARD_PROCEED_ACTION:
+            return option
+    return None
+
+
 def _pick_event_option_heuristic(state: dict[str, Any]) -> int:
-    """Choose the first enabled event option."""
+    """Choose an event option, taking Proceed when it is the only way out."""
     options = _enabled_options(state)
     if not options:
         return DEFAULT_CHOICE_INDEX
+
+    # Only take Proceed automatically when it is the SOLE option. Some events
+    # offer "leave" alongside real choices on the first page, and that is a
+    # decision worth making, not a reflex.
+    proceed = _proceed_option(state)
+    if proceed is not None and len(options) == 1:
+        return _read_index(proceed, DEFAULT_CHOICE_INDEX)
     return _read_index(options[0], DEFAULT_CHOICE_INDEX)
 
 
@@ -1650,7 +1672,18 @@ def _screen_fingerprint(state: dict[str, Any]) -> tuple:
 
 
 def _alternative_choice(state: dict[str, Any], current: int) -> int | None:
-    """The next enabled option after *current*, or None if there is no other."""
+    """Another option to try, preferring the one that LEAVES the screen.
+
+    A screen that will not advance is usually an event RESULT page, where the
+    only thing left to do is Proceed. Rotating to an arbitrary other option
+    would be a guess; Proceed is the actual answer, so try it first.
+    """
+    proceed = _proceed_option(state)
+    if proceed is not None:
+        index = _read_index(proceed, -1)
+        if index != current and index >= 0:
+            return index
+
     options = _enabled_options(state)
     indexes = [_read_index(opt, i) for i, opt in enumerate(options)]
     others = [i for i in indexes if i != current]
