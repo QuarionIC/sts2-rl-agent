@@ -189,7 +189,7 @@ class TestNoDeckObs:
     def test_deck_segment_zeroed(self):
         env = RichSTS2RunEnv(max_act_count=1, include_deck_obs=False)
         obs, _ = env.reset(seed=7)
-        seg = obs[ro.DECK_BAG_OFF:ro.ARCH_SCALARS_OFF + ro.ARCH_SCALARS_SIZE]
+        seg = obs[ro.DECK_BAG_OFF:ro.DECK_BAG_OFF + ro.DECK_BAG_SIZE]
         assert not seg.any()
         # ... and stays zeroed after steps.
         rng = np.random.default_rng(7)
@@ -198,7 +198,7 @@ class TestNoDeckObs:
                 int(rng.choice(np.flatnonzero(env.action_masks()))))
             if term or trunc:
                 break
-            seg = obs[ro.DECK_BAG_OFF:ro.ARCH_SCALARS_OFF + ro.ARCH_SCALARS_SIZE]
+            seg = obs[ro.DECK_BAG_OFF:ro.DECK_BAG_OFF + ro.DECK_BAG_SIZE]
             assert not seg.any()
 
     def test_default_env_has_deck_segment(self):
@@ -242,8 +242,9 @@ class TestHandEncodingSwitch:
             + ro.NUM_PILES * 96      # pile bag projections
             + 96                     # deck bag projection
             + 16 + 16                # potion + boss embeddings
+            + ro.NUM_OFFER_SLOTS * 64  # card-reward offer per-slot concat
+            + 64                     # offer mean-pool global context
             + flat_size
-            + ro.ARCH_SCALARS_SIZE
         )
         assert fe.features_dim == expected
 

@@ -83,10 +83,17 @@ class RunView:
     """
 
     def __init__(self, run_state: Any, phase: str,
-                 room_type: Any = None) -> None:
+                 room_type: Any = None,
+                 offered_cards: list[Any] | None = None) -> None:
         self.run_state = run_state
         self.phase = phase
         self._current_room_type = room_type
+        # The cards on offer at a card reward. encode_run reads this to fill
+        # the offer block; without it the live agent would see an empty offer
+        # at every reward screen while training saw a populated one -- the
+        # exact observation mismatch that makes a policy behave differently
+        # in the game than it did in the simulator.
+        self._offered_cards = offered_cards or []
         self._offered_potion = None
         self._offered_relic = None
 
@@ -313,7 +320,24 @@ def reconstruct_run(state: dict[str, Any],
         "one-hot and the boss id may not match the live run.",
     )
 
-    return RunView(run_state, phase, _to_room_type(state.get("room_type")))
+    # Offered cards, when the payload is a card reward. Unresolvable ids are
+    # dropped here rather than refusing the whole reconstruction: an offer we
+    # cannot name still leaves the rest of the observation correct, and the
+    # slot's "offered" flag stays 0 so the policy is not told a blank slot is
+    # a real option.
+    offered: list[Any] = []
+    raw_offer = state.get("cards")
+    if isinstance(raw_offer, list) and raw_offer:
+        offered, unknown_offer = _build_deck(raw_offer)
+        if unknown_offer:
+            logger.warning(
+                "card reward: %d offered card id(s) unresolved (%s); those "
+                "slots will read as empty to the run agent.",
+                len(unknown_offer), ", ".join(unknown_offer[:4]),
+            )
+
+    return RunView(run_state, phase, _to_room_type(state.get("room_type")),
+                   offered_cards=offered)
 
 
 def encode_run_observation(state: dict[str, Any],

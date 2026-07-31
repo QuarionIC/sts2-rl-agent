@@ -30,8 +30,9 @@ class TestRichFeaturesExtractor:
             + ro.NUM_PILES * 96      # pile bag projections
             + 96                     # deck bag projection
             + 16 + 16                # potion + boss embeddings
+            + ro.NUM_OFFER_SLOTS * 64  # card-reward offer per-slot concat
+            + 64                     # offer mean-pool global context
             + flat_size
-            + ro.ARCH_SCALARS_SIZE
         )
         assert fe.features_dim == expected
 
@@ -72,13 +73,6 @@ class TestRichFeaturesExtractor:
         expected = (2.0 / ro.BAG_COUNT_SCALE) * fe.card_embedding.weight[1 + ci]
         assert torch.allclose(deck_feats, expected, atol=1e-6)
 
-    def test_archetype_scalars_pass_through(self):
-        fe = RichFeaturesExtractor(_make_space())
-        x = torch.zeros(1, ro.RICH_OBS_SIZE)
-        vals = torch.arange(1, ro.ARCH_SCALARS_SIZE + 1, dtype=torch.float32) / 10.0
-        x[0, ro.ARCH_SCALARS_OFF:ro.ARCH_SCALARS_OFF + ro.ARCH_SCALARS_SIZE] = vals
-        y = fe(x)
-        assert torch.allclose(y[0, -ro.ARCH_SCALARS_SIZE:], vals)
 
     def test_policy_kwargs_defaults(self):
         kw = rich_policy_kwargs()

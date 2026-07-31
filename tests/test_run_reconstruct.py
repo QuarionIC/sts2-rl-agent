@@ -88,6 +88,10 @@ def _payload_from_mgr(mgr, wire_type: str) -> dict:
         "potions": [{"slot": i, "id": getattr(p.potion_id, "name", p.potion_id)}
                     for i, p in enumerate(player.potions) if p is not None],
     }
+    offered = getattr(mgr, "_offered_cards", None) or []
+    if offered:
+        payload["cards"] = [{"id": c.card_id.name, "upgraded": bool(c.upgraded),
+                             "keywords": sorted(c.keywords)} for c in offered]
     room = getattr(mgr, "_current_room_type", None)
     if room is not None:
         payload["room_type"] = room.name
@@ -176,9 +180,6 @@ def test_deck_bag_is_actually_populated():
         deck_bag = dict((n, (s, z)) for n, s, z in segment_table())["deck_bag"]
         start, size = deck_bag
         assert obs[start:start + size].sum() > 0, "deck bag is empty"
-        arch = dict((n, (s, z)) for n, s, z in segment_table())["archetype_scalars"]
-        a_start, a_size = arch
-        assert obs[a_start:a_start + a_size].sum() > 0, "archetype scalars empty"
         return
     pytest.fail("no decision point reached")
 

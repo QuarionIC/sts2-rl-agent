@@ -31,9 +31,8 @@ from gymnasium import spaces
 
 from sts2_env.gym_env.reward_config import RewardConfig
 from sts2_env.gym_env.rich_observation import (
-    ARCH_SCALARS_OFF,
-    ARCH_SCALARS_SIZE,
     DECK_BAG_OFF,
+    DECK_BAG_SIZE,
     RICH_OBS_HIGH,
     RICH_OBS_LOW,
     RICH_OBS_SIZE,
@@ -293,7 +292,10 @@ class RichSTS2RunEnv(STS2RunEnv):
             return np.zeros(RICH_OBS_SIZE, dtype=np.float32)
         obs = self._encoder.encode_run(self._mgr)
         if not self.include_deck_obs:
-            # Ablation: hide the owned deck (deck bag + archetype scalars;
-            # the two segments are contiguous by construction).
-            obs[DECK_BAG_OFF:ARCH_SCALARS_OFF + ARCH_SCALARS_SIZE] = 0.0
+            # Ablation: hide the owned deck. Only the deck bag now -- the
+            # archetype scalars that used to sit next to it were removed as
+            # redundant with it. The OFFER block that follows is deliberately
+            # NOT hidden: this ablation is about the deck you own, not the
+            # cards you are being shown.
+            obs[DECK_BAG_OFF:DECK_BAG_OFF + DECK_BAG_SIZE] = 0.0
         return obs

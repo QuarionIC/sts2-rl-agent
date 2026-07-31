@@ -31,7 +31,8 @@ Relics                  ``RELICS_OFF``                  296
 Potion usable flags     ``POTION_FLAGS_OFF``            5
 Run-level state         ``RUN_OFF``                     78
 Run deck bag            ``DECK_BAG_OFF``                582
-Archetype scalars       ``ARCH_SCALARS_OFF``            8
+Offered card ids (int)  ``IDS_OFFER_OFF``               6
+Offered card scalars    ``OFFER_SCALARS_OFF``           6*18
 ======================  ==============================  =====
 
 Card ids are encoded as ``list(CardId).index(card_id) + 1`` (0 = empty slot).
@@ -234,18 +235,48 @@ RUN_BASE_SIZE = RUN_MISC_OFF + 3  # 78 (run scalars, pre-deck-bag)
 DECK_BAG_OFF = RUN_OFF + RUN_BASE_SIZE
 DECK_BAG_SIZE = NUM_CARD_IDS  # 582
 
-# --- Necrobinder archetype scalars derived from the deck (see
-# _build_archetype_card_sets for the derivation). Order:
-#  0 summon-card count/10        1 Soul-generator count/10
-#  2 Soul-payoff count/10        3 Doom-applier count/10
-#  4 ethereal count/10           5 Osty-attack count/10
-#  6 zero-cost count/10          7 upgraded fraction
-ARCH_SCALARS_OFF = DECK_BAG_OFF + DECK_BAG_SIZE
-NUM_ARCH_SCALARS = 8
-ARCH_SCALARS_SIZE = NUM_ARCH_SCALARS
+# The Necrobinder archetype scalars that used to live here were removed: the
+# deck bag already carries per-card counts, so an 8-dim hand-picked summary of
+# the same information is redundant, and the per-offer archetype flags give
+# the policy the synergy signal directly where the decision is made.
 ARCH_COUNT_SCALE = 10.0
 
-RUN_SIZE = RUN_BASE_SIZE + DECK_BAG_SIZE + ARCH_SCALARS_SIZE  # 668
+# --- THE CARDS CURRENTLY ON OFFER ------------------------------------------
+#
+# Without this the run agent could not see what it was choosing between. The
+# observation described the deck it already owned (DECK_BAG, ARCH_SCALARS)
+# but nothing about the reward on screen, so at a card reward every option
+# looked identical and picking a fixed slot was the only behaviour available.
+# Measured live: joint_r5 took slot 1 on 14 of 14 offers and joint_r2 slot 2
+# on 11 of 11 -- different constants, same degeneracy, because no policy can
+# discriminate between features it is not given.
+#
+# Six slots, laid out to match the action space exactly: run_env puts the
+# first three offers at card_reward_start..+2 (with skip at +3) and offers
+# 3-5 at card_reward_extra_start..+2. Slot i here IS option i there, so the
+# policy's per-slot features line up with the action it would choose --
+# the same trick that makes the hand encoding work for combat.
+NUM_OFFER_SLOTS = 6
+IDS_OFFER_OFF = DECK_BAG_OFF + DECK_BAG_SIZE
+IDS_OFFER_SIZE = NUM_OFFER_SLOTS
+
+# Per-slot features, aligned with IDS_OFFER. Deliberately the qualities that
+# decide whether a card is worth taking for THIS deck, not a generic card
+# summary: the archetype flags let the policy learn synergy against the
+# archetype scalars it already gets for the deck.
+#  0 offered (slot occupied)   1 cost/5             2 upgraded
+#  3 is_attack                 4 is_skill           5 is_power
+#  6 is_curse                  7 base_damage/50     8 base_block/50
+#  9 ethereal                 10 exhausts          11 zero_cost
+# 12 summon                   13 soul_generator    14 soul_payoff
+# 15 doom_applier             16 osty_attack       17 already_in_deck/5
+OFFER_FEATURES = 18
+OFFER_SCALARS_OFF = IDS_OFFER_OFF + IDS_OFFER_SIZE
+OFFER_SCALARS_SIZE = NUM_OFFER_SLOTS * OFFER_FEATURES
+
+OFFER_BLOCK_SIZE = IDS_OFFER_SIZE + OFFER_SCALARS_SIZE
+
+RUN_SIZE = RUN_BASE_SIZE + DECK_BAG_SIZE + OFFER_BLOCK_SIZE
 
 RICH_OBS_SIZE = RUN_OFF + RUN_SIZE
 
@@ -288,7 +319,8 @@ def segment_table() -> list[tuple[str, int, int]]:
         ("potion_flags", POTION_FLAGS_OFF, POTION_FLAGS_SIZE),
         ("run", RUN_OFF, RUN_BASE_SIZE),
         ("deck_bag", DECK_BAG_OFF, DECK_BAG_SIZE),
-        ("archetype_scalars", ARCH_SCALARS_OFF, ARCH_SCALARS_SIZE),
+        ("ids_offer", IDS_OFFER_OFF, IDS_OFFER_SIZE),
+        ("offer_scalars", OFFER_SCALARS_OFF, OFFER_SCALARS_SIZE),
     ]
 
 
@@ -565,6 +597,21 @@ class RichObservationEncoder:
             self.encode_combat(combat, obs, boss_id=boss_id)
         else:
             obs[IDS_BOSS_OFF] = float(boss_id)
+
+            # RELICS ARE VISIBLE OUT OF COMBAT TOO.
+            #
+            # The relic segment used to be filled only by encode_combat, so
+            # it was entirely zero at every out-of-combat decision even
+            # though player.relics was right there. The run agent was picking
+            # boss relics, shop items and rest options with no idea what it
+            # already owned. Combat reads RelicInstances; the run player
+            # holds plain id strings, so index by name in both cases.
+            for name in player.relics:
+                ri = self._relic_idx.get(str(name))
+                if ri is not None:
+                    obs[RELICS_OFF + ri] = 1.0
+            obs[RELICS_OFF + NUM_RELIC_IDS] = len(player.relics) / 30.0
+
             # Out of combat: expose held potions in the ID block (usable
             # flags stay 0 -- potions cannot be drunk outside combat here).
             for i in range(min(len(player.potions), NUM_POTION_SLOTS)):
@@ -647,15 +694,6 @@ class RichObservationEncoder:
             obs[d + 4] = n_att / n
             obs[d + 5] = n_skill / n
             obs[d + 6] = n_pow / n
-            a = ARCH_SCALARS_OFF
-            obs[a + 0] = n_summon / ARCH_COUNT_SCALE
-            obs[a + 1] = n_soul_gen / ARCH_COUNT_SCALE
-            obs[a + 2] = n_soul_pay / ARCH_COUNT_SCALE
-            obs[a + 3] = n_doom / ARCH_COUNT_SCALE
-            obs[a + 4] = n_ethereal / ARCH_COUNT_SCALE
-            obs[a + 5] = n_osty_attack / ARCH_COUNT_SCALE
-            obs[a + 6] = n_zero_cost / ARCH_COUNT_SCALE
-            obs[a + 7] = n_upg / n
 
         # act-slot candidate selection (reads the registry dynamically)
         for slot in range(NUM_ACT_SLOTS):
@@ -683,6 +721,9 @@ class RichObservationEncoder:
         obs[flags + 1] = 1.0 if getattr(mgr, "_offered_relic", None) is not None else 0.0
         obs[flags + 2] = 1.0 if rs.pending_choice is not None else 0.0
 
+        # the cards on offer, if any
+        self._encode_offer(mgr, deck, obs)
+
         # misc
         obs[r + RUN_MISC_OFF + 0] = rs.ascension_level / 20.0
         room = getattr(mgr, "_current_room_type", None)
@@ -690,6 +731,54 @@ class RichObservationEncoder:
         obs[r + RUN_MISC_OFF + 2] = 1.0 if room == RoomType.BOSS else 0.0
 
         return obs
+
+    def _encode_offer(self, mgr: Any, deck: Any, obs: np.ndarray) -> None:
+        """Encode the cards currently on offer, slot-aligned with the actions.
+
+        ``_offered_cards`` is populated by RunManager during PHASE_CARD_REWARD
+        and empty otherwise, so every slot stays zero out of a reward screen
+        and the "offered" flag tells the policy which slots are real.
+
+        ``getattr`` rather than a direct read: the attribute is private, and a
+        manager that does not expose it should give a blank offer rather than
+        raise -- the reconstruction path builds its own manager-shaped view.
+        """
+        offered = getattr(mgr, "_offered_cards", None) or []
+
+        # How many copies of each card the deck already holds, so the policy
+        # can judge a duplicate differently from a new card. Deck-relative,
+        # which is the whole point of showing the offer next to the deck bag.
+        counts: dict[Any, int] = {}
+        for card in deck or ():
+            counts[card.card_id] = counts.get(card.card_id, 0) + 1
+
+        for slot in range(min(len(offered), NUM_OFFER_SLOTS)):
+            card = offered[slot]
+            if card is None:
+                continue
+            ci = self._card_idx.get(card.card_id)
+            obs[IDS_OFFER_OFF + slot] = (ci + 1) if ci is not None else 0
+
+            base = OFFER_SCALARS_OFF + slot * OFFER_FEATURES
+            cid = card.card_id
+            obs[base + 0] = 1.0
+            obs[base + 1] = max(0, card.cost) / 5.0
+            obs[base + 2] = 1.0 if card.upgraded else 0.0
+            obs[base + 3] = 1.0 if card.is_attack else 0.0
+            obs[base + 4] = 1.0 if card.is_skill else 0.0
+            obs[base + 5] = 1.0 if card.is_power else 0.0
+            obs[base + 6] = 1.0 if card.card_type == CardType.CURSE else 0.0
+            obs[base + 7] = float(getattr(card, "base_damage", 0) or 0) / 50.0
+            obs[base + 8] = float(getattr(card, "base_block", 0) or 0) / 50.0
+            obs[base + 9] = 1.0 if card.is_ethereal else 0.0
+            obs[base + 10] = 1.0 if card.exhausts else 0.0
+            obs[base + 11] = 1.0 if (card.cost == 0 and not card.is_unplayable) else 0.0
+            obs[base + 12] = 1.0 if cid in NECRO_SUMMON_CARD_IDS else 0.0
+            obs[base + 13] = 1.0 if cid in NECRO_SOUL_GENERATOR_IDS else 0.0
+            obs[base + 14] = 1.0 if cid in NECRO_SOUL_PAYOFF_IDS else 0.0
+            obs[base + 15] = 1.0 if cid in NECRO_DOOM_APPLIER_IDS else 0.0
+            obs[base + 16] = 1.0 if CardTag.OSTY_ATTACK in card.tags else 0.0
+            obs[base + 17] = min(counts.get(cid, 0), 5) / 5.0
 
     def _encode_map_lookahead(self, rs: Any, obs: np.ndarray, base: int) -> None:
         act_map = rs.map

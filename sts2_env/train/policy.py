@@ -35,8 +35,6 @@ from gymnasium import spaces
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
 from sts2_env.gym_env.rich_observation import (
-    ARCH_SCALARS_OFF,
-    ARCH_SCALARS_SIZE,
     BOSS_VOCAB_SIZE,
     DECK_BAG_OFF,
     DECK_BAG_SIZE,
@@ -45,7 +43,12 @@ from sts2_env.gym_env.rich_observation import (
     HAND_SCALARS_SIZE,
     IDS_BOSS_OFF,
     IDS_HAND_OFF,
+    IDS_OFFER_OFF,
     IDS_POTION_OFF,
+    NUM_OFFER_SLOTS,
+    OFFER_FEATURES,
+    OFFER_SCALARS_OFF,
+    OFFER_SCALARS_SIZE,
     NUM_CARD_IDS,
     NUM_HAND_SLOTS,
     NUM_PILES,
@@ -75,6 +78,7 @@ class RichFeaturesExtractor(BaseFeaturesExtractor):
         observation_space: spaces.Box,
         card_embed_dim: int = 96,
         small_embed_dim: int = 16,
+        offer_hidden: int = 64,
         hand_hidden: int = 96,
         hand_encoding: str = "perslot",
     ):
@@ -100,8 +104,13 @@ class RichFeaturesExtractor(BaseFeaturesExtractor):
             + card_embed_dim               # run-level deck bag projection
             + small_embed_dim              # pooled potion embeddings
             + small_embed_dim              # boss embedding
+            # Card-reward offer: one shared-MLP vector per slot, concatenated
+            # in SLOT ORDER so slot i lines up with the action that picks
+            # option i, plus a mean-pool for permutation-invariant context.
+            # Same shape as the hand encoding, for the same reason.
+            + NUM_OFFER_SLOTS * offer_hidden
+            + offer_hidden
             + flat_size
-            + ARCH_SCALARS_SIZE            # Necrobinder archetype scalars
         )
         super().__init__(observation_space, features_dim)
 
@@ -112,6 +121,13 @@ class RichFeaturesExtractor(BaseFeaturesExtractor):
         self.boss_embedding = nn.Embedding(BOSS_VOCAB_SIZE, small_embed_dim)
         self.hand_mlp = nn.Sequential(
             nn.Linear(card_embed_dim + HAND_FEATURES, hand_hidden),
+            nn.ReLU(),
+        )
+        # The offered cards go through the SAME card embedding table as the
+        # hand and the deck bag, so a card the agent has learned about in
+        # combat is already a familiar vector when it is offered as a reward.
+        self.offer_mlp = nn.Sequential(
+            nn.Linear(card_embed_dim + OFFER_FEATURES, offer_hidden),
             nn.ReLU(),
         )
 
@@ -144,6 +160,16 @@ class RichFeaturesExtractor(BaseFeaturesExtractor):
         deck_bag = obs[:, DECK_BAG_OFF:DECK_BAG_OFF + DECK_BAG_SIZE]  # (B, 582)
         deck_feats = torch.matmul(deck_bag, self.card_embedding.weight[1:])  # (B, E)
 
+        # --- card-reward offer: embeddings + per-slot features ---
+        offer_ids = obs[:, IDS_OFFER_OFF:IDS_OFFER_OFF + NUM_OFFER_SLOTS]
+        offer_ids = offer_ids.long().clamp_(0, NUM_CARD_IDS)
+        offer_emb = self.card_embedding(offer_ids)               # (B, 6, E)
+        offer_scalars = obs[:, OFFER_SCALARS_OFF:OFFER_SCALARS_OFF + OFFER_SCALARS_SIZE]
+        offer_scalars = offer_scalars.view(batch, NUM_OFFER_SLOTS, OFFER_FEATURES)
+        offer_x = self.offer_mlp(torch.cat([offer_emb, offer_scalars], dim=-1))
+        offer_slots = offer_x.reshape(batch, NUM_OFFER_SLOTS * offer_x.shape[-1])
+        offer_pooled = offer_x.mean(dim=1)
+
         # --- potion / boss ids ---
         potion_ids = obs[:, IDS_POTION_OFF:IDS_POTION_OFF + NUM_POTION_SLOTS].long()
         potion_ids = potion_ids.clamp_(0, POTION_VOCAB_SIZE - 1)
@@ -153,11 +179,11 @@ class RichFeaturesExtractor(BaseFeaturesExtractor):
 
         # --- flat passthrough (excludes the raw deck bag) + archetype ---
         flat = obs[:, PILE_SIZES_OFF:DECK_BAG_OFF]
-        arch = obs[:, ARCH_SCALARS_OFF:ARCH_SCALARS_OFF + ARCH_SCALARS_SIZE]
 
         return torch.cat(
             hand_feats + [bag_feats, deck_feats,
-                          potion_pooled, boss_emb, flat, arch],
+                          offer_slots, offer_pooled,
+                          potion_pooled, boss_emb, flat],
             dim=1,
         )
 
@@ -166,6 +192,7 @@ def rich_policy_kwargs(
     card_embed_dim: int = 96,
     small_embed_dim: int = 16,
     hand_hidden: int = 96,
+    offer_hidden: int = 64,
     torso: tuple[int, ...] = (1024, 1024, 512),
     hand_encoding: str = "perslot",
 ) -> dict:
@@ -176,6 +203,7 @@ def rich_policy_kwargs(
             card_embed_dim=card_embed_dim,
             small_embed_dim=small_embed_dim,
             hand_hidden=hand_hidden,
+            offer_hidden=offer_hidden,
             hand_encoding=hand_encoding,
         ),
         net_arch=dict(pi=list(torso), vf=list(torso)),

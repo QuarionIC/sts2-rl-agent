@@ -57,9 +57,12 @@ class TestLayout:
     def test_deck_bag_segment_geometry(self):
         assert ro.DECK_BAG_OFF == ro.RUN_OFF + ro.RUN_BASE_SIZE
         assert ro.DECK_BAG_SIZE == ro.NUM_CARD_IDS
-        assert ro.ARCH_SCALARS_OFF == ro.DECK_BAG_OFF + ro.DECK_BAG_SIZE
-        assert ro.NUM_ARCH_SCALARS == 8
-        assert ro.RICH_OBS_SIZE == ro.ARCH_SCALARS_OFF + ro.NUM_ARCH_SCALARS
+        # The offer block follows the deck bag directly now; the archetype
+        # scalars that used to sit between them were removed as redundant
+        # with the per-card counts in the bag itself.
+        assert ro.IDS_OFFER_OFF == ro.DECK_BAG_OFF + ro.DECK_BAG_SIZE
+        assert ro.OFFER_SCALARS_OFF == ro.IDS_OFFER_OFF + ro.IDS_OFFER_SIZE
+        assert ro.RICH_OBS_SIZE == ro.OFFER_SCALARS_OFF + ro.OFFER_SCALARS_SIZE
 
     def test_archetype_sets_derived(self):
         from sts2_env.core.enums import CardId
@@ -471,41 +474,6 @@ class TestRichRunEnv:
         # boss id resolved
         assert obs[ro.IDS_BOSS_OFF] > 0
 
-    def test_deck_bag_and_archetype_scalars(self):
-        from collections import Counter
-
-        from sts2_env.core.enums import CardId, CardTag
-
-        env = RichSTS2RunEnv(ascension_level=0)
-        obs, info = env.reset(seed=0)
-        deck = env._mgr.run_state.player.deck
-        assert len(deck) == 10  # Necrobinder starter (A0: no ascension curse)
-
-        # Deck bag: exact per-CardId counts / BAG_COUNT_SCALE.
-        bag = obs[ro.DECK_BAG_OFF: ro.DECK_BAG_OFF + ro.DECK_BAG_SIZE]
-        assert bag.sum() == pytest.approx(len(deck) / ro.BAG_COUNT_SCALE)
-        counts = Counter(ro.CARD_ID_TO_IDX[c.card_id] for c in deck)
-        for ci, cnt in counts.items():
-            assert bag[ci] == pytest.approx(cnt / ro.BAG_COUNT_SCALE)
-        assert (bag > 0).sum() == len(counts)
-
-        # Archetype scalars: starter deck has Bodyguard (summon) + Unleash
-        # (Osty attack), nothing upgraded, no Souls/Doom/ethereal/zero-cost.
-        a = ro.ARCH_SCALARS_OFF
-        assert obs[a + 0] == pytest.approx(1 / ro.ARCH_COUNT_SCALE)  # summon
-        assert obs[a + 1] == 0.0  # soul generators
-        assert obs[a + 2] == 0.0  # soul payoffs
-        assert obs[a + 3] == 0.0  # doom appliers
-        assert obs[a + 4] == 0.0  # ethereal
-        assert obs[a + 5] == pytest.approx(1 / ro.ARCH_COUNT_SCALE)  # osty attacks
-        assert obs[a + 6] == 0.0  # zero-cost
-        assert obs[a + 7] == 0.0  # upgraded fraction
-
-        # Cross-check membership against the live deck instances.
-        n_summon = sum(1 for c in deck if c.card_id in ro.NECRO_SUMMON_CARD_IDS)
-        n_osty = sum(1 for c in deck if CardTag.OSTY_ATTACK in c.tags)
-        assert n_summon == 1 and n_osty == 1
-        assert any(c.card_id == CardId.BODYGUARD for c in deck)
 
     def test_combat_segments_appear_in_combat(self):
         env = RichSTS2RunEnv()
