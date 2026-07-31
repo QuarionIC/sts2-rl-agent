@@ -178,6 +178,11 @@ public class RlAutoSlayer
     // buttons (NWheelSpinScreen bounces in over ~1s then enables), short
     // enough to stay inside the watchdog window, which is reset each poll.
     private const int UnknownScreenDismissTimeoutSeconds = 10;
+    // Long enough for a screen to play its outro. NWheelSpinScreen spins for
+    // ~2s then holds ~1s before bouncing out, so a short wait would return
+    // mid-animation and re-enter the drain loop on a screen with every button
+    // disabled.
+    private const int UnknownScreenCloseTimeoutSeconds = 15;
     private const int OverlayCloseRetryLimit = 3;
     private const int OverlayDrainSettleDelayMs = 100;
     private const int EventProceedTimeoutSeconds = 5;
@@ -681,6 +686,7 @@ public class RlAutoSlayer
             {
                 Logger.Log($"[RlAutoSlayer] {type.Name}: clicking its proceed button");
                 await UiHelper.Click(proceed);
+                await WaitForScreenToCloseAsync(screen, type, ct);
                 return true;
             }
 
@@ -691,12 +697,43 @@ public class RlAutoSlayer
                 Logger.Log($"[RlAutoSlayer] {type.Name}: no handler, clicking "
                            + $"its first enabled button");
                 await UiHelper.Click(button);
+                await WaitForScreenToCloseAsync(screen, type, ct);
                 return true;
             }
 
             await Task.Delay(250, ct);
         }
         return false;
+    }
+
+    /// <summary>
+    /// After clicking something on an unhandled screen, give it time to act.
+    ///
+    /// These screens usually PLAY something before closing: NWheelSpinScreen
+    /// disables its button, spins for ~2s, pauses, then bounces out. Returning
+    /// the instant the click lands meant the drain loop re-entered mid-spin,
+    /// found the button disabled, concluded "nothing clickable on it" and gave
+    /// up -- failing the run on a screen that was seconds from closing itself.
+    /// Measured live: run 1 of a Silent batch died exactly this way.
+    /// </summary>
+    private async Task WaitForScreenToCloseAsync(
+        Node screen, Type type, CancellationToken ct)
+    {
+        DateTime deadline = DateTime.UtcNow
+            + TimeSpan.FromSeconds(UnknownScreenCloseTimeoutSeconds);
+        while (DateTime.UtcNow < deadline)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!GodotObject.IsInstanceValid(screen) || !screen.IsInsideTree())
+                return;
+            IOverlayScreen top = NOverlayStack.Instance?.Peek();
+            if (!ReferenceEquals(top, screen))
+                return;
+            _watchdog?.Reset($"Waiting for {type.Name} to close");
+            await Task.Delay(250, ct);
+        }
+        Logger.Log($"[RlAutoSlayer] {type.Name} still up after "
+                   + $"{UnknownScreenCloseTimeoutSeconds}s; continuing anyway");
     }
 
     private async Task ClickRestSiteProceedIfNeeded(CancellationToken ct)
@@ -874,11 +911,42 @@ public class RlAutoSlayer
         try
         {
             await WaitForMainMenuAsync(ct);
+            return;
         }
         catch (Exception ex)
         {
-            Logger.Log($"[RlAutoSlayer] Recovery could not reach the main menu: "
-                       + $"{ex.Message}");
+            Logger.Log($"[RlAutoSlayer] Recovery could not reach the main menu "
+                       + $"through the UI: {ex.Message}");
+        }
+
+        // LAST RESORT: ask the GAME to go back, rather than clicking at it.
+        //
+        // Every UI route depends on a button being present, and when a run is
+        // wedged the buttons are exactly what is missing -- with the map
+        // screen up the top bar has no Options entry, so AbandonRunAsync has
+        // nothing to click. Without a non-UI fallback the failure CASCADES:
+        // one wedged run leaves the game mid-run, and every subsequent run
+        // dies in recovery. Measured live: an event that would not advance
+        // took down runs 2 through 6 of a 10-run batch, each with the same
+        // "Waiting for the main menu after recovery" watchdog timeout.
+        //
+        // NGame.ReturnToMainMenuAfterRun is public and is what the game itself
+        // calls when a run finishes, so it tears the run down the supported
+        // way instead of leaving half-freed state behind.
+        try
+        {
+            Logger.Log("[RlAutoSlayer] Falling back to "
+                       + "NGame.ReturnToMainMenuAfterRun()");
+            _watchdog?.Reset("Returning to the main menu programmatically");
+            await NGame.Instance.ReturnToMainMenuAfterRun();
+            await WaitForMainMenuAsync(ct);
+            Logger.Log("[RlAutoSlayer] Programmatic return to the main menu "
+                       + "succeeded");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[RlAutoSlayer] Programmatic return also failed: "
+                       + $"{ex.Message}. The next run will very likely fail too.");
         }
     }
 
@@ -1186,9 +1254,31 @@ public class RlGameOverScreenHandler : IScreenHandler, IHandler
             return;
         }
 
-        await WaitHelper.Until(() => continueButton.IsEnabled, ct,
-            TimeSpan.FromSeconds(ContinueButtonTimeoutSeconds),
-            "Continue button did not become enabled");
+        // A GAME-OVER SCREEN MEANS THE RUN IS ALREADY OVER.
+        //
+        // Throwing here scored a finished run as FAILED over a UI button --
+        // the same class of mistake as the earlier death-path bugs, where
+        // post-run code treated "could not click something" as "the run went
+        // wrong". Measured live: a Silent run died normally and was recorded
+        // as "Continue button did not become enabled" after the watchdog sat
+        // on NGameOverScreen for 25s.
+        //
+        // Mark the run ended and let recovery take it back to the menu (it
+        // has a programmatic route now). The run's OUTCOME is already
+        // decided; only the paperwork is stuck.
+        try
+        {
+            await WaitHelper.Until(() => continueButton.IsEnabled, ct,
+                TimeSpan.FromSeconds(ContinueButtonTimeoutSeconds),
+                "Continue button did not become enabled");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[RlGameOver] Continue button never enabled ({ex.Message}); "
+                       + "the run is over regardless -- marking it ended");
+            RlAutoSlayer.RunEnded = true;
+            return;
+        }
         await UiHelper.Click(continueButton);
 
         NReturnToMainMenuButton mainMenuButton = null;

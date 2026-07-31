@@ -10,6 +10,7 @@ using Godot;
 using MegaCrit.Sts2.Core.AutoSlay;
 using MegaCrit.Sts2.Core.AutoSlay.Handlers;
 using MegaCrit.Sts2.Core.AutoSlay.Helpers;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Merchant;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -771,6 +772,10 @@ public class RlEventRoomHandler : IRoomHandler, IHandler
 {
     private const string RoomPath = "/root/Game/RootSceneContainer/Run/RoomContainer/EventRoom";
     private const int MaxIterations = 50;
+    // How many identical consecutive option clicks before we conclude the
+    // event is not advancing. Three is enough to distinguish a genuinely
+    // repeated multi-step page from a dead option.
+    private const int MaxRepeatedChoices = 3;
     private const int AgentTimeoutSeconds = 30;
     private const int HandlerTimeoutMinutes = 12;
     private const int EventRoomResumeDelayMs = 500;
@@ -798,6 +803,9 @@ public class RlEventRoomHandler : IRoomHandler, IHandler
         }
 
         int iterations = 0;
+        // Stuck-option detection: see the MUSHROOMS case below.
+        string lastChoiceKey = null;
+        int repeatedChoices = 0;
         while (iterations < MaxIterations)
         {
             ct.ThrowIfCancellationRequested();
@@ -829,7 +837,39 @@ public class RlEventRoomHandler : IRoomHandler, IHandler
             }
 
             NEventOptionButton choice = await ChooseEventOption(options, random, ct);
-            AutoSlayLog.Action("Selecting event option: " + choice.Option.TextKey);
+            string choiceKey = choice.Option.TextKey ?? "";
+
+            // BAIL OUT OF AN OPTION THAT ISN'T DOING ANYTHING.
+            //
+            // Some modded event options do not advance the room when clicked.
+            // Measured live: ActsFromThePast's MUSHROOMS event answered
+            // ENTER_COMBAT fifty times in a row -- the combat never started,
+            // the page never changed, and the loop burned its whole iteration
+            // budget before giving up. That left the run mid-event, which then
+            // failed the NEXT run too because recovery had nothing to abandon
+            // back to.
+            //
+            // Repeating a click that changed nothing will not change anything
+            // the fifty-first time. Stop and let the room-level logic proceed;
+            // an unresolved event costs one room, not the rest of the session.
+            if (choiceKey == lastChoiceKey)
+            {
+                repeatedChoices++;
+                if (repeatedChoices >= MaxRepeatedChoices)
+                {
+                    AutoSlayLog.Warn(
+                        $"Event option '{choiceKey}' selected {repeatedChoices} times "
+                        + "without the room advancing -- abandoning this event");
+                    break;
+                }
+            }
+            else
+            {
+                repeatedChoices = 0;
+                lastChoiceKey = choiceKey;
+            }
+
+            AutoSlayLog.Action("Selecting event option: " + choiceKey);
             await UiHelper.Click(choice);
 
             if (choice.Option.IsProceed)
@@ -846,6 +886,29 @@ public class RlEventRoomHandler : IRoomHandler, IHandler
             }
 
             await WaitForEventChoiceResult(eventRoom, ct);
+
+            // AN EVENT CAN START A COMBAT WITHOUT CLOSING ITSELF.
+            //
+            // ActsFromThePast events call EventModel.EnterCombatWithoutExiting
+            // Event(...) -- DeadAdventurer.cs:199 and Mushrooms.cs:67 both do.
+            // The fight begins while the event room stays open on the same
+            // FIGHT page, so the option list is unchanged and this loop
+            // happily clicked ENTER_COMBAT again... and again. Measured live:
+            // 50 identical clicks on MUSHROOMS, and the same on
+            // DEAD_ADVENTURER, wedging the run and then cascading into every
+            // run after it.
+            //
+            // The existing guard only catches OVERLAY screens; a combat is a
+            // room change, so nothing saw it. Yield here and let the combat
+            // handler play the fight -- which is the whole point of the
+            // option the agent chose.
+            if (CombatManager.Instance != null && CombatManager.Instance.IsInProgress)
+            {
+                AutoSlayLog.Action("Event started a combat without exiting the "
+                                   + "event; deferring to the combat handler");
+                break;
+            }
+
             NOverlayStack? overlayStack = NOverlayStack.Instance;
             if (overlayStack != null && overlayStack.ScreenCount > 0)
             {
