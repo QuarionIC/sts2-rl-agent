@@ -19,7 +19,6 @@ from sts2_env.core.combat import CombatState
 
 
 LEADING_STRIKE_SHIVS = 1
-OUTBREAK_REPEAT = 3
 
 
 def _owner(card: CardInstance, combat: CombatState) -> Creature:
@@ -458,6 +457,9 @@ def haze(card: CardInstance, combat: CombatState, target: Creature | None) -> No
     poison = card.effect_vars.get("poison_power", 4)
     for enemy in combat.hittable_enemies:
         combat.apply_power_to(enemy, PowerId.POISON, poison)
+    weak = card.effect_vars.get("weak", 1)
+    for enemy in combat.hittable_enemies:
+        combat.apply_power_to(enemy, PowerId.WEAK, weak)
 
 
 @register_effect(CardId.HIDDEN_DAGGERS)
@@ -543,11 +545,13 @@ def noxious_fumes(card: CardInstance, combat: CombatState, target: Creature | No
 
 @register_effect(CardId.OUTBREAK_CARD)
 def outbreak(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    owner = _owner(card, combat)
-    combat.apply_power_to(owner, PowerId.OUTBREAK, card.effect_vars.get("outbreak_power", 11))
-    outbreak_power = owner.powers.get(PowerId.OUTBREAK)
-    if outbreak_power is not None:
-        outbreak_power.repeat = card.effect_vars.get("repeat", OUTBREAK_REPEAT)
+    poison = card.effect_vars.get("poison_power", 9)
+    for enemy in list(combat.hittable_enemies):
+        combat.apply_power_to(enemy, PowerId.POISON, poison)
+    for enemy in list(combat.hittable_enemies):
+        poison_power = enemy.powers.get(PowerId.POISON)
+        if poison_power is not None:
+            poison_power.trigger(enemy, combat)
 
 
 @register_effect(CardId.PHANTOM_BLADES_CARD)
@@ -1325,10 +1329,9 @@ def make_hand_trick(upgraded: bool = False) -> CardInstance:
 
 def make_haze(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.HAZE, cost=3, card_type=CardType.SKILL,
+        card_id=CardId.HAZE, cost=2, card_type=CardType.SKILL,
         target_type=TargetType.ALL_ENEMIES, rarity=CardRarity.UNCOMMON,
-        keywords=frozenset({"sly"}),
-        effect_vars={"poison_power": 6 if upgraded else 4},
+        effect_vars={"poison_power": 6 if upgraded else 4, "weak": 2 if upgraded else 1},
         upgraded=upgraded, instance_id=_get_next_id(),
     )
 
@@ -1376,7 +1379,6 @@ def make_mirage(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.MIRAGE, cost=0 if upgraded else 1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        keywords=frozenset({"exhaust"}),
         effect_vars={"calc_base": 0, "calc_extra": 1},
         upgraded=upgraded, instance_id=_get_next_id(),
     )
@@ -1393,9 +1395,9 @@ def make_noxious_fumes(upgraded: bool = False) -> CardInstance:
 
 def make_outbreak(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.OUTBREAK_CARD, cost=1, card_type=CardType.POWER,
-        target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        effect_vars={"outbreak_power": 15 if upgraded else 11, "repeat": OUTBREAK_REPEAT},
+        card_id=CardId.OUTBREAK_CARD, cost=3, card_type=CardType.SKILL,
+        target_type=TargetType.ALL_ENEMIES, rarity=CardRarity.RARE,
+        effect_vars={"poison_power": 12 if upgraded else 9},
         upgraded=upgraded, instance_id=_get_next_id(),
     )
 
@@ -1505,9 +1507,9 @@ def make_up_my_sleeve(upgraded: bool = False) -> CardInstance:
 
 def make_well_laid_plans(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.WELL_LAID_PLANS, cost=1, card_type=CardType.POWER,
-        target_type=TargetType.SELF, rarity=CardRarity.UNCOMMON,
-        effect_vars={"retain_amount": 2 if upgraded else 1},
+        card_id=CardId.WELL_LAID_PLANS, cost=1 if upgraded else 2, card_type=CardType.POWER,
+        target_type=TargetType.SELF, rarity=CardRarity.RARE,
+        effect_vars={"retain_amount": 1},
         upgraded=upgraded, instance_id=_get_next_id(),
     )
 

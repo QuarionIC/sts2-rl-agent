@@ -877,6 +877,11 @@ class RunManager:
     def _enter_room(self, room_type: RoomType) -> None:
         """Dispatch to the correct phase based on room type."""
         self._current_room_type = room_type
+        # Deck cards get a look at the room before relics do, mirroring
+        # CardModel.BeforeRoomEntered. Iterating a copy because a hook may
+        # transform the card it is attached to (Dowsing -> Abundance).
+        for card in list(self._run_state.player.deck):
+            card.before_room_entered(self._run_state, room_type)
         context = RoomVisitContext(room_type)
         if room_type == RoomType.SHOP:
             self._enter_shop()

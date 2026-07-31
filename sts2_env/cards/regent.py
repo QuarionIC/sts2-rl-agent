@@ -1211,7 +1211,7 @@ def make_big_bang(upgraded: bool = False) -> CardInstance:
 
 def make_bundle_of_joy(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.BUNDLE_OF_JOY, cost=2, card_type=CardType.SKILL,
+        card_id=CardId.BUNDLE_OF_JOY, cost=1, card_type=CardType.SKILL,
         target_type=TargetType.SELF, rarity=CardRarity.RARE,
         upgraded=upgraded, keywords=frozenset({"exhaust"}),
         effect_vars={"cards": 4 if upgraded else 3},

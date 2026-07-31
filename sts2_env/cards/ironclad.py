@@ -9,6 +9,7 @@ from __future__ import annotations
 from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage
 from sts2_env.cards.registry import (
     register_after_card_entered_combat_hook,
+    register_after_card_exhausted_hook,
     register_before_card_played_hook,
     register_before_hand_draw_hook,
     register_effect,
@@ -611,7 +612,7 @@ def make_thunderclap(upgraded: bool = False) -> CardInstance:
 @register_effect(CardId.TREMBLE)
 def tremble(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     assert target is not None
-    vuln = card.effect_vars.get("vulnerable", 2)
+    vuln = card.effect_vars.get("vulnerable", 3)
     combat.apply_power_to(target, PowerId.VULNERABLE, vuln)
 
 
@@ -622,7 +623,8 @@ def make_tremble(upgraded: bool = False) -> CardInstance:
         card_type=CardType.SKILL,
         target_type=TargetType.ANY_ENEMY,
         rarity=CardRarity.COMMON,
-        effect_vars={"vulnerable": 3 if upgraded else 2},
+        keywords=frozenset({"exhaust"}),
+        effect_vars={"vulnerable": 4 if upgraded else 3},
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -925,17 +927,28 @@ def make_dominate(upgraded: bool = False) -> CardInstance:
 def drum_of_battle(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     draw = card.effect_vars.get("cards", 2)
     _draw_cards(combat, draw)
-    combat.apply_power_to(_owner(card, combat), PowerId.DRUM_OF_BATTLE, card.effect_vars.get("drum_of_battle_power", 1))
+
+
+@register_after_card_exhausted_hook(CardId.DRUM_OF_BATTLE_CARD)
+def drum_of_battle_after_card_exhausted(
+    card: CardInstance,
+    exhausted_card: CardInstance,
+    combat: CombatState,
+) -> None:
+    """DrumOfBattle.AfterCardExhausted: `if (card == this) ... GainEnergy(Energy)`."""
+    if exhausted_card is not card:
+        return
+    combat.gain_energy(_owner(card, combat), card.effect_vars.get("energy", 2))
 
 
 def make_drum_of_battle(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.DRUM_OF_BATTLE_CARD,
-        cost=0,
-        card_type=CardType.POWER,
+        cost=1,
+        card_type=CardType.SKILL,
         target_type=TargetType.SELF,
         rarity=CardRarity.UNCOMMON,
-        effect_vars={"drum_of_battle_power": 1, "cards": 3 if upgraded else 2},
+        effect_vars={"cards": 2, "energy": 3 if upgraded else 2},
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -1083,6 +1096,7 @@ def make_forgotten_ritual(upgraded: bool = False) -> CardInstance:
         card_type=CardType.SKILL,
         target_type=TargetType.SELF,
         rarity=CardRarity.UNCOMMON,
+        keywords=frozenset({"exhaust"}),
         effect_vars={"energy": 4 if upgraded else 3},
         upgraded=upgraded,
         instance_id=_get_next_id(),
@@ -1989,6 +2003,28 @@ def make_mangle(upgraded: bool = False) -> CardInstance:
 
 
 # --- Offering ---
+@register_effect(CardId.NOT_YET)
+def not_yet(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
+    """Heal 10 (13 upgraded). Exhaust."""
+    _owner(card, combat).heal(card.effect_vars.get("heal", 10))
+
+
+def make_not_yet(upgraded: bool = False) -> CardInstance:
+    # NotYet.cs: base(2, Skill, Rare, Self), HealVar(10), Exhaust,
+    # CanBeGeneratedInCombat => false. Upgrade adds 3 heal, cost unchanged.
+    return CardInstance(
+        card_id=CardId.NOT_YET,
+        cost=2,
+        card_type=CardType.SKILL,
+        target_type=TargetType.SELF,
+        rarity=CardRarity.RARE,
+        keywords=frozenset({"exhaust"}),
+        effect_vars={"heal": 13 if upgraded else 10},
+        upgraded=upgraded,
+        instance_id=_get_next_id(),
+    )
+
+
 @register_effect(CardId.OFFERING)
 def offering(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     owner = _owner(card, combat)
@@ -2109,20 +2145,25 @@ def make_pyre(upgraded: bool = False) -> CardInstance:
 # --- Stoke ---
 @register_effect(CardId.STOKE)
 def stoke(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
-    count = len(combat.hand)
-    for hand_card in list(combat.hand):
+    owner = _owner(card, combat)
+    owner_state = combat.combat_player_state_for(owner)
+    hand = owner_state.hand if owner_state is not None else combat.hand
+    count = len(hand)
+    for hand_card in list(hand):
         combat.exhaust_card(hand_card)
-    _draw_cards(combat, count)
+    # Stoke.cs generates `exhaustCount` fresh cards from the character pool with
+    # Rng.CombatCardGeneration and upgrades them when Stoke itself is upgraded.
+    # It does NOT draw.
+    combat.generate_random_cards_to_hand(owner, count=count, upgrade=card.upgraded)
 
 
 def make_stoke(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.STOKE,
-        cost=0 if upgraded else 1,
+        cost=1,
         card_type=CardType.SKILL,
         target_type=TargetType.SELF,
         rarity=CardRarity.RARE,
-        keywords=frozenset({"exhaust"}),
         upgraded=upgraded,
         instance_id=_get_next_id(),
     )
@@ -2241,11 +2282,11 @@ def break_card(card: CardInstance, combat: CombatState, target: Creature | None)
 def make_break(upgraded: bool = False) -> CardInstance:
     return CardInstance(
         card_id=CardId.BREAK,
-        cost=2,
+        cost=1,
         card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY,
         rarity=CardRarity.ANCIENT,
-        base_damage=25 if upgraded else 20,
+        base_damage=30 if upgraded else 20,
         effect_vars={"vulnerable": 7 if upgraded else 5},
         upgraded=upgraded,
         instance_id=_get_next_id(),

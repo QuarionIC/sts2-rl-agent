@@ -477,10 +477,18 @@ def _to_card_id(raw: str):
     def _flat(s: str) -> str:
         return "".join(ch for ch in s.upper() if ch.isalnum())
 
+    # Suffixes the simulator adds to disambiguate its own enum but the game
+    # does not put on the wire. STATUS joined CARD after the game's SLOTH (a
+    # Status card from the token pool) failed to resolve to the simulator's
+    # SLOTH_STATUS -- test_card_pool_parity knew that alias through a
+    # test-local table, so the mismatch was invisible until a live payload
+    # carried the card and reconstruction declined the fight.
     flat = _flat(upper)
-    variants = {flat, flat + "CARD"}
-    if flat.endswith("CARD"):
-        variants.add(flat[: -len("CARD")])
+    variants = {flat}
+    for suffix in ("CARD", "STATUS"):
+        variants.add(flat + suffix)
+        if flat.endswith(suffix):
+            variants.add(flat[: -len(suffix)])
 
     matches = [m for m in CardId if _flat(m.name) in variants]
     # Prefer an exact match; only accept a suffix-variant when it is

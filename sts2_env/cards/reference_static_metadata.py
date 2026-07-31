@@ -534,13 +534,57 @@ def _integer_literal(value_text: str) -> int | None:
     return int(normalized)
 
 
+#: Card classes the simulator has no CardId for because a SINGLE-PLAYER run can
+#: never be dealt them.
+#:
+#: IRunState.CardMultiplayerConstraint returns SingleplayerOnly whenever
+#: Players.Count <= 1, and CardPoolModel.GetUnlockedCards then strips every
+#: MultiplayerOnly card from every pool. 37 of the game's card classes are
+#: MultiplayerOnly; 16 of those have no CardId in the simulator ON PURPOSE
+#: (BladeSymphony, Blaze, Cacophony, Concoct, Constellation, Fade, Hibernate,
+#: ImitationLearning, Midnight, OneForAll, Outrage, Plot, Soulbound, TheBall,
+#: Tutor, Underworld).
+#:
+#: The other 21 MultiplayerOnly classes DO have a CardId and must KEEP their
+#: reference metadata: MassiveScroll (Models.Relics/MassiveScroll.cs) rolls its
+#: reward pool from exactly `c.MultiplayerConstraint == MultiplayerOnly`, and
+#: matches_player_count() needs the constraint to filter them out of
+#: single-player pools. Dropping their metadata makes every card look
+#: constraint-free.
+#:
+#: Before this filter, refreshing the reference tree to v0.110.0 made every
+#: reference loader raise KeyError on the first such class (BladeSymphony),
+#: which reads as "the simulator is missing a card" when the truth is the
+#: opposite. The check stays two-condition (MultiplayerOnly AND no CardId)
+#: rather than a bare "has a CardId" test, so a future refresh that genuinely
+#: drops a single-player card still raises that loud KeyError.
+def _is_single_player_reachable(path) -> bool:
+    source = path.read_text(encoding="utf-8", errors="replace")
+    match = MULTIPLAYER_CONSTRAINT_RE.search(source)
+    if match is None or match.group("constraint") != MULTIPLAYER_CONSTRAINT_MULTIPLAYER_ONLY:
+        return True
+    try:
+        card_id_for_reference_class(path.stem)
+    except KeyError:
+        return False
+    return True
+
+
+def single_player_reference_card_paths() -> list:
+    return [
+        path
+        for path in sorted((REPO_ROOT / REFERENCE_CARD_DIR).glob("*.cs"))
+        if _is_single_player_reachable(path)
+    ]
+
+
 @lru_cache(maxsize=1)
 def reference_metadata_by_card_id() -> dict[CardId, ReferenceCardStaticMetadata]:
     return {
         metadata.card_id: metadata
         for metadata in (
             reference_metadata_from_source(path)
-            for path in sorted((REPO_ROOT / REFERENCE_CARD_DIR).glob("*.cs"))
+            for path in single_player_reference_card_paths()
         )
     }
 
@@ -551,7 +595,7 @@ def upgraded_reference_metadata_by_card_id() -> dict[CardId, ReferenceCardStatic
         metadata.card_id: metadata
         for metadata in (
             upgraded_reference_metadata_from_source(path)
-            for path in sorted((REPO_ROOT / REFERENCE_CARD_DIR).glob("*.cs"))
+            for path in single_player_reference_card_paths()
         )
     }
 
@@ -560,7 +604,7 @@ def upgraded_reference_metadata_by_card_id() -> dict[CardId, ReferenceCardStatic
 def reference_dynamic_vars_by_card_id() -> dict[CardId, dict[str, int]]:
     return {
         card_id_for_reference_class(path.stem): reference_dynamic_vars_from_source(path)
-        for path in sorted((REPO_ROOT / REFERENCE_CARD_DIR).glob("*.cs"))
+        for path in single_player_reference_card_paths()
     }
 
 
@@ -568,5 +612,5 @@ def reference_dynamic_vars_by_card_id() -> dict[CardId, dict[str, int]]:
 def upgraded_reference_dynamic_vars_by_card_id() -> dict[CardId, dict[str, int]]:
     return {
         card_id_for_reference_class(path.stem): upgraded_reference_dynamic_vars_from_source(path)
-        for path in sorted((REPO_ROOT / REFERENCE_CARD_DIR).glob("*.cs"))
+        for path in single_player_reference_card_paths()
     }

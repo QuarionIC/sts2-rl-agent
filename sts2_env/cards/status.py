@@ -7,10 +7,15 @@ Pain and Parasite are legacy explicit-construction cards and are not in STS2 car
 from __future__ import annotations
 
 from sts2_env.cards.base import CardInstance, _get_next_id, increase_base_damage, new_card_instance_id
-from sts2_env.cards.factory import create_character_cards
+from sts2_env.cards.factory import (
+    create_card,
+    create_character_cards,
+    create_distinct_character_cards,
+)
 from sts2_env.cards.registry import (
     register_after_combat_end_hook,
     register_before_card_played_hook,
+    register_before_room_entered_hook,
     register_after_card_drawn_hook,
     register_after_map_generated_hook,
     register_chosen_hook,
@@ -43,6 +48,7 @@ WITHER_DAMAGE = 3
 WITHER_UPGRADE_STEP = 3
 BRIGHTEST_FLAME_MAX_HP = 1
 GUILTY_MAX_COMBATS = 5
+DOWSING_MAX_ROOMS = 5
 SOVEREIGN_BLADE_BASE_DAMAGE = 10
 
 
@@ -348,7 +354,7 @@ def make_folly() -> CardInstance:
     return CardInstance(
         card_id=CardId.FOLLY, cost=-1, card_type=CardType.CURSE,
         target_type=TargetType.NONE, rarity=CardRarity.CURSE,
-        keywords=frozenset({"unplayable", "eternal", "innate"}),
+        keywords=frozenset({"unplayable", "eternal", "innate", "ethereal"}),
         instance_id=_get_next_id(),
     )
 
@@ -503,6 +509,55 @@ def make_rip_and_tear(upgraded: bool = False) -> CardInstance:
     )
 
 
+@register_effect(CardId.ABUNDANCE)
+def abundance_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
+    """Choose one of three UPGRADED Powers from your pool; it costs 0 this turn.
+
+    Abundance.cs is Discovery's shape with two differences: the candidate pool
+    is filtered to ``CardType.Power`` and every candidate is upgraded before
+    the choice is offered. Note ``canSkip`` is NOT passed at the call site, so
+    unlike Discovery this choice cannot be declined.
+    """
+    candidates = create_distinct_character_cards(
+        combat.character_id,
+        combat.combat_card_generation_rng,
+        3,
+        card_type=CardType.POWER,
+        generation_context="combat",
+        is_multiplayer=combat.is_multiplayer,
+    )
+    if not candidates:
+        return
+    for candidate in candidates:
+        combat.upgrade_card(candidate)
+
+    def _resolver(selected: CardInstance | None) -> None:
+        if selected is None:
+            return
+        selected.set_temporary_cost_for_turn(0)
+        combat.add_generated_card_to_creature_hand(_owner(card, combat), selected)
+
+    combat.request_card_choice(
+        prompt="Choose one of three upgraded Powers",
+        cards=candidates,
+        source_pile="generated",
+        resolver=_resolver,
+        allow_skip=False,
+    )
+
+
+def make_abundance(upgraded: bool = False) -> CardInstance:
+    # Abundance.cs: base(1, Skill, Ancient, Self), Exhaust,
+    # CanBeGeneratedInCombat => false. Upgrade drops the cost to 0.
+    return CardInstance(
+        card_id=CardId.ABUNDANCE, cost=0 if upgraded else 1,
+        card_type=CardType.SKILL, target_type=TargetType.SELF,
+        rarity=CardRarity.ANCIENT, upgraded=upgraded,
+        keywords=frozenset({"exhaust"}),
+        instance_id=_get_next_id(),
+    )
+
+
 @register_effect(CardId.APOTHEOSIS)
 def apotheosis_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
     owner = _owner(card, combat)
@@ -641,7 +696,7 @@ def whistle_effect(card: CardInstance, combat: CombatState, target: Creature | N
 
 def make_whistle(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.WHISTLE, cost=3, card_type=CardType.ATTACK,
+        card_id=CardId.WHISTLE, cost=2, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.ANCIENT,
         base_damage=44 if upgraded else 33, upgraded=upgraded,
         keywords=frozenset({"exhaust"}), instance_id=_get_next_id(),
@@ -1157,7 +1212,7 @@ def minion_dive_bomb_effect(card: CardInstance, combat: CombatState, target: Cre
 
 def make_minion_dive_bomb(upgraded: bool = False) -> CardInstance:
     return CardInstance(
-        card_id=CardId.MINION_DIVE_BOMB, cost=1, card_type=CardType.ATTACK,
+        card_id=CardId.MINION_DIVE_BOMB, cost=0, card_type=CardType.ATTACK,
         target_type=TargetType.ANY_ENEMY, rarity=CardRarity.STATUS,
         base_damage=16 if upgraded else 13, upgraded=upgraded,
         keywords=frozenset({"exhaust"}), instance_id=_get_next_id(),
@@ -1368,6 +1423,18 @@ def is_byrdonis_egg(card: object) -> bool:
 
 
 BYRDONIS_EGG_HATCH_TRANSFORM = {CardId.BYRDONIS_EGG: CardId.BYRD_SWOOP}
+
+
+def make_dowsing() -> CardInstance:
+    # Dowsing.cs: base(-1, Quest, Quest, None), Unplayable, MaxUpgradeLevel 0,
+    # DynamicVar("Rooms", 5) counting DOWN as Unknown rooms are entered.
+    return CardInstance(
+        card_id=CardId.DOWSING, cost=-1, card_type=CardType.QUEST,
+        target_type=TargetType.NONE, rarity=CardRarity.QUEST,
+        keywords=frozenset({"unplayable"}),
+        effect_vars={"rooms_entered": 0, "rooms_required": DOWSING_MAX_ROOMS},
+        instance_id=_get_next_id(),
+    )
 
 
 def make_lantern_key() -> CardInstance:
@@ -1835,6 +1902,55 @@ def byrdonis_egg_rest_site_options(card: CardInstance, player, options, run_stat
 
     options.append(HatchOption())
     return options
+
+
+def _current_map_point(run_state):
+    """The map point the run is standing on, or None before the first move."""
+    coords = getattr(run_state, "visited_map_coords", None)
+    if not coords or getattr(run_state, "map", None) is None:
+        return None
+    return run_state.map.get_point(coords[-1])
+
+
+@register_effect(CardId.DOWSING)
+def dowsing_effect(card: CardInstance, combat: CombatState, target: Creature | None) -> None:
+    """Unplayable quest card. Progress is driven by the room-entry hook."""
+    pass
+
+
+@register_before_room_entered_hook(CardId.DOWSING)
+def dowsing_before_room_entered(card: CardInstance, run_state, room_type) -> None:
+    """Count Unknown map points; transform into Abundance at five.
+
+    Mirrors Dowsing.BeforeRoomEntered, which gates on
+    ``CurrentRoomCount > 1`` so a room that spawns a follow-up room (an event
+    leading to a fight) counts once, not twice.
+    """
+    if getattr(run_state, "current_room_count", 1) > 1:
+        return
+    point = _current_map_point(run_state)
+    if point is None or point.point_type != MapPointType.UNKNOWN:
+        return
+
+    card.effect_vars["rooms_entered"] = card.effect_vars.get("rooms_entered", 0) + 1
+    if card.effect_vars["rooms_entered"] < card.effect_vars.get(
+        "rooms_required", DOWSING_MAX_ROOMS
+    ):
+        return
+
+    card.on_quest_complete(run_state)
+    replacement = create_card(CardId.ABUNDANCE)
+    deck = run_state.player.deck
+    try:
+        deck[deck.index(card)] = replacement
+    except ValueError:
+        pass
+
+
+@register_quest_complete_hook(CardId.DOWSING)
+def dowsing_quest_complete(card: CardInstance, run_state) -> int:
+    """Dowsing pays no gold -- its reward is the Abundance transform."""
+    return 0
 
 
 @register_effect(CardId.LANTERN_KEY)

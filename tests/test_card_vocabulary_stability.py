@@ -1,0 +1,89 @@
+"""The card embedding vocabulary must only ever grow at the end.
+
+``rich_observation.CARD_IDS`` is ``list(CardId)`` in DECLARATION order and
+``CARD_ID_TO_IDX`` maps each card to its position in that list. Four separate
+bag segments of the observation (three pile bags plus the run-level deck bag)
+are indexed by that position.
+
+So inserting a member in the middle of the CardId enum does two bad things at
+once:
+
+* it shifts every later card's index, silently repointing a trained
+  checkpoint's learned weights at a DIFFERENT card -- the model keeps loading
+  and keeps running, it just now believes Strike is Wraith Form; and
+* it widens the observation, which at least fails loudly.
+
+The second masked the first when SIDESTEP and friends were added
+2026-07-31: the width error was obvious, the permutation underneath it was
+not.
+
+These tests pin anchor indices so a mid-enum insertion fails here, naming the
+consequence, instead of quietly degrading every model trained before it.
+"""
+
+from __future__ import annotations
+
+from sts2_env.core.enums import CardId
+from sts2_env.gym_env.rich_observation import (
+    CARD_ID_TO_IDX,
+    CARD_IDS,
+    DECK_BAG_OFF,
+    NUM_CARD_IDS,
+    PILE_BAGS_OFF,
+    PILE_BAG_SIZE,
+    RICH_OBS_SIZE,
+)
+
+
+#: Cards spread across the enum, with the index each had when the vocabulary
+#: was pinned. Every checkpoint trained since reads these positions.
+#: NEVER edit these numbers to make a test pass -- a change here means the
+#: vocabulary was permuted and existing checkpoints are invalid.
+ANCHOR_INDEXES = {
+    "STRIKE_IRONCLAD": 0,
+    "JUGGERNAUT_CARD": 73,
+    "SHIV": 120,
+    "MIRAGE": 164,
+    "SERPENT_FORM_CARD": 197,
+    "MADNESS": 585,
+}
+
+
+def test_anchor_cards_keep_their_embedding_index():
+    for name, expected in ANCHOR_INDEXES.items():
+        card = CardId[name]
+        assert CARD_ID_TO_IDX[card] == expected, (
+            f"{name} moved from index {expected} to {CARD_ID_TO_IDX[card]}. "
+            f"A CardId member was inserted before it, which repoints every "
+            f"trained checkpoint's card embeddings at the wrong cards. Append "
+            f"new members at the END of the enum instead."
+        )
+
+
+def test_recently_added_cards_sit_at_the_tail():
+    # These were appended deliberately (see the APPEND-ONLY marker in enums.py).
+    tail = [card.name for card in CARD_IDS[-4:]]
+    assert tail == ["NOT_YET", "SIDESTEP", "ABUNDANCE", "DOWSING"], tail
+
+
+def test_vocabulary_only_grows():
+    # A SHRINKING vocabulary is as damaging as a permuted one, and removing a
+    # card is the tempting fix when the game deletes one (v0.110.0 deleted
+    # Scare). Keep the slot; drop it from the pools instead.
+    assert NUM_CARD_IDS >= 590, (
+        f"vocabulary shrank to {NUM_CARD_IDS}. Removing a CardId shifts every "
+        f"later card down one index. If the game deleted a card, leave the "
+        f"enum member in place and remove it from the card pools."
+    )
+
+
+def test_observation_layout_matches_the_vocabulary():
+    # The invariant the bags depend on: each bag is exactly one slot per card.
+    assert PILE_BAG_SIZE == NUM_CARD_IDS
+    assert DECK_BAG_OFF > PILE_BAGS_OFF + 3 * PILE_BAG_SIZE - 1
+    assert RICH_OBS_SIZE > DECK_BAG_OFF + NUM_CARD_IDS
+
+
+def test_every_card_has_exactly_one_index():
+    assert len(CARD_ID_TO_IDX) == NUM_CARD_IDS
+    assert sorted(CARD_ID_TO_IDX.values()) == list(range(NUM_CARD_IDS))

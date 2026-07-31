@@ -212,6 +212,7 @@ DEPRECATED_CARD_POOL: tuple[CardId, ...] = (
 )
 
 EVENT_CARD_POOL: tuple[CardId, ...] = (
+    CardId.ABUNDANCE,
     CardId.APOTHEOSIS,
     CardId.APPARITION,
     CardId.BRIGHTEST_FLAME,
@@ -280,7 +281,6 @@ IRONCLAD_CARD_POOL: tuple[CardId, ...] = (
     CardId.FIGHT_ME,
     CardId.FLAME_BARRIER_CARD,
     CardId.FORGOTTEN_RITUAL,
-    CardId.GRAPPLE,
     CardId.HAVOC,
     CardId.HEADBUTT,
     CardId.HELLRAISER_CARD,
@@ -295,6 +295,7 @@ IRONCLAD_CARD_POOL: tuple[CardId, ...] = (
     CardId.JUGGLING_CARD,
     CardId.MANGLE,
     CardId.MOLTEN_FIST,
+    CardId.NOT_YET,
     CardId.OFFERING,
     CardId.ONE_TWO_PUNCH_CARD,
     CardId.PACTS_END,
@@ -424,6 +425,7 @@ NECROBINDER_CARD_POOL: tuple[CardId, ...] = (
 
 QUEST_CARD_POOL: tuple[CardId, ...] = (
     CardId.BYRDONIS_EGG,
+    CardId.DOWSING,
     CardId.LANTERN_KEY,
     CardId.SPOILS_MAP,
 )
@@ -557,7 +559,7 @@ SILENT_CARD_POOL: tuple[CardId, ...] = (
     CardId.FLANKING,
     CardId.FLECHETTES,
     CardId.FLICK_FLACK,
-    CardId.FOLLOW_THROUGH,
+    CardId.SIDESTEP,
     CardId.FOOTWORK,
     CardId.GRAND_FINALE,
     CardId.HAND_TRICK,
@@ -617,6 +619,7 @@ STATUS_CARD_POOL: tuple[CardId, ...] = (
     CardId.DEBRIS,
     CardId.FRANTIC_ESCAPE,
     CardId.INFECTION,
+    CardId.WITHER,
     CardId.SLIMED,
     CardId.SOOT,
     CardId.TOXIC,

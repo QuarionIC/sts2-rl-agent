@@ -1162,3 +1162,16 @@ class CardId(Enum):
 
     # Acts from the Past (mod) -- TheBeyond legacy-act event cards
     MADNESS = auto()
+
+    # APPEND-ONLY BELOW THIS LINE.
+    #
+    # CARD_IDS in rich_observation.py is list(CardId) in DECLARATION order and
+    # CARD_ID_TO_IDX maps each card to its position, so inserting a member in
+    # the middle shifts every later card's embedding index. That does not just
+    # widen the observation -- it silently repoints every trained checkpoint's
+    # learned card semantics at a different card. Anchor indices are pinned by
+    # test_card_vocabulary_stability.py.
+    NOT_YET = auto()
+    SIDESTEP = auto()
+    ABUNDANCE = auto()
+    DOWSING = auto()

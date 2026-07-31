@@ -63,6 +63,10 @@ CardQuestCompleteHook = Callable[
     ["CardInstance", "RunState"],
     int,
 ]
+CardBeforeRoomEnteredHook = Callable[
+    ["CardInstance", "RunState", "RoomType"],
+    None,
+]
 CardRestSiteOptionsHook = Callable[
     ["CardInstance", "PlayerState", list["RestSiteOption"], "RunState | None"],
     list["RestSiteOption"],
@@ -103,6 +107,10 @@ CardAfterDeathHook = Callable[
     ["CardInstance", "Creature", bool, "CombatState"],
     None,
 ]
+CardAfterCardExhaustedHook = Callable[
+    ["CardInstance", "CardInstance", "CombatState"],
+    None,
+]
 
 _CARD_EFFECTS: dict[CardId, CardEffect] = {}
 _CARD_LATE_EFFECTS: dict[CardId, CardLateEffect] = {}
@@ -118,6 +126,7 @@ _CARD_GENERATED_MAP_HOOKS: dict[CardId, CardGeneratedMapHook] = {}
 _CARD_GENERATED_MAP_LATE_HOOKS: dict[CardId, CardGeneratedMapHook] = {}
 _CARD_AFTER_MAP_GENERATED_HOOKS: dict[CardId, CardAfterMapGeneratedHook] = {}
 _CARD_QUEST_COMPLETE_HOOKS: dict[CardId, CardQuestCompleteHook] = {}
+_CARD_BEFORE_ROOM_ENTERED_HOOKS: dict[CardId, CardBeforeRoomEnteredHook] = {}
 _CARD_REST_SITE_OPTIONS_HOOKS: dict[CardId, CardRestSiteOptionsHook] = {}
 _CARD_BEFORE_HAND_DRAW_HOOKS: dict[CardId, CardBeforeHandDrawHook] = {}
 _CARD_AFTER_TURN_END_HOOKS: dict[CardId, CardAfterTurnEndHook] = {}
@@ -129,6 +138,7 @@ _CARD_BEFORE_CARD_PLAYED_HOOKS: dict[CardId, CardCardPlayHook] = {}
 _CARD_AFTER_CARD_PLAYED_HOOKS: dict[CardId, CardCardPlayHook] = {}
 _CARD_AFTER_ATTACK_HOOKS: dict[CardId, CardAfterAttackHook] = {}
 _CARD_AFTER_DEATH_HOOKS: dict[CardId, CardAfterDeathHook] = {}
+_CARD_AFTER_CARD_EXHAUSTED_HOOKS: dict[CardId, CardAfterCardExhaustedHook] = {}
 _SELF_MUTATING_DAMAGE_CARD_IDS: set[CardId] = set()
 _SELF_MUTATING_BLOCK_CARD_IDS: set[CardId] = set()
 
@@ -233,6 +243,19 @@ def register_quest_complete_hook(card_id: CardId):
     return decorator
 
 
+def register_before_room_entered_hook(card_id: CardId):
+    """Fires for every deck card just before a room is entered.
+
+    Added for Dowsing, whose CardModel.BeforeRoomEntered counts Unknown map
+    points and transforms the card once five have been visited. Relics and
+    modifiers already had an after_room_entered surface; cards did not.
+    """
+    def decorator(func: CardBeforeRoomEnteredHook) -> CardBeforeRoomEnteredHook:
+        _CARD_BEFORE_ROOM_ENTERED_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
 def register_rest_site_options_hook(card_id: CardId):
     def decorator(func: CardRestSiteOptionsHook) -> CardRestSiteOptionsHook:
         _CARD_REST_SITE_OPTIONS_HOOKS[card_id] = func
@@ -308,6 +331,19 @@ def register_after_attack_hook(card_id: CardId):
 def register_after_death_hook(card_id: CardId):
     def decorator(func: CardAfterDeathHook) -> CardAfterDeathHook:
         _CARD_AFTER_DEATH_HOOKS[card_id] = func
+        return func
+    return decorator
+
+
+def register_after_card_exhausted_hook(card_id: CardId):
+    """Fires for every card in a combat pile after any card is exhausted.
+
+    Mirrors CardModel.AfterCardExhausted. Added for DrumOfBattle, whose v0.110.0
+    payoff (`if (card == this) ... PlayerCmd.GainEnergy`) lives on the card
+    itself rather than on a power; only powers and relics had this surface.
+    """
+    def decorator(func: CardAfterCardExhaustedHook) -> CardAfterCardExhaustedHook:
+        _CARD_AFTER_CARD_EXHAUSTED_HOOKS[card_id] = func
         return func
     return decorator
 
@@ -424,6 +460,16 @@ def modify_card_next_event(
     if hook is None:
         return event
     return hook(card, run_state, event)
+
+
+def fire_card_before_room_entered(
+    card: "CardInstance",
+    run_state: "RunState",
+    room_type: "RoomType",
+) -> None:
+    hook = _CARD_BEFORE_ROOM_ENTERED_HOOKS.get(card.card_id)
+    if hook is not None:
+        hook(card, run_state, room_type)
 
 
 def modify_card_unknown_room_types(
@@ -595,3 +641,13 @@ def fire_card_after_death(
     hook = _CARD_AFTER_DEATH_HOOKS.get(listener_card.card_id)
     if hook is not None:
         hook(listener_card, creature, was_removal_prevented, combat)
+
+
+def fire_card_after_card_exhausted(
+    listener_card: "CardInstance",
+    exhausted_card: "CardInstance",
+    combat: "CombatState",
+) -> None:
+    hook = _CARD_AFTER_CARD_EXHAUSTED_HOOKS.get(listener_card.card_id)
+    if hook is not None:
+        hook(listener_card, exhausted_card, combat)

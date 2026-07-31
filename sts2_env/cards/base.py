@@ -484,6 +484,11 @@ class CardInstance:
 
         return complete_card_quest(self, run_state)
 
+    def before_room_entered(self, run_state: object, room_type: object) -> None:
+        from sts2_env.cards.registry import fire_card_before_room_entered
+
+        fire_card_before_room_entered(self, run_state, room_type)
+
     def modify_rest_site_options(
         self,
         owner: object,
