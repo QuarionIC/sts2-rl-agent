@@ -56,15 +56,33 @@ def _slugify(name: str) -> str:
 
 
 def _mod_power_entries() -> list[str]:
+    """Every power class in the installed mods.
+
+    Matches ``*Power*.cs``, not ``*Power.cs``. The narrower glob MISSED every
+    class with a suffix after "Power" -- Act4Heart names its
+    ``MetallicizePowerA4h`` and ``RegeneratePowerA4h`` that way -- so this
+    test reported Act4Heart as fully covered while METALLICIZE_POWER_A4H was
+    being dropped in live play. Found by the bridge, not by the guard that
+    exists to find it.
+    """
     entries = set()
     for mod in INSTALLED_MODS:
         root = MOD_ROOT / mod
         if not root.is_dir():
             continue
-        for path in root.rglob("*Power.cs"):
-            # BaseLib-style interface stubs (ICustomPower) are contracts, not
-            # powers an enemy can carry.
+        for path in root.rglob("*Power*.cs"):
+            # A power lives in a ``*.Powers`` namespace. ``*.Patches.Powers``
+            # holds Harmony patches ABOUT powers, which no enemy carries --
+            # widening the filename glob swept those in, so the namespace is
+            # what decides.
+            parent = path.parent.name
+            if not parent.endswith(".Powers") or ".Patches." in parent:
+                continue
+            # Interface stubs (ICustomPower) are contracts, and *PowerModel is
+            # the abstract per-mod base class.
             if path.stem.startswith("I") and path.stem[1:2].isupper():
+                continue
+            if path.stem.endswith("PowerModel"):
                 continue
             entries.add(_slugify(path.stem))
     return sorted(entries)

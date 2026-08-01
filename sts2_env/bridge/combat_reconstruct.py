@@ -517,8 +517,21 @@ def _to_card_id(raw: str):
 #:     would be simulated healing less every turn than it really does.
 #: Both need their own power, not an alias. Aliasing on name similarity would
 #: have been strictly worse than the current honest "unrecognised" warning.
+#: A blanket "_A4H" strip would be WRONG and is deliberately not done:
+#: RegeneratePowerA4h never decays where vanilla REGEN does, so it has its own
+#: PowerId, and folding the mod tag away would silently map it onto the wrong
+#: power. Each mod-tagged alias has to be justified on behaviour, one at a
+#: time -- which is the same discipline that stopped STRENGTH_UP being aliased
+#: onto RITUAL.
 _POWER_ID_ALIASES = {
     "ASLEEPLAGAVULINPOWER": "ASLEEP",
+    # MetallicizePowerA4h gains Amount block at BeforeSideTurnEndEarly with no
+    # decay -- identical to vanilla MetallicizePower, as sts2_env/powers/
+    # act4_heart.py already documents ("intentionally NOT reimplemented").
+    # Seen live on TERROR_EEL 2026-08-01: the eel was reconstructed with no
+    # Metallicize, so the planner priced every attack against it as if its
+    # block would not return.
+    "METALLICIZEPOWERA4H": "METALLICIZE",
 }
 
 
