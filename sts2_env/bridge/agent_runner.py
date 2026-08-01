@@ -364,6 +364,9 @@ def run_agent(
                 if msg_type == BridgeStateType.COMBAT_ACTION:
                     _LAST_COMBAT_STATE[0] = state
 
+                # Before any dispatch: every branch below logs against it.
+                _note_phase(phase)
+
                 if verbose and step_count % 10 == 1:
                     logger.info("Step %d: type=%s phase=%s", step_count, msg_type, phase)
 
@@ -1199,6 +1202,42 @@ _COMBAT_QUEUE: list[Any] = [[], -1]
 #: payload and evaluates candidates against it. It is the same turn: the
 #: discovery resolves inside the OnPlay of a card the agent just played.
 _LAST_COMBAT_STATE: list[Any] = [None]
+
+#: Which fight we are in, and whether the previous payload was a combat one.
+#:
+#: Exists because a night of logs could NOT answer the one question that
+#: decides where divergence work goes next: does a divergence appear fresh, or
+#: is it the compounded tail of an earlier one? Answering it needs to know how
+#: far into a fight each divergence sits, and nothing in the log marked where a
+#: fight began.
+#:
+#: Two attempts to recover it after the fact both failed, in ways worth
+#: recording so the third is not attempted:
+#:
+#:   * "Combat turn N: planned ..." is emitted once per whole-combat PLAN, not
+#:     per turn -- 26 lines against 217 actions -- and its values run 1,3,5,1,1
+#:     as replans restart mid-fight. Treating it as a turn counter put 91% of
+#:     divergences on "turn 1" purely because the variable was stale.
+#:   * Inferring a boundary from the round number decreasing fails on the fight
+#:     that ends on round 1, and silently merges it with the next one.
+#:
+#: The phase transition is exact: a fight starts when a non-combat phase is
+#: followed by a combat one. Logging the ordinal and the round on every action
+#: makes the question answerable by reading, instead of by inference.
+_FIGHT_TRACKER: dict[str, Any] = {"ordinal": 0, "in_combat": False}
+
+
+def _fight_marker(combat: dict[str, Any]) -> str:
+    """``f<fight>t<round>`` for the current combat action."""
+    return f"f{_FIGHT_TRACKER['ordinal']}t{int(combat.get('round', 0) or 0)}"
+
+
+def _note_phase(phase: Any) -> None:
+    """Advance the fight ordinal on entry into a combat phase."""
+    is_combat = phase in Phase.COMBAT_PHASES
+    if is_combat and not _FIGHT_TRACKER["in_combat"]:
+        _FIGHT_TRACKER["ordinal"] += 1
+    _FIGHT_TRACKER["in_combat"] = is_combat
 
 
 def _combat_planner_action(state: dict[str, Any]) -> int | None:
@@ -2278,7 +2317,8 @@ def _log_combat_action(
 
     if decoded["type"] == ActionType.END_TURN:
         logger.info(
-            "COMBAT [HP:%d/%d E:%d] -> END_TURN (round %d)",
+            "[%s] COMBAT [HP:%d/%d E:%d] -> END_TURN (round %d)",
+            _fight_marker(combat),
             player.get("hp", 0),
             player.get("max_hp", 0),
             player.get("energy", 0),
@@ -2295,7 +2335,8 @@ def _log_combat_action(
                 break
         target_name = enemies[ti].get("id", "?") if 0 <= ti < len(enemies) else "N/A"
         logger.info(
-            "COMBAT [HP:%d/%d E:%d] -> POTION %s (slot=%d) -> %s (idx=%d)",
+            "[%s] COMBAT [HP:%d/%d E:%d] -> POTION %s (slot=%d) -> %s (idx=%d)",
+            _fight_marker(combat),
             player.get("hp", 0),
             player.get("max_hp", 0),
             player.get("energy", 0),
@@ -2310,7 +2351,8 @@ def _log_combat_action(
         card_name = hand[ci].get("id", "?") if ci < len(hand) else "?"
         target_name = enemies[ti].get("id", "?") if 0 <= ti < len(enemies) else "N/A"
         logger.info(
-            "COMBAT [HP:%d/%d E:%d] -> PLAY %s (idx=%d) -> %s (idx=%d)",
+            "[%s] COMBAT [HP:%d/%d E:%d] -> PLAY %s (idx=%d) -> %s (idx=%d)",
+            _fight_marker(combat),
             player.get("hp", 0),
             player.get("max_hp", 0),
             player.get("energy", 0),

@@ -40,6 +40,23 @@ _DIVERGED = re.compile(r"plan diverged \[([^\]]*)\]")
 _SIM_HAND = re.compile(r"sim  hand: (\[[^\]]*\]) \(energy (-?\d+|None)\)")
 _LIVE_HAND = re.compile(r"live hand: (\[[^\]]*\]) \(energy (-?\d+|None)\)")
 _ACTION = re.compile(r"COMBAT \[HP:")
+#: ``[f12t3]`` stamped on every combat action by agent_runner._fight_marker.
+_MARKER = re.compile(r"\[(f\d+)t(\d+)\] COMBAT \[HP:")
+
+
+def _last_marker_before(lines: list[str], i: int) -> tuple[str, int] | None:
+    """The fight/round of the action that produced the divergence at ``i``.
+
+    The divergence is logged when the NEXT state fails to match the plan, so
+    the action it belongs to is the most recent one above it. Bounded, because
+    a scan to the top of the file would otherwise attribute a divergence to a
+    fight that ended long before it.
+    """
+    for line in reversed(lines[max(0, i - 60):i]):
+        m = _MARKER.search(line)
+        if m:
+            return m.group(1), int(m.group(2))
+    return None
 
 
 def _norm(card: str) -> str:
@@ -120,6 +137,10 @@ def main(argv=None) -> int:
     counts: Counter[str] = Counter()
     actions = 0
     examples: dict[str, list[str]] = {}
+    #: round of the first FIDELITY divergence per fight, and repeats after it
+    depth_first: Counter[int] = Counter()
+    depth_later = 0
+    seen_fights: set[str] = set()
 
     for path in args.logs:
         if not path.exists():
@@ -148,6 +169,22 @@ def main(argv=None) -> int:
             counts[kind] += 1
             examples.setdefault(kind, []).append(
                 f"    sim  {sim_hand}\n    live {live_hand}")
+
+            # Depth is measured on FIDELITY divergences only. SIM-AHEAD is the
+            # client outrunning the game; including it would fill the histogram
+            # with synchronisation noise and flatten exactly the signal being
+            # looked for.
+            if kind == "SIM-AHEAD":
+                continue
+            marker = _last_marker_before(lines, i)
+            if marker is None:
+                continue
+            fight, rnd = marker
+            if fight in seen_fights:
+                depth_later += 1
+            else:
+                seen_fights.add(fight)
+                depth_first[rnd] += 1
 
     total = sum(counts.values())
     print(f"\n=== DIVERGENCES over {actions} combat actions "
@@ -183,14 +220,20 @@ def main(argv=None) -> int:
     # Measured 2026-08-01 over 17 CONTENTS cases, the cards that differ are the
     # deck's most COMMON ones -- the simulator holding 9 extra DEFEND, the game
     # 5 extra STRIKE. An unmodelled card EFFECT would implicate specific
-    # unusual cards; a Strike/Defend imbalance is what draw divergence looks
-    # like once it has compounded past the point where the one-card SHIFT and
-    # FRONTIER patterns still match.
+    # unusual cards, so card modelling is the one cause the evidence argues
+    # against. Calling it that would send the next investigation at card
+    # effects, which is where it would waste the most time.
     #
-    # So the honest label is "unclassified": a real disagreement, cause not
-    # established, and most likely the same draw divergence seen further
-    # along. Calling it card modelling would send the next investigation at
-    # card effects, which is where it would waste the most time.
+    # It is equally NOT established to be compounded draw, which an earlier
+    # version of this comment asserted. Testing that needs to know how far into
+    # a fight each divergence sits, and until 2026-08-01 nothing in the log
+    # marked where a fight began; an attempt to recover it from the
+    # "Combat turn N: planned" line produced a confident wrong answer, because
+    # that line is emitted per whole-combat PLAN (26 against 217 actions) and
+    # its values run 1,3,5,1,1 as the planner replans. The runner now stamps
+    # every combat action with ``[f<fight>t<round>]``, and the depth histogram
+    # below reads it. Until enough marked logs exist to fill that histogram,
+    # "unclassified" means exactly that: a real disagreement, cause unknown.
     def _bucket(kind: str) -> str:
         if kind in ARTIFACT:
             return "artifact"
@@ -214,11 +257,38 @@ def main(argv=None) -> int:
     cp, *_ = _wilson(cards, actions)
     print(f"    of which draw order/count : {draw:3d} ({dp:.2f}%)")
     print(f"    of which unclassified     : {cards:3d} ({cp:.2f}%)"
-          f"  [cause not established; composition suggests compounded draw]")
+          f"  [cause NOT established -- see the depth histogram]")
     ap_, *_ = _wilson(artifacts, actions)
     print(f"  client/server artifacts (NOT fidelity): {artifacts} ({ap_:.2f}%)")
     print(f"  blended total: {total}/{actions} = "
           f"{100*total/max(actions,1):.2f}%")
+
+    if depth_first or depth_later:
+        # Fresh vs compounded, read off the marker rather than inferred.
+        #
+        # A divergence that is the FIRST in its fight and lands on round 1 is
+        # fresh: nothing preceded it to compound from. One that is the fifth in
+        # its fight, ten rounds in, tells you nothing on its own -- the fight
+        # was already off the rails.
+        #
+        # So the number that matters is the ROUND of the first divergence per
+        # fight. Concentrated on round 1 => the opening hand or the shuffle.
+        # Spread across rounds => something that accumulates.
+        n_first = sum(depth_first.values())
+        print(f"\n=== HOW DEEP INTO A FIGHT (from [f#t#] markers) ===")
+        print(f"  fights with a divergence      : {n_first}")
+        print(f"  repeat divergences, same fight: {depth_later}")
+        print("  round of the FIRST divergence in each fight:")
+        for rnd in sorted(depth_first):
+            n = depth_first[rnd]
+            print(f"    round {rnd:>2}: {'#' * min(n, 50)} ({n})")
+        if n_first:
+            r1 = depth_first.get(1, 0)
+            print(f"\n  on round 1: {r1}/{n_first} = {100 * r1 / n_first:.0f}%")
+            print("  high => opening hand / shuffle;  spread => accumulating")
+    else:
+        print("\n  (no [f#t#] markers in these logs -- they predate the fight "
+              "marker, so fresh-vs-compounded cannot be read from them)")
 
     if args.examples:
         print("\n=== examples ===")
