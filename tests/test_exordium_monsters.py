@@ -871,18 +871,22 @@ def test_guardian_defensive_cycle_close_up_roll_attack_twin_slam_reopens():
         ex.GUARDIAN_CLOSE_UP_MOVE, ex.GUARDIAN_ROLL_ATTACK_MOVE, ex.GUARDIAN_TWIN_SLAM_MOVE,
         ex.GUARDIAN_WHIRLWIND_MOVE, ex.GUARDIAN_CHARGE_UP_MOVE,
     ]
-    assert creature.has_power(PowerId.THORNS) is False  # removed by TWIN_SLAM
+    # Guardian.TwinSlam ends with PowerCmd.Remove<SharpHidePower>. This read
+    # THORNS while close_up applied the Thorns stand-in.
+    assert creature.has_power(PowerId.SHARP_HIDE) is False  # removed by TWIN_SLAM
     assert mode.is_open is True  # reopened by TWIN_SLAM
     assert mode.threshold == mode.base_threshold
 
 
-def test_guardian_close_up_grants_sharp_hide_thorns():
+def test_guardian_close_up_grants_sharp_hide():
     combat = _make_combat(1, player_hp=999999)
     creature, ai = ex.create_guardian(Rng(1), ascension_level=0)
     combat.add_enemy(creature, ai)
     combat.start_combat()
     ai.states[ex.GUARDIAN_CLOSE_UP_MOVE].perform(combat)
-    assert creature.get_power_amount(PowerId.THORNS) == ex.GUARDIAN_BASE_SHARP_HIDE
+    # Guardian.CloseUp applies SharpHidePower (Guardian.cs:284), not Thorns:
+    # Sharp Hide fires once per Attack CARD played, Thorns once per hit taken.
+    assert creature.get_power_amount(PowerId.SHARP_HIDE) == ex.GUARDIAN_BASE_SHARP_HIDE
 
 
 def test_guardian_threshold_increase_stacks_across_multiple_mode_shifts():

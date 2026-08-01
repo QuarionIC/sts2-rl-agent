@@ -1414,12 +1414,31 @@ def create_guardian(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Monst
         _check_pending_mode_shift(combat)
 
     def close_up(combat: CombatState) -> None:
+        # SHARP_HIDE, not THORNS.
+        #
+        # This applied PowerId.THORNS as a stand-in while SHARP_HIDE did not
+        # exist as a PowerId. The two are not interchangeable
+        # (SharpHidePower.cs vs the vanilla Thorns): Thorns retaliates per HIT
+        # TAKEN, Sharp Hide fires once per ATTACK CARD PLAYED and fires even
+        # when the card targets something else. A 4-hit attack cost the player
+        # 4x here and 1x in the real game, and an attack aimed at the
+        # Guardian's ally cost nothing here and Amount there.
+        #
+        # The live wire also sends ACTSFROMTHEPAST-SHARP_HIDE_POWER, so the
+        # stand-in guaranteed a power-id mismatch on every reconstructed
+        # Guardian fight on top of the behavioural one.
         sharp_hide = _ascension_value(_combat_ascension_level(combat), DEADLY_ENEMIES_ASCENSION_LEVEL, GUARDIAN_DEADLY_SHARP_HIDE, GUARDIAN_BASE_SHARP_HIDE)
-        creature.apply_power(PowerId.THORNS, sharp_hide, applier=creature)
+        creature.apply_power(PowerId.SHARP_HIDE, sharp_hide, applier=creature)
 
     def roll_attack(combat: CombatState) -> None:
         dmg = _ascension_value(_combat_ascension_level(combat), DEADLY_ENEMIES_ASCENSION_LEVEL, GUARDIAN_DEADLY_ROLL_DAMAGE, GUARDIAN_BASE_ROLL_DAMAGE)
         _deal_damage_to_player(combat, creature, dmg)
+        # Guardian.RollAttack ends with PowerCmd.Remove<SharpHidePower>
+        # (Guardian.cs:303). The port never removed the stand-in Thorns, so a
+        # simulated Guardian accumulated retaliation across every Defensive
+        # Mode cycle while the real one sheds it the moment it rolls -- the
+        # error compounds over exactly the long boss fight where it matters.
+        creature.powers.pop(PowerId.SHARP_HIDE, None)
 
     def twin_slam(combat: CombatState) -> None:
         mode = creature.powers.get(PowerId.MODE_SHIFT)
@@ -1430,7 +1449,13 @@ def create_guardian(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Monst
         mode.start(mode.base_threshold)
         creature.block = 0
         _deal_damage_to_player(combat, creature, GUARDIAN_TWIN_SLAM_DAMAGE, hits=GUARDIAN_TWIN_SLAM_HITS)
-        creature.powers.pop(PowerId.THORNS, None)
+        # Guardian.TwinSlam also ends with PowerCmd.Remove<SharpHidePower>
+        # (Guardian.cs). This popped THORNS while close_up applied the THORNS
+        # stand-in; switching close_up to SHARP_HIDE without switching this
+        # would have left the hide on forever -- a worse bug than the one
+        # being fixed, since Twin Slam is how the Guardian exits Defensive
+        # Mode.
+        creature.powers.pop(PowerId.SHARP_HIDE, None)
         _check_pending_mode_shift(combat)
 
     def offensive_branch_chooser(state_log: list[str], rng: Rng) -> str:

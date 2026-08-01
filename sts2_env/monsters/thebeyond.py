@@ -780,15 +780,32 @@ def create_transient(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Mons
     creature = Creature(max_hp=TRANSIENT_HP, monster_id=TRANSIENT_MONSTER_ID)
 
     fading_turns = _ascension_value(ascension_level, TOUGH_ENEMIES_ASCENSION_LEVEL, TRANSIENT_TOUGH_FADING_TURNS, TRANSIENT_BASE_FADING_TURNS)
-    # FADING isn't a distinct PowerId in this port -- Transient's self-timer
-    # (C# ref: FadingPower.cs -- BeforeSideTurnEndEarly on owner's own side:
-    # decrement, or kill self at 0) is implemented directly below via a
-    # plain closure counter instead of a dedicated power, since (unlike
-    # LifeLink/Constricted/Reactive/Shifting) nothing else in TheBeyond
-    # needs a reusable "kill self after N of my own turns" power and
-    # PowerInstance has no built-in "kill owner" primitive worth
-    # generalizing for a single user.
-    state = {"turns_left": fading_turns, "count": 0}
+    # FADING is a real power now, so the countdown is a real power.
+    #
+    # This was a plain closure counter, on the reasoning that FADING was not a
+    # distinct PowerId in this port and no second user justified generalizing
+    # one. Both halves of that have since stopped being true: PowerId.FADING
+    # exists, FadingPower is implemented against the same
+    # before_turn_end_early hook the C# uses, and the live wire sends
+    # ACTSFROMTHEPAST-FADING_POWER on every Transient.
+    #
+    # Two things the counter got wrong, beyond tidiness:
+    #
+    # * It was INVISIBLE. Enemy powers are one-hot in the observation
+    #   (PowerId.FADING is index 298); a closure variable is not. "How many
+    #   turns until this thing fades" is the entire tactical question a
+    #   Transient poses -- whether to spend cards killing it or simply outlive
+    #   it -- and the agent could not see the answer.
+    # * It ticked in the wrong place. The C# decrements at
+    #   BeforeSideTurnEndEarly on the owner's own side; this ticked inside the
+    #   attack move, so a Transient prevented from attacking would never fade,
+    #   and the kill landed earlier in the turn than the game's.
+    #
+    # AfterAddedToRoom applies it at spawn with A8 ? 6 : 5
+    # (Transient.cs:58, AscensionHelper.GetValueIfAscension(8, 6, 5)), which is
+    # exactly TRANSIENT_TOUGH/BASE_FADING_TURNS.
+    creature.powers[PowerId.FADING] = FadingPowerCls(fading_turns)
+    state = {"count": 0}
     starting_damage = _ascension_value(ascension_level, DEADLY_ENEMIES_ASCENSION_LEVEL, TRANSIENT_DEADLY_STARTING_DAMAGE, TRANSIENT_BASE_STARTING_DAMAGE)
     creature.powers[PowerId.SHIFTING] = ShiftingPowerCls(1)
 
@@ -796,13 +813,12 @@ def create_transient(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Mons
         return starting_damage + state["count"] * TRANSIENT_DAMAGE_INCREMENT
 
     def attack(combat: "CombatState") -> None:
+        # No countdown here any more -- FadingPower ticks on
+        # before_turn_end_early, which is where the C# ticks it. `count` still
+        # lives in the move because it scales THIS attack's damage
+        # (StartingDeathDmg + Count * 10), not the fade.
         _deal_damage_to_player(combat, creature, current_damage())
         state["count"] += 1
-        if not creature.is_alive:
-            return
-        state["turns_left"] -= 1
-        if state["turns_left"] <= 0:
-            combat.kill_creature(creature)
 
     states: dict[str, MonsterState] = {
         # Damage grows every turn (starting_damage + 10*count); the declared
@@ -1458,6 +1474,7 @@ from sts2_env.powers.monster import (  # noqa: E402
     ConstrictedPower as ConstrictedPowerCls,
     CuriosityPower as CuriosityPowerCls,
     DrawReductionPower as DrawReductionPowerCls,
+    FadingPower as FadingPowerCls,
     LifeLinkPower as LifeLinkPowerCls,
     NemesisFlickerPower as NemesisFlickerPowerCls,
     ReactivePower as ReactivePowerCls,
