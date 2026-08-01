@@ -87,3 +87,51 @@ def test_observation_layout_matches_the_vocabulary():
 def test_every_card_has_exactly_one_index():
     assert len(CARD_ID_TO_IDX) == NUM_CARD_IDS
     assert sorted(CARD_ID_TO_IDX.values()) == list(range(NUM_CARD_IDS))
+
+
+class TestPowerVocabularyStability:
+    """PowerId has the CARD problem, worse: no embedding to migrate.
+
+    NUM_POWER_IDS sizes PLAYER_POWERS_SIZE and, through ENEMY_BLOCK_SIZE,
+    every one of the five enemy slots -- and all of that sits inside
+    RichFeaturesExtractor's flat passthrough. Cards go through an embedding
+    table, so adding one means appending rows; powers are raw one-hot, so
+    adding one widens the observation at SIX separate offsets and moves the
+    extractor's output width with it.
+
+    A mid-enum insertion is therefore not merely a resize: every flat feature
+    after the insertion point shifts, and a checkpoint loaded against it reads
+    the wrong column for every power, every intent and every enemy scalar that
+    follows -- while still loading and still running.
+    """
+
+    def test_the_recently_added_powers_sit_at_the_tail(self):
+        from sts2_env.core.enums import PowerId
+
+        tail = [p.name for p in list(PowerId)[-6:]]
+        assert tail == ["SPORE_CLOUD", "SHARP_HIDE", "STRENGTH_UP",
+                        "REGEN_ENEMY", "EXPLOSIVE", "FADING"], tail
+
+    def test_power_anchors_keep_their_index(self):
+        from sts2_env.core.enums import PowerId
+        from sts2_env.gym_env.rich_observation import POWER_ID_TO_IDX
+
+        # NEVER edit these to make a test pass: a change means the vocabulary
+        # was permuted and every trained checkpoint now reads the wrong power.
+        anchors = {"STRENGTH": 20, "VULNERABLE": 25, "WEAK": 26,
+                   "POISON": 47, "ARTIFACT": 186}
+        for name, expected in anchors.items():
+            assert POWER_ID_TO_IDX[PowerId[name]] == expected, (
+                f"{name} moved to {POWER_ID_TO_IDX[PowerId[name]]}; a PowerId "
+                f"was inserted before it and existing checkpoints are invalid"
+            )
+
+    def test_the_observation_layout_still_derives_from_the_power_count(self):
+        import sts2_env.gym_env.rich_observation as R
+
+        assert R.PLAYER_POWERS_SIZE == R.NUM_POWER_IDS
+        # Every enemy slot carries a full power vector; if this stops holding,
+        # migrate_checkpoint_powers' offset arithmetic is wrong.
+        n_slots = R.ENEMIES_SIZE // R.ENEMY_BLOCK_SIZE
+        assert n_slots == 5
+        assert R.ENEMY_BLOCK_SIZE > R.NUM_POWER_IDS
