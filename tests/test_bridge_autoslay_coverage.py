@@ -81,7 +81,23 @@ def test_autoslay_run_flow_uses_named_protocol_and_timing_constants() -> None:
     source = _rl_auto_slayer_source()
     compact_source = "".join(source.split())
 
-    assert "RunCompleteState(NonCombatBridgeProtocol.TerminatedResult)" in compact_source
+    # The terminated signal must name the protocol constant AND carry a
+    # reason.
+    #
+    # It used to be asserted as the bare one-argument call. That was correct
+    # until 2026-08-01, when measurement showed "terminated" is 62% of all
+    # live runs (46 of 74 across 8 sessions) -- it is the majority outcome,
+    # not an edge case, and it truncates every live floor and win-rate number
+    # on a non-random subset of runs. The exception text that explains it went
+    # to GD.Print, whose stdout Steam discards, so it was unrecoverable. The
+    # reason now travels on the payload.
+    assert "RunCompleteState(NonCombatBridgeProtocol.TerminatedResult," in compact_source, (
+        "the terminated signal no longer carries a reason argument; without it "
+        "the majority run outcome is unexplained and unrecoverable"
+    )
+    assert "lastFailure" in compact_source, (
+        "the exception text is not captured for the terminated payload"
+    )
     assert "RunCompleteState(NonCombatBridgeProtocol.VictoryResult)" in compact_source
     assert "NonCombatBridgeProtocol.GameOverState" in source
     assert "NonCombatBridgeProtocol.GameOverMessage" in source

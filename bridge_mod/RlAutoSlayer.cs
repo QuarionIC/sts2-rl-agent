@@ -303,6 +303,10 @@ public class RlAutoSlayer
         // its own catch so a failed run costs one run rather than the session.
         int runs = PreferredRunCount;
         int completed = 0, failed = 0;
+        // Carries the exception text from the catch to the finally, which is
+        // where the terminated payload is built. Cleared per run so one run's
+        // failure cannot be attributed to the next.
+        string? lastFailure = null;
         Logger.Log($"[RlAutoSlayer] Session starting: {runs} run(s), base seed {seed}");
         try
         {
@@ -329,6 +333,11 @@ public class RlAutoSlayer
                 catch (Exception ex)
                 {
                     failed++;
+                    // Kept for the bridge payload below: GD.Print goes to a
+                    // stdout that Steam discards, so this message is otherwise
+                    // unrecoverable -- and it is the only thing that explains
+                    // why 62% of runs end as "terminated".
+                    lastFailure = $"{ex.GetType().Name}: {ex.Message}";
                     Logger.Log($"[RlAutoSlayer] === Run {i + 1}/{runs} FAILED: {ex.Message} -- "
                                + "continuing to the next run ===");
                 }
@@ -345,9 +354,11 @@ public class RlAutoSlayer
                     if (!_completionSignalSent)
                     {
                         BridgeServer.Instance.SendState(RunCompleteState(
-                            NonCombatBridgeProtocol.TerminatedResult));
+                            NonCombatBridgeProtocol.TerminatedResult,
+                            lastFailure ?? "no exception recorded"));
                         _completionSignalSent = true;
                     }
+                    lastFailure = null;
                 }
             }
         }
@@ -1163,13 +1174,38 @@ public class RlAutoSlayer
             ct));
     }
 
-    private static string RunCompleteState(string result)
+    /// <param name="reason">
+    /// Why the run ended, when it did not end by itself.
+    ///
+    /// "terminated" is sent from a finally block whenever no completion signal
+    /// was emitted -- i.e. the run threw. Measured 2026-08-01 across 8 live
+    /// sessions, 46 of 74 runs (62%) ended that way rather than in a victory
+    /// or a death, which truncates every live floor and win-rate number on a
+    /// non-random subset of runs.
+    ///
+    /// The exception message that would explain it was going to GD.Print,
+    /// which reaches Godot's stdout -- and the game is launched through Steam,
+    /// so that stream is discarded and no log file exists. The one fact that
+    /// explains most of the run population was being written where nothing
+    /// could read it.
+    ///
+    /// Attempting to infer the cause from Python-side timing did not settle
+    /// it: only 28% of terminations sit in the band the 30s watchdog would
+    /// produce, and some occur 0s after a reset. So the reason travels over
+    /// the bridge, where the Python side already logs every payload.
+    /// </param>
+    private static string RunCompleteState(string result, string? reason = null)
     {
-        return JsonSerializer.Serialize(RunStateBridgeFields.Apply(new Dictionary<string, object>
+        var payload = new Dictionary<string, object>
         {
             [NonCombatBridgeProtocol.TypeField] = NonCombatBridgeProtocol.RunCompleteState,
             [NonCombatBridgeProtocol.ResultField] = result,
-        }));
+        };
+        if (!string.IsNullOrEmpty(reason))
+        {
+            payload["reason"] = reason!;
+        }
+        return JsonSerializer.Serialize(RunStateBridgeFields.Apply(payload));
     }
 
     private static void SetSharedCurrentWatchdog(Watchdog? watchdog)

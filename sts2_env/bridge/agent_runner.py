@@ -429,10 +429,25 @@ def run_agent(
                     if not run_ended:
                         run_ended = True
                         runs_seen += 1
-                        logger.info("Run finished: %s (run %d this session)",
-                                    state.get("result",
-                                              state.get("message", "unknown")),
-                                    runs_seen)
+                        result = state.get("result",
+                                           state.get("message", "unknown"))
+                        # The mod now attaches WHY a run was terminated.
+                        #
+                        # "terminated" means the run threw rather than ending
+                        # in a death or a victory, and it is 62% of all live
+                        # runs (46 of 74 across 8 sessions on 2026-08-01) --
+                        # which truncates every live floor and win-rate number
+                        # on a non-random subset. The exception text existed
+                        # only in GD.Print output, and the game is launched
+                        # through Steam, so that stream is discarded.
+                        reason = state.get("reason")
+                        if reason:
+                            logger.warning(
+                                "Run finished: %s (run %d this session) -- %s",
+                                result, runs_seen, reason)
+                        else:
+                            logger.info("Run finished: %s (run %d this session)",
+                                        result, runs_seen)
                     else:
                         logger.debug("Additional terminal message (%s) for the "
                                      "run already counted", msg_type)
