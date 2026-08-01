@@ -461,26 +461,32 @@ public class RlCombatHandler : IRoomHandler, IHandler
 
     //: Polls of an unchanged fingerprint before the state counts as settled.
     //:
-    //: 150ms (3 polls) was asserted to be "comfortably longer than the gaps
-    //: between chained effects". Measured 2026-08-01, it is not.
+    //: Three at 50ms is 150ms of quiet. Whether that is long enough is an OPEN
+    //: QUESTION as of 2026-08-01, deliberately left at 3 while it is measured.
     //:
-    //: While the reference fingerprint was sampled after the enqueue, every
-    //: action waited out the full 4000ms timeout, and SIM-AHEAD sat at 0.83%.
-    //: Fixing that ordering dropped the median action from 5.0s to 1.0s -- and
-    //: SIM-AHEAD returned to 4.69% (3 of 64), close to the 3.92% measured
-    //: before this handshake existed at all.
+    //: Context. The reference fingerprint used to be sampled after the enqueue
+    //: (fixed in 5a28aa2), so every action waited out the full 4000ms timeout.
+    //: That accidental 4s delay outlasts any chain of card effects, which
+    //: means it -- not this constant -- was whatever held SIM-AHEAD down.
+    //: Removing it dropped the median action 5.0s -> 1.0s and could plausibly
+    //: expose a race this window is too short to prevent.
     //:
-    //: So the protection was never coming from the settle logic. It came from
-    //: the accidental 4s delay, which outlasted any chain of effects. With the
-    //: delay gone, 150ms of quiet is short enough to return mid-resolution,
-    //: between one effect landing and the next starting.
+    //: It was briefly raised to 10 on the strength of "SIM-AHEAD returned to
+    //: 4.31%". That was a bad read: it compared a 116-action sample against
+    //: 0.83% from a SINGLE old session, not against the pooled old-DLL
+    //: baseline. Pooled properly the comparison is
+    //:     old  1.73%  CI[1.44, 2.09]  over 6237 actions
+    //:     new  2.82%  CI[1.37, 5.71]  over  248 actions
+    //: -- intervals that overlap, and a new-side estimate that fell from 4.69%
+    //: to 4.31% to 2.82% as n grew, which is what noise shrinking looks like.
+    //: Changing a constant on that evidence would be acting on a point
+    //: estimate, the exact error this project has a standing rule against.
     //:
-    //: 500ms is chosen to sit between the two measured regimes: long enough to
-    //: bridge a gap in a chain, ~8x cheaper than the 4s it replaces. Both
-    //: numbers this must satisfy are measurable -- the inter-action histogram
-    //: and the SIM-AHEAD rate -- so this is a starting point to verify, not a
-    //: value to trust.
-    private const int SettlePolls = 10;
+    //: So: hold at 3, accumulate a comparable sample, and decide from the
+    //: pooled rate with an interval. If it does turn out to be too short, the
+    //: answer is to measure the real chain-gap distribution rather than to
+    //: guess a bigger number, which is how 150ms got here in the first place.
+    private const int SettlePolls = 3;
     private const int SettlePollMs = 50;
     private const int ActionSettleTimeoutMs = 4000;
 
