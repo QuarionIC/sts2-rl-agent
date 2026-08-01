@@ -36,7 +36,7 @@ PY="$REPO/.venv/Scripts/python.exe"
 #: PLANNER, which drives combat. The run agent only picks map/reward/shop, and
 #: for measuring simulator fidelity the heuristic does that just as well.
 RUN_POLICY="${RUN_POLICY:-heuristic}"
-RUN_MODEL="output/joint_alt_offerobs/r2/run/r1_run_best_v590.zip"
+RUN_MODEL="output/joint_alt_offerobs/r2/run/r1_run_best_v590p299.zip"
 
 #: No progress for this long => the session ended or wedged; recycle it.
 STALL_SECONDS=300
@@ -81,7 +81,7 @@ while true; do
     # Watch for PROGRESS, not for liveness: the failure mode here is a runner
     # that is perfectly alive and waiting on a game that has exited, so
     # "is the process up" would never fire.
-    last_size=0
+    last_activity=0
     stalled=0
     while true; do
         sleep "$POLL_SECONDS"
@@ -89,10 +89,17 @@ while true; do
             echo "[$(date +%H:%M:%S)] runner exited; recycling"
             break
         fi
-        size=$(stat -c %s "$log" 2>/dev/null || echo 0)
-        # Pings still grow the log, so compare against real activity instead.
-        active=$(grep -cE "COMBAT \[HP:|Run finished|RUN-RL" "$log" 2>/dev/null || echo 0)
-        if [ "$active" -eq "$last_size" ]; then
+        # Pings still grow the log, so compare against real ACTIVITY instead
+        # of file size.
+        #
+        # `grep -c` exits 1 when the count is zero, so `|| echo 0` appended a
+        # SECOND zero and the test below saw "0\n0" -- bash reported "integer
+        # expression expected" and the comparison never succeeded, which meant
+        # a genuinely wedged session was never recycled. The guard that exists
+        # to catch a stall was itself broken by its own error handling.
+        active=$(grep -cE "COMBAT \[HP:|Run finished|RUN-RL" "$log" 2>/dev/null | head -1)
+        active=${active:-0}
+        if [ "$active" -eq "$last_activity" ]; then
             stalled=$((stalled + POLL_SECONDS))
             if [ "$stalled" -ge "$STALL_SECONDS" ]; then
                 echo "[$(date +%H:%M:%S)] no progress for ${STALL_SECONDS}s -- recycling"
@@ -101,7 +108,7 @@ while true; do
             fi
         else
             stalled=0
-            last_size=$active
+            last_activity=$active
         fi
     done
 done
