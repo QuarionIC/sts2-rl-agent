@@ -450,9 +450,13 @@ public class RlCombatHandler : IRoomHandler, IHandler
     private static async Task PlayCardAndWaitAsync(
         Player player, CardModel card, Creature? target, CancellationToken ct)
     {
+        // Sampled BEFORE the enqueue: see WaitForActionToSettleAsync's
+        // <param name="before"> note. Taking it afterwards made every fast
+        // action wait out the full timeout.
+        string before = StateFingerprint(player);
         var playAction = new PlayCardAction(card, target);
         RunManager.Instance.ActionQueueSynchronizer.RequestEnqueue(playAction);
-        await WaitForActionToSettleAsync(player, ct);
+        await WaitForActionToSettleAsync(player, ct, before);
     }
 
     //: Polls of an unchanged fingerprint before the state counts as settled.
@@ -462,10 +466,28 @@ public class RlCombatHandler : IRoomHandler, IHandler
     private const int SettlePollMs = 50;
     private const int ActionSettleTimeoutMs = 4000;
 
+    /// <param name="before">
+    /// Fingerprint taken BEFORE the action was enqueued.
+    ///
+    /// This used to be sampled inside this method, which runs AFTER
+    /// RequestEnqueue. Any action that landed before the first poll was
+    /// therefore already reflected in "before", so `now != before` could never
+    /// fire, `observed` stayed false, and the loop ran the full 4000ms.
+    ///
+    /// The effect was exactly inverted from the intent: FAST actions timed
+    /// out, slow ones settled in 150ms. Measured 2026-08-01 over 1804 live
+    /// actions, the inter-action gap was bimodal -- 25% at 0-1s and 1015 of
+    /// them piled on a single 5s spike, with almost nothing between 2s and 4s,
+    /// which is the signature of a fixed timeout rather than of work. 74% of
+    /// all combat actions hit it, costing 2.1 hours of a 2.5-hour session.
+    ///
+    /// Passing the pre-action fingerprint in keeps the guard that stops
+    /// SIM-AHEAD (serializing before the action is visible) while letting the
+    /// common case return as soon as it is quiet.
+    /// </param>
     private static async Task WaitForActionToSettleAsync(
-        Player player, CancellationToken ct)
+        Player player, CancellationToken ct, string before)
     {
-        string before = StateFingerprint(player);
         int waitMs = 0;
         bool observed = false;
         int stablePolls = 0;
@@ -536,6 +558,9 @@ public class RlCombatHandler : IRoomHandler, IHandler
             target,
             CombatManager.Instance.IsInProgress
         );
+        // Same rule as the card path: the reference fingerprint must predate
+        // the enqueue, or the settle wait can never observe the change.
+        string beforePotion = StateFingerprint(player);
         RunManager.Instance.ActionQueueSynchronizer.RequestEnqueue(usePotionAction);
 
         // Wait for the SLOT to empty -- that is the potion's own signal that
@@ -562,7 +587,7 @@ public class RlCombatHandler : IRoomHandler, IHandler
             waitMs += SettlePollMs;
         }
 
-        await WaitForActionToSettleAsync(player, ct);
+        await WaitForActionToSettleAsync(player, ct, beforePotion);
     }
 
     // ----------------------------------------------------------------
