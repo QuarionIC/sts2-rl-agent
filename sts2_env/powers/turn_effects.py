@@ -121,6 +121,61 @@ class RegenPower(PowerInstance):
             self.amount -= 1
 
 
+class RegenEnemyPower(PowerInstance):
+    """Heal Amount HP at the end of the owner's turn, forever -- NO decay.
+
+    ActsFromThePast mod power (that mod's Awakened One applies it, see
+    ActsFromThePast.Acts.TheBeyond.Enemies/AwakenedOne.cs:126).
+
+    C# ref: decompiled_mods/ActsFromThePast/ActsFromThePast.Powers/
+    RegenEnemyPower.cs -- the whole behaviour is one hook::
+
+        public override async Task AfterSideTurnEnd(PlayerChoiceContext
+                choiceContext, CombatSide side, IEnumerable<Creature> participants)
+        {
+            if (side == ((PowerModel)this).Owner.Side && !((PowerModel)this).Owner.IsDead)
+            {
+                ((PowerModel)this).Flash();
+                await CreatureCmd.Heal(((PowerModel)this).Owner, (decimal)((PowerModel)this).Amount, true);
+            }
+        }
+
+    plus ``Type => (PowerType)1`` (Buff), ``StackType => (PowerStackType)1``
+    (Counter -- the game enum is None, Counter, Single) and
+    ``ShouldScaleInMultiplayer => true``.
+
+    Deliberately NOT aliased onto ``PowerId.REGEN``: ``RegenPower`` above
+    heals and then decrements by 1, so an aliased enemy would be simulated
+    healing less every turn than it really does. The Heal call here has no
+    follow-up ``Amount--`` of any kind, and nothing else in the class body
+    touches Amount, so the heal is the same size on every turn of the fight.
+
+    ``Flash()`` is a UI-only highlight with no simulator analogue.
+    ``CreatureCmd.Heal``'s third argument is ``playAnim`` (visual only).
+    """
+
+    power_type = PowerType.BUFF
+    stack_type = PowerStackType.COUNTER
+    should_scale_in_multiplayer = True
+
+    def __init__(self, amount: int):
+        super().__init__(PowerId.REGEN_ENEMY, amount)
+
+    def after_turn_end(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
+        # ``after_turn_end`` IS C# AfterSideTurnEnd: fire_after_turn_end() is
+        # raised once per side with that side's CombatSide, so the
+        # ``side == Owner.Side`` guard ports across literally.
+        #
+        # ``owner.is_alive`` stands in for C# ``!Owner.IsDead``. It is
+        # strictly the same for HP (is_alive is False exactly when is_dead is
+        # True) and additionally excludes escaped creatures, which the game
+        # removes from combat entirely but which stay in
+        # ``combat.all_creatures`` here -- an enemy that fled must not go on
+        # healing on the sidelines.
+        if side == owner.side and owner.is_alive:
+            owner.heal(self.amount)
+
+
 class NoxiousFumesPower(PowerInstance):
     """Apply Amount Poison to all enemies at the start of owner's turn.
 
@@ -1039,6 +1094,7 @@ _ALL_POWERS: dict[PowerId, type[PowerInstance]] = {
     PowerId.DEMON_FORM: DemonFormPower,
     PowerId.RITUAL: RitualPower,
     PowerId.REGEN: RegenPower,
+    PowerId.REGEN_ENEMY: RegenEnemyPower,
     PowerId.NOXIOUS_FUMES: NoxiousFumesPower,
     PowerId.CREATIVE_AI: CreativeAiPower,
     PowerId.STORM: StormPower,

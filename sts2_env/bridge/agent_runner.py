@@ -441,6 +441,25 @@ def run_agent(
                     planned = _combat_planner_action(state)
                     if planned is not None:
                         decoded = adapter.decode_action(planned, state)
+                        if _combat_action_is_being_refused(state, decoded):
+                            # The game will not take this action and the
+                            # planner, being deterministic, will keep choosing
+                            # it from this unchanged state. Ending the turn is
+                            # a worse move than the one we wanted and an
+                            # enormously better one than replaying it until
+                            # the watchdog kills the run.
+                            logger.warning(
+                                "Combat: the game has refused %s(%s) %d times "
+                                "from an unchanged hand -- ending the turn "
+                                "instead of replaying it.",
+                                decoded.get("type"), decoded.get("card_index"),
+                                _LAST_COMBAT_SEND[1],
+                            )
+                            _COMBAT_QUEUE[0] = []
+                            _LAST_COMBAT_SEND[0] = None
+                            _LAST_COMBAT_SEND[1] = 0
+                            client.end_turn()
+                            continue
                         if verbose:
                             _log_combat_action(state, planned, decoded)
                         _send_combat_action(client, decoded, combat_delay)
@@ -658,6 +677,52 @@ def run_agent(
 # ----------------------------------------------------------------
 # Shared dispatch helpers (used by both the combat-only and full-run paths)
 # ----------------------------------------------------------------
+
+
+#: [(live hand fingerprint, action key), consecutive sends]
+_LAST_COMBAT_SEND: list[Any] = [None, 0]
+
+#: Give up on a combat action the game keeps refusing after this many tries.
+#:
+#: Two is enough because the planner is DETERMINISTIC: replanning the same
+#: unchanged state produces the same action, so a rejected action repeats
+#: forever with nothing learned in between.
+COMBAT_REJECT_LIMIT = 2
+
+
+def _combat_state_fingerprint(state: dict[str, Any]) -> tuple:
+    """Live hand + energy. If this is unchanged, nothing we sent landed."""
+    hand = state.get("hand") or []
+    ids = tuple(str(c.get("id") or c.get("card_id") or "") for c in hand)
+    return (ids, (state.get("player") or {}).get("energy"))
+
+
+def _combat_action_key(decoded: dict[str, Any]) -> tuple:
+    return (str(decoded.get("type")), decoded.get("card_index"),
+            decoded.get("target_index"), decoded.get("slot"))
+
+
+def _combat_action_is_being_refused(
+    state: dict[str, Any], decoded: dict[str, Any]
+) -> bool:
+    """True when the game has ignored this exact action from this exact state.
+
+    Measured overnight 2026-08-01: the planner played FLATTEN at hand slot 0
+    against EYE_WITH_TEETH 49 times in three minutes. The live hand never lost
+    the card -- the game simply refused it -- and because the planner is
+    deterministic, every replan of that unchanged state produced FLATTEN
+    again. The fight only ended when the mod's own watchdog killed the run.
+
+    The non-combat path has had a repeat breaker since the event-dither
+    incident; combat had none, which is why this could burn a whole run.
+    """
+    key = (_combat_state_fingerprint(state), _combat_action_key(decoded))
+    if key == _LAST_COMBAT_SEND[0]:
+        _LAST_COMBAT_SEND[1] += 1
+    else:
+        _LAST_COMBAT_SEND[0] = key
+        _LAST_COMBAT_SEND[1] = 1
+    return _LAST_COMBAT_SEND[1] > COMBAT_REJECT_LIMIT
 
 
 def _send_combat_action(client: Any, decoded: dict[str, Any], combat_delay: float) -> None:

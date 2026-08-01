@@ -1,7 +1,7 @@
 """Powers that react to damage events (taking or dealing damage).
 
 Covers: ThornsPower, FlameBarrierPower, CurlUpPower, SelfFormingClayPower,
-ReflectPower, GalvanicPower, InterceptPower.
+ReflectPower, GalvanicPower, InterceptPower, SharpHidePower.
 
 All logic verified against decompiled C# source.
 """
@@ -359,6 +359,112 @@ class InterceptPower(PowerInstance):
 
 
 # ---------------------------------------------------------------------------
+# SharpHidePower  (ActsFromThePast)
+# ---------------------------------------------------------------------------
+class SharpHidePower(PowerInstance):
+    """Retaliate for Amount every time an Attack card finishes being played.
+
+    C# ref: decompiled_mods/ActsFromThePast/ActsFromThePast.Powers/SharpHidePower.cs
+
+        public override PowerType Type => (PowerType)1;                 // Buff
+        public override PowerStackType StackType => (PowerStackType)1;  // Counter
+
+        public bool AttackInProgress { get; private set; }
+        public Creature AttackSource { get; private set; }
+
+        public override Task BeforeCardPlayed(CardPlay cardPlay)
+        {
+            if ((int)cardPlay.Card.Type == 1)          // CardType.Attack
+            {
+                AttackInProgress = true;
+                Player owner = cardPlay.Card.Owner;
+                AttackSource = ((owner != null) ? owner.Creature : null);
+            }
+            return Task.CompletedTask;
+        }
+
+        public override async Task AfterCardPlayed(PlayerChoiceContext choiceContext,
+                                                   CardPlay cardPlay)
+        {
+            AttackInProgress = false;
+            AttackSource = null;
+            if ((int)cardPlay.Card.Type == 1)
+            {
+                Flash();
+                Player owner = cardPlay.Card.Owner;
+                Creature player = ((owner != null) ? owner.Creature : null);
+                if (player != null && player.IsAlive)
+                {
+                    await CreatureCmd.Damage(choiceContext, player,
+                                             (decimal)Amount, (ValueProp)4,
+                                             (CardModel)null, (CardPlay)null);
+                }
+            }
+        }
+
+    This is NOT Thorns, and must not be aliased onto it:
+
+    * Thorns fires from BeforeDamageReceived, once per hit that lands on the
+      owner. Sharp Hide fires from AfterCardPlayed, once per Attack CARD --
+      whether or not the owner was targeted, and whether or not any damage
+      got through.
+    * Because it fires after the card has fully resolved, an Attack that kills
+      the owner is not punished at all: the power is removed with the corpse
+      before AfterCardPlayed runs. That is exactly why the AFTP Guardian
+      re-fires the retaliation by hand from BeforeDeath (Guardian.cs:367-395)
+      using the AttackInProgress / AttackSource pair this class exposes.
+
+    The retaliation resolves through the 6-argument CreatureCmd.Damage overload
+    (CreatureCmd.cs:118), whose body is
+    ``Damage(..., cardSource?.Owner.Creature, cardSource, cardPlay)``. Sharp
+    Hide passes ``cardSource = null``, so the damage has NO dealer: it is not
+    routed through the owner's outgoing-damage modifiers and is logged with a
+    null dealer. ``(ValueProp)4`` is Unpowered alone (ValueProp.cs) -- no
+    Unblockable bit, so the player's Block still absorbs it.
+    """
+
+    power_type = PowerType.BUFF
+    stack_type = PowerStackType.COUNTER
+
+    def __init__(self, amount: int):
+        super().__init__(PowerId.SHARP_HIDE, amount)
+        # Public, mirroring the C# properties: the Guardian reads these from
+        # BeforeDeath to retaliate for an attack that killed it mid-play.
+        self.attack_in_progress: bool = False
+        self.attack_source: Creature | None = None
+
+    def before_card_played(
+        self, owner: Creature, card: object, combat: CombatState
+    ) -> None:
+        from sts2_env.core.enums import CardType
+
+        if getattr(card, "card_type", None) == CardType.ATTACK:
+            self.attack_in_progress = True
+            self.attack_source = getattr(card, "owner", None)
+
+    def after_card_played(
+        self, owner: Creature, card: object, combat: CombatState
+    ) -> None:
+        from sts2_env.core.enums import CardType
+
+        # C# clears both flags FIRST and unconditionally, above the card-type
+        # check -- any card play ends the window, not just an Attack.
+        self.attack_in_progress = False
+        self.attack_source = None
+        if getattr(card, "card_type", None) != CardType.ATTACK:
+            return
+        # C# re-reads cardPlay.Card.Owner here rather than reusing AttackSource.
+        card_owner = getattr(card, "owner", None)
+        if card_owner is not None and card_owner.is_alive:
+            combat.deal_damage(
+                dealer=None,
+                target=card_owner,
+                amount=self.amount,
+                props=ValueProp.UNPOWERED,
+            )
+
+
+# ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 from sts2_env.core.creature import register_power_class  # noqa: E402
@@ -371,6 +477,7 @@ _ALL_POWERS: dict[PowerId, type[PowerInstance]] = {
     PowerId.REFLECT: ReflectPower,
     PowerId.GALVANIC: GalvanicPower,
     PowerId.INTERCEPT: InterceptPower,
+    PowerId.SHARP_HIDE: SharpHidePower,
 }
 
 for _pid, _cls in _ALL_POWERS.items():

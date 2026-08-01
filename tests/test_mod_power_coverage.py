@@ -47,17 +47,6 @@ MOD_ROOT = REPO_ROOT / "decompiled_mods"
 #: make a failure go away -- a new name here means the mod gained content the
 #: simulator has not modelled, which is exactly what this test exists to say.
 KNOWN_MISSING = {
-    "EXPLOSIVE_POWER": "counts down, then detonates for heavy damage",
-    "FADING_POWER": "owner dies after N turns",
-    "SHARP_HIDE_POWER": "retaliates when the player plays an Attack",
-    "SPORE_CLOUD_POWER": "applies Vulnerable to the player when the owner dies",
-    # These two look aliasable and are not; see _POWER_ID_ALIASES in
-    # combat_reconstruct for why mapping them onto RITUAL / REGEN would
-    # simulate the wrong enemy. They need their own PowerId, which widens the
-    # observation (powers are raw one-hot, not embedded), so they are batched
-    # with the other additions rather than landed mid-training-round.
-    "STRENGTH_UP_POWER": "applies Strength at turn END, unlike RITUAL's turn start",
-    "REGEN_ENEMY_POWER": "heals every turn forever, unlike REGEN which decays",
 }
 
 

@@ -199,6 +199,75 @@ class TerritorialPower(PowerInstance):
 
 
 # ---------------------------------------------------------------------------
+# StrengthUpPower (ActsFromThePast)
+# ---------------------------------------------------------------------------
+class StrengthUpPower(PowerInstance):
+    """At the END of its own side's turn, the owner gains Amount Strength.
+
+    C# ref: decompiled_mods/ActsFromThePast/ActsFromThePast.Powers/
+    StrengthUpPower.cs -- the whole class, lines 14-31:
+
+        public class StrengthUpPower : CustomPowerModel
+        {
+            public override PowerType Type => (PowerType)1;
+            public override PowerStackType StackType => (PowerStackType)1;
+
+            public override async Task AfterSideTurnEnd(
+                PlayerChoiceContext choiceContext, CombatSide side,
+                IEnumerable<Creature> participants)
+            {
+                StrengthUpPower strengthUpPower = this;
+                if (side == ((PowerModel)strengthUpPower).Owner.Side)
+                {
+                    ((PowerModel)strengthUpPower).Flash();
+                    await PowerCmd.Apply<StrengthPower>(
+                        (PlayerChoiceContext)new ThrowingPlayerChoiceContext(),
+                        ((PowerModel)strengthUpPower).Owner,
+                        (decimal)((PowerModel)strengthUpPower).Amount,
+                        ((PowerModel)strengthUpPower).Owner, (CardModel)null, false);
+                }
+            }
+        }
+
+    ``(PowerType)1`` is Buff and ``(PowerStackType)1`` is Counter
+    (decompiled_v0.110.0/MegaCrit.Sts2.Core.Entities.Powers/{PowerType,
+    PowerStackType}.cs, both of which start at ``None``).
+
+    ``AfterSideTurnEnd`` is what this simulator dispatches as
+    ``after_turn_end`` (hooks.fire_after_turn_end, fired once per side from
+    CombatState.end_player_turn / _finish_enemy_turn). So an enemy owner pays
+    out at the end of the ENEMY turn -- after its attack for that turn has
+    already landed, and before the player's next turn.
+
+    Applied by OrbWalker.AfterAddedToRoom (Amount 3, or 5 from Ascension 9),
+    and it never decays: the enemy gains Amount Strength every single turn.
+
+    NOT an alias for RITUAL, even though the sim's RitualPower shares this
+    hook: RitualPower skips its first tick when an enemy applied it
+    (WasJustAppliedByEnemy, C# RitualPower.cs AfterApplied), so an aliased
+    OrbWalker would be a full Amount of Strength behind for the whole fight.
+    StrengthUpPower has no such flag and fires on the very first turn end.
+    It also gates on ``side == Owner.Side`` rather than Ritual's
+    ``participants.Contains(Owner)``.
+    """
+
+    power_type = PowerType.BUFF          # (PowerType)1 == Buff
+    stack_type = PowerStackType.COUNTER  # (PowerStackType)1 == Counter
+
+    def __init__(self, amount: int):
+        super().__init__(PowerId.STRENGTH_UP, amount)
+
+    def after_turn_end(
+        self, owner: Creature, side: CombatSide, combat: CombatState
+    ) -> None:
+        # if (side == Owner.Side) { Flash(); PowerCmd.Apply<StrengthPower>(
+        #     ..., Owner, Amount, Owner, null, false); }
+        # Flash() is a visual tell with no game-state effect.
+        if side == owner.side:
+            owner.apply_power(PowerId.STRENGTH, self.amount, applier=owner)
+
+
+# ---------------------------------------------------------------------------
 # HardenedShellPower
 # ---------------------------------------------------------------------------
 class HardenedShellPower(PowerInstance):
@@ -2484,6 +2553,239 @@ class NemesisFlickerPower(PowerInstance):
 
 
 # ---------------------------------------------------------------------------
+# FadingPower (Acts from the Past mod: TheBeyond legacy act Transient)
+# ---------------------------------------------------------------------------
+class FadingPower(PowerInstance):
+    """Counts down at the end of each of the OWNER's own turns; on the turn it
+    would run out the owner is killed outright instead of ticking.
+
+    C# ref: ActsFromThePast.Powers/FadingPower.cs (quoted verbatim) --
+
+        public override PowerType Type => (PowerType)2;              // Debuff
+        public override PowerStackType StackType => (PowerStackType)1;  // Counter
+
+        public override async Task BeforeSideTurnEndEarly(
+            PlayerChoiceContext choiceContext, CombatSide side,
+            IEnumerable<Creature> participants)
+        {
+            if (side != ((PowerModel)this).Owner.Side)
+            {
+                return;
+            }
+            if (((PowerModel)this).Amount <= 1)
+            {
+                if (((PowerModel)this).Owner.IsDead)
+                {
+                    return;
+                }
+                ((PowerModel)this).Flash();
+                ...NFireSmokePuffVfx...
+                await Cmd.Wait(0.1f, false);
+                await CreatureCmd.Kill(((PowerModel)this).Owner, false);
+            }
+            else
+            {
+                ((PowerModel)this).Flash();
+                await PowerCmd.Decrement((PowerModel)(object)this);
+            }
+        }
+
+    Timing details that make this its own power rather than a duration alias:
+
+    * The hook is ``BeforeSideTurnEndEarly`` -> this port's
+      ``before_turn_end_early`` (same mapping vanilla ``PlatingPower`` uses),
+      NOT ``AfterSideTurnEnd``. It therefore resolves before the
+      ``fire_after_turn_end`` tick-down pass, and the owner is already dead by
+      the time end-of-turn duration powers tick.
+    * It only fires on the owner's OWN side turn (``side != Owner.Side``
+      returns), so N Fading is N of the owner's turns, not N rounds of both
+      sides.
+    * ``PowerCmd.Decrement`` is a plain ``ModifyAmount(-1)`` -- unlike
+      ``PowerCmd.TickDownDuration`` it does NOT consult
+      ``SkipNextDurationTick``, so there is deliberately no ``skip_next_tick``
+      guard here.
+    * On the final turn the branch is kill, not decrement: the amount is left
+      at 1 and the power is cleaned up by the normal owner-death power
+      removal, so a Fading counter never reaches 0 on a living creature.
+    * ``Owner.IsDead`` is ``CurrentHp <= 0`` in the C# (Creature.cs:
+      ``IsAlive => CurrentHp > 0; IsDead => !IsAlive;``), which is exactly
+      this port's ``Creature.is_dead``; an already-dead owner is left alone.
+
+    Applied by the mod's ``Transient`` (``AfterAddedToRoom``: 5 stacks, 6 at
+    Ascension 8) alongside ``ShiftingPower``. ``ShouldScaleInMultiplayer`` is
+    not overridden, so the counter is never multiplied by the player count.
+    """
+
+    power_type = PowerType.DEBUFF
+    stack_type = PowerStackType.COUNTER
+
+    def __init__(self, amount: int):
+        super().__init__(PowerId.FADING, amount)
+
+    def before_turn_end_early(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
+        if side != owner.side:
+            return
+        if self.amount > 1:
+            self.amount -= 1
+            return
+        if owner.is_dead:
+            return
+        combat.kill_creature(owner)
+
+
+# ---------------------------------------------------------------------------
+# ExplosivePower (Acts from the Past mod: TheBeyond legacy act Exploder)
+# ---------------------------------------------------------------------------
+class ExplosivePower(PowerInstance):
+    """A visible countdown counter that ticks down by 1 at the end of each of
+    the OWNER's own turns and then FLOORS AT 1 -- it never reaches 0, never
+    removes itself, and deals no damage of its own.
+
+    C# ref: ExplosivePower.cs, the complete class body --
+
+        public override PowerType Type => (PowerType)1;                 // Buff
+        public override PowerStackType StackType => (PowerStackType)1;  // Counter
+
+        public override async Task BeforeSideTurnEndEarly(
+            PlayerChoiceContext choiceContext, CombatSide side,
+            IEnumerable<Creature> participants)
+        {
+            if (side == ((PowerModel)this).Owner.Side
+                && ((PowerModel)this).Amount > 1)
+            {
+                ((PowerModel)this).Flash();
+                await PowerCmd.Decrement((PowerModel)(object)this);
+            }
+        }
+
+    Three details that are easy to get wrong, all load-bearing:
+      * the guard is ``Amount > 1``, NOT ``> 0``. The counter stops at 1 and
+        sits there for the rest of combat, so this is not a duration power:
+        it never self-removes the way Weak/Vulnerable/Regen do, and a planner
+        must not expect it to disappear.
+      * the hook is ``BeforeSideTurnEndEarly`` (this simulator's
+        ``before_turn_end_early``), which runs a full sub-phase BEFORE
+        ``AfterSideTurnEnd``/``after_turn_end`` -- the same slot PlatedArmor
+        and Regen use, i.e. before end-of-turn damage and duration decay.
+      * the only guard is ``side == Owner.Side``. There is no
+        ``participants.Contains(Owner)`` and no ``IsDead`` check, even though
+        RegenPower (MegaCrit.Sts2.Core.Models.Powers/RegenPower.cs) has both
+        in the identical hook -- so the tick is deliberately NOT skipped for a
+        dead owner here. ``PowerCmd.Decrement`` is ``ModifyAmount(-1)``, which
+        ``owner.apply_power(id, -1)`` is the port of.
+
+    The DETONATION is not part of this power. In the decompiled mod the
+    Exploder monster (ActsFromThePast.Acts.TheBeyond.Enemies/Exploder.cs)
+    runs its own private ``_turnCount`` in ``SelectNextMove``
+    (``TurnCount <= 2 ? "ATTACK" : "EXPLODE"``) and its ``Explode`` deals the
+    flat 30 damage then ``CreatureCmd.Kill``s itself; its
+    ``ExplosiveCountdown = 3`` const is left unreferenced. This simulator
+    already models that in ``create_exploder``
+    (sts2_env/monsters/thebeyond.py), so this power is exactly the displayed
+    counter the wire carries -- implementing a detonation here would invent
+    behaviour the source does not have and double the damage.
+    """
+
+    power_type = PowerType.BUFF
+    stack_type = PowerStackType.COUNTER
+
+    def __init__(self, amount: int = 3):
+        # Default matches Exploder.ExplosiveCountdown = 3; live instances are
+        # constructed with the amount the wire reports.
+        super().__init__(PowerId.EXPLOSIVE, amount)
+
+    def before_turn_end_early(self, owner: Creature, side: CombatSide, combat: CombatState) -> None:
+        if side != owner.side or self.amount <= 1:
+            return
+        owner.apply_power(self.power_id, -1)
+
+
+# ---------------------------------------------------------------------------
+# SporeCloudPower (Acts from the Past mod: Exordium legacy act FungiBeast)
+# ---------------------------------------------------------------------------
+class SporeCloudPower(PowerInstance):
+    """A death rattle: when the OWNER dies for real, every LIVING player
+    creature gains ``Amount`` Vulnerable. It does nothing at any other time,
+    and nothing at all when some other creature dies.
+
+    C# ref: ActsFromThePast.Powers/SporeCloudPower.cs, the complete class
+    body --
+
+        public override PowerType Type => (PowerType)1;                 // Buff
+        public override PowerStackType StackType => (PowerStackType)1;  // Counter
+
+        public override async Task AfterDeath(PlayerChoiceContext choiceContext,
+            Creature creature, bool wasRemovalPrevented, float deathAnimLength)
+        {
+            if (wasRemovalPrevented || creature != ((PowerModel)this).Owner)
+            {
+                return;
+            }
+            IEnumerable<Creature> players =
+                ((PowerModel)this).CombatState.PlayerCreatures.Where((Creature c) => c.IsAlive);
+            if (!players.Any())
+            {
+                return;
+            }
+            ((PowerModel)this).Flash();
+            AFTPModAudio.Play("fungi_beast", "spore_cloud_release");
+            foreach (Creature player in players)
+            {
+                await PowerCmd.Apply<VulnerablePower>((PlayerChoiceContext)new ThrowingPlayerChoiceContext(),
+                    player, (decimal)((PowerModel)this).Amount, (Creature)null, (CardModel)null, false);
+            }
+        }
+
+    The timing details that make this its own power rather than an alias of
+    any existing on-death effect:
+      * the hook is ``AfterDeath``, NOT ``BeforeDeath``. The spores land
+        after the death is resolved, so the cloud is a consequence of dying,
+        not a last action taken while still alive.
+      * ``wasRemovalPrevented`` short-circuits the whole thing. If a
+        death-prevention / revive power kept the owner in combat (this
+        simulator's ``CombatState._prevent_death_if_needed``, which fires
+        ``after_death`` with the flag set), the Fungi Beast is not actually
+        dead and releases no spores -- and it keeps the power, so it can
+        still release them on a later, real death.
+      * the target set is ``PlayerCreatures.Where(c => c.IsAlive)``, i.e.
+        creatures with ``IsPlayer`` -- not "the player side". Osty and other
+        summoned player-side allies are NOT players and get nothing. A dead
+        player is skipped, and if every player is already dead the method
+        returns before the Flash/audio.
+      * ``PowerCmd.Apply`` is called with a null source creature, so the
+        applier is ``None``: nothing the dying owner carries can scale the
+        Vulnerable it hands out.
+
+    Not modelled: ``Flash()`` and ``AFTPModAudio.Play`` are presentation
+    only (the matching spore VFX lives in ``FungiBeast.BeforeDeath``), and
+    ``ExtraHoverTips`` is tooltip text.
+    """
+
+    power_type = PowerType.BUFF
+    stack_type = PowerStackType.COUNTER
+
+    def __init__(self, amount: int = 2):
+        # Default matches FungiBeast.AfterAddedToRoom, which self-applies
+        # SporeCloudPower with 2m (`VulnerableAmount = 2`); live instances
+        # are constructed with the amount the wire reports.
+        super().__init__(PowerId.SPORE_CLOUD, amount)
+
+    def after_death(
+        self, owner: Creature, creature: Creature, combat: CombatState, was_removal_prevented: bool,
+    ) -> None:
+        if was_removal_prevented or creature is not owner:
+            return
+        players = [
+            c for c in combat.all_creatures
+            if getattr(c, "is_player", False) and c.is_alive
+        ]
+        if not players:
+            return
+        for player in players:
+            player.apply_power(PowerId.VULNERABLE, self.amount, applier=None)
+
+
+# ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 from sts2_env.core.creature import register_power_class  # noqa: E402
@@ -2493,6 +2795,7 @@ _ALL_POWERS: dict[PowerId, type[PowerInstance]] = {
     PowerId.SLIPPERY: SlipperyPower,
     PowerId.RAVENOUS: RavenousPower,
     PowerId.TERRITORIAL: TerritorialPower,
+    PowerId.STRENGTH_UP: StrengthUpPower,
     PowerId.HARDENED_SHELL: HardenedShellPower,
     PowerId.SKITTISH: SkittishPower,
     PowerId.THIEVERY: ThieveryPower,
@@ -2539,6 +2842,9 @@ _ALL_POWERS: dict[PowerId, type[PowerInstance]] = {
     PowerId.DRAW_REDUCTION: DrawReductionPower,
     PowerId.TIME_WARP: TimeWarpPower,
     PowerId.NEMESIS_FLICKER: NemesisFlickerPower,
+    PowerId.FADING: FadingPower,
+    PowerId.EXPLOSIVE: ExplosivePower,
+    PowerId.SPORE_CLOUD: SporeCloudPower,
 }
 
 for _pid, _cls in _ALL_POWERS.items():
