@@ -41,18 +41,48 @@ EXCLUDE = ("bash.exe", "cmd.exe", "powershell", "kill_runners")
 #: bridge -- the same silent-success failure the wmic version was written to
 #: fix, one layer down. A kill tool that reports success having killed
 #: nothing is worse than no tool at all.
+#: Printed last, and ONLY if the enumeration itself succeeded.
+#:
+#: Without it, "the query ran and matched nothing" and "the query never ran"
+#: are the same empty string -- and this file's own docstring already states
+#: the rule that makes that fatal: a kill tool that reports success having
+#: killed nothing is worse than no tool at all. Two earlier generations of this
+#: bug (the wmic name filter, then the wmic CSV line wrap) each cost multiple
+#: sessions; both produced empty output that read as "clean".
+#:
+#: Get-CimInstance is forced to terminate on error so a WMI failure cannot
+#: reach the sentinel, and the marker is checked separately from the exit code
+#: because a PowerShell parse error in the query above would also exit 0 in
+#: some shells while printing nothing useful.
+_ENUM_OK = "___ENUMERATION_COMPLETED___"
+
 _PS_ENUMERATE = (
-    "Get-CimInstance Win32_Process | "
+    "try { $procs = Get-CimInstance Win32_Process -ErrorAction Stop } "
+    "catch { Write-Error $_; exit 3 }; "
+    "$procs | "
     "Where-Object { $_.CommandLine -like '*sts2_env.bridge.agent_runner*' } | "
-    "ForEach-Object { \"$($_.ProcessId)`t$($_.Name)`t$($_.CommandLine)\" }"
+    "ForEach-Object { \"$($_.ProcessId)`t$($_.Name)`t$($_.CommandLine)\" }; "
+    f"Write-Output '{_ENUM_OK}'"
 )
 
 
+class EnumerationFailed(RuntimeError):
+    """The process query did not run. Callers must NOT read this as 'clean'."""
+
+
 def find_runners() -> list[tuple[int, str]]:
-    out = subprocess.run(
+    proc = subprocess.run(
         ["powershell", "-NoProfile", "-NonInteractive", "-Command", _PS_ENUMERATE],
         capture_output=True, text=True,
-    ).stdout
+    )
+    out = proc.stdout
+    if proc.returncode != 0 or _ENUM_OK not in out:
+        raise EnumerationFailed(
+            f"process enumeration failed (exit {proc.returncode}); refusing to "
+            f"report 'no runners' when nothing was actually checked.\n"
+            f"  stdout: {out.strip()[:300]!r}\n"
+            f"  stderr: {proc.stderr.strip()[:300]!r}"
+        )
     found: list[tuple[int, str]] = []
     for line in out.splitlines():
         parts = line.split("\t", 2)

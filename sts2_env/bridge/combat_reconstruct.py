@@ -547,6 +547,25 @@ def _to_power_id(raw: str):
     name = str(raw).replace("PowerId.", "").strip()
     upper = name.upper().replace(" ", "_").replace("-", "_")
 
+    # Strip the mod namespace BEFORE consulting the aliases.
+    #
+    # The alias table is keyed on the undecorated, flattened name
+    # (METALLICIZEPOWERA4H), so running it first meant a prefixed id flattened
+    # to ACTSFROMTHEPASTMETALLICIZEPOWERA4H and missed every entry. Both forms
+    # occur on the wire -- output/overnight has bare METALLICIZE_POWER_A4H and
+    # prefixed ACTSFROMTHEPAST-SPORE_CLOUD_POWER -- so the prefixed form of the
+    # two alias-requiring powers silently failed to resolve.
+    #
+    # Failing here is quiet by design: an unrecognised POWER does not decline
+    # the fight, it logs "the planner will search without them" and plays on
+    # against an enemy missing a buff. Nothing in the live logs distinguishes
+    # that from correct play, which is why it survived until the coverage guard
+    # was made to test the decorated shape.
+    for pref in (p.replace("-", "_") for p in _MOD_PREFIXES):
+        if upper.startswith(pref):
+            upper = upper[len(pref):]
+            break
+
     aliased = _POWER_ID_ALIASES.get(
         "".join(ch for ch in upper if ch.isalnum()))
     if aliased is not None:
@@ -554,10 +573,6 @@ def _to_power_id(raw: str):
             return PowerId[aliased]
         except KeyError:
             pass
-    for pref in (p.replace("-", "_") for p in _MOD_PREFIXES):
-        if upper.startswith(pref):
-            upper = upper[len(pref):]
-            break
     for cand in (name, name.upper(), upper):
         try:
             return PowerId[cand]

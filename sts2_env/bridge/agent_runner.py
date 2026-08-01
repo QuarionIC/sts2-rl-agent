@@ -231,8 +231,31 @@ def run_agent(
             raise SystemExit("--run-policy rl requires --rl-run-model")
         from sb3_contrib import MaskablePPO
 
+        from sts2_env.gym_env.rich_observation import RICH_OBS_SIZE
+
         logger.info("Loading RL run agent: %s", rl_run_model)
-        _RL_RUN[0] = MaskablePPO.load(rl_run_model, device="cpu")
+        try:
+            _RL_RUN[0] = MaskablePPO.load(rl_run_model, device="cpu")
+        except AssertionError as exc:
+            # The width check below cannot catch this: MaskablePPO.load builds
+            # the policy, which builds RichFeaturesExtractor, which asserts on
+            # obs width DURING the load. So a stale checkpoint died inside SB3
+            # with "expects obs size 4936, got 4900" and the actionable message
+            # twenty lines down never ran.
+            #
+            # Measured 2026-08-01: this killed 13 consecutive overnight sessions
+            # against an unmigrated run checkpoint. The operator saw an SB3
+            # stack trace, not the name of the script that fixes it.
+            raise SystemExit(
+                f"--rl-run-model {rl_run_model} does not fit this build "
+                f"({exc}).\n"
+                f"The observation layout is {RICH_OBS_SIZE} dims. A checkpoint "
+                f"trained before a CardId/PowerId was appended is narrower and "
+                f"must be migrated, not retrained:\n"
+                f"  python scripts/migrate_checkpoint_powers.py "
+                f"--checkpoint {rl_run_model} --out MIGRATED.zip\n"
+                f"(use migrate_checkpoint_vocab.py if the gap is card ids)."
+            ) from exc
         obs_n = int(_RL_RUN[0].observation_space.shape[0])
         act_n = int(_RL_RUN[0].policy.action_space.n)
         logger.info("RL run agent loaded (actions=%d, obs=%d)", act_n, obs_n)
@@ -240,9 +263,8 @@ def run_agent(
         # Fail loudly at startup rather than silently at the first decision.
         # A checkpoint of the wrong shape cannot be fed and would spend the
         # whole session falling back to the heuristics while the log said
-        # "run policy: rl".
-        from sts2_env.gym_env.rich_observation import RICH_OBS_SIZE
-
+        # "run policy: rl". Reached only when the width survives the load --
+        # a mismatched extractor asserts inside SB3 and is handled above.
         if obs_n != RICH_OBS_SIZE or act_n != FULL_RUN_ACTION_SPACE_SIZE:
             raise SystemExit(
                 f"--rl-run-model has {act_n} actions / {obs_n} obs dims; the "
@@ -296,15 +318,37 @@ def run_agent(
             FULL_RUN_ACTION_SPACE_SIZE, FULL_RUN_OBS_SIZE,
         )
     elif model is None:
+        # Derived from the resolved config, never assumed.
+        #
+        # This line used to read `"LLM" if llm_model else "heuristics"`, which
+        # ignored run_policy entirely: a session driving all seven non-combat
+        # phases with the RL run agent announced "non-combat: heuristics" eleven
+        # seconds after announcing "out-of-combat: RL run agent". Two startup
+        # lines, flatly contradicting each other.
+        #
+        # That is the same failure that made Downfall cost weeks -- the log
+        # asserting an engine that was not the one running -- so the driver is
+        # now read off the same state the dispatch uses.
         logger.info(
             "No MaskablePPO model loaded -- combat: %s, non-combat: %s.",
-            combat_policy, "LLM" if llm_model else "heuristics",
+            combat_policy, _describe_non_combat_driver(llm_model, run_policy),
         )
     else:
+        # Same derivation as the branch above, for the same reason.
+        #
+        # Fixing only the `model is None` branch left this one asserting
+        # "using heuristics for non-combat phases" from model_mode alone.
+        # argparse accepts --model-path <combat-only> together with
+        # --run-policy rl --rl-run-model X, and dispatch keys on
+        # _RUN_POLICY[0] regardless of whether a model is loaded, so that
+        # combination genuinely runs the RL agent while this line denies it.
+        # Two adjacent branches, one corrected and one not, is how a fix
+        # convinces you a class is closed when half of it is still open.
         logger.info(
             "Loaded combat-only model (action_space=%d, obs=%d) -- "
-            "using heuristics for non-combat phases.",
+            "non-combat: %s.",
             COMBAT_ONLY_ACTION_SPACE_SIZE, COMBAT_ONLY_OBS_SIZE,
+            _describe_non_combat_driver(llm_model, run_policy),
         )
 
     logger.info("Connecting to STS2 at %s:%d...", host, port)
@@ -509,7 +553,15 @@ def run_agent(
                 # unresolvable card id or mask disagreement degrades to the
                 # heuristic rather than to a guess.
                 if (_RUN_POLICY[0] == "rl"
-                        and phase in (_RL_RUN_PHASES_ACTIVE[0] or _RL_RUN_PHASES)
+                        # NOT `(_RL_RUN_PHASES_ACTIVE[0] or _RL_RUN_PHASES)`.
+                        # An empty frozenset is falsy, so restricting the agent
+                        # to no phases -- e.g. --rl-run-phases naming only
+                        # phases outside _RL_RUN_PHASES -- made `or` fall
+                        # through to ALL of them: the exact inverse of the
+                        # request, while the startup banner printed
+                        # "RL run agent will drive: (nothing)". Both now read
+                        # the one value resolved at startup.
+                        and phase in _RL_RUN_PHASES_ACTIVE[0]
                         # A mid-combat discovery maps to CARD_REWARD, so the
                         # run agent used to claim it. It cannot: its
                         # observation holds deck, map, relics and potions and
@@ -1238,6 +1290,31 @@ def _note_phase(phase: Any) -> None:
     if is_combat and not _FIGHT_TRACKER["in_combat"]:
         _FIGHT_TRACKER["ordinal"] += 1
     _FIGHT_TRACKER["in_combat"] = is_combat
+
+
+def _describe_non_combat_driver(llm_model: Any, run_policy: str) -> str:
+    """What actually drives the non-combat phases, from resolved config.
+
+    One function because there are two startup branches that must agree, and
+    when only one of them was corrected the other kept announcing
+    "using heuristics for non-combat phases" while the RL run agent drove all
+    seven. Derived from the same values dispatch reads -- ``run_policy`` and
+    ``_RL_RUN_PHASES_ACTIVE[0]`` -- so the banner cannot describe a
+    configuration that is not running.
+    """
+    if llm_model:
+        return "LLM"
+    if run_policy == "rl":
+        active = sorted(_RL_RUN_PHASES_ACTIVE[0])
+        if not active:
+            # Reachable via --rl-run-phases naming nothing in _RL_RUN_PHASES.
+            return "heuristics (RL run agent restricted to no phases)"
+        fallback = sorted(_RL_RUN_PHASES - _RL_RUN_PHASES_ACTIVE[0])
+        text = f"RL run agent {active}"
+        if fallback:
+            text += f" + heuristics {fallback}"
+        return text
+    return "heuristics"
 
 
 def _combat_planner_action(state: dict[str, Any]) -> int | None:

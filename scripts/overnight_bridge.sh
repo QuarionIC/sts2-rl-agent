@@ -46,6 +46,21 @@ POLL_SECONDS=30
 mkdir -p "$LOG_DIR"
 echo "overnight bridge supervisor starting; logs in $LOG_DIR"
 
+#: Consecutive sessions that died before FAST_DEATH_SECONDS.
+#:
+#: A supervisor that relaunches unconditionally converts a startup error into a
+#: silent all-night no-op. Measured 2026-08-01: an unmigrated run checkpoint
+#: asserted inside MaskablePPO.load about seven seconds in, and the loop
+#: relaunched it 13 consecutive times -- game restart included -- reporting
+#: nothing but a fresh log file each cycle. The night was already lost by the
+#: second cycle; the remaining eleven only cost more.
+#:
+#: Recycling is correct for a session that ran and ended. It is never correct
+#: for one that never started, and the two are told apart by how long it lived.
+FAST_DEATH_SECONDS=60
+FAST_DEATH_LIMIT=3
+fast_deaths=0
+
 cycle=0
 while true; do
     cycle=$((cycle + 1))
@@ -77,6 +92,7 @@ while true; do
             --combat-delay 0.2 --verbose >>"$log" 2>&1 &
     fi
     runner_pid=$!
+    session_start=$(date +%s)
 
     # Watch for PROGRESS, not for liveness: the failure mode here is a runner
     # that is perfectly alive and waiting on a game that has exited, so
@@ -86,7 +102,31 @@ while true; do
     while true; do
         sleep "$POLL_SECONDS"
         if ! kill -0 "$runner_pid" 2>/dev/null; then
-            echo "[$(date +%H:%M:%S)] runner exited; recycling"
+            lived=$(( $(date +%s) - session_start ))
+            if [ "$lived" -lt "$FAST_DEATH_SECONDS" ]; then
+                fast_deaths=$((fast_deaths + 1))
+                echo "[$(date +%H:%M:%S)] runner died after ${lived}s" \
+                     "(fast death $fast_deaths/$FAST_DEATH_LIMIT)"
+                if [ "$fast_deaths" -ge "$FAST_DEATH_LIMIT" ]; then
+                    echo
+                    echo "=== SUPERVISOR ABORTING ==="
+                    echo "$FAST_DEATH_LIMIT consecutive sessions died within" \
+                         "${FAST_DEATH_SECONDS}s. This is a startup failure, not" \
+                         "a run ending; relaunching cannot fix it and would burn" \
+                         "the rest of the night. Last error:"
+                    echo
+                    # The traceback, not the last lines -- a crash log ends with
+                    # shutdown noise that says nothing about the cause.
+                    grep -m1 -A 30 "Traceback\|SystemExit\|Error" "$log" \
+                        | sed 's/^/    /' || tail -20 "$log" | sed 's/^/    /'
+                    echo
+                    echo "  full log: $log"
+                    exit 1
+                fi
+            else
+                fast_deaths=0
+            fi
+            echo "[$(date +%H:%M:%S)] runner exited after ${lived}s; recycling"
             break
         fi
         # Pings still grow the log, so compare against real ACTIVITY instead

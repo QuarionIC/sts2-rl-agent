@@ -111,6 +111,69 @@ def test_every_mod_power_resolves(entry: str):
     )
 
 
+#: How the mod actually decorates a power id on the wire.
+#:
+#: _slugify above reproduces only the class-name half. The live payload also
+#: carries a mod prefix -- this file's own docstring quotes
+#: ``ACTSFROMTHEPAST-SPORE_CLOUD_POWER`` -- so testing the bare slug checked a
+#: string the bridge never receives.
+#:
+#: The FIRST version of this list appended "_POWER" unconditionally and
+#: produced SPORE_CLOUD_POWER_POWER, failing 64 cases against a string no wire
+#: ever carries: the class names already end in Power, so _slugify already
+#: emits the suffix. Inventing plausible-looking shapes is the same mistake as
+#: inventing plausible-looking log lines, so these are derived from the entry
+#: rather than pattern-matched by eye, and pinned below against a real
+#: payload captured from output/overnight.
+def _wire_shapes(entry: str) -> list[str]:
+    return [entry, f"{MOD_WIRE_PREFIX}{entry}"]
+
+
+MOD_WIRE_PREFIX = "ACTSFROMTHEPAST-"
+
+#: Verbatim from output/overnight/session_20260801_001556_*.log.
+_CAPTURED_WIRE_ID = "METALLICIZE_POWER_A4H"
+_CAPTURED_PREFIXED = "ACTSFROMTHEPAST-SPORE_CLOUD_POWER"
+
+
+def test_the_captured_wire_ids_resolve():
+    """Two ids copied from real logs, not constructed by this file."""
+    assert _to_power_id(_CAPTURED_WIRE_ID) is not None
+    assert _to_power_id(_CAPTURED_PREFIXED) is not None
+
+
+def test_the_shape_builder_matches_a_captured_payload():
+    """The generated shapes must include the form actually observed.
+
+    Without this the parametrization could drift to shapes the wire never
+    uses -- which is precisely what happened on the first attempt -- and the
+    suite would still be green while covering nothing real.
+    """
+    assert _CAPTURED_PREFIXED in _wire_shapes("SPORE_CLOUD_POWER"), (
+        "the shape builder no longer produces the form seen live"
+    )
+
+
+@pytest.mark.parametrize("entry", _mod_power_entries())
+@pytest.mark.parametrize("shape_index", [0, 1])
+def test_every_mod_power_resolves_in_its_live_wire_shape(entry: str,
+                                                         shape_index: int):
+    """The resolver must accept the decorated id, not just the class slug.
+
+    An unrecognised power does not decline the fight -- the runner logs
+    "the planner will search without them" and continues -- so this failing
+    open is invisible in the live logs except as slightly worse play.
+    """
+    if entry in KNOWN_MISSING:
+        pytest.xfail(f"not implemented: {KNOWN_MISSING[entry]}")
+    wire = _wire_shapes(entry)[shape_index]
+    assert _to_power_id(wire) is not None, (
+        f"{wire!r} does not resolve, though the bare slug {entry!r} does. "
+        f"This is the form the wire carries; the planner would search against "
+        f"an enemy missing this buff and never say so."
+    )
+
+
 def test_the_known_missing_list_has_not_gone_stale():
     # If one of these starts resolving, implement-and-remove rather than
     # leaving a permanent xfail that hides the next real gap.

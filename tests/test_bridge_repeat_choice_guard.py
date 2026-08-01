@@ -117,22 +117,33 @@ class TestDrawShiftClassification:
     investigation at the wrong subsystem -- the same mistake SIM-AHEAD was
     split out to stop.
 
-    These tests drive the classifier through the log line rather than calling
-    an internal, so they keep working if the branch is refactored.
+    These call the PRODUCTION classifier,
+    ``scripts.classify_divergences.classify``.
+
+    They previously called a static ``_classify`` defined in this class that
+    reimplemented the shift test, while this docstring claimed the tests drove
+    the real classifier. A reimplementation passes whether or not the shipped
+    code works -- it is a test of the copy -- and this project has already been
+    bitten by exactly that (``test_card_pool_parity`` mapped Sloth through its
+    own alias table and stayed green while the live resolver returned None for
+    the same string).
     """
 
     @staticmethod
     def _classify(sim_hand, live_hand):
-        """Reproduce the classifier's shift test on two normalised hands."""
-        from sts2_env.bridge.agent_runner import _norm_card
+        """The production classifier, reduced to the DRAW-SHIFT verdict.
 
-        sim_n = [_norm_card(c) for c in sim_hand]
-        live_n = [_norm_card(c) for c in live_hand]
-        if len(sim_n) >= 2 and len(live_n) >= 2:
-            if sim_n[1:] == live_n[:len(sim_n) - 1]:
-                return "game-drew-more"
-            if live_n[1:] == sim_n[:len(live_n) - 1]:
-                return "sim-drew-more"
+        Energies are passed equal so the SIM-AHEAD branch -- which requires
+        the sim to hold no more energy AND be a strict sub-multiset -- cannot
+        pre-empt the shift test being exercised here.
+        """
+        from scripts.classify_divergences import classify
+
+        verdict = classify(list(sim_hand), list(live_hand), 3, 3)
+        if verdict == "DRAW-SHIFT (game drew more)":
+            return "game-drew-more"
+        if verdict == "DRAW-SHIFT (sim drew more)":
+            return "sim-drew-more"
         return None
 
     def test_the_measured_case_is_recognised(self):
