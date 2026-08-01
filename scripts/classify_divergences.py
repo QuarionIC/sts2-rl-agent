@@ -77,6 +77,19 @@ def classify(sim_hand: list[str], live_hand: list[str],
         if live_n[1:] == sim_n[:len(live_n) - 1]:
             return "DRAW-SHIFT (sim drew more)"
 
+    # FRONTIER: the two hands agree on every card except the NEWEST one.
+    #
+    # Measured 2026-08-01, 4 of 10 residual "CONTENTS" divergences were this:
+    #   sim  [END_OF_DAYS, DEFEND, DEFEND, INVOKE, DEFEND, REANIMATE]
+    #   live [END_OF_DAYS, DEFEND, DEFEND, INVOKE, DEFEND, BORROWED_TIME]
+    # Same draw sequence, disagreeing only on the card most recently drawn.
+    # That is the draw FRONTIER -- an RNG or pile-order divergence one card
+    # deep -- not the card modelling that "CONTENTS" implies, and it would
+    # have sent the investigation at card effects rather than at the draw.
+    if (len(sim_n) == len(live_n) and len(sim_n) >= 2
+            and sim_n[:-1] == live_n[:-1] and sim_n[-1] != live_n[-1]):
+        return "FRONTIER (same prefix, newest draw differs)"
+
     same_len = len(sim_n) == len(live_n)
     same_multiset = sorted(sim_n) == sorted(live_n)
     if same_len and same_multiset:
@@ -143,21 +156,55 @@ def main(argv=None) -> int:
         print("  none found")
         return 0
 
-    # Fidelity is the number that says whether the SIMULATOR is right.
-    # The other classes are client/server artifacts and must not be blended in.
-    fidelity_classes = {"CONTENTS", "ORDER-ONLY", "COUNT"}
-    fidelity = sum(v for k, v in counts.items() if k in fidelity_classes)
+    # ONLY SIM-AHEAD is an artifact.
+    #
+    # Being careful here in BOTH directions. Blending everything together
+    # overstates divergence -- two thirds of a "5.96%" was synchronisation.
+    # But calling every draw disagreement an artifact understates it just as
+    # badly, and that error is more tempting because it flatters the number.
+    #
+    # SIM-AHEAD is provably the mod's serialization racing its own action
+    # queue: fixing PlayCardAndWaitAsync cut it 3.92% -> 0.83% (p=9.9e-10)
+    # while leaving every other class alone. Nothing about the simulator was
+    # wrong.
+    #
+    # DRAW-SHIFT and FRONTIER are NOT that. They mean the simulator drew a
+    # different card, or a different NUMBER of cards, than the game -- a real
+    # disagreement about draw order or draw count. They are reported apart
+    # from CONTENTS because they point at a different subsystem (the draw and
+    # the shuffle, versus card effects), not because they are free.
+    ARTIFACT = {"SIM-AHEAD"}
+    DRAW_RELATED = {"DRAW-SHIFT (game drew more)", "DRAW-SHIFT (sim drew more)",
+                    "FRONTIER (same prefix, newest draw differs)",
+                    "ORDER-ONLY", "COUNT"}
+
+    def _bucket(kind: str) -> str:
+        if kind in ARTIFACT:
+            return "artifact"
+        if kind in DRAW_RELATED:
+            return "fidelity:draw"
+        return "fidelity:cards"
+
+    draw = sum(v for k, v in counts.items() if _bucket(k) == "fidelity:draw")
+    cards = sum(v for k, v in counts.items() if _bucket(k) == "fidelity:cards")
+    artifacts = sum(v for k, v in counts.items() if _bucket(k) == "artifact")
 
     for kind, n in counts.most_common():
         p, lo, hi = _wilson(n, actions)
-        tag = "fidelity" if kind in fidelity_classes else "artifact"
-        print(f"  {kind:28} {n:4d}  {p:5.2f}%  CI[{lo:.2f},{hi:.2f}]  [{tag}]")
+        print(f"  {kind:44} {n:4d}  {p:5.2f}%  CI[{lo:.2f},{hi:.2f}]  "
+              f"[{_bucket(kind)}]")
 
-    p, lo, hi = _wilson(fidelity, actions)
-    print(f"\n  SIMULATOR FIDELITY: {fidelity}/{actions} = {p:.2f}%  "
+    p, lo, hi = _wilson(draw + cards, actions)
+    print(f"\n  SIMULATOR FIDELITY: {draw + cards}/{actions} = {p:.2f}%  "
           f"CI[{lo:.2f},{hi:.2f}]")
-    print(f"  (blended, including artifacts: {total}/{actions} = "
-          f"{100*total/max(actions,1):.2f}% -- do NOT quote this as fidelity)")
+    dp, *_ = _wilson(draw, actions)
+    cp, *_ = _wilson(cards, actions)
+    print(f"    of which draw order/count : {draw:3d} ({dp:.2f}%)")
+    print(f"    of which card modelling   : {cards:3d} ({cp:.2f}%)")
+    ap_, *_ = _wilson(artifacts, actions)
+    print(f"  client/server artifacts (NOT fidelity): {artifacts} ({ap_:.2f}%)")
+    print(f"  blended total: {total}/{actions} = "
+          f"{100*total/max(actions,1):.2f}%")
 
     if args.examples:
         print("\n=== examples ===")
