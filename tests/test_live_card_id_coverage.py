@@ -51,10 +51,14 @@ from sts2_env.cards.factory import create_card
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-#: The version of the game the bridge currently plays against. Bump this (and
-#: decompile the new build) on every patch; a missing directory skips rather
-#: than silently passing.
-LIVE_CARD_DIR = REPO_ROOT / "decompiled_v0.110.0" / "MegaCrit.Sts2.Core.Models.Cards"
+#: The tracked reference tree, which IS the version the bridge plays against --
+#: decompiled/ was refreshed to v0.110.0 on 2026-07-31.
+#:
+#: This pointed at an untracked decompiled_v0.110.0/ copy, so on a fresh clone
+#: the directory was absent and the whole module SKIPPED: a coverage guard that
+#: silently covers nothing. Pointing it at the tracked tree also removes 28MB
+#: of duplicate. Refresh decompiled/ on each game patch and this follows.
+LIVE_CARD_DIR = REPO_ROOT / "decompiled" / "MegaCrit.Sts2.Core.Models.Cards"
 
 #: StringHelper.Slugify's own regexes: ModelDb.GetEntry(type) is
 #: Slugify(type.Name), and Entry is exactly what RlCombatHandler.SerializeCard
