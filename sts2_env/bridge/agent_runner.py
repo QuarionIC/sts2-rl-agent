@@ -1249,9 +1249,36 @@ def _combat_planner_action(state: dict[str, Any]) -> int | None:
                                      and isinstance(live_energy, int)
                                      and sim_energy <= live_energy)
 
+                # DRAW-SHIFT: the two hands are the same window of the draw
+                # sequence, offset by exactly one card.
+                #
+                # Measured overnight 2026-08-01, three of seven "CONTENTS"
+                # divergences were really this:
+                #
+                #   sim  [MELANCHOLY, DEFEND, UNLEASH, DEFILE, STRIKE]
+                #   live [            DEFEND, UNLEASH, DEFILE, STRIKE, DEBILITATE]
+                #
+                # sim[1:] == live[:-1] exactly. That is not "different cards",
+                # it is one side having drawn one card more (or fewer) than the
+                # other, and it points at the draw COUNT rather than at card
+                # modelling or shuffle order. Left inside CONTENTS it sent the
+                # investigation at the wrong subsystem -- the same mistake
+                # SIM-AHEAD was split out to stop.
+                shifted = ""
+                if len(sim_hand) >= 2 and len(live_hand) >= 2:
+                    sim_n = [_norm_card(c) for c in sim_hand]
+                    live_n = [_norm_card(c) for c in live_hand]
+                    if sim_n[1:] == live_n[:len(sim_n) - 1]:
+                        shifted = "the GAME drew one more than the simulator"
+                    elif live_n[1:] == sim_n[:len(live_n) - 1]:
+                        shifted = "the SIMULATOR drew one more than the game"
+
                 if sim_ahead:
                     kind = ("SIM-AHEAD (we played an action the game has not; "
                             "off by one, not a shuffle mismatch)")
+                elif shifted:
+                    kind = (f"DRAW-SHIFT (same draw window offset by one; "
+                            f"{shifted})")
                 elif same_len and same_multiset:
                     kind = "ORDER-ONLY (same cards, different order)"
                 elif same_multiset:

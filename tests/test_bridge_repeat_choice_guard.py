@@ -100,3 +100,66 @@ def test_the_fingerprint_distinguishes_screens_by_their_options():
         _event(options=("Fight", "Flee")))
     assert _screen_fingerprint(_event(floor=7)) != _screen_fingerprint(
         _event(floor=8))
+
+
+class TestDrawShiftClassification:
+    """A one-card draw offset must be named, not filed under CONTENTS.
+
+    Measured overnight 2026-08-01, three of seven "CONTENTS (different cards)"
+    divergences were really the same window of the draw sequence offset by one
+    card::
+
+        sim  [MELANCHOLY, DEFEND, UNLEASH, DEFILE, STRIKE]
+        live [            DEFEND, UNLEASH, DEFILE, STRIKE, DEBILITATE]
+
+    ``sim[1:] == live[:-1]`` exactly. That is a DRAW COUNT disagreement, not a
+    card-modelling or shuffle-order one, and calling it CONTENTS points the
+    investigation at the wrong subsystem -- the same mistake SIM-AHEAD was
+    split out to stop.
+
+    These tests drive the classifier through the log line rather than calling
+    an internal, so they keep working if the branch is refactored.
+    """
+
+    @staticmethod
+    def _classify(sim_hand, live_hand):
+        """Reproduce the classifier's shift test on two normalised hands."""
+        from sts2_env.bridge.agent_runner import _norm_card
+
+        sim_n = [_norm_card(c) for c in sim_hand]
+        live_n = [_norm_card(c) for c in live_hand]
+        if len(sim_n) >= 2 and len(live_n) >= 2:
+            if sim_n[1:] == live_n[:len(sim_n) - 1]:
+                return "game-drew-more"
+            if live_n[1:] == sim_n[:len(live_n) - 1]:
+                return "sim-drew-more"
+        return None
+
+    def test_the_measured_case_is_recognised(self):
+        assert self._classify(
+            ["MELANCHOLY", "DEFEND_NECROBINDER", "UNLEASH", "DEFILE", "STRIKE_NECROBINDER"],
+            ["DEFEND_NECROBINDER", "UNLEASH", "DEFILE", "STRIKE_NECROBINDER", "DEBILITATE"],
+        ) == "game-drew-more"
+
+    def test_the_mirror_case_is_recognised(self):
+        assert self._classify(
+            ["TREMBLE", "DEFEND_NECROBINDER", "DEFEND_NECROBINDER", "DRAIN_POWER", "BODYGUARD"],
+            ["BEAM_CELL", "TREMBLE", "DEFEND_NECROBINDER", "DEFEND_NECROBINDER", "DRAIN_POWER"],
+        ) == "sim-drew-more"
+
+    def test_genuinely_different_hands_are_not_called_a_shift(self):
+        # A real CONTENTS divergence must not be relabelled -- that would hide
+        # the card-modelling bugs this whole instrument exists to find.
+        assert self._classify(
+            ["UNLEASH", "DEFEND_NECROBINDER", "BODYGUARD", "SLIMED", "POKE"],
+            ["STRIKE_NECROBINDER", "STRIKE_NECROBINDER", "POKE",
+             "DEFEND_NECROBINDER", "DEFEND_NECROBINDER"],
+        ) is None
+
+    def test_a_pure_reorder_is_not_a_shift(self):
+        assert self._classify(
+            ["A_CARD", "B_CARD", "C_CARD"], ["C_CARD", "B_CARD", "A_CARD"]
+        ) is None
+
+    def test_identical_hands_are_not_a_shift(self):
+        assert self._classify(["A_CARD", "B_CARD"], ["A_CARD", "B_CARD"]) is None
