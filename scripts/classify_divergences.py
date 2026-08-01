@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+"""Classify logged bridge divergences, offline.
+
+Why offline
+-----------
+The runner classifies each divergence as it happens, but a long session runs
+whatever classifier it was started with. When a new class is added -- DRAW-SHIFT
+was split out of CONTENTS on 2026-08-01 -- every session already in flight keeps
+reporting the old label, and the sessions already on disk are the best evidence
+for whether the new class matters.
+
+This re-reads the sim/live hand pairs the runner logs and applies the CURRENT
+classification, so historic logs can be re-scored without replaying anything.
+
+Why the split matters at all: "CONTENTS (different cards)" points an
+investigation at card modelling and RNG. A DRAW-SHIFT is a draw-COUNT
+disagreement and a SIM-AHEAD is the client outrunning the game -- neither is a
+simulator-fidelity failure, and lumping them together both misdirects the work
+and overstates the divergence rate. Measured 2026-07-31, two thirds of a
+"5.96% divergence" was synchronisation.
+
+Usage
+-----
+    python -m scripts.classify_divergences output/overnight/session_*.log
+"""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import math
+import re
+import sys
+from collections import Counter
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+_DIVERGED = re.compile(r"plan diverged \[([^\]]*)\]")
+_SIM_HAND = re.compile(r"sim  hand: (\[[^\]]*\]) \(energy (-?\d+|None)\)")
+_LIVE_HAND = re.compile(r"live hand: (\[[^\]]*\]) \(energy (-?\d+|None)\)")
+_ACTION = re.compile(r"COMBAT \[HP:")
+
+
+def _norm(card: str) -> str:
+    from sts2_env.bridge.agent_runner import _norm_card
+
+    return _norm_card(card)
+
+
+def classify(sim_hand: list[str], live_hand: list[str],
+             sim_energy, live_energy) -> str:
+    """The runner's current classification, applied to a logged pair."""
+    sim_n = [_norm(c) for c in sim_hand]
+    live_n = [_norm(c) for c in live_hand]
+
+    # SIM-AHEAD: our hand is the live hand with exactly one card removed and
+    # we hold no more energy -- the simulation played something the game
+    # has not.
+    if len(sim_n) == len(live_n) - 1:
+        remaining = list(live_n)
+        ok = True
+        for card in sim_n:
+            if card in remaining:
+                remaining.remove(card)
+            else:
+                ok = False
+                break
+        if (ok and len(remaining) == 1
+                and isinstance(sim_energy, int) and isinstance(live_energy, int)
+                and sim_energy <= live_energy):
+            return "SIM-AHEAD"
+
+    if len(sim_n) >= 2 and len(live_n) >= 2:
+        if sim_n[1:] == live_n[:len(sim_n) - 1]:
+            return "DRAW-SHIFT (game drew more)"
+        if live_n[1:] == sim_n[:len(live_n) - 1]:
+            return "DRAW-SHIFT (sim drew more)"
+
+    same_len = len(sim_n) == len(live_n)
+    same_multiset = sorted(sim_n) == sorted(live_n)
+    if same_len and same_multiset:
+        return "ORDER-ONLY"
+    if same_multiset:
+        return "COUNT"
+    return "CONTENTS"
+
+
+def _wilson(k: int, n: int) -> tuple[float, float, float]:
+    if n == 0:
+        return 0.0, 0.0, 0.0
+    p = k / n
+    z = 1.96
+    c = (p + z * z / (2 * n)) / (1 + z * z / n)
+    h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
+    return 100 * p, 100 * max(0.0, c - h), 100 * min(1.0, c + h)
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("logs", nargs="+", type=Path)
+    ap.add_argument("--examples", type=int, default=2,
+                    help="worked examples to print per class")
+    args = ap.parse_args(argv)
+
+    counts: Counter[str] = Counter()
+    actions = 0
+    examples: dict[str, list[str]] = {}
+
+    for path in args.logs:
+        if not path.exists():
+            continue
+        lines = path.read_text(errors="replace").splitlines()
+        actions += sum(1 for line in lines if _ACTION.search(line))
+        for i, line in enumerate(lines):
+            if not _DIVERGED.search(line):
+                continue
+            sim_m = live_m = None
+            for follow in lines[i + 1:i + 4]:
+                sim_m = sim_m or _SIM_HAND.search(follow)
+                live_m = live_m or _LIVE_HAND.search(follow)
+            if not (sim_m and live_m):
+                counts["UNPARSED"] += 1
+                continue
+            try:
+                sim_hand = ast.literal_eval(sim_m.group(1))
+                live_hand = ast.literal_eval(live_m.group(1))
+            except (ValueError, SyntaxError):
+                counts["UNPARSED"] += 1
+                continue
+            se = int(sim_m.group(2)) if sim_m.group(2) != "None" else None
+            le = int(live_m.group(2)) if live_m.group(2) != "None" else None
+            kind = classify(sim_hand, live_hand, se, le)
+            counts[kind] += 1
+            examples.setdefault(kind, []).append(
+                f"    sim  {sim_hand}\n    live {live_hand}")
+
+    total = sum(counts.values())
+    print(f"\n=== DIVERGENCES over {actions} combat actions "
+          f"({len(args.logs)} log(s)) ===")
+    if not total:
+        print("  none found")
+        return 0
+
+    # Fidelity is the number that says whether the SIMULATOR is right.
+    # The other classes are client/server artifacts and must not be blended in.
+    fidelity_classes = {"CONTENTS", "ORDER-ONLY", "COUNT"}
+    fidelity = sum(v for k, v in counts.items() if k in fidelity_classes)
+
+    for kind, n in counts.most_common():
+        p, lo, hi = _wilson(n, actions)
+        tag = "fidelity" if kind in fidelity_classes else "artifact"
+        print(f"  {kind:28} {n:4d}  {p:5.2f}%  CI[{lo:.2f},{hi:.2f}]  [{tag}]")
+
+    p, lo, hi = _wilson(fidelity, actions)
+    print(f"\n  SIMULATOR FIDELITY: {fidelity}/{actions} = {p:.2f}%  "
+          f"CI[{lo:.2f},{hi:.2f}]")
+    print(f"  (blended, including artifacts: {total}/{actions} = "
+          f"{100*total/max(actions,1):.2f}% -- do NOT quote this as fidelity)")
+
+    if args.examples:
+        print("\n=== examples ===")
+        for kind, rows in examples.items():
+            print(f"  [{kind}]")
+            for row in rows[:args.examples]:
+                print(row)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

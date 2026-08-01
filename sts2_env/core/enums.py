@@ -521,6 +521,27 @@ class PowerId(Enum):
     TIME_WARP = auto()
     NEMESIS_FLICKER = auto()
 
+    # APPEND-ONLY BELOW THIS LINE.
+    #
+    # POWER_IDS in rich_observation.py is list(PowerId) and NUM_POWER_IDS sizes
+    # both PLAYER_POWERS_SIZE and (via ENEMY_BLOCK_SIZE) every enemy slot, so
+    # inserting a member in the middle shifts which column means which power
+    # for every trained checkpoint. Unlike cards, powers are consumed as raw
+    # one-hot rather than through an embedding, so there is no embedding table
+    # to migrate -- a mid-enum insertion is simply unrecoverable for existing
+    # models.
+    #
+    # ActsFromThePast enemy powers, 2026-08-01. Reconstruction previously
+    # dropped these with "the planner will search without them", so fights
+    # against Fungi Beasts, Lagavulin, Exploders, Spikers and anything with
+    # Strength Up were planned against an enemy missing a buff.
+    SPORE_CLOUD = auto()
+    SHARP_HIDE = auto()
+    STRENGTH_UP = auto()
+    REGEN_ENEMY = auto()
+    EXPLOSIVE = auto()
+    FADING = auto()
+
 
 class CardId(Enum):
     # Ironclad basic
