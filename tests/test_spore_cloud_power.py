@@ -49,10 +49,14 @@ import sts2_env.potions.all  # noqa: F401 -- registers FairyInABottle
 def _make_combat(seed: int = 4242, *, player_hp: int = 80, extra_enemy: bool = False):
     """Combat with a Fungi Beast carrying Spore Cloud 2, as the mod sets it up.
 
-    ``FungiBeast.AfterAddedToRoom`` self-applies ``SporeCloudPower`` with
-    ``2m``; the simulator's ``create_fungi_beast`` does not yet do that (the
-    monster wiring is a separate gap), so the test applies it explicitly the
-    same way the live bridge reconstructs it from the wire.
+    ``create_fungi_beast`` now self-applies Spore Cloud 2 on spawn, matching
+    ``FungiBeast.AfterAddedToRoom`` (FungiBeast.cs:48). This helper used to
+    apply it by hand because the monster wiring was missing; doing that now
+    would stack it to 4 and every assertion below would be measuring double.
+
+    That the beast arrives with it is itself worth asserting, so the wiring
+    cannot quietly regress and leave these tests passing against a hand-applied
+    power that the real monster no longer has.
     """
     combat = CombatState(
         player_hp=player_hp,
@@ -68,7 +72,11 @@ def _make_combat(seed: int = 4242, *, player_hp: int = 80, extra_enemy: bool = F
         other, other_ai = create_shrinker_beetle(Rng(seed + 1))
         combat.add_enemy(other, other_ai)
     combat.start_combat()
-    beast.apply_power(PowerId.SPORE_CLOUD, 2)
+    assert beast.get_power_amount(PowerId.SPORE_CLOUD) == 2, (
+        "create_fungi_beast should self-apply Spore Cloud 2 on spawn; if that "
+        "wiring is lost these tests must fail rather than silently fall back "
+        "to a hand-applied power the real monster does not carry"
+    )
     return combat, beast, other
 
 
@@ -166,7 +174,9 @@ def test_two_owners_each_release_their_own_cloud_once():
     combat, beast, _ = _make_combat(extra_enemy=True)
     second, second_ai = create_fungi_beast(Rng(99))
     combat.add_enemy(second, second_ai)
-    second.apply_power(PowerId.SPORE_CLOUD, 2)
+    # No hand-application: create_fungi_beast brings its own Spore Cloud 2,
+    # and adding another would stack it to 4 and make the counts below wrong.
+    assert second.get_power_amount(PowerId.SPORE_CLOUD) == 2
 
     combat.kill_creature(beast)
     assert _vulnerable(combat.player) == 2

@@ -1651,6 +1651,8 @@ FUNGI_BEAST_BASE_MIN_HP = 22
 FUNGI_BEAST_TOUGH_MIN_HP = 24
 FUNGI_BEAST_MAX_HP = 28  # not ascension-scaled (C#: MaxInitialHp => 28 always)
 FUNGI_BEAST_BITE_DAMAGE = 6  # flat, not ascension-scaled
+#: Vulnerable released on death (FungiBeast.cs:48, PowerCmd.Apply(..., 2m)).
+FUNGI_BEAST_SPORE_CLOUD = 2
 FUNGI_BEAST_BASE_GROW_STRENGTH = 3
 FUNGI_BEAST_DEADLY_GROW_STRENGTH = 5
 FUNGI_BEAST_BITE_MOVE = "BITE"
@@ -1662,6 +1664,15 @@ def create_fungi_beast(rng: Rng, ascension_level: int = 0) -> tuple[Creature, Mo
     lo = _ascension_value(ascension_level, TOUGH_ENEMIES_ASCENSION_LEVEL, FUNGI_BEAST_TOUGH_MIN_HP, FUNGI_BEAST_BASE_MIN_HP)
     hp = rng.next_int(lo, FUNGI_BEAST_MAX_HP)
     creature = Creature(max_hp=hp, monster_id=FUNGI_BEAST_MONSTER_ID)
+    # FungiBeast.AfterAddedToRoom applies SporeCloudPower(2) on spawn
+    # (decompiled_mods/ActsFromThePast/ActsFromThePast/FungiBeast.cs:48), which
+    # makes the player Vulnerable when the beast dies. Reconstruction from the
+    # wire carries it, so LIVE fights had it -- but simulator-internal fights
+    # (all of training, and the two_fungi_beasts / three_fungi_beasts
+    # encounters) faced a beast with no death rattle, so the agent learned to
+    # kill one with no thought for the Vulnerable that follows.
+    creature.apply_power(PowerId.SPORE_CLOUD, FUNGI_BEAST_SPORE_CLOUD,
+                         applier=creature)
 
     def bite(combat: CombatState) -> None:
         _deal_damage_to_player(combat, creature, FUNGI_BEAST_BITE_DAMAGE)
