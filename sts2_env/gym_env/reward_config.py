@@ -260,8 +260,18 @@ class RewardConfig:
     #: objective learnable. Eval zeroes shaping_scale, so reported numbers
     #: stay pure-sparse and comparable across every measurement.
     #:
-    #: Sized to match the terminal charge so the two speak the same units.
-    w_combat_hp_shaping: float = 2.0
+    #: Sized to MATCH w_combat_hp_retained so the two speak the same units.
+    #:
+    #: The point of the shaping is to pre-pay the terminal charge on the step
+    #: the damage happens. If the two weights disagree, it only pre-pays a
+    #: fraction: left at 2.0 while the terminal charge went to 14.0, a point
+    #: of damage would produce 2/14 of the feedback it eventually costs, which
+    #: is most of the credit-assignment problem the shaping exists to solve.
+    #:
+    #: Correctness does not depend on them matching -- PBRS telescopes to zero
+    #: whatever this is, so the optimum is untouched either way. Only the
+    #: learning rate on the HP objective does.
+    w_combat_hp_shaping: float = 14.0
 
     #: Bounds on the HP cost ratio. The floor is NEGATIVE because a net heal
     #: (Necrobinder heals mid-combat) is real value and should pay -- but

@@ -240,3 +240,23 @@ class TestDamageShapingIsPolicyInvariant:
             "no mid-episode reward: the shaping is inert and the HP charge "
             "still arrives only at the end"
         )
+
+
+def test_the_shaping_weight_matches_the_terminal_charge():
+    """They must agree, or the shaping only pre-pays a fraction of the cost.
+
+    The shaping exists to deliver the terminal HP charge on the step the
+    damage is taken. If w_combat_hp_shaping is smaller than
+    w_combat_hp_retained, a point of damage produces only a fraction of the
+    feedback it eventually costs -- which leaves most of the credit-assignment
+    problem the shaping was added to solve.
+
+    Correctness does not depend on this: PBRS telescopes to zero whatever the
+    weight, so the optimum is identical either way (pinned by
+    TestDamageShapingIsPolicyInvariant). Only the learning rate changes. This
+    test exists because the two were left mismatched once, 2.0 against 14.0,
+    and nothing failed -- the run would simply have learned more slowly for no
+    stated reason.
+    """
+    cfg = _cfg()
+    assert cfg.w_combat_hp_shaping == cfg.w_combat_hp_retained
