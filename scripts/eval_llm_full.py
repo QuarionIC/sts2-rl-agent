@@ -273,7 +273,15 @@ def main() -> int:
             "n_gpu_layers": args.n_gpu_layers, "temperature": args.temperature,
             "enable_thinking": args.enable_thinking,
             "seed_base": args.seed_base,
-            "combat_played_by": "LLM",
+            # Read off the resolved arms.
+            #
+            # This was the literal "LLM" while --combat-policy accepts planner
+            # and random, so a planner-combat run wrote results claiming the
+            # LLM played the fights. Provenance that is a constant is not
+            # provenance -- and these files are the record a published number
+            # would be traced back to.
+            "combat_played_by": args.combat_policy,
+            "noncombat_played_by": args.run_policy,
         },
         "mean_floors": float(np.mean(floors)),
         "se_floors": (float(np.std(floors, ddof=1) / np.sqrt(n_ep))
@@ -294,7 +302,15 @@ def main() -> int:
         "wall_s": round(time.time() - t0, 1),
     }
 
-    print(f"\n=== LLM PLAYING EVERYTHING ({n_ep} eps, asc {args.ascension}, "
+    # The header names the arms that ran, rather than asserting the LLM played
+    # everything -- which it printed even for --combat-policy planner, twenty
+    # lines above code that already knew the LLM might be absent.
+    if args.combat_policy == args.run_policy:
+        who = f"{args.combat_policy.upper()} PLAYING EVERYTHING"
+    else:
+        who = (f"combat={args.combat_policy.upper()} "
+               f"noncombat={args.run_policy.upper()}")
+    print(f"\n=== {who} ({n_ep} eps, asc {args.ascension}, "
           f"act-{args.max_act_count} goal) ===")
     # Only report/warn on parse rates for arenas the LLM actually drove: a
     # non-LLM arm asks nothing, and a bare "0%" there reads as a failure.

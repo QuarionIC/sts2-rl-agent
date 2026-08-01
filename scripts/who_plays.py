@@ -37,6 +37,28 @@ MOD_SOURCE = REPO / "bridge_mod" / "MainFile.cs"
 #: Marker proving the rebuilt mod honours the flag.
 MOD_SUPPORT_MARKER = "sts2_who_plays"
 
+#: Where the mod ACTUALLY looks.
+#:
+#: MainFile.cs:38-44 searches the executing assembly's own directory and
+#: AppContext.BaseDirectory -- the DEPLOYED mod folder under Steam. This script
+#: previously wrote the flag to REPO/bridge_mod, which the game never reads, so
+#: `who_plays.py human` reported success and the agent took the run anyway.
+#: A control that silently controls nothing is worse than no control: you stop
+#: watching for the thing it claims to prevent.
+DEPLOYED_MOD_DIR = Path(
+    "C:/Program Files (x86)/Steam/steamapps/common/Slay the Spire 2"
+    "/mods/STS2BridgeMod"
+)
+DEPLOYED_DLL = DEPLOYED_MOD_DIR / "STS2BridgeMod.dll"
+
+#: The agent's SECOND gate. MainFile.cs:166 requires an autoslay.arm file
+#: beside the mod, created only by scripts/launch_agent.sh and consumed on
+#: read. Setting the flag to "agent" and launching from Steam therefore does
+#: NOT hand over, though this script used to say it would.
+ARM_FILE = DEPLOYED_MOD_DIR / "autoslay.arm"
+
+CANDIDATE_DIRS = [DEPLOYED_MOD_DIR] + CANDIDATE_DIRS
+
 
 def flag_path() -> Path:
     for d in CANDIDATE_DIRS:
@@ -46,8 +68,26 @@ def flag_path() -> Path:
 
 
 def mod_honours_flag() -> bool:
+    """Whether the DEPLOYED mod honours the flag -- not the source.
+
+    Grepping MainFile.cs answers "has the C# been edited?", which is true the
+    instant the file is saved and says nothing about whether the DLL was
+    rebuilt and copied. The marker is a plain string literal in the source, so
+    it survives into the compiled assembly and can be looked for there.
+    """
     try:
-        return MOD_SUPPORT_MARKER in MOD_SOURCE.read_text(encoding="utf-8", errors="ignore")
+        blob = DEPLOYED_DLL.read_bytes()
+    except OSError:
+        return False
+    return MOD_SUPPORT_MARKER.encode("utf-8") in blob \
+        or MOD_SUPPORT_MARKER.encode("utf-16-le") in blob
+
+
+def source_has_marker() -> bool:
+    """Whether the SOURCE has the change, regardless of deployment."""
+    try:
+        return MOD_SUPPORT_MARKER in MOD_SOURCE.read_text(
+            encoding="utf-8", errors="ignore")
     except OSError:
         return False
 
@@ -65,9 +105,35 @@ def main() -> int:
     p = flag_path()
 
     if not args:
-        print(f"who plays : {read_setting().upper()}")
+        # Both gates, because the agent plays only if BOTH pass, and reporting
+        # the flag alone told you the opposite of what would happen half the
+        # time.
+        armed = ARM_FILE.exists()
+        honoured = mod_honours_flag()
+        setting = read_setting()
         print(f"flag file : {p}{'' if p.exists() else '  (absent -> AGENT)'}")
-        print(f"mod honours flag: {'yes' if mod_honours_flag() else 'NO -- rebuild required'}")
+        print(f"flag says : {setting.upper()}")
+        print(f"deployed mod honours flag: "
+              f"{'yes' if honoured else 'NO -- rebuild + redeploy required'}")
+        if not honoured and source_has_marker():
+            print("          (MainFile.cs HAS the change; the deployed DLL "
+                  "does not. Rebuild and copy it.)")
+        print(f"autoslay.arm present: {'yes' if armed else 'no'}"
+              f"   (created by scripts/launch_agent.sh, consumed on read)")
+
+        # The resolved outcome, derived from every gate rather than from the
+        # flag alone.
+        if setting == "human" and honoured:
+            verdict = "YOU (flag honoured)"
+        elif not armed:
+            verdict = "YOU -- no autoslay.arm, so the agent stays out even " \
+                      "though the flag says AGENT"
+        elif setting == "human" and not honoured:
+            verdict = "THE AGENT -- flag says human but the deployed mod " \
+                      "does not check it"
+        else:
+            verdict = "THE AGENT"
+        print(f"\non next Steam launch: {verdict}")
         return 0
 
     choice = args[0]
@@ -87,8 +153,17 @@ def main() -> int:
         print("      in-game before then.")
     elif choice == "human":
         print("The agent will stay out of your run on next launch.")
+    elif not ARM_FILE.exists():
+        # The claim this replaces was flatly wrong: MainFile.cs:166 also
+        # requires autoslay.arm, so setting the flag to "agent" and launching
+        # from Steam does NOT hand over.
+        print("Flag set to AGENT, but the agent still will NOT play from a")
+        print("plain Steam launch: the mod also needs an autoslay.arm file")
+        print("beside it (MainFile.cs:166), which scripts/launch_agent.sh")
+        print("creates and the mod consumes on read. Launch via that script.")
     else:
-        print("The agent will take over on next launch.")
+        print("The agent will take over on next launch (flag set, "
+              "autoslay.arm present).")
     return 0
 
 

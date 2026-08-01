@@ -71,10 +71,19 @@ if not Path(PY).exists():
     PY = sys.executable
 
 
-def run(cmd: list[str], log: Path) -> int:
+def run(cmd: list[str], log: Path, *, truncate: bool = False) -> int:
+    """Run ``cmd``, streaming output to ``log``.
+
+    ``truncate`` for any log that will later be SCRAPED for a result. Appending
+    is right for a transcript and wrong for evidence: re-running into an
+    existing --out-root left the previous attempt's lines in place, and
+    ``parse_gate`` regex-scrapes the whole file, so a crashed re-run could
+    report a gate verdict computed from the earlier run's numbers -- a stale
+    GO that looks exactly like a fresh one.
+    """
     log.parent.mkdir(parents=True, exist_ok=True)
     print(f"  $ {' '.join(str(c) for c in cmd)}", flush=True)
-    with log.open("a", encoding="utf-8") as fh:
+    with log.open("w" if truncate else "a", encoding="utf-8") as fh:
         fh.write(f"\n=== {' '.join(str(c) for c in cmd)} ===\n")
         fh.flush()
         return subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT,
@@ -178,7 +187,7 @@ def main() -> int:
                   "--sims", str(args.sims),
                   "--determinizations", str(args.determinizations),
                   "--workers", str(args.workers),
-                  "--device", args.device], gate_log)
+                  "--device", args.device], gate_log, truncate=True)
         gate = parse_gate(gate_log)
         rec["gate"] = gate
         rec["gate_rc"] = rc
@@ -199,7 +208,27 @@ def main() -> int:
                       "corruption, not weakness.", flush=True)
                 return 3
         else:
-            print("      gate result unparseable; continuing (see log)", flush=True)
+            # STOP, do not continue.
+            #
+            # This printed "continuing" and fell through into a ~90-minute
+            # collect plus a 1M-step PPO stage -- the exact multi-hour burn the
+            # gate exists to prevent -- whenever the eval crashed, printed
+            # nothing, or changed format. A gate that only blocks when it
+            # succeeds in reading a number is not a gate; every failure mode
+            # resolved to GO.
+            #
+            # --skip-gate remains the way past it, deliberately, since its own
+            # help text says "Only with a reason."
+            rec["stopped"] = f"GATE UNREADABLE (rc={rc}): {gate_log}"
+            with ledger.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(rec) + "\n")
+            print(f"\n  STOPPING. The gate produced no parseable delta "
+                  f"(subprocess rc={rc}).\n  Nothing was measured, so there is "
+                  f"no evidence search beats the policy;\n  continuing would "
+                  f"distil visit distributions that were never shown to be\n  "
+                  f"an improvement target. Inspect {gate_log}\n  and re-run, "
+                  f"or pass --skip-gate if you have a reason.", flush=True)
+            return 4
 
         # ---- 2 + 3. collect search targets, then distil ----
         print("[2/5] collect search-labelled decisions", flush=True)
