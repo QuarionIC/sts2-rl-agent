@@ -178,15 +178,28 @@ def main(argv=None) -> int:
                     "FRONTIER (same prefix, newest draw differs)",
                     "ORDER-ONLY", "COUNT"}
 
+    # CONTENTS is deliberately NOT called "card modelling".
+    #
+    # Measured 2026-08-01 over 17 CONTENTS cases, the cards that differ are the
+    # deck's most COMMON ones -- the simulator holding 9 extra DEFEND, the game
+    # 5 extra STRIKE. An unmodelled card EFFECT would implicate specific
+    # unusual cards; a Strike/Defend imbalance is what draw divergence looks
+    # like once it has compounded past the point where the one-card SHIFT and
+    # FRONTIER patterns still match.
+    #
+    # So the honest label is "unclassified": a real disagreement, cause not
+    # established, and most likely the same draw divergence seen further
+    # along. Calling it card modelling would send the next investigation at
+    # card effects, which is where it would waste the most time.
     def _bucket(kind: str) -> str:
         if kind in ARTIFACT:
             return "artifact"
         if kind in DRAW_RELATED:
             return "fidelity:draw"
-        return "fidelity:cards"
+        return "fidelity:unclassified"
 
     draw = sum(v for k, v in counts.items() if _bucket(k) == "fidelity:draw")
-    cards = sum(v for k, v in counts.items() if _bucket(k) == "fidelity:cards")
+    cards = sum(v for k, v in counts.items() if _bucket(k) == "fidelity:unclassified")
     artifacts = sum(v for k, v in counts.items() if _bucket(k) == "artifact")
 
     for kind, n in counts.most_common():
@@ -200,7 +213,8 @@ def main(argv=None) -> int:
     dp, *_ = _wilson(draw, actions)
     cp, *_ = _wilson(cards, actions)
     print(f"    of which draw order/count : {draw:3d} ({dp:.2f}%)")
-    print(f"    of which card modelling   : {cards:3d} ({cp:.2f}%)")
+    print(f"    of which unclassified     : {cards:3d} ({cp:.2f}%)"
+          f"  [cause not established; composition suggests compounded draw]")
     ap_, *_ = _wilson(artifacts, actions)
     print(f"  client/server artifacts (NOT fidelity): {artifacts} ({ap_:.2f}%)")
     print(f"  blended total: {total}/{actions} = "
