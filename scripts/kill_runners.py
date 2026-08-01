@@ -20,6 +20,7 @@ Match on the COMMAND LINE, which is the only stable identifier here.
 """
 from __future__ import annotations
 
+import argparse
 import subprocess
 import sys
 import time
@@ -102,8 +103,31 @@ def find_runners() -> list[tuple[int, str]]:
     return found
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    # A destructive tool must REJECT flags it does not understand.
+    #
+    # main() took no arguments and there was no parser, so every unrecognised
+    # flag was silently ignored and the script killed unconditionally. On
+    # 2026-08-01 a health monitor was very nearly armed with
+    # `kill_runners.py --dry-run` -- a flag that did not exist -- which would
+    # have killed the live runner every thirty minutes while reading as a
+    # read-only probe. The check people reach for to make a dangerous tool
+    # safe must not itself be the dangerous call.
+    parser = argparse.ArgumentParser(
+        description="Kill stale agent_runner processes.")
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="List matching runners and exit WITHOUT killing anything. "
+             "Exit 0 if none are running, 1 if any are.")
+    args = parser.parse_args(argv)
+
     runners = find_runners()
+    if args.dry_run:
+        for pid, cmd in runners:
+            print(f"would kill pid {pid}: {cmd}")
+        print(f"{len(runners)} runner(s) alive (dry run -- nothing killed)")
+        return 1 if runners else 0
+
     if not runners:
         print("no agent_runner processes found")
         return 0

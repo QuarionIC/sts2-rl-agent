@@ -98,6 +98,49 @@ class TestKillRunnersEnumeration:
         found = kill_runners.find_runners()
         assert [pid for pid, _ in found] == [4242]
 
+    def test_an_unknown_flag_is_rejected_not_ignored(self):
+        """A destructive tool must never treat an unrecognised flag as 'go'.
+
+        main() took no arguments and had no parser, so any flag was silently
+        dropped and the script killed unconditionally. On 2026-08-01 a health
+        monitor was very nearly armed with ``kill_runners.py --dry-run``, a
+        flag that did not exist, which would have killed the live runner every
+        thirty minutes while reading as a read-only probe. The check reached
+        for to make a dangerous tool safe must not itself be the dangerous
+        call.
+        """
+        from scripts import kill_runners
+
+        with pytest.raises(SystemExit) as exc:
+            kill_runners.main(["--bogus"])
+        assert exc.value.code == 2
+
+    def test_dry_run_kills_nothing(self, monkeypatch, capsys):
+        from scripts import kill_runners
+
+        monkeypatch.setattr(kill_runners, "find_runners",
+                            lambda: [(4242, "python.exe ... agent_runner")])
+
+        def _boom(*a, **k):
+            raise AssertionError("--dry-run executed a kill")
+
+        monkeypatch.setattr(kill_runners.subprocess, "run", _boom)
+
+        rc = kill_runners.main(["--dry-run"])
+        out = capsys.readouterr().out
+        assert "would kill pid 4242" in out
+        assert "nothing killed" in out
+        # Non-zero because runners ARE alive -- callers probe this to decide
+        # whether it is safe to launch.
+        assert rc == 1
+
+    def test_dry_run_exit_zero_when_nothing_is_running(self, monkeypatch,
+                                                       capsys):
+        from scripts import kill_runners
+
+        monkeypatch.setattr(kill_runners, "find_runners", lambda: [])
+        assert kill_runners.main(["--dry-run"]) == 0
+
     def test_the_sentinel_is_emitted_by_the_query(self):
         """The Python side is useless if the query never prints the marker."""
         from scripts import kill_runners
