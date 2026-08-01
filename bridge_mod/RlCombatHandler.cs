@@ -460,9 +460,27 @@ public class RlCombatHandler : IRoomHandler, IHandler
     }
 
     //: Polls of an unchanged fingerprint before the state counts as settled.
-    //: Three at 50ms is 150ms of quiet -- comfortably longer than the gaps
-    //: between chained effects, short enough not to slow a batch materially.
-    private const int SettlePolls = 3;
+    //:
+    //: 150ms (3 polls) was asserted to be "comfortably longer than the gaps
+    //: between chained effects". Measured 2026-08-01, it is not.
+    //:
+    //: While the reference fingerprint was sampled after the enqueue, every
+    //: action waited out the full 4000ms timeout, and SIM-AHEAD sat at 0.83%.
+    //: Fixing that ordering dropped the median action from 5.0s to 1.0s -- and
+    //: SIM-AHEAD returned to 4.69% (3 of 64), close to the 3.92% measured
+    //: before this handshake existed at all.
+    //:
+    //: So the protection was never coming from the settle logic. It came from
+    //: the accidental 4s delay, which outlasted any chain of effects. With the
+    //: delay gone, 150ms of quiet is short enough to return mid-resolution,
+    //: between one effect landing and the next starting.
+    //:
+    //: 500ms is chosen to sit between the two measured regimes: long enough to
+    //: bridge a gap in a chain, ~8x cheaper than the 4s it replaces. Both
+    //: numbers this must satisfy are measurable -- the inter-action histogram
+    //: and the SIM-AHEAD rate -- so this is a starting point to verify, not a
+    //: value to trust.
+    private const int SettlePolls = 10;
     private const int SettlePollMs = 50;
     private const int ActionSettleTimeoutMs = 4000;
 
