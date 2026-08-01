@@ -21,7 +21,22 @@ set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="${1:-$REPO/output/overnight}"
 PY="$REPO/.venv/Scripts/python.exe"
-MODEL="output/joint_alt_offerobs/r2/run/r1_run_best_v590.zip"
+
+#: Out-of-combat policy. "rl" needs RUN_MODEL to match the CURRENT observation
+#: width; "heuristic" always works.
+#:
+#: Pinned to heuristic 2026-08-01. Adding the six ActsFromThePast PowerIds took
+#: the observation 4900 -> 4936, and because powers are raw one-hot rather than
+#: embedded the growth lands INSIDE the extractor's flat region -- its output
+#: went 4210 -> 4246, so migrating a checkpoint means inserting 36 zero columns
+#: into the first MLP layer at exact offsets, not just adding embedding rows.
+#: That is worth doing carefully, not at 2am.
+#:
+#: Nothing important is lost meanwhile: divergence hunting exercises the
+#: PLANNER, which drives combat. The run agent only picks map/reward/shop, and
+#: for measuring simulator fidelity the heuristic does that just as well.
+RUN_POLICY="${RUN_POLICY:-heuristic}"
+RUN_MODEL="output/joint_alt_offerobs/r2/run/r1_run_best_v590.zip"
 
 #: No progress for this long => the session ended or wedged; recycle it.
 STALL_SECONDS=300
@@ -51,10 +66,16 @@ while true; do
         continue
     }
 
-    "$PY" -u -m sts2_env.bridge.agent_runner \
-        --combat-policy planner \
-        --run-policy rl --rl-run-model "$MODEL" \
-        --combat-delay 0.2 --verbose >>"$log" 2>&1 &
+    if [ "$RUN_POLICY" = "rl" ]; then
+        "$PY" -u -m sts2_env.bridge.agent_runner \
+            --combat-policy planner \
+            --run-policy rl --rl-run-model "$RUN_MODEL" \
+            --combat-delay 0.2 --verbose >>"$log" 2>&1 &
+    else
+        "$PY" -u -m sts2_env.bridge.agent_runner \
+            --combat-policy planner \
+            --combat-delay 0.2 --verbose >>"$log" 2>&1 &
+    fi
     runner_pid=$!
 
     # Watch for PROGRESS, not for liveness: the failure mode here is a runner
