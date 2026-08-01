@@ -164,6 +164,22 @@ def migrate(src: Path, dst: Path, old_powers: int) -> None:
             f"{src}: no layer had the expected pre-migration input width. "
             f"Is --old-powers {old_powers} right?")
 
+    # THE OPTIMIZER STATE NEEDS THE SAME COLUMNS.
+    #
+    # Adam's exp_avg / exp_avg_sq are shaped like their parameter, so a policy
+    # whose first MLP layer grew 4210 -> 4246 still carries 4210-wide moments.
+    # That loads cleanly and dies on the FIRST update inside
+    # torch._foreach_lerp_ with "size of tensor a (4210) must match tensor b
+    # (4246)" -- no mention of migration, checkpoints or powers.
+    #
+    # migrate_checkpoint_vocab hit exactly this and was fixed for embedding
+    # rows; the lesson did not travel to this script until the same crash
+    # happened again. Widening the weights without the moments is not a
+    # migration, it is a delayed failure.
+    if "policy.optimizer.pth" in other:
+        other["policy.optimizer.pth"] = _grow_optimizer_state(
+            other["policy.optimizer.pth"], old_features, old_powers, before_flat)
+
     buf = io.BytesIO()
     torch.save(state, buf)
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -175,6 +191,26 @@ def migrate(src: Path, dst: Path, old_powers: int) -> None:
     for key, was, now in touched:
         print(f"  {key}: {was} -> {now}")
     print(f"migrated {len(touched)} layer(s): {src} -> {dst}")
+
+
+def _grow_optimizer_state(raw: bytes, old_features: int, old_powers: int,
+                          before_flat: int) -> bytes:
+    """Apply the same column insertion to Adam's moments."""
+    opt = torch.load(io.BytesIO(raw), map_location="cpu", weights_only=False)
+    changed = 0
+    for entry in (opt.get("state") or {}).values():
+        if not isinstance(entry, dict):
+            continue
+        for key, value in list(entry.items()):
+            if (isinstance(value, torch.Tensor) and value.ndim == 2
+                    and value.shape[1] == old_features):
+                entry[key] = widen_flat_columns(value, old_powers, before_flat)
+                changed += 1
+    if changed:
+        print(f"  optimizer: widened {changed} moment tensor(s)")
+    buf = io.BytesIO()
+    torch.save(opt, buf)
+    return buf.getvalue()
 
 
 def main(argv=None) -> int:
