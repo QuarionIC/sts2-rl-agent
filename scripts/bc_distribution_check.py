@@ -89,7 +89,19 @@ def main(argv=None) -> int:
         obs, _ = env.reset(seed=args.seed_base + i)
         done = trunc = False
         steps = 0
+        # The budget is checked in the INNER loop, not only per combat.
+        #
+        # Checking only at the top of the combat loop let one pathological
+        # fight run unbounded: 2026-08-01 a run with --max-minutes 30 was still
+        # going 46 minutes in with no log line for 39 of them, because a single
+        # combat can take up to 300 steps and every contested step costs a full
+        # planner search. A budget that only applies between combats is not a
+        # budget.
         while not (done or trunc) and steps < 300:
+            if (time.time() - t0) / 60.0 > args.max_minutes:
+                print(f"  budget reached mid-combat {i}; stopping", flush=True)
+                done = True
+                break
             mask = env.action_masks()
             if mask.sum() <= 1:
                 # Forced move: agreement here is free and would inflate the
@@ -115,6 +127,9 @@ def main(argv=None) -> int:
 
             obs, _r, done, trunc, _ = env.step(action)
             steps += 1
+
+        if (time.time() - t0) / 60.0 > args.max_minutes:
+            break
 
         if (i + 1) % 10 == 0:
             rate = agree / max(compared, 1)
